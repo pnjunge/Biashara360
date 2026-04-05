@@ -1,7 +1,7 @@
 FROM gradle:8.8-jdk21 AS builder
 WORKDIR /app
 COPY backend/build.gradle.kts ./
-COPY gradle.properties ./
+COPY backend/gradle.properties ./
 COPY gradle ./gradle
 COPY backend/src ./src
 RUN gradle buildFatJar --no-daemon -x test
