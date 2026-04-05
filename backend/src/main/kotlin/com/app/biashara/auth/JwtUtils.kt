@@ -11,6 +11,7 @@ object JwtUtils {
     private lateinit var secret: String
     private lateinit var issuer: String
     private lateinit var audience: String
+    private lateinit var realm: String
     private var accessTokenExpiry: Long = 3600
     private var refreshTokenExpiry: Long = 2592000
 
@@ -41,6 +42,7 @@ object JwtUtils {
         secret = resolve(config, "jwt.secret", "JWT_SECRET")
         issuer = resolve(config, "jwt.issuer", "JWT_ISSUER", "biashara360.co.ke")
         audience = resolve(config, "jwt.audience", "JWT_AUDIENCE", "biashara360-users")
+        realm = resolve(config, "jwt.realm", "JWT_REALM", "Biashara360 API")
         accessTokenExpiry = resolve(config, "jwt.accessTokenExpiry", "JWT_ACCESS_TOKEN_EXPIRY", "3600").toLong()
         refreshTokenExpiry = resolve(config, "jwt.refreshTokenExpiry", "JWT_REFRESH_TOKEN_EXPIRY", "2592000").toLong()
     }
@@ -76,6 +78,7 @@ object JwtUtils {
     fun getSecret() = secret
     fun getIssuer() = issuer
     fun getAudience() = audience
+    fun getRealm() = realm
 }
 
 object PasswordUtils {

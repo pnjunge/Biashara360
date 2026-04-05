@@ -9,7 +9,6 @@ import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import io.ktor.server.config.ApplicationConfig
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.plugins.defaultheaders.*
@@ -31,10 +30,9 @@ fun Application.configureSerialization() {
 fun Application.configureSecurity() {
     JwtUtils.init(environment.config)
 
-    val env = environment
     install(Authentication) {
         jwt("jwt-auth") {
-            realm = env.config.property("jwt.realm").getString()
+            realm = JwtUtils.getRealm()
             verifier(
                 JWT.require(Algorithm.HMAC256(JwtUtils.getSecret()))
                     .withIssuer(JwtUtils.getIssuer())
