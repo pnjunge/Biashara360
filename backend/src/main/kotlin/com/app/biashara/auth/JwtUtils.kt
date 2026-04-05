@@ -3,7 +3,6 @@ package com.app.biashara.auth
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import io.ktor.server.application.*
-import io.ktor.server.application.*
 import io.ktor.server.config.*
 import org.mindrot.jbcrypt.BCrypt
 import java.util.*
@@ -15,12 +14,35 @@ object JwtUtils {
     private var accessTokenExpiry: Long = 3600
     private var refreshTokenExpiry: Long = 2592000
 
+    /**
+     * Resolves a config property with a fallback chain:
+     *   1. ApplicationConfig property (e.g. from application-docker.conf)
+     *   2. System environment variable [envKey]
+     *   3. [default] value (null means the property is required)
+     *
+     * Throws [IllegalStateException] when no value is found and [default] is null.
+     */
+    private fun resolve(config: ApplicationConfig, key: String, envKey: String, default: String? = null): String {
+        return try {
+            config.property(key).getString().takeIf { it.isNotBlank() }
+                ?: System.getenv(envKey)?.takeIf { it.isNotBlank() }
+                ?: default
+                ?: error("Required configuration '$key' not found in config or environment variable '$envKey'")
+        } catch (e: Exception) {
+            // config.property() throws when the key is absent — fall through to env / default
+            if (e is IllegalStateException && e.message?.startsWith("Required configuration") == true) throw e
+            System.getenv(envKey)?.takeIf { it.isNotBlank() }
+                ?: default
+                ?: error("Required configuration '$key' not found in config or environment variable '$envKey'")
+        }
+    }
+
     fun init(config: ApplicationConfig) {
-        secret = config.property("jwt.secret").getString()
-        issuer = config.property("jwt.issuer").getString()
-        audience = config.property("jwt.audience").getString()
-        accessTokenExpiry = config.property("jwt.accessTokenExpiry").getString().toLong()
-        refreshTokenExpiry = config.property("jwt.refreshTokenExpiry").getString().toLong()
+        secret = resolve(config, "jwt.secret", "JWT_SECRET")
+        issuer = resolve(config, "jwt.issuer", "JWT_ISSUER", "biashara360.co.ke")
+        audience = resolve(config, "jwt.audience", "JWT_AUDIENCE", "biashara360-users")
+        accessTokenExpiry = resolve(config, "jwt.accessTokenExpiry", "JWT_ACCESS_TOKEN_EXPIRY", "3600").toLong()
+        refreshTokenExpiry = resolve(config, "jwt.refreshTokenExpiry", "JWT_REFRESH_TOKEN_EXPIRY", "2592000").toLong()
     }
 
     fun generateAccessToken(userId: String, businessId: String, role: String): String {
