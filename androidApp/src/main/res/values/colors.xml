@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand -->
+    <color name="b360_green">#1B8B34</color>
+    <color name="b360_green_light">#E8F5E9</color>
+    <color name="b360_green_dark">#145F24</color>
+    <!-- Surfaces -->
+    <color name="background">#F4F7F5</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_variant">#F8FAF8</color>
+    <!-- Text -->
+    <color name="on_surface">#1A1A1A</color>
+    <color name="on_surface_secondary">#666666</color>
+    <color name="on_surface_tertiary">#AAAAAA</color>
+    <!-- Status -->
+    <color name="status_pending">#FF8F00</color>
+    <color name="status_paid">#1B8B34</color>
+    <color name="status_cancelled">#C62828</color>
+    <!-- Platform colors -->
+    <color name="whatsapp">#25D366</color>
+    <color name="instagram">#E1306C</color>
+    <color name="facebook">#1877F2</color>
+    <color name="tiktok">#000000</color>
+</resources>

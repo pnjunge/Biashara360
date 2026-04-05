@@ -1,0 +1,234 @@
+-- Biashara360 Local Database Schema
+
+CREATE TABLE IF NOT EXISTS ProductEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    business_id TEXT NOT NULL,
+    sku TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    buying_price REAL NOT NULL,
+    selling_price REAL NOT NULL,
+    current_stock INTEGER NOT NULL DEFAULT 0,
+    low_stock_threshold INTEGER NOT NULL DEFAULT 5,
+    category TEXT NOT NULL DEFAULT '',
+    image_url TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_product_business ON ProductEntity(business_id);
+CREATE INDEX idx_product_stock ON ProductEntity(current_stock);
+
+selectAllProducts:
+SELECT * FROM ProductEntity WHERE business_id = :businessId AND is_active = 1 ORDER BY name ASC;
+
+selectLowStockProducts:
+SELECT * FROM ProductEntity WHERE business_id = :businessId AND current_stock <= low_stock_threshold AND is_active = 1;
+
+selectProductById:
+SELECT * FROM ProductEntity WHERE id = :id;
+
+searchProducts:
+SELECT * FROM ProductEntity WHERE business_id = :businessId AND (name LIKE '%' || :query || '%' OR sku LIKE '%' || :query || '%');
+
+insertProduct:
+INSERT OR REPLACE INTO ProductEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateStock:
+UPDATE ProductEntity SET current_stock = :newStock, updated_at = :updatedAt WHERE id = :productId;
+
+deleteProduct:
+UPDATE ProductEntity SET is_active = 0, updated_at = :updatedAt WHERE id = :id;
+
+---
+
+CREATE TABLE IF NOT EXISTS StockMovementEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    product_id TEXT NOT NULL,
+    business_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    order_id TEXT,
+    recorded_at TEXT NOT NULL
+);
+
+selectMovementsByProduct:
+SELECT * FROM StockMovementEntity WHERE product_id = :productId ORDER BY recorded_at DESC;
+
+insertMovement:
+INSERT INTO StockMovementEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+---
+
+CREATE TABLE IF NOT EXISTS OrderEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    order_number TEXT NOT NULL,
+    business_id TEXT NOT NULL,
+    customer_id TEXT,
+    customer_name TEXT NOT NULL,
+    customer_phone TEXT NOT NULL,
+    delivery_location TEXT NOT NULL DEFAULT '',
+    payment_status TEXT NOT NULL,
+    delivery_status TEXT NOT NULL,
+    payment_method TEXT NOT NULL DEFAULT 'MPESA',
+    mpesa_transaction_code TEXT,
+    notes TEXT NOT NULL DEFAULT '',
+    subtotal REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_order_business ON OrderEntity(business_id);
+CREATE INDEX idx_order_customer ON OrderEntity(customer_id);
+CREATE INDEX idx_order_payment_status ON OrderEntity(payment_status);
+
+selectAllOrders:
+SELECT * FROM OrderEntity WHERE business_id = :businessId ORDER BY created_at DESC;
+
+selectOrdersByStatus:
+SELECT * FROM OrderEntity WHERE business_id = :businessId AND payment_status = :status ORDER BY created_at DESC;
+
+selectOrdersByCustomer:
+SELECT * FROM OrderEntity WHERE customer_id = :customerId ORDER BY created_at DESC;
+
+selectOrderById:
+SELECT * FROM OrderEntity WHERE id = :id;
+
+insertOrder:
+INSERT INTO OrderEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateOrderPaymentStatus:
+UPDATE OrderEntity SET payment_status = :status, mpesa_transaction_code = :txCode, updated_at = :updatedAt WHERE id = :orderId;
+
+updateOrderDeliveryStatus:
+UPDATE OrderEntity SET delivery_status = :status, updated_at = :updatedAt WHERE id = :orderId;
+
+countOrdersForBusiness:
+SELECT COUNT(*) FROM OrderEntity WHERE business_id = :businessId;
+
+---
+
+CREATE TABLE IF NOT EXISTS OrderItemEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    order_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    product_name TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    unit_price REAL NOT NULL,
+    buying_price REAL NOT NULL
+);
+
+selectItemsByOrder:
+SELECT * FROM OrderItemEntity WHERE order_id = :orderId;
+
+insertOrderItem:
+INSERT INTO OrderItemEntity VALUES (?, ?, ?, ?, ?, ?, ?);
+
+---
+
+CREATE TABLE IF NOT EXISTS CustomerEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    business_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    email TEXT,
+    location TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    loyalty_points INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_customer_business ON CustomerEntity(business_id);
+CREATE UNIQUE INDEX idx_customer_phone ON CustomerEntity(business_id, phone);
+
+selectAllCustomers:
+SELECT * FROM CustomerEntity WHERE business_id = :businessId AND is_active = 1 ORDER BY name ASC;
+
+selectCustomerById:
+SELECT * FROM CustomerEntity WHERE id = :id;
+
+selectCustomerByPhone:
+SELECT * FROM CustomerEntity WHERE phone = :phone AND business_id = :businessId;
+
+searchCustomers:
+SELECT * FROM CustomerEntity WHERE business_id = :businessId AND (name LIKE '%' || :query || '%' OR phone LIKE '%' || :query || '%');
+
+insertCustomer:
+INSERT OR REPLACE INTO CustomerEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateLoyaltyPoints:
+UPDATE CustomerEntity SET loyalty_points = loyalty_points + :points, updated_at = :updatedAt WHERE id = :customerId;
+
+---
+
+CREATE TABLE IF NOT EXISTS ExpenseEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    business_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    amount REAL NOT NULL,
+    description TEXT NOT NULL,
+    receipt_url TEXT,
+    recorded_at TEXT NOT NULL,
+    expense_date TEXT NOT NULL
+);
+
+CREATE INDEX idx_expense_business ON ExpenseEntity(business_id);
+CREATE INDEX idx_expense_date ON ExpenseEntity(expense_date);
+
+selectAllExpenses:
+SELECT * FROM ExpenseEntity WHERE business_id = :businessId ORDER BY expense_date DESC;
+
+selectExpensesByCategory:
+SELECT * FROM ExpenseEntity WHERE business_id = :businessId AND category = :category ORDER BY expense_date DESC;
+
+selectExpensesByDateRange:
+SELECT * FROM ExpenseEntity WHERE business_id = :businessId AND expense_date >= :start AND expense_date <= :end ORDER BY expense_date DESC;
+
+insertExpense:
+INSERT INTO ExpenseEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteExpense:
+DELETE FROM ExpenseEntity WHERE id = :id;
+
+sumExpensesByPeriod:
+SELECT SUM(amount) FROM ExpenseEntity WHERE business_id = :businessId AND expense_date >= :start AND expense_date <= :end;
+
+---
+
+CREATE TABLE IF NOT EXISTS PaymentEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    business_id TEXT NOT NULL,
+    order_id TEXT,
+    transaction_code TEXT NOT NULL,
+    amount REAL NOT NULL,
+    payer_phone TEXT NOT NULL,
+    payer_name TEXT NOT NULL,
+    method TEXT NOT NULL,
+    status TEXT NOT NULL,
+    channel TEXT NOT NULL,
+    reconciled INTEGER NOT NULL DEFAULT 0,
+    notes TEXT NOT NULL DEFAULT '',
+    transaction_date TEXT NOT NULL
+);
+
+CREATE INDEX idx_payment_business ON PaymentEntity(business_id);
+CREATE INDEX idx_payment_order ON PaymentEntity(order_id);
+
+selectAllPayments:
+SELECT * FROM PaymentEntity WHERE business_id = :businessId ORDER BY transaction_date DESC;
+
+selectUnreconciledPayments:
+SELECT * FROM PaymentEntity WHERE business_id = :businessId AND reconciled = 0 AND status = 'SUCCESS';
+
+insertPayment:
+INSERT INTO PaymentEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateReconciliation:
+UPDATE PaymentEntity SET reconciled = 1, order_id = :orderId WHERE id = :paymentId;
+
+sumPaymentsByPeriod:
+SELECT SUM(amount) FROM PaymentEntity WHERE business_id = :businessId AND transaction_date >= :start AND transaction_date <= :end AND status = 'SUCCESS';

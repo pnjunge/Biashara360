@@ -1,0 +1,331 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B3600001 /* Biashara360App.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600101 /* Biashara360App.swift */; };
+		B3600002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600102 /* ContentView.swift */; };
+		B3600003 /* AuthScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600103 /* AuthScreens.swift */; };
+		B3600004 /* CoreScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600104 /* CoreScreens.swift */; };
+		B3600005 /* CyberSourceScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600105 /* CyberSourceScreens.swift */; };
+		B3600006 /* KraScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600106 /* KraScreens.swift */; };
+		B3600007 /* TaxScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600107 /* TaxScreens.swift */; };
+		B3600008 /* SocialScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600108 /* SocialScreens.swift */; };
+		B3600009 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600109 /* MainTabView.swift */; };
+		B3600010 /* MoreScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600110 /* MoreScreens.swift */; };
+		B3600011 /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600111 /* SharedComponents.swift */; };
+		B3600012 /* B360Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600112 /* B360Theme.swift */; };
+		B3600013 /* ViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600113 /* ViewModels.swift */; };
+		B3600014 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B3600114 /* Info.plist */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B3600100 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B3600101 /* Biashara360App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Biashara360App.swift; sourceTree = "<group>"; };
+		B3600102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B3600103 /* AuthScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Screens/Auth/AuthScreens.swift"; sourceTree = "<group>"; };
+		B3600104 /* CoreScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Screens/CoreScreens.swift"; sourceTree = "<group>"; };
+		B3600105 /* CyberSourceScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Screens/CyberSourceScreens.swift"; sourceTree = "<group>"; };
+		B3600106 /* KraScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Screens/KraScreens.swift"; sourceTree = "<group>"; };
+		B3600107 /* TaxScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Screens/TaxScreens.swift"; sourceTree = "<group>"; };
+		B3600108 /* SocialScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Screens/SocialScreens.swift"; sourceTree = "<group>"; };
+		B3600109 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Screens/MainTabView.swift"; sourceTree = "<group>"; };
+		B3600110 /* MoreScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Screens/MoreScreens.swift"; sourceTree = "<group>"; };
+		B3600111 /* SharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Components/SharedComponents.swift"; sourceTree = "<group>"; };
+		B3600112 /* B360Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Theme/B360Theme.swift"; sourceTree = "<group>"; };
+		B3600113 /* ViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewModels/ViewModels.swift"; sourceTree = "<group>"; };
+		B3600114 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B3600200 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		B3600300 = {
+			isa = PBXGroup;
+			children = (
+				B3600301 /* iosApp */,
+				B3600302 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B3600301 /* iosApp */ = {
+			isa = PBXGroup;
+			children = (
+				B3600101 /* Biashara360App.swift */,
+				B3600102 /* ContentView.swift */,
+				B3600114 /* Info.plist */,
+				B3600103 /* AuthScreens.swift */,
+				B3600104 /* CoreScreens.swift */,
+				B3600105 /* CyberSourceScreens.swift */,
+				B3600106 /* KraScreens.swift */,
+				B3600107 /* TaxScreens.swift */,
+				B3600108 /* SocialScreens.swift */,
+				B3600109 /* MainTabView.swift */,
+				B3600110 /* MoreScreens.swift */,
+				B3600111 /* SharedComponents.swift */,
+				B3600112 /* B360Theme.swift */,
+				B3600113 /* ViewModels.swift */,
+			);
+			path = iosApp;
+			sourceTree = "<group>";
+		};
+		B3600302 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B3600100 /* iosApp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B3600400 /* iosApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B3600500;
+			buildPhases = (
+				B3600200 /* Frameworks */,
+				B3600201 /* Sources */,
+				B3600202 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = iosApp;
+			productName = iosApp;
+			productReference = B3600100 /* iosApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B3600600 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					B3600400 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = B3600601;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = B3600300;
+			productRefGroup = B3600302 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B3600400 /* iosApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B3600202 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B3600014 /* Info.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B3600201 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B3600001 /* Biashara360App.swift in Sources */,
+				B3600002 /* ContentView.swift in Sources */,
+				B3600003 /* AuthScreens.swift in Sources */,
+				B3600004 /* CoreScreens.swift in Sources */,
+				B3600005 /* CyberSourceScreens.swift in Sources */,
+				B3600006 /* KraScreens.swift in Sources */,
+				B3600007 /* TaxScreens.swift in Sources */,
+				B3600008 /* SocialScreens.swift in Sources */,
+				B3600009 /* MainTabView.swift in Sources */,
+				B3600010 /* MoreScreens.swift in Sources */,
+				B3600011 /* SharedComponents.swift in Sources */,
+				B3600012 /* B360Theme.swift in Sources */,
+				B3600013 /* ViewModels.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		B3600700 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)");
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		B3600701 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		B3600710 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = iosApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.app.biashara;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B3600711 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = iosApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.app.biashara;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B3600500 /* Build configuration list for PBXNativeTarget "iosApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B3600710 /* Debug */,
+				B3600711 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B3600601 /* Build configuration list for PBXProject "iosApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B3600700 /* Debug */,
+				B3600701 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = B3600600 /* Project object */;
+}
