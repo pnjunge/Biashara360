@@ -12,11 +12,9 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+# serve automatically reads Railway's injected PORT env var
+RUN npm install -g serve
+
 COPY --from=builder /app/dist ./dist
 
-# Pass host and port directly via CLI — no vite.config.ts needed at runtime
-# PORT is injected by Railway; default 4173 for local preview
-EXPOSE 4173
-CMD sh -c "node node_modules/.bin/vite preview --host 0.0.0.0 --port ${PORT:-4173}"
+CMD ["serve", "-s", "dist"]
