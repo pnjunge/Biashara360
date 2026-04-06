@@ -2,7 +2,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# npm ci installs ALL deps (no --production flag, no deprecation warning)
 COPY package*.json ./
 RUN npm ci
 
@@ -13,13 +12,11 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
-# Copy built output + node_modules (vite binary needed for preview)
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
-# Railway injects PORT at runtime; vite.config.ts already reads process.env.PORT
-ENV PORT=4173
+# Pass host and port directly via CLI — no vite.config.ts needed at runtime
+# PORT is injected by Railway; default 4173 for local preview
 EXPOSE 4173
-
-CMD ["npm", "run", "preview"]
+CMD sh -c "node node_modules/.bin/vite preview --host 0.0.0.0 --port ${PORT:-4173}"
