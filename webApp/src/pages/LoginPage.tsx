@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../App'
+import { authApi } from '../services/api'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -8,22 +9,57 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [otp, setOtp] = useState('')
+  const [userId, setUserId] = useState('')
   const [step, setStep] = useState<'login' | 'otp'>('login')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true); setError('')
-    await new Promise(r => setTimeout(r, 800))
-    setLoading(false); setStep('otp')
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const result = await authApi.login({ email, password })
+      if (result.success && result.data) {
+        setUserId(result.data.userId)
+        if (result.data.requiresOtp) {
+          setStep('otp')
+        } else {
+          login()
+          navigate('/dashboard')
+        }
+      } else {
+        setError(result.message || 'Login failed')
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Network error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleOtp = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true); setError('')
-    await new Promise(r => setTimeout(r, 600))
-    setLoading(false)
-    if (otp.length === 6) { login(); navigate('/dashboard') }
-    else setError('Invalid OTP. Enter any 6 digits to continue.')
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      if (otp.length !== 6) {
+        setError('Enter 6-digit OTP')
+        setLoading(false)
+        return
+      }
+      const result = await authApi.verifyOtp({ userId, otp, channel: 'SMS' })
+      if (result.success) {
+        login()
+        navigate('/dashboard')
+      } else {
+        setError(result.message || 'OTP verification failed')
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Network error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
