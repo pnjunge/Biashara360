@@ -12,9 +12,12 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
-# serve automatically reads Railway's injected PORT env var
+# Install serve globally
 RUN npm install -g serve
 
+# Copy package.json so Railway's npm start override also works
+COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
 
+# Railway injects PORT; serve reads it automatically
 CMD ["serve", "-s", "dist"]
