@@ -49,7 +49,7 @@ fun seedSuperuser() {
         // Create the superuser account
         UsersTable.insert {
             it[id]               = userId
-            it[businessId]       = businessId
+            it[UsersTable.businessId] = businessId
             it[name]             = "System Administrator"
             it[email]            = superuserEmail
             it[phone]            = superuserPhone
