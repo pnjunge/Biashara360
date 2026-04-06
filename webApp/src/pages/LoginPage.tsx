@@ -74,7 +74,7 @@ export default function LoginPage() {
               </div>
               <form onSubmit={handleOtp} style={{ display:'flex', flexDirection:'column', gap:16 }}>
                 <input type="text" placeholder="Enter 6-digit code" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/,'').slice(0,6))}
-                  maxLength={6} style={{ textAlign:'center', letterSpacing:12, fontSize:28, fontWeight:700, padding:'14px', border:'2px solid var(--b360-green)', borderRadius:10, fontFamily:'monospace', outline:'none', fontFamily:'inherit' }} />
+                  maxLength={6} style={{ textAlign:'center', letterSpacing:12, fontSize:28, fontWeight:700, padding:'14px', border:'2px solid var(--b360-green)', borderRadius:10, fontFamily:'inherit', outline:'none' }} />
                 {error && <p style={{ color:'var(--b360-red)', fontSize:12, textAlign:'center' }}>{error}</p>}
                 <button type="submit" disabled={loading || otp.length < 6} style={{
                   background:'var(--b360-green)', color:'white', padding:11, borderRadius:8,
