@@ -55,6 +55,7 @@ object DatabaseFactory {
 
         Database.connect(HikariDataSource(hikariConfig))
         createTables()
+        seedSuperuser()
     }
 
     private fun createTables() {
