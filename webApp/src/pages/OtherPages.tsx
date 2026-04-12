@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Plus, Download, Share2, FileText, Table } from 'lucide-react'
+import { Plus, Download, Share2, FileText, Table, Building2 } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
-import { expenseApi, paymentApi, orderApi, reportApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse } from '../services/api'
+import { expenseApi, paymentApi, orderApi, reportApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, userApi, superAdminApi, BusinessResponse, UserResponse, InviteUserRequest } from '../services/api'
+import { useAuth } from '../App'
 
 function getCurrentMonthRange() {
   const now = new Date()
@@ -387,48 +388,134 @@ export function ReportsPage() {
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 // ── User Creation ─────────────────────────────────────────────────────────────
+const emptyBusinessAdmin = { businessName: '', businessType: '', adminName: '', adminEmail: '', adminPhone: '', adminPassword: '' }
+const emptyUser: InviteUserRequest = { name: '', email: '', phone: '', role: 'STAFF', password: '' }
+
 export function UserCreationPage() {
-  const emptyUser = { name: '', email: '', phone: '', role: 'STAFF', password: '' }
-  const [users, setUsers] = useState([
-    { id: '1', name: 'Wanjiru Kamau', email: 'wanjiru@example.com', phone: '+254712345678', role: 'ADMIN' },
-    { id: '2', name: 'James Otieno', email: 'james@example.com', phone: '+254723456789', role: 'STAFF' },
-  ])
+  const { user: currentUser } = useAuth()
+  const isSuperAdmin = currentUser?.role === 'SUPERADMIN'
+
+  // ── Businesses list (SUPERADMIN only) ──
+  const [businesses, setBusinesses] = useState<BusinessResponse[]>([])
+  const [bizLoading, setBizLoading] = useState(false)
+  const [bizError, setBizError] = useState('')
+
+  // ── Create admin modal (SUPERADMIN only) ──
+  const [showCreateAdmin, setShowCreateAdmin] = useState(false)
+  const [adminForm, setAdminForm] = useState(emptyBusinessAdmin)
+  const [adminError, setAdminError] = useState('')
+  const [adminSaving, setAdminSaving] = useState(false)
+
+  // ── Regular users (all admins) ──
+  const [users, setUsers] = useState<UserResponse[]>([])
+  const [usersLoading, setUsersLoading] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState(emptyUser)
+  const [form, setForm] = useState<InviteUserRequest>(emptyUser)
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  const f = (k: keyof typeof emptyUser) => (v: string) => setForm(prev => ({ ...prev, [k]: v }))
-
-  const handleAdd = () => {
-    if (!form.name || !form.email || !form.phone || !form.password) { setError('All fields are required.'); return }
-    setUsers(prev => [...prev, { id: String(Date.now()), ...form }])
-    setShowAdd(false); setForm(emptyUser); setError('')
+  const loadUsers = () => {
+    setUsersLoading(true)
+    userApi.list().then(res => {
+      if (res.success && res.data) setUsers(res.data)
+    }).catch(() => {}).finally(() => setUsersLoading(false))
   }
 
-  const handleDelete = (id: string) => {
+  const loadBusinesses = () => {
+    if (!isSuperAdmin) return
+    setBizLoading(true)
+    setBizError('')
+    superAdminApi.listBusinesses().then(res => {
+      if (res.success && res.data) setBusinesses(res.data)
+      else setBizError(res.message || 'Failed to load businesses.')
+    }).catch(() => setBizError('Network error. Could not load businesses.')).finally(() => setBizLoading(false))
+  }
+
+  useEffect(() => {
+    loadUsers()
+    loadBusinesses()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuperAdmin])
+
+  // ── Handlers ──
+
+  const af = (k: keyof typeof emptyBusinessAdmin) => (v: string) =>
+    setAdminForm(prev => ({ ...prev, [k]: v }))
+
+  const handleCreateAdmin = async () => {
+    const { businessName, businessType, adminName, adminEmail, adminPhone, adminPassword } = adminForm
+    if (!businessName || !businessType || !adminName || !adminEmail || !adminPhone || !adminPassword) {
+      setAdminError('All fields are required.')
+      return
+    }
+    setAdminSaving(true); setAdminError('')
+    try {
+      const res = await superAdminApi.createBusinessWithAdmin(adminForm)
+      if (res.success) {
+        setShowCreateAdmin(false)
+        setAdminForm(emptyBusinessAdmin)
+        loadBusinesses()
+      } else {
+        setAdminError(res.message || 'Failed to create admin.')
+      }
+    } catch (e: any) {
+      setAdminError(e.response?.data?.message || 'Network error. Please try again.')
+    } finally { setAdminSaving(false) }
+  }
+
+  const f = (k: keyof InviteUserRequest) => (v: string) => setForm(prev => ({ ...prev, [k]: v }))
+
+  const handleAdd = async () => {
+    if (!form.name || !form.email || !form.phone || !form.password) { setError('All fields are required.'); return }
+    setSaving(true); setError('')
+    try {
+      const res = await userApi.invite(form)
+      if (res.success) { setShowAdd(false); setForm(emptyUser); loadUsers() }
+      else setError(res.message || 'Failed to create user.')
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Network error. Please try again.')
+    } finally { setSaving(false) }
+  }
+
+  const handleDelete = async (id: string) => {
     if (!window.confirm('Remove this user?')) return
+    await userApi.setStatus(id, false)
     setUsers(prev => prev.filter(u => u.id !== id))
   }
 
   const ROLES = [{ value: 'ADMIN', label: 'Admin' }, { value: 'MANAGER', label: 'Manager' }, { value: 'STAFF', label: 'Staff' }]
-
   const roleColor = (role: string) => role === 'ADMIN' ? 'PAID' : role === 'MANAGER' ? 'PENDING' : 'COD'
 
   return (
-    <div className="fade-in">
-      <PageHeader title="User Management" action={<Btn onClick={() => setShowAdd(true)} icon={<Plus size={14} />}>Add User</Btn>} />
-      <Card style={{ padding: 0 }}>
-        <DataTable
-          headers={['Name', 'Email', 'Phone', 'Role', '']}
-          rows={users.map(u => [
-            u.name,
-            u.email,
-            u.phone,
-            <StatusBadge key="role" status={roleColor(u.role)} />,
-            <Btn key="del" variant="danger" small onClick={() => handleDelete(u.id)}>Remove</Btn>,
-          ])}
-        />
-      </Card>
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* ── Create Admin Modal (SUPERADMIN) ── */}
+      {showCreateAdmin && (
+        <Modal
+          title="Create Business & Admin"
+          onClose={() => { setShowCreateAdmin(false); setAdminForm(emptyBusinessAdmin); setAdminError('') }}
+          footer={
+            <>
+              <Btn variant="secondary" onClick={() => { setShowCreateAdmin(false); setAdminForm(emptyBusinessAdmin); setAdminError('') }}>Cancel</Btn>
+              <Btn onClick={handleCreateAdmin} disabled={adminSaving}>{adminSaving ? 'Creating...' : 'Create Admin'}</Btn>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {adminError && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{adminError}</div>}
+            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--b360-text-secondary)', borderBottom: '1px solid var(--b360-border)', paddingBottom: 6 }}>Business Details</div>
+            <Input label="Business Name *" value={adminForm.businessName} onChange={af('businessName')} placeholder="e.g. Kamau Supplies" />
+            <Input label="Business Type *" value={adminForm.businessType} onChange={af('businessType')} placeholder="e.g. Retail" />
+            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--b360-text-secondary)', borderBottom: '1px solid var(--b360-border)', paddingBottom: 6, marginTop: 4 }}>Admin User Details</div>
+            <Input label="Admin Full Name *" value={adminForm.adminName} onChange={af('adminName')} placeholder="e.g. Jane Mwangi" />
+            <Input label="Admin Email *" value={adminForm.adminEmail} onChange={af('adminEmail')} placeholder="jane@example.com" />
+            <Input label="Admin Phone *" value={adminForm.adminPhone} onChange={af('adminPhone')} placeholder="+254 7XX XXX XXX" />
+            <Input label="Temporary Password *" value={adminForm.adminPassword} onChange={af('adminPassword')} placeholder="Min 6 characters" />
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Add User Modal (regular admin) ── */}
       {showAdd && (
         <Modal title="Add New User" onClose={() => { setShowAdd(false); setForm(emptyUser); setError('') }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -436,12 +523,62 @@ export function UserCreationPage() {
             <Input label="Email" value={form.email} onChange={f('email')} placeholder="jane@example.com" />
             <Input label="Phone" value={form.phone} onChange={f('phone')} placeholder="+254 7XX XXX XXX" />
             <Input label="Password" value={form.password} onChange={f('password')} placeholder="Temporary password" />
-            <Select label="Role" value={form.role} onChange={f('role')} options={ROLES} />
+            <Select label="Role" value={form.role ?? 'STAFF'} onChange={f('role')} options={ROLES} />
             {error && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{error}</div>}
-            <Btn onClick={handleAdd}>Create User</Btn>
+            <Btn onClick={handleAdd} disabled={saving}>{saving ? 'Creating...' : 'Create User'}</Btn>
           </div>
         </Modal>
       )}
+
+      {/* ── Businesses list (SUPERADMIN only) ── */}
+      {isSuperAdmin && (
+        <>
+          <PageHeader
+            title="Businesses"
+            action={<Btn icon={<Building2 size={14} />} onClick={() => { setShowCreateAdmin(true); setAdminError('') }}>Create Admin</Btn>}
+          />
+          <Card style={{ padding: 0 }}>
+            {bizLoading ? (
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading businesses…</div>
+            ) : bizError ? (
+              <div style={{ padding: 24, color: 'var(--b360-red)' }}>{bizError}</div>
+            ) : businesses.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Create one above.</div>
+            ) : (
+              <DataTable
+                headers={['Business Name', 'Type', 'Owner Email', 'Owner Phone', 'Tier', 'Created']}
+                rows={businesses.map(b => [
+                  b.name,
+                  b.type,
+                  b.ownerEmail,
+                  b.ownerPhone,
+                  <StatusBadge key="tier" status={b.subscriptionTier === 'FREEMIUM' ? 'COD' : 'PAID'} />,
+                  new Date(b.createdAt).toLocaleDateString(),
+                ])}
+              />
+            )}
+          </Card>
+        </>
+      )}
+
+      {/* ── User Management ── */}
+      <PageHeader title="User Management" action={<Btn onClick={() => setShowAdd(true)} icon={<Plus size={14} />}>Add User</Btn>} />
+      <Card style={{ padding: 0 }}>
+        {usersLoading ? (
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading users…</div>
+        ) : (
+          <DataTable
+            headers={['Name', 'Email', 'Phone', 'Role', '']}
+            rows={users.map(u => [
+              u.name,
+              u.email,
+              u.phone,
+              <StatusBadge key="role" status={roleColor(u.role)} />,
+              <Btn key="del" variant="danger" small onClick={() => handleDelete(u.id)}>Remove</Btn>,
+            ])}
+          />
+        )}
+      </Card>
     </div>
   )
 }
