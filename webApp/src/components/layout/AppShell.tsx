@@ -25,7 +25,7 @@ const navItems = [
 ]
 
 export default function AppShell() {
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
   const [search, setSearch] = useState('')
@@ -73,10 +73,10 @@ export default function AppShell() {
           </button>
           {!collapsed && (
             <div className={styles.userCard}>
-              <div className={styles.avatar}>W</div>
+              <div className={styles.avatar}>{user?.name?.[0]?.toUpperCase() ?? 'U'}</div>
               <div>
-                <div className={styles.userName}>Wanjiru Kamau</div>
-                <div className={styles.userRole}>Admin</div>
+                <div className={styles.userName}>{user?.name ?? 'User'}</div>
+                <div className={styles.userRole}>{user?.role ?? ''}</div>
               </div>
             </div>
           )}

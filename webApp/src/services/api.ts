@@ -581,5 +581,40 @@ export const authApi = {
   }
 }
 
+export interface BusinessResponse {
+  id: string
+  name: string
+  type: string
+  ownerPhone: string
+  ownerEmail: string
+  subscriptionTier: string
+  createdAt: string
+}
+
+export interface CreateBusinessWithAdminRequest {
+  businessName: string
+  businessType: string
+  adminName: string
+  adminEmail: string
+  adminPhone: string
+  adminPassword: string
+}
+
+export interface BusinessWithAdminResponse {
+  business: BusinessResponse
+  admin: UserResponse
+}
+
+export const superAdminApi = {
+  listBusinesses: async () => {
+    const res = await client.get<ApiResponse<BusinessResponse[]>>('/admin/businesses')
+    return res.data
+  },
+  createBusinessWithAdmin: async (data: CreateBusinessWithAdminRequest) => {
+    const res = await client.post<ApiResponse<BusinessWithAdminResponse>>('/admin/businesses', data)
+    return res.data
+  },
+}
+
 export default client
 

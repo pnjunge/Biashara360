@@ -18,8 +18,9 @@ import UserCreationPage from './pages/UserCreationPage'
 import BusinessPage from './pages/BusinessPage'
 
 // ── Auth Context ──────────────────────────────────────────────────────────────
-interface AuthCtx { isAuthenticated: boolean; login: () => void; logout: () => void }
-export const AuthContext = createContext<AuthCtx>({ isAuthenticated: false, login: () => {}, logout: () => {} })
+interface AuthUser { id: string; name: string; email: string; phone: string; role: string; businessId: string; preferredLanguage: string }
+interface AuthCtx { isAuthenticated: boolean; user: AuthUser | null; login: () => void; logout: () => void }
+export const AuthContext = createContext<AuthCtx>({ isAuthenticated: false, user: null, login: () => {}, logout: () => {} })
 export const useAuth = () => useContext(AuthContext)
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -29,10 +30,22 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('isAuthenticated') === 'true')
-  const login = () => { localStorage.setItem('isAuthenticated', 'true'); setIsAuthenticated(true) }
-  const logout = () => { localStorage.removeItem('isAuthenticated'); setIsAuthenticated(false) }
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    try { return JSON.parse(localStorage.getItem('user') || 'null') } catch { return null }
+  })
+  const login = () => {
+    localStorage.setItem('isAuthenticated', 'true')
+    setIsAuthenticated(true)
+    try { setUser(JSON.parse(localStorage.getItem('user') || 'null')) } catch { /* ignore */ }
+  }
+  const logout = () => {
+    localStorage.removeItem('isAuthenticated')
+    localStorage.removeItem('user')
+    setIsAuthenticated(false)
+    setUser(null)
+  }
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
