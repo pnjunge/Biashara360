@@ -162,7 +162,7 @@ data class CsPaymentRequest(
 
 class CyberSourceService(
     private val config: CyberSourceConfig,
-    private val httpClient: HttpClient
+    val httpClient: HttpClient
 ) {
     private val json = Json {
         ignoreUnknownKeys = true

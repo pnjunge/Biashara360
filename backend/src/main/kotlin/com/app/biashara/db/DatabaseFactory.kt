@@ -3,7 +3,6 @@ package com.app.biashara.db
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.ktor.server.application.*
-import io.ktor.server.application.*
 import io.ktor.server.config.*
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
@@ -45,11 +44,11 @@ object DatabaseFactory {
             maximumPoolSize = maxPoolSize
             minimumIdle = 2
             idleTimeout = 300_000
-            connectionTimeout = 60_000  // Increased from 30s to 60s
+            connectionTimeout = 60_000
             maxLifetime = 1_800_000
             isAutoCommit = false
             transactionIsolation = "TRANSACTION_REPEATABLE_READ"
-            initializationFailTimeout = 60_000  // Add initialization timeout
+            initializationFailTimeout = 60_000
             validate()
         }
 
@@ -83,7 +82,9 @@ object DatabaseFactory {
                 SocialChannelsTable,
                 SocialConversationsTable,
                 SocialMessagesTable,
-                SocialOrdersTable
+                SocialOrdersTable,
+                MpesaConfigsTable,
+                CyberSourceConfigsTable
             )
         }
     }

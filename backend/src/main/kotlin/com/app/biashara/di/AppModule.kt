@@ -43,8 +43,10 @@ fun appModule(config: ApplicationConfig) = module {
     single { CustomerService() }
     single { ExpenseService() }
     single { PaymentService() }
-    single { MpesaService(get(), config) }
+    single { BusinessSettingsService() }
+    single { MpesaService(get(), config, get()) }
     single { UserManagementService() }
+    single { SuperAdminService() }
 
     // CyberSource card payment services
     single {
@@ -56,7 +58,7 @@ fun appModule(config: ApplicationConfig) = module {
         )
     }
     single { CyberSourceService(get(), get()) }
-    single { CyberSourcePaymentService(get()) }
+    single { CyberSourcePaymentService(get(), get()) }
     single { TaxService() }
     single { KraService() }
     single { EtimsService(get()) }
