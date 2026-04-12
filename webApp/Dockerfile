@@ -10,8 +10,9 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
-RUN npm install -g serve
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
-# Force bind to all interfaces and Railway-injected PORT
-CMD ["sh", "-c", "serve -s dist -l tcp://0.0.0.0:${PORT:-3000}"]
+# Bind to all interfaces and use Railway-injected PORT
+CMD ["sh", "-c", "npm run preview -- --host 0.0.0.0 --port ${PORT:-4173}"]
