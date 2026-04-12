@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, Download, Share2, FileText, Table } from 'lucide-react'
-import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, AlertBanner } from '../components/ui'
-import { expenseApi, paymentApi, reportApi, ExpenseResponse, PaymentResponse, ProfitSummaryResponse } from '../services/api'
+import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
+import { expenseApi, paymentApi, orderApi, reportApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse } from '../services/api'
 
 function getCurrentMonthRange() {
   const now = new Date()
@@ -18,15 +18,33 @@ const catColors: Record<string, string> = {
   STOCK_PURCHASE:'var(--b360-green)', DELIVERY:'var(--b360-amber)', PACKAGING:'#9E9E9E'
 }
 
+const EXPENSE_CATEGORIES = [
+  { value:'ADVERTISING', label:'Advertising' },
+  { value:'RENT', label:'Rent' },
+  { value:'STOCK_PURCHASE', label:'Stock Purchase' },
+  { value:'DELIVERY', label:'Delivery' },
+  { value:'PACKAGING', label:'Packaging' },
+  { value:'OTHER', label:'Other' },
+]
+
+const emptyExpense = { category:'ADVERTISING', amount:'', description:'', expenseDate:new Date().toISOString().slice(0,10) }
+
 export function ExpensesPage() {
   const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [showAdd, setShowAdd] = useState(false)
+  const [form, setForm] = useState(emptyExpense)
+  const [error, setError] = useState('')
 
-  useEffect(() => {
+  const loadExpenses = () => {
+    setLoading(true)
     expenseApi.list().then(res => {
       if (res.success && res.data) setExpenses(res.data)
     }).finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadExpenses() }, [])
 
   async function handleDelete(id: string) {
     if (!window.confirm('Delete this expense? This cannot be undone.')) return
@@ -38,13 +56,45 @@ export function ExpensesPage() {
     }
   }
 
+  const handleAddExpense = async () => {
+    if (!form.amount || !form.description || !form.expenseDate) { setError('All fields are required.'); return }
+    setSaving(true); setError('')
+    try {
+      const res = await expenseApi.create({
+        category: form.category,
+        amount: Number(form.amount),
+        description: form.description,
+        expenseDate: form.expenseDate,
+      })
+      if (res.success) { setShowAdd(false); loadExpenses() }
+      else setError(res.message || 'Failed to add expense.')
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Network error. Please try again.')
+    } finally { setSaving(false) }
+  }
+
+  const f = (k: keyof typeof emptyExpense) => (v: string) => setForm(prev => ({ ...prev, [k]: v }))
+
   const total = expenses.reduce((s, e) => s + e.amount, 0)
   const maxAmount = expenses.length > 0 ? Math.max(...expenses.map(e => e.amount)) : 1
 
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      {showAdd && (
+        <Modal title="Add Expense" onClose={() => setShowAdd(false)}
+          footer={<><Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn><Btn onClick={handleAddExpense} disabled={saving}>{saving ? 'Saving...' : 'Add Expense'}</Btn></>}>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
+            <Select label="Category" value={form.category} onChange={f('category')} options={EXPENSE_CATEGORIES} />
+            <Input label="Amount (KES) *" value={form.amount} onChange={f('amount')} type="number" placeholder="0" />
+            <Input label="Description *" value={form.description} onChange={f('description')} placeholder="e.g. Facebook Ads April" />
+            <Input label="Date *" value={form.expenseDate} onChange={f('expenseDate')} type="date" />
+          </div>
+        </Modal>
+      )}
+
       <PageHeader title="Expenses & Profit"
-        action={<Btn icon={<Plus size={14}/>}>Add Expense</Btn>} />
+        action={<Btn icon={<Plus size={14}/>} onClick={() => { setForm(emptyExpense); setError(''); setShowAdd(true) }}>Add Expense</Btn>} />
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
         <KpiCard title="Total This Month"  value={`KES ${total.toLocaleString()}`} change="All categories"    icon={<FileText size={18}/>} color="var(--b360-red)" />
@@ -56,7 +106,7 @@ export function ExpensesPage() {
       {loading ? (
         <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
       ) : expenses.length === 0 ? (
-        <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No expenses yet</div>
+        <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No expenses yet. Click "Add Expense" to record one.</div>
       ) : (
         <>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
@@ -116,18 +166,70 @@ export function ExpensesPage() {
 export function PaymentsPage() {
   const [payments, setPayments] = useState<PaymentResponse[]>([])
   const [loading, setLoading] = useState(true)
+  const [matchPayment, setMatchPayment] = useState<PaymentResponse | null>(null)
+  const [orders, setOrders] = useState<OrderResponse[]>([])
+  const [selectedOrderId, setSelectedOrderId] = useState('')
+  const [matching, setMatching] = useState(false)
+  const [matchError, setMatchError] = useState('')
 
-  useEffect(() => {
+  const loadPayments = () => {
+    setLoading(true)
     paymentApi.list().then(res => {
       if (res.success && res.data) setPayments(res.data)
     }).finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadPayments() }, [])
+
+  const openMatch = (p: PaymentResponse) => {
+    setMatchPayment(p); setSelectedOrderId(''); setMatchError('')
+    orderApi.list('PENDING').then(res => {
+      if (res.success && res.data) setOrders(res.data.data)
+    })
+  }
+
+  const handleMatch = async () => {
+    if (!matchPayment || !selectedOrderId) { setMatchError('Please select an order.'); return }
+    setMatching(true); setMatchError('')
+    try {
+      const res = await paymentApi.reconcile(matchPayment.id, { orderId: selectedOrderId })
+      if (res.success) { setMatchPayment(null); loadPayments() }
+      else setMatchError(res.message || 'Failed to match payment.')
+    } catch (e: any) {
+      setMatchError(e.response?.data?.message || 'Network error. Please try again.')
+    } finally { setMatching(false) }
+  }
 
   const unreconciled = payments.filter(p => !p.isReconciled)
   const total = payments.filter(p => p.isReconciled).reduce((s, p) => s + p.amount, 0)
 
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      {matchPayment && (
+        <Modal title="Match Payment to Order" onClose={() => setMatchPayment(null)}
+          footer={<><Btn variant="secondary" onClick={() => setMatchPayment(null)}>Cancel</Btn><Btn onClick={handleMatch} disabled={matching || !selectedOrderId}>{matching ? 'Matching...' : 'Confirm Match'}</Btn></>}>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {matchError && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{matchError}</p>}
+            <div style={{ background:'var(--b360-surface)', borderRadius:8, padding:12 }}>
+              <div style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Mpesa Transaction</div>
+              <div style={{ fontFamily:'monospace', fontWeight:700, color:'var(--b360-green)' }}>{matchPayment.mpesaTransactionCode}</div>
+              <div style={{ fontWeight:600 }}>{matchPayment.payerName} · KES {matchPayment.amount.toLocaleString()}</div>
+            </div>
+            <div>
+              <label style={{ fontSize:12, fontWeight:500, color:'var(--b360-text-secondary)', display:'block', marginBottom:5 }}>Select Order to Match</label>
+              <select value={selectedOrderId} onChange={e => setSelectedOrderId(e.target.value)}
+                style={{ width:'100%', padding:'9px 12px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, fontFamily:'inherit', background:'white' }}>
+                <option value="">Select an order...</option>
+                {orders.map(o => (
+                  <option key={o.id} value={o.id}>{o.orderNumber} — {o.customerName} — KES {o.subtotal.toLocaleString()}</option>
+                ))}
+              </select>
+              {orders.length === 0 && <p style={{ fontSize:12, color:'var(--b360-text-secondary)', marginTop:6 }}>No pending orders found.</p>}
+            </div>
+          </div>
+        </Modal>
+      )}
+
       <PageHeader title="Payments / Mpesa" />
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
@@ -158,7 +260,7 @@ export function PaymentsPage() {
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:12 }}>
                       <span style={{ fontWeight:800, fontSize:15 }}>KES {p.amount.toLocaleString()}</span>
-                      <Btn>Match to Order</Btn>
+                      <Btn onClick={() => openMatch(p)}>Match to Order</Btn>
                     </div>
                   </div>
                 ))}
@@ -205,9 +307,12 @@ export function ReportsPage() {
       <PageHeader title="Reports"
         action={
           <div style={{ display:'flex', gap:8 }}>
-            <Btn variant="secondary" icon={<Download size={14}/>}>Export PDF</Btn>
-            <Btn variant="secondary" icon={<Table size={14}/>}>Export Excel</Btn>
-            <Btn variant="secondary" icon={<Share2 size={14}/>}>WhatsApp</Btn>
+            <Btn variant="secondary" icon={<Download size={14}/>}
+              onClick={() => alert('PDF export will be available once data is available from the backend.')}>Export PDF</Btn>
+            <Btn variant="secondary" icon={<Table size={14}/>}
+              onClick={() => alert('Excel export will be available once data is available from the backend.')}>Export Excel</Btn>
+            <Btn variant="secondary" icon={<Share2 size={14}/>}
+              onClick={() => window.open('https://wa.me/?text=Biashara360+Report', '_blank')}>WhatsApp</Btn>
           </div>
         }
       />
@@ -285,6 +390,12 @@ export function SettingsPage() {
   const [twoFA, setTwoFA] = useState(true)
   const [sms, setSms] = useState(true)
   const [email, setEmail] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const handleSave = () => {
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <Card style={{ padding:20, marginBottom:16 }}>
@@ -314,7 +425,12 @@ export function SettingsPage() {
 
   return (
     <div className="fade-in" style={{ maxWidth:640 }}>
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings" action={
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          {saved && <span style={{ fontSize:12, color:'var(--b360-green)', fontWeight:600 }}>✓ Saved</span>}
+          <Btn onClick={handleSave}>Save Settings</Btn>
+        </div>
+      } />
       <Section title="Business Profile">
         <Field label="Business Name"  value="Wanjiru's Fashion" />
         <Field label="Owner Phone"    value="+254 712 345 678" />
@@ -340,7 +456,7 @@ export function SettingsPage() {
             <div style={{ fontWeight:600 }}>Freemium Plan</div>
             <div style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Up to 100 products, 50 orders/month</div>
           </div>
-          <Btn>Upgrade to Premium →</Btn>
+          <Btn onClick={() => window.open('mailto:sales@biashara360.co.ke?subject=Premium Plan Enquiry', '_blank')}>Upgrade to Premium →</Btn>
         </div>
       </Section>
     </div>
