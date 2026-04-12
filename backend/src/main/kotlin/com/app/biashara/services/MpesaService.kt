@@ -14,27 +14,44 @@ import java.util.Base64
 
 class MpesaService(
     private val httpClient: HttpClient,
-    private val config: ApplicationConfig
+    private val config: ApplicationConfig,
+    private val settingsService: BusinessSettingsService? = null
 ) {
-    private val consumerKey get() = config.property("mpesa.consumerKey").getString()
-    private val consumerSecret get() = config.property("mpesa.consumerSecret").getString()
-    private val shortCode get() = config.property("mpesa.shortCode").getString()
-    private val passKey get() = config.property("mpesa.passKey").getString()
-    private val callbackUrl get() = config.property("mpesa.callbackUrl").getString()
-    private val isSandbox get() = config.property("mpesa.environment").getString() == "sandbox"
+    // Fall-back to application-level config when no per-business DB config is found
+    private val defaultConsumerKey get() = config.propertyOrNull("mpesa.consumerKey")?.getString() ?: ""
+    private val defaultConsumerSecret get() = config.propertyOrNull("mpesa.consumerSecret")?.getString() ?: ""
+    private val defaultShortCode get() = config.propertyOrNull("mpesa.shortCode")?.getString() ?: ""
+    private val defaultPassKey get() = config.propertyOrNull("mpesa.passKey")?.getString() ?: ""
+    private val defaultCallbackUrl get() = config.propertyOrNull("mpesa.callbackUrl")?.getString() ?: ""
+    private val defaultIsSandbox get() = config.propertyOrNull("mpesa.environment")?.getString() != "production"
 
-    private val baseUrl get() = if (isSandbox)
+    private fun resolveConfig(businessId: String?): MpesaRuntimeConfig {
+        if (businessId != null && settingsService != null) {
+            val dbConfig = settingsService.loadMpesaConfigForBusiness(businessId)
+            if (dbConfig != null) return dbConfig
+        }
+        return MpesaRuntimeConfig(
+            consumerKey    = defaultConsumerKey,
+            consumerSecret = defaultConsumerSecret,
+            shortCode      = defaultShortCode,
+            passKey        = defaultPassKey,
+            callbackUrl    = defaultCallbackUrl,
+            isSandbox      = defaultIsSandbox
+        )
+    }
+
+    private fun baseUrl(isSandbox: Boolean) = if (isSandbox)
         "https://sandbox.safaricom.co.ke"
     else
         "https://api.safaricom.co.ke"
 
     // ── Get OAuth Token ──────────────────────────────────────────────────────
 
-    private suspend fun getAccessToken(): String {
+    private suspend fun getAccessToken(cfg: MpesaRuntimeConfig): String {
         val credentials = Base64.getEncoder()
-            .encodeToString("$consumerKey:$consumerSecret".toByteArray())
+            .encodeToString("${cfg.consumerKey}:${cfg.consumerSecret}".toByteArray())
 
-        val response: DarajaTokenResponse = httpClient.get("$baseUrl/oauth/v1/generate?grant_type=client_credentials") {
+        val response: DarajaTokenResponse = httpClient.get("${baseUrl(cfg.isSandbox)}/oauth/v1/generate?grant_type=client_credentials") {
             headers { append(HttpHeaders.Authorization, "Basic $credentials") }
         }.body()
         return response.access_token
@@ -46,29 +63,31 @@ class MpesaService(
         phoneNumber: String,
         amount: Double,
         accountReference: String,
-        transactionDesc: String
+        transactionDesc: String,
+        businessId: String? = null
     ): StkPushResult {
         return try {
-            val token = getAccessToken()
+            val cfg = resolveConfig(businessId)
+            val token = getAccessToken(cfg)
             val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
             val password = Base64.getEncoder().encodeToString(
-                "$shortCode$passKey$timestamp".toByteArray()
+                "${cfg.shortCode}${cfg.passKey}$timestamp".toByteArray()
             )
 
             val payload = StkPushPayload(
-                BusinessShortCode = shortCode,
+                BusinessShortCode = cfg.shortCode,
                 Password = password,
                 Timestamp = timestamp,
                 Amount = amount.toInt(),
                 PartyA = phoneNumber,
-                PartyB = shortCode,
+                PartyB = cfg.shortCode,
                 PhoneNumber = phoneNumber,
-                CallBackURL = callbackUrl,
+                CallBackURL = cfg.callbackUrl,
                 AccountReference = accountReference,
                 TransactionDesc = transactionDesc
             )
 
-            val response: StkPushResponse = httpClient.post("$baseUrl/mpesa/stkpush/v1/processrequest") {
+            val response: StkPushResponse = httpClient.post("${baseUrl(cfg.isSandbox)}/mpesa/stkpush/v1/processrequest") {
                 headers { append(HttpHeaders.Authorization, "Bearer $token") }
                 contentType(ContentType.Application.Json)
                 setBody(payload)

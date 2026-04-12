@@ -56,6 +56,8 @@ fun Application.module() {
                 taxRoutes()
                 kraRoutes()
                 socialRoutes()
+                superAdminRoutes()
+                businessSettingsRoutes()
             }
         }
         // Public webhook routes — no auth

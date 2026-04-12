@@ -11,11 +11,24 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID
 
 class CyberSourcePaymentService(
-    private val cs: CyberSourceService
+    private val cs: CyberSourceService,
+    private val settingsService: BusinessSettingsService? = null
 ) {
+
+    // ── Resolve per-business CyberSource service ──────────────────────────────
+    private fun csFor(businessId: String): CyberSourceService {
+        if (settingsService != null) {
+            val dbConfig = settingsService.loadCyberSourceConfigForBusiness(businessId)
+            if (dbConfig != null) {
+                return CyberSourceService(dbConfig, cs.httpClient)
+            }
+        }
+        return cs
+    }
 
     // ── Charge (Auth + optional capture) ──────────────────────────────────────
     suspend fun charge(businessId: String, req: CsChargeRequest): CsChargeResponse {
+        val csService = csFor(businessId)
 
         // 1. Resolve saved card token if using stored card
         val (payCard, payFlexToken, payCustomerId) = resolvePay(businessId, req)
@@ -35,9 +48,9 @@ class CyberSourcePaymentService(
 
         // 3. Call CyberSource
         val result = if (req.captureImmediately) {
-            cs.authorizeAndCapture(csRequest)
+            csService.authorizeAndCapture(csRequest)
         } else {
-            cs.authorizePayment(csRequest)
+            csService.authorizePayment(csRequest)
         }
 
         // 4. Persist and return
@@ -110,6 +123,7 @@ class CyberSourcePaymentService(
 
     // ── Capture a prior auth ──────────────────────────────────────────────────
     suspend fun capture(businessId: String, req: CsCaptureRouteRequest): CsChargeResponse {
+        val csService = csFor(businessId)
         val txn = getTransaction(businessId, req.csTransactionId)
             ?: return errorResponse("Transaction not found")
 
@@ -123,7 +137,7 @@ class CyberSourcePaymentService(
             )
         )
 
-        return when (val result = cs.capturePayment(txn.csTransactionId!!, csReq)) {
+        return when (val result = csService.capturePayment(txn.csTransactionId!!, csReq)) {
             is CsResult.Success -> {
                 updateTransactionStatus(txn.id, "CAPTURED", result.data.id)
                 CsChargeResponse(
@@ -140,6 +154,7 @@ class CyberSourcePaymentService(
 
     // ── Refund ────────────────────────────────────────────────────────────────
     suspend fun refund(businessId: String, req: CsRefundRouteRequest): CsChargeResponse {
+        val csService = csFor(businessId)
         val txn = getTransaction(businessId, req.csTransactionId)
             ?: return errorResponse("Transaction not found")
 
@@ -153,7 +168,7 @@ class CyberSourcePaymentService(
             )
         )
 
-        return when (val result = cs.refundPayment(txn.csTransactionId!!, csReq)) {
+        return when (val result = csService.refundPayment(txn.csTransactionId!!, csReq)) {
             is CsResult.Success -> {
                 persistTransaction(
                     businessId = businessId, orderId = txn.orderId, csTransId = result.data.id,
@@ -175,6 +190,7 @@ class CyberSourcePaymentService(
 
     // ── Void ──────────────────────────────────────────────────────────────────
     suspend fun void(businessId: String, req: CsVoidRouteRequest): CsChargeResponse {
+        val csService = csFor(businessId)
         val txn = getTransaction(businessId, req.csTransactionId)
             ?: return errorResponse("Transaction not found")
 
@@ -182,7 +198,7 @@ class CyberSourcePaymentService(
             clientReferenceInformation = CsClientRef("VOID-${txn.orderId}")
         )
 
-        return when (val result = cs.voidAuthorization(txn.csTransactionId!!, csReq)) {
+        return when (val result = csService.voidAuthorization(txn.csTransactionId!!, csReq)) {
             is CsResult.Success -> {
                 updateTransactionStatus(txn.id, "VOIDED", null)
                 CsChargeResponse(

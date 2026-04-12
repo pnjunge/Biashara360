@@ -320,6 +320,76 @@ data class PagedResponse<T>(
     val hasMore: Boolean
 )
 
+// ─── Super Admin — Business Management ───────────────────────────────────────
+
+@Serializable
+data class CreateBusinessWithAdminRequest(
+    val businessName: String,
+    val businessType: String,
+    val adminName: String,
+    val adminEmail: String,
+    val adminPhone: String,
+    val adminPassword: String
+)
+
+@Serializable
+data class BusinessResponse(
+    val id: String,
+    val name: String,
+    val type: String,
+    val ownerPhone: String,
+    val ownerEmail: String,
+    val subscriptionTier: String,
+    val createdAt: String
+)
+
+@Serializable
+data class BusinessWithAdminResponse(
+    val business: BusinessResponse,
+    val admin: UserResponse
+)
+
+// ─── Business Settings — Mpesa ────────────────────────────────────────────────
+
+@Serializable
+data class MpesaConfigRequest(
+    val consumerKey: String,
+    val consumerSecret: String,
+    val shortCode: String,
+    val passKey: String,
+    val callbackUrl: String,
+    val environment: String = "sandbox"
+)
+
+@Serializable
+data class MpesaConfigResponse(
+    val businessId: String,
+    val consumerKey: String,
+    val shortCode: String,
+    val callbackUrl: String,
+    val environment: String,
+    val updatedAt: String
+)
+
+// ─── Business Settings — CyberSource ──────────────────────────────────────────
+
+@Serializable
+data class CyberSourceConfigRequest(
+    val merchantId: String,
+    val merchantKeyId: String,
+    val merchantSecretKey: String,
+    val environment: String = "sandbox"
+)
+
+@Serializable
+data class CyberSourceConfigResponse(
+    val businessId: String,
+    val merchantId: String,
+    val merchantKeyId: String,
+    val environment: String,
+    val updatedAt: String
+)
+
 // ─── CyberSource ──────────────────────────────────────────────────────────────
 
 @Serializable

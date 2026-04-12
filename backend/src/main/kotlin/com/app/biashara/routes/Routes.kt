@@ -263,7 +263,8 @@ fun Route.paymentRoutes() {
                 phoneNumber = req.phoneNumber.normalizePhone(),
                 amount = order.subtotal,
                 accountReference = order.orderNumber,
-                transactionDesc = "Payment for ${order.orderNumber}"
+                transactionDesc = "Payment for ${order.orderNumber}",
+                businessId = businessId
             )
 
             when (result) {
