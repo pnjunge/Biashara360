@@ -57,17 +57,18 @@ export function Card({ children, style }: { children: React.ReactNode; style?: R
 }
 
 // ── Button ────────────────────────────────────────────────────────────────────
-export function Btn({ children, variant='primary', onClick, icon, small }:
-  { children: React.ReactNode; variant?: 'primary'|'secondary'|'danger'; onClick?: () => void; icon?: React.ReactNode; small?: boolean }) {
+export function Btn({ children, variant='primary', onClick, icon, small, disabled }:
+  { children: React.ReactNode; variant?: 'primary'|'secondary'|'danger'; onClick?: () => void; icon?: React.ReactNode; small?: boolean; disabled?: boolean }) {
   const styles: Record<string, React.CSSProperties> = {
     primary:   { background:'var(--b360-green)',  color:'white', border:'none' },
     secondary: { background:'white', color:'var(--b360-text)', border:'1px solid var(--b360-border)' },
     danger:    { background:'var(--b360-red-bg)', color:'var(--b360-red)', border:'1px solid var(--b360-red)' },
   }
   return (
-    <button onClick={onClick} style={{
+    <button type="button" onClick={onClick} disabled={disabled} style={{
       display:'flex', alignItems:'center', gap:6, padding: small ? '6px 12px' : '9px 16px',
-      borderRadius:8, fontSize: small ? 12 : 13, fontWeight:600, cursor:'pointer', transition:'opacity 0.15s',
+      borderRadius:8, fontSize: small ? 12 : 13, fontWeight:600, cursor: disabled ? 'not-allowed' : 'pointer',
+      transition:'opacity 0.15s', opacity: disabled ? 0.6 : 1,
       ...styles[variant]
     }}>
       {icon}{children}
@@ -135,6 +136,43 @@ export function Input({ label, placeholder, value, onChange, type = 'text' }:
         onChange={e => onChange(e.target.value)}
         style={{ padding:'9px 12px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit' }}
       />
+    </div>
+  )
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+export function Modal({ title, onClose, children, footer, wide }: {
+  title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean
+}) {
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
+      <div style={{ background:'white', borderRadius:16, width:'100%', maxWidth: wide ? 680 : 480, maxHeight:'90vh', overflow:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', display:'flex', flexDirection:'column' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 24px', borderBottom:'1px solid var(--b360-border)', flexShrink:0 }}>
+          <h2 style={{ fontSize:16, fontWeight:700 }}>{title}</h2>
+          <button type="button" onClick={onClose} style={{ fontSize:22, lineHeight:1, color:'var(--b360-text-secondary)', cursor:'pointer', border:'none', background:'none', padding:'0 4px' }}>×</button>
+        </div>
+        <div style={{ padding:'20px 24px', flex:1, overflow:'auto' }}>{children}</div>
+        {footer && (
+          <div style={{ padding:'14px 24px', borderTop:'1px solid var(--b360-border)', display:'flex', justifyContent:'flex-end', gap:8, flexShrink:0 }}>
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Select ────────────────────────────────────────────────────────────────────
+export function Select({ label, value, onChange, options }: {
+  label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]
+}) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+      {label && <label style={{ fontSize:12, fontWeight:500, color:'var(--b360-text-secondary)' }}>{label}</label>}
+      <select value={value} onChange={e => onChange(e.target.value)}
+        style={{ padding:'9px 12px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', background:'white' }}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { TrendingUp, ShoppingCart, Clock, AlertTriangle, Plus, Search, Eye, Edit, Package, Users } from 'lucide-react'
-import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Avatar } from '../components/ui'
+import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users } from 'lucide-react'
+import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select } from '../components/ui'
 import { productApi, orderApi, customerApi, reportApi, ProductResponse, OrderResponse, CustomerResponse, ProfitSummaryResponse } from '../services/api'
 
 function getCurrentMonthRange() {
@@ -120,17 +120,32 @@ export default function DashboardPage() {
 }
 
 // ── Inventory ─────────────────────────────────────────────────────────────────
+const CATEGORIES = ['Electronics','Clothing','Food & Beverage','Health & Beauty','Home & Garden','Stationery','Other']
+
+const emptyProduct = { name:'', sku:'', category:'Other', buyingPrice:'', sellingPrice:'', currentStock:'', lowStockThreshold:'10', description:'' }
+
 export function InventoryPage() {
   const [search, setSearch] = useState('')
   const [lowOnly, setLowOnly] = useState(false)
   const [products, setProducts] = useState<ProductResponse[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
+  const [showAdd, setShowAdd] = useState(false)
+  const [editProduct, setEditProduct] = useState<ProductResponse | null>(null)
+  const [stockProduct, setStockProduct] = useState<ProductResponse | null>(null)
+  const [form, setForm] = useState(emptyProduct)
+  const [stockQty, setStockQty] = useState('')
+  const [error, setError] = useState('')
+
+  const loadProducts = () => {
+    setLoading(true)
     productApi.list().then(res => {
       if (res.success && res.data) setProducts(res.data)
     }).finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadProducts() }, [])
 
   const stockStatus = (p: ProductResponse) => p.isOutOfStock ? 'OUT' : p.isLowStock ? 'LOW' : 'OK'
   const stockColor = (s: string) => s === 'OUT' ? 'var(--b360-red)' : s === 'LOW' ? 'var(--b360-amber)' : 'var(--b360-green)'
@@ -140,10 +155,96 @@ export function InventoryPage() {
     && (!lowOnly || stockStatus(p) !== 'OK')
   )
 
+  const openAdd = () => { setForm(emptyProduct); setError(''); setShowAdd(true) }
+  const openEdit = (p: ProductResponse) => {
+    setForm({ name:p.name, sku:p.sku, category:p.category, buyingPrice:String(p.buyingPrice),
+      sellingPrice:String(p.sellingPrice), currentStock:String(p.currentStock),
+      lowStockThreshold:String(p.lowStockThreshold), description:p.description })
+    setError(''); setEditProduct(p)
+  }
+  const openStock = (p: ProductResponse) => { setStockQty(''); setError(''); setStockProduct(p) }
+
+  const handleSaveProduct = async () => {
+    if (!form.name || !form.sku || !form.buyingPrice || !form.sellingPrice || !form.currentStock) {
+      setError('Please fill in all required fields.'); return
+    }
+    setSaving(true); setError('')
+    try {
+      const payload = {
+        name: form.name, sku: form.sku, category: form.category,
+        buyingPrice: Number(form.buyingPrice), sellingPrice: Number(form.sellingPrice),
+        currentStock: Number(form.currentStock), lowStockThreshold: Number(form.lowStockThreshold) || 10,
+        description: form.description,
+      }
+      const res = editProduct
+        ? await productApi.update(editProduct.id, payload)
+        : await productApi.create(payload)
+      if (res.success) {
+        setShowAdd(false); setEditProduct(null); loadProducts()
+      } else {
+        setError(res.message || 'Failed to save product.')
+      }
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Network error. Please try again.')
+    } finally { setSaving(false) }
+  }
+
+  const handleUpdateStock = async () => {
+    if (!stockQty || isNaN(Number(stockQty))) { setError('Enter a valid quantity.'); return }
+    if (!stockProduct) return
+    setSaving(true); setError('')
+    try {
+      const res = await productApi.updateStock(stockProduct.id, { quantityToAdd: Number(stockQty) })
+      if (res.success) { setStockProduct(null); loadProducts() }
+      else setError(res.message || 'Failed to update stock.')
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Network error. Please try again.')
+    } finally { setSaving(false) }
+  }
+
+  const f = (k: keyof typeof emptyProduct) => (v: string) => setForm(prev => ({ ...prev, [k]: v }))
+
+  const productModal = (title: string, onClose: () => void) => (
+    <Modal title={title} onClose={onClose}
+      footer={<><Btn variant="secondary" onClick={onClose}>Cancel</Btn><Btn onClick={handleSaveProduct} disabled={saving}>{saving ? 'Saving...' : 'Save Product'}</Btn></>}>
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          <Input label="Product Name *" value={form.name} onChange={f('name')} placeholder="e.g. Men's Shirt" />
+          <Input label="SKU *" value={form.sku} onChange={f('sku')} placeholder="e.g. SHIRT-001" />
+        </div>
+        <Select label="Category" value={form.category} onChange={f('category')}
+          options={CATEGORIES.map(c => ({ value:c, label:c }))} />
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          <Input label="Buying Price (KES) *" value={form.buyingPrice} onChange={f('buyingPrice')} type="number" placeholder="0" />
+          <Input label="Selling Price (KES) *" value={form.sellingPrice} onChange={f('sellingPrice')} type="number" placeholder="0" />
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          <Input label="Current Stock *" value={form.currentStock} onChange={f('currentStock')} type="number" placeholder="0" />
+          <Input label="Low Stock Threshold" value={form.lowStockThreshold} onChange={f('lowStockThreshold')} type="number" placeholder="10" />
+        </div>
+        <Input label="Description" value={form.description} onChange={f('description')} placeholder="Optional product description" />
+      </div>
+    </Modal>
+  )
+
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      {showAdd && productModal('Add Product', () => setShowAdd(false))}
+      {editProduct && productModal('Edit Product', () => setEditProduct(null))}
+      {stockProduct && (
+        <Modal title={`Update Stock — ${stockProduct.name}`} onClose={() => setStockProduct(null)}
+          footer={<><Btn variant="secondary" onClick={() => setStockProduct(null)}>Cancel</Btn><Btn onClick={handleUpdateStock} disabled={saving}>{saving ? 'Updating...' : 'Update Stock'}</Btn></>}>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
+            <p style={{ fontSize:13, color:'var(--b360-text-secondary)' }}>Current stock: <strong>{stockProduct.currentStock}</strong></p>
+            <Input label="Quantity to Add" value={stockQty} onChange={setStockQty} type="number" placeholder="e.g. 50" />
+          </div>
+        </Modal>
+      )}
+
       <PageHeader title="Inventory"
-        action={<Btn icon={<Plus size={14}/>}>Add Product</Btn>} />
+        action={<Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Product</Btn>} />
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
         <KpiCard title="Total Products"  value={`${products.length}`}  change="Active items"        icon={<Package size={18}/>} color="var(--b360-blue)" />
@@ -167,7 +268,7 @@ export function InventoryPage() {
         {loading ? (
           <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No products yet</div>
+          <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No products yet. Click "Add Product" to get started.</div>
         ) : (
           <DataTable
             headers={['Product', 'SKU', 'Category', 'Buy Price', 'Sell Price', 'Profit', 'Stock', 'Status', 'Actions']}
@@ -183,8 +284,8 @@ export function InventoryPage() {
                 <span style={{ fontWeight:700, color:stockColor(st) }}>{p.currentStock}</span>,
                 <StatusBadge status={st} />,
                 <div style={{ display:'flex', gap:6 }}>
-                  <Btn variant="secondary" small icon={<Edit size={12}/>}>Edit</Btn>
-                  <Btn variant="secondary" small icon={<Plus size={12}/>}>Stock</Btn>
+                  <Btn variant="secondary" small icon={<Edit size={12}/>} onClick={() => openEdit(p)}>Edit</Btn>
+                  <Btn variant="secondary" small icon={<Plus size={12}/>} onClick={() => openStock(p)}>Stock</Btn>
                 </div>
               ]
             })}
@@ -195,119 +296,4 @@ export function InventoryPage() {
   )
 }
 
-// ── Orders ────────────────────────────────────────────────────────────────────
-export function OrdersPage() {
-  const [filter, setFilter] = useState('All')
-  const [orders, setOrders] = useState<OrderResponse[]>([])
-  const [loading, setLoading] = useState(true)
-  const filters = ['All', 'PAID', 'PENDING', 'COD']
 
-  useEffect(() => {
-    orderApi.list().then(res => {
-      if (res.success && res.data) setOrders(res.data.data)
-    }).finally(() => setLoading(false))
-  }, [])
-
-  const filtered = filter === 'All' ? orders : orders.filter(o => o.paymentStatus === filter)
-
-  return (
-    <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
-      <PageHeader title="Orders"
-        action={<Btn icon={<Plus size={14}/>}>New Order</Btn>} />
-
-      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-        {filters.map(f => (
-          <button key={f} onClick={() => setFilter(f)} style={{
-            padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:600, cursor:'pointer', border:'1px solid',
-            background: filter===f ? 'var(--b360-green)' : 'white',
-            color: filter===f ? 'white' : 'var(--b360-text)',
-            borderColor: filter===f ? 'var(--b360-green)' : 'var(--b360-border)'
-          }}>{f}</button>
-        ))}
-      </div>
-
-      <Card>
-        {loading ? (
-          <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No orders yet</div>
-        ) : (
-          <DataTable
-            headers={['Order #', 'Customer', 'Phone', 'Items', 'Amount', 'Payment', 'Delivery', 'Date', 'Actions']}
-            rows={filtered.map(o => [
-              <span style={{ fontWeight:700, color:'var(--b360-green)', fontSize:12 }}>{o.orderNumber}</span>,
-              <span style={{ fontWeight:600 }}>{o.customerName}</span>,
-              <span style={{ color:'var(--b360-text-secondary)' }}>{o.customerPhone}</span>,
-              o.items.length,
-              <span style={{ fontWeight:700 }}>KES {o.subtotal.toLocaleString()}</span>,
-              <StatusBadge status={o.paymentStatus} />,
-              <StatusBadge status={o.deliveryStatus} />,
-              <span style={{ color:'var(--b360-text-secondary)', fontSize:12 }}>{new Date(o.createdAt).toLocaleDateString('en-KE')}</span>,
-              <Btn variant="secondary" small icon={<Eye size={12}/>}>View</Btn>
-            ])}
-          />
-        )}
-      </Card>
-    </div>
-  )
-}
-
-// ── Customers ─────────────────────────────────────────────────────────────────
-export function CustomersPage() {
-  const [search, setSearch] = useState('')
-  const [customers, setCustomers] = useState<CustomerResponse[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    customerApi.list().then(res => {
-      if (res.success && res.data) setCustomers(res.data)
-    }).finally(() => setLoading(false))
-  }, [])
-
-  const filtered = customers.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search)
-  )
-
-  return (
-    <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
-      <PageHeader title="Customers"
-        action={<Btn icon={<Plus size={14}/>}>Add Customer</Btn>} />
-
-      <div style={{ position:'relative', maxWidth:320 }}>
-        <Search size={14} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--b360-text-secondary)' }} />
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search customers..."
-          style={{ width:'100%', padding:'8px 12px 8px 32px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit' }} />
-      </div>
-
-      <Card>
-        {loading ? (
-          <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No customers yet</div>
-        ) : (
-          <DataTable
-            headers={['Customer', 'Phone', 'Location', 'Orders', 'Total Spent', 'Loyalty Pts', 'Actions']}
-            rows={filtered.map(c => [
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <Avatar name={c.name} size={32} />
-                <div>
-                  <div style={{ fontWeight:600 }}>{c.name}</div>
-                  {c.isRepeatCustomer && <div style={{ fontSize:11, color:'var(--b360-amber)' }}>⭐ Repeat customer</div>}
-                </div>
-              </div>,
-              c.phone,
-              c.location,
-              <span style={{ fontWeight:700 }}>{c.totalOrders}</span>,
-              <span style={{ fontWeight:700, color:'var(--b360-green)' }}>KES {c.totalSpent.toLocaleString()}</span>,
-              <span style={{ color:'var(--b360-amber)', fontWeight:600 }}>⭐ {c.loyaltyPoints}</span>,
-              <div style={{ display:'flex', gap:6 }}>
-                <Btn variant="secondary" small icon={<Eye size={12}/>}>View</Btn>
-                <Btn variant="secondary" small>WhatsApp</Btn>
-              </div>
-            ])}
-          />
-        )}
-      </Card>
-    </div>
-  )
-}
