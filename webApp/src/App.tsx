@@ -26,9 +26,11 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('isAuthenticated') === 'true')
+  const login = () => { localStorage.setItem('isAuthenticated', 'true'); setIsAuthenticated(true) }
+  const logout = () => { localStorage.removeItem('isAuthenticated'); setIsAuthenticated(false) }
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login: () => setIsAuthenticated(true), logout: () => setIsAuthenticated(false) }}>
+    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
