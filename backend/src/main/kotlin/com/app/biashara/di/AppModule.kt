@@ -44,6 +44,7 @@ fun appModule(config: ApplicationConfig) = module {
     single { ExpenseService() }
     single { PaymentService() }
     single { MpesaService(get(), config) }
+    single { UserManagementService() }
 
     // CyberSource card payment services
     single {

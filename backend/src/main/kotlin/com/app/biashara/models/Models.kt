@@ -284,6 +284,23 @@ data class ProfitSummaryResponse(
     val cashflowOut: Double
 )
 
+// ─── User Management ──────────────────────────────────────────────────────────
+
+@Serializable
+data class InviteUserRequest(
+    val name: String,
+    val email: String,
+    val phone: String,
+    val password: String,
+    val role: String = "STAFF"   // ADMIN | STAFF
+)
+
+@Serializable
+data class UpdateUserRoleRequest(val role: String)
+
+@Serializable
+data class UpdateUserStatusRequest(val isActive: Boolean)
+
 // ─── Common ───────────────────────────────────────────────────────────────────
 
 @Serializable

@@ -51,6 +51,7 @@ fun Application.module() {
                 expenseRoutes()
                 paymentRoutes()
                 reportRoutes()
+                userRoutes()
                 cyberSourceRoutes()
                 taxRoutes()
                 kraRoutes()
