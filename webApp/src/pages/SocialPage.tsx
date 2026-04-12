@@ -71,7 +71,7 @@ function InboxTab() {
         setConvs(res.data)
         if (res.data.length > 0) setActive(res.data[0].id)
       }
-    }).finally(() => setLoading(false))
+    }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
@@ -80,7 +80,7 @@ function InboxTab() {
       if (res.success && res.data) {
         setMsgs(m => ({ ...m, [active]: res.data!.messages }))
       }
-    })
+    }).catch(() => {})
   }, [active])
 
   useEffect(() => { msgEnd.current?.scrollIntoView({ behavior:'smooth' }) }, [active, msgs])
@@ -91,8 +91,8 @@ function InboxTab() {
   const filtered = convs.filter(c => {
     if (filterPlatform !== 'ALL' && c.platform !== filterPlatform) return false
     if (filterStatus   !== 'ALL' && c.status   !== filterStatus)   return false
-    if (search && !c.customerName.toLowerCase().includes(search.toLowerCase()) &&
-        !c.lastMessage.toLowerCase().includes(search.toLowerCase())) return false
+    if (search && !(c.customerName || '').toLowerCase().includes(search.toLowerCase()) &&
+        !(c.lastMessage || '').toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
 
@@ -200,7 +200,7 @@ function InboxTab() {
                 {/* Avatar */}
                 <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
                   <div style={{ width:40, height:40, borderRadius:'50%', background:p?.bg||'#EEE', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0, position:'relative' }}>
-                    {c.customerName.charAt(0)}
+                    {(c.customerName || '?').charAt(0)}
                     <span style={{ position:'absolute', bottom:-2, right:-2, fontSize:12 }}>{p?.icon}</span>
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
@@ -213,7 +213,7 @@ function InboxTab() {
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                       <StatusDot status={c.status} />
-                      <span style={{ fontSize:10, color:'#AAA' }}>{c.status.replace('_',' ')}</span>
+                      <span style={{ fontSize:10, color:'#AAA' }}>{(c.status || '').replace('_',' ')}</span>
                       {c.isAiHandled && <span style={{ fontSize:10, background:'#E8F5E9', color:G, padding:'1px 6px', borderRadius:10 }}>AI</span>}
                     </div>
                   </div>
@@ -237,7 +237,7 @@ function InboxTab() {
           <div style={{ padding:'14px 20px', background:'white', borderBottom:'1px solid #E8EDE9', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
               <div style={{ width:42, height:42, borderRadius:'50%', background:PLATFORM[activeConv.platform as keyof typeof PLATFORM]?.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>
-                {activeConv.customerName.charAt(0)}
+                {(activeConv.customerName || '?').charAt(0)}
               </div>
               <div>
                 <div style={{ fontWeight:800, fontSize:15 }}>{activeConv.customerName}</div>
@@ -245,7 +245,7 @@ function InboxTab() {
                   <PlatformBadge platform={activeConv.platform} />
                   {activeConv.customerPhone && <span style={{ fontSize:11, color:'#888' }}>{activeConv.customerPhone}</span>}
                   <StatusDot status={activeConv.status} />
-                  <span style={{ fontSize:11, color:'#888' }}>{activeConv.status.replace('_',' ')}</span>
+                  <span style={{ fontSize:11, color:'#888' }}>{(activeConv.status || '').replace('_',' ')}</span>
                 </div>
               </div>
             </div>
@@ -427,7 +427,7 @@ function ChannelsTab() {
   useEffect(() => {
     socialApi.getChannels().then(res => {
       if (res.success && res.data) setChannels(res.data)
-    }).finally(() => setLoading(false))
+    }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   function copy(text: string, key: string) {
@@ -534,6 +534,7 @@ function ChannelsTab() {
         )}
         {channels.map(ch => {
           const p = PLATFORM[ch.platform as keyof typeof PLATFORM]
+          if (!p) return null
           return (
             <div key={ch.id} style={{ background:'white', borderRadius:14, padding:20, border:`1px solid ${ch.isActive ? '#E8EDE9' : '#F5F5F5'}`, opacity: ch.isActive ? 1 : 0.7 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
