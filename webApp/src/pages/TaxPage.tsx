@@ -1,38 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, Settings, FileText, CheckCircle, Clock, AlertTriangle, Percent, TrendingUp, DollarSign, RefreshCw } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, KpiCard } from '../components/ui'
+import { taxApi, TaxRateResponse, TaxRemittanceResponse } from '../services/api'
 
-// ── Mock Data ─────────────────────────────────────────────────────────────────
-const taxRates = [
-  { id:'1', taxType:'VAT',    name:'Value Added Tax (VAT)',       rate:0.16,  ratePercent:16,   isActive:true,  isInclusive:false, appliesTo:'PRODUCTS',  description:'16% VAT on taxable goods & services. Mandatory for businesses with >KES 5M annual turnover.' },
-  { id:'2', taxType:'TOT',    name:'Turnover Tax (TOT)',          rate:0.015, ratePercent:1.5,  isActive:false, isInclusive:false, appliesTo:'ALL',       description:'1.5% Turnover Tax on gross receipts. For businesses with KES 1M–5M annual turnover.' },
-  { id:'3', taxType:'WHT',    name:'Withholding Tax (WHT)',       rate:0.03,  ratePercent:3,    isActive:true,  isInclusive:false, appliesTo:'SERVICES',  description:'3% Withholding Tax deducted at source on qualifying payments.' },
-  { id:'4', taxType:'EXCISE', name:'Excise Duty',                 rate:0.20,  ratePercent:20,   isActive:false, isInclusive:false, appliesTo:'PRODUCTS',  description:'Excise Duty on alcohol, tobacco, and specified goods.' },
-]
-
-const remittances = [
-  { id:'1', taxType:'VAT',  periodStart:'2026-02-01', periodEnd:'2026-02-28', taxableAmount:420000, taxAmount:67200, status:'PAID',    receiptNumber:'KRA-2026-02-VAT-001', filedAt:'2026-03-05' },
-  { id:'2', taxType:'VAT',  periodStart:'2026-01-01', periodEnd:'2026-01-31', taxableAmount:380000, taxAmount:60800, status:'PAID',    receiptNumber:'KRA-2026-01-VAT-001', filedAt:'2026-02-05' },
-  { id:'3', taxType:'WHT',  periodStart:'2026-02-01', periodEnd:'2026-02-28', taxableAmount:45000,  taxAmount:1350,  status:'FILED',   receiptNumber:'KRA-2026-02-WHT-001', filedAt:'2026-03-04' },
-  { id:'4', taxType:'VAT',  periodStart:'2026-03-01', periodEnd:'2026-03-31', taxableAmount:0,      taxAmount:0,     status:'PENDING', receiptNumber:null, filedAt:null },
-]
-
-const monthlyTax = [
-  { month:'Oct', vat:52000, wht:1200, tot:0 },
-  { month:'Nov', vat:58000, wht:1500, tot:0 },
-  { month:'Dec', vat:74000, wht:2100, tot:0 },
-  { month:'Jan', vat:60800, wht:1350, tot:0 },
-  { month:'Feb', vat:67200, wht:1800, tot:0 },
-  { month:'Mar', vat:0,     wht:0,    tot:0 },
-]
-
-const pieData = [
-  { name:'VAT',    value:67200, color:'#1B8B34' },
-  { name:'WHT',    value:1800,  color:'#1565C0' },
-  { name:'Excise', value:0,     color:'#FF8F00' },
-]
-
+// ── Shared constants ──────────────────────────────────────────────────────────
 const TYPE_COLORS: Record<string, string> = {
   VAT:'#1B8B34', TOT:'#1565C0', WHT:'#6A1B9A', EXCISE:'#E65100', CUSTOM:'#37474F'
 }
@@ -53,11 +25,52 @@ function TaxBadge({ type }: { type: string }) {
 // ── Tax Rates Tab ─────────────────────────────────────────────────────────────
 function TaxRatesTab() {
   const [showAdd, setShowAdd] = useState(false)
-  const [rates, setRates] = useState(taxRates)
+  const [rates, setRates] = useState<TaxRateResponse[]>([])
+  const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ taxType:'VAT', name:'', rate:'', isInclusive:false, appliesTo:'ALL', description:'' })
 
-  function toggleRate(id: string) {
-    setRates(r => r.map(x => x.id === id ? { ...x, isActive: !x.isActive } : x))
+  useEffect(() => {
+    taxApi.getRates().then(res => {
+      if (res.success && res.data) setRates(res.data)
+    }).finally(() => setLoading(false))
+  }, [])
+
+  async function toggleRate(id: string) {
+    try {
+      const res = await taxApi.toggleRate(id)
+      if (res.success && res.data) {
+        setRates(r => r.map(x => x.id === id ? res.data! : x))
+      } else {
+        setRates(r => r.map(x => x.id === id ? { ...x, isActive: !x.isActive } : x))
+      }
+    } catch (_) {
+      setRates(r => r.map(x => x.id === id ? { ...x, isActive: !x.isActive } : x))
+    }
+  }
+
+  async function seedDefaults() {
+    await taxApi.seedDefaults()
+    const res = await taxApi.getRates()
+    if (res.success && res.data) setRates(res.data)
+  }
+
+  async function addRate() {
+    if (!form.name || !form.rate) return
+    try {
+      const res = await taxApi.createRate({
+        taxType: form.taxType,
+        name: form.name,
+        rate: parseFloat(form.rate) / 100,
+        isInclusive: form.isInclusive,
+        appliesTo: form.appliesTo,
+        description: form.description,
+      })
+      if (res.success && res.data) {
+        setRates(r => [...r, res.data!])
+        setShowAdd(false)
+        setForm({ taxType:'VAT', name:'', rate:'', isInclusive:false, appliesTo:'ALL', description:'' })
+      }
+    } catch (_) {}
   }
 
   return (
@@ -71,7 +84,7 @@ function TaxRatesTab() {
             <div style={{ fontSize:12, color:'#388E3C' }}>VAT 16% · TOT 1.5% · WHT 3% · Excise 20% — based on KRA guidelines</div>
           </div>
         </div>
-        <Btn icon={<RefreshCw size={13}/>}>Seed Defaults</Btn>
+        <Btn icon={<RefreshCw size={13}/>} onClick={seedDefaults}>Seed Defaults</Btn>
       </div>
 
       {/* Add form */}
@@ -120,13 +133,18 @@ function TaxRatesTab() {
               style={{ width:'100%', padding:'8px 10px', borderRadius:7, border:'1px solid #E0E0E0', fontSize:13 }} />
           </div>
           <div style={{ display:'flex', gap:10 }}>
-            <Btn icon={<Plus size={13}/>}>Save Rate</Btn>
+            <Btn icon={<Plus size={13}/>} onClick={addRate}>Save Rate</Btn>
             <Btn onClick={() => setShowAdd(false)}>Cancel</Btn>
           </div>
         </Card>
       )}
 
       {/* Rate cards */}
+      {loading ? (
+        <div style={{ padding:30, textAlign:'center', color:'#888' }}>Loading...</div>
+      ) : rates.length === 0 ? (
+        <div style={{ padding:30, textAlign:'center', color:'#888' }}>No tax rates configured. Click "Seed Defaults" to add Kenya standard rates.</div>
+      ) : (
       <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 }}>
         {rates.map(r => (
           <Card key={r.id} style={{ padding:20, borderLeft:`4px solid ${TYPE_COLORS[r.taxType] || '#9E9E9E'}`, opacity: r.isActive ? 1 : 0.6 }}>
@@ -156,6 +174,7 @@ function TaxRatesTab() {
           </Card>
         ))}
       </div>
+      )}
 
       <Btn icon={<Plus size={14}/>} onClick={() => setShowAdd(v => !v)}>Add Custom Tax Rate</Btn>
     </div>
@@ -165,13 +184,24 @@ function TaxRatesTab() {
 // ── Tax Calculator Tab ────────────────────────────────────────────────────────
 function TaxCalculatorTab() {
   const [amount, setAmount] = useState('10000')
-  const [selected, setSelected] = useState<string[]>(['1'])
+  const [selected, setSelected] = useState<string[]>([])
   const [inclusive, setInclusive] = useState(false)
+  const [rates, setRates] = useState<TaxRateResponse[]>([])
 
-  const activeRates = taxRates.filter(r => r.isActive)
+  useEffect(() => {
+    taxApi.getRates().then(res => {
+      if (res.success && res.data) {
+        setRates(res.data)
+        const firstActive = res.data.find(r => r.isActive)
+        if (firstActive) setSelected([firstActive.id])
+      }
+    })
+  }, [])
+
+  const activeRates = rates.filter(r => r.isActive)
   const numAmount = parseFloat(amount) || 0
 
-  const lines = taxRates
+  const lines = rates
     .filter(r => selected.includes(r.id))
     .map(r => {
       const taxAmt = inclusive
@@ -200,6 +230,7 @@ function TaxCalculatorTab() {
         </div>
         <div style={{ marginBottom:16 }}>
           <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:8 }}>Apply Tax Rates</label>
+          {activeRates.length === 0 && <div style={{ fontSize:13, color:'#888' }}>No active rates. Seed defaults in the Tax Rates tab.</div>}
           {activeRates.map(r => (
             <div key={r.id} onClick={() => toggle(r.id)} style={{
               display:'flex', justifyContent:'space-between', alignItems:'center',
@@ -269,6 +300,14 @@ function TaxCalculatorTab() {
 function RemittancesTab() {
   const [showForm, setShowForm] = useState(false)
   const [filterType, setFilterType] = useState('ALL')
+  const [remittances, setRemittances] = useState<TaxRemittanceResponse[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    taxApi.getRemittances().then(res => {
+      if (res.success && res.data) setRemittances(res.data)
+    }).finally(() => setLoading(false))
+  }, [])
 
   const filtered = remittances.filter(r => filterType === 'ALL' || r.taxType === filterType)
 
@@ -322,6 +361,8 @@ function RemittancesTab() {
       )}
 
       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {loading && <div style={{ padding:30, textAlign:'center', color:'#888' }}>Loading...</div>}
+        {!loading && filtered.length === 0 && <div style={{ padding:30, textAlign:'center', color:'#888' }}>No remittances yet</div>}
         {filtered.map(r => (
           <Card key={r.id} style={{ padding:18 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -362,52 +403,80 @@ function RemittancesTab() {
 
 // ── Summary Tab ───────────────────────────────────────────────────────────────
 function SummaryTab() {
+  const [remittances, setRemittances] = useState<TaxRemittanceResponse[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    taxApi.getRemittances().then(res => {
+      if (res.success && res.data) setRemittances(res.data)
+    }).finally(() => setLoading(false))
+  }, [])
+
+  const totalVat = remittances.filter(r => r.taxType === 'VAT' && r.status !== 'PENDING').reduce((s, r) => s + r.taxAmount, 0)
+  const totalWht = remittances.filter(r => r.taxType === 'WHT' && r.status !== 'PENDING').reduce((s, r) => s + r.taxAmount, 0)
+  const pending  = remittances.filter(r => r.status === 'PENDING').length
+
+  const pieData = [
+    { name:'VAT', value: totalVat, color:'#1B8B34' },
+    { name:'WHT', value: totalWht, color:'#1565C0' },
+  ].filter(d => d.value > 0)
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
-        <KpiCard title="VAT Collected (Mar)"    value="KES 0"       change="Period not yet closed"   icon={<Percent size={18}/>}     color="#1B8B34" />
-        <KpiCard title="WHT Collected (Mar)"    value="KES 0"       change="Withholding tax"          icon={<DollarSign size={18}/>}  color="#6A1B9A" />
-        <KpiCard title="Total Liability (Feb)"  value="KES 69,000"  change="VAT KES 67,200 + WHT KES 1,800" icon={<TrendingUp size={18}/>} color="#E65100" />
-        <KpiCard title="Pending Remittances"    value="1"           change="March VAT due Apr 20"    icon={<AlertTriangle size={18}/>} color="#FF8F00" />
+        <KpiCard title="VAT Collected"          value={`KES ${totalVat.toLocaleString()}`}   change="All paid remittances"      icon={<Percent size={18}/>}     color="#1B8B34" />
+        <KpiCard title="WHT Collected"          value={`KES ${totalWht.toLocaleString()}`}   change="Withholding tax"           icon={<DollarSign size={18}/>}  color="#6A1B9A" />
+        <KpiCard title="Total Liability Filed"  value={`KES ${(totalVat + totalWht).toLocaleString()}`} change="All types" icon={<TrendingUp size={18}/>} color="#E65100" />
+        <KpiCard title="Pending Remittances"    value={String(pending)}                      change="Need to file"              icon={<AlertTriangle size={18}/>} color="#FF8F00" />
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:16 }}>
         <Card style={{ padding:20 }}>
-          <h3 style={{ fontWeight:700, marginBottom:16 }}>Monthly Tax Trend</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthlyTax}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
-              <XAxis dataKey="month" tick={{ fontSize:12 }} />
-              <YAxis tick={{ fontSize:11 }} tickFormatter={v => `${v/1000}K`} />
-              <Tooltip formatter={(v: number) => `KES ${v.toLocaleString()}`} />
-              <Bar dataKey="vat" name="VAT" fill="#1B8B34" radius={[4,4,0,0]} />
-              <Bar dataKey="wht" name="WHT" fill="#6A1B9A" radius={[4,4,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <h3 style={{ fontWeight:700, marginBottom:16 }}>Remittance History</h3>
+          {loading ? (
+            <div style={{ padding:20, textAlign:'center', color:'#888' }}>Loading...</div>
+          ) : remittances.length === 0 ? (
+            <div style={{ padding:20, textAlign:'center', color:'#888', fontSize:13 }}>No remittances yet — data will appear as you file periods.</div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {remittances.slice(0, 6).map(r => (
+                <div key={r.id} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'6px 0', borderBottom:'1px solid #F0F0F0' }}>
+                  <span style={{ color:'#555' }}>{r.taxType} · {r.periodStart} → {r.periodEnd}</span>
+                  <span style={{ fontWeight:700 }}>KES {r.taxAmount.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         <Card style={{ padding:20 }}>
-          <h3 style={{ fontWeight:700, marginBottom:16 }}>Feb Tax Breakdown</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <PieChart>
-              <Pie data={pieData} dataKey="value" cx="50%" cy="50%" outerRadius={70}
-                label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`}>
-                {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
-              </Pie>
-              <Tooltip formatter={(v: number) => `KES ${v.toLocaleString()}`} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div style={{ marginTop:12 }}>
-            {pieData.filter(d => d.value > 0).map(d => (
-              <div key={d.name} style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', borderBottom:'1px solid #F0F0F0', fontSize:13 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <div style={{ width:10, height:10, borderRadius:3, background:d.color }} />
-                  <span>{d.name}</span>
-                </div>
-                <span style={{ fontWeight:700 }}>KES {d.value.toLocaleString()}</span>
+          <h3 style={{ fontWeight:700, marginBottom:16 }}>Tax Breakdown</h3>
+          {pieData.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" cx="50%" cy="50%" outerRadius={70}
+                    label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`}>
+                    {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => `KES ${v.toLocaleString()}`} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ marginTop:12 }}>
+                {pieData.map(d => (
+                  <div key={d.name} style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', borderBottom:'1px solid #F0F0F0', fontSize:13 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <div style={{ width:10, height:10, borderRadius:3, background:d.color }} />
+                      <span>{d.name}</span>
+                    </div>
+                    <span style={{ fontWeight:700 }}>KES {d.value.toLocaleString()}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <div style={{ padding:20, textAlign:'center', color:'#888', fontSize:13 }}>No data yet</div>
+          )}
         </Card>
       </div>
 

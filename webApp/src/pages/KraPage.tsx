@@ -1,76 +1,20 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   CheckCircle, AlertTriangle, Clock, Upload, Download, RefreshCw,
   Shield, Wifi, WifiOff, FileText, ExternalLink, Info, ChevronRight,
   Zap, BarChart2, Settings
 } from 'lucide-react'
 import { PageHeader, Card, Btn, KpiCard } from '../components/ui'
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-type EtimsStatus = 'TRANSMITTED' | 'PENDING' | 'REJECTED' | 'ERROR'
-type ReturnStatus = 'DRAFT' | 'GENERATED' | 'SUBMITTED' | 'ACKNOWLEDGED'
-
-interface EtimsInvoice {
-  id: string; invoiceNumber: string; orderId: string
-  etimsInvoiceNumber: string | null; status: EtimsStatus
-  taxableAmount: number; taxAmount: number; totalAmount: number
-  qrCodeUrl: string | null; submittedAt: string | null; createdAt: string
-}
-
-interface TaxReturn {
-  id: string; returnType: 'VAT3' | 'TOT' | 'WHT'
-  periodLabel: string; dueDate: string; status: ReturnStatus
-  netVatPayable?: number; totAmount?: number; whtAmount?: number
-  iTaxAcknowledgementNo: string | null; csvDownloadReady: boolean
-}
-
-interface ComplianceStatus {
-  pin: string | null; isEtimsRegistered: boolean; isVatRegistered: boolean
-  complianceScore: number; etimsTransmissionRate: number
-  pendingReturns: { returnType: string; period: string; dueDate: string; isOverdue: boolean; estimatedAmount: number }[]
-  overdueReturns: { returnType: string; period: string; dueDate: string; isOverdue: boolean; estimatedAmount: number }[]
-  recommendations: string[]; lastEtimsTransmission: string | null
-}
-
-// ── Mock Data ─────────────────────────────────────────────────────────────────
-const mockCompliance: ComplianceStatus = {
-  pin: 'P051234567X', isEtimsRegistered: true, isVatRegistered: true,
-  complianceScore: 82, etimsTransmissionRate: 0.94,
-  pendingReturns: [
-    { returnType: 'VAT3', period: 'Mar 2026', dueDate: '2026-04-20', isOverdue: false, estimatedAmount: 71200 }
-  ],
-  overdueReturns: [],
-  recommendations: [
-    '📅 March 2026 VAT3 return due 20 Apr. Generate and upload now.',
-    '📊 94% of invoices transmitted to eTIMS. Retry 3 failed invoices.'
-  ],
-  lastEtimsTransmission: '2026-03-08T14:22:00Z'
-}
-
-const mockEtimsHistory: EtimsInvoice[] = [
-  { id:'1', invoiceNumber:'INV-2026-0147', orderId:'ord1', etimsInvoiceNumber:'NS00000147', status:'TRANSMITTED', taxableAmount:12500, taxAmount:2000, totalAmount:14500, qrCodeUrl:'https://etims.kra.go.ke/etims/v?tin=P051234567X&rcpt=NS00000147', submittedAt:'2026-03-08T14:22:00Z', createdAt:'2026-03-08T14:20:00Z' },
-  { id:'2', invoiceNumber:'INV-2026-0146', orderId:'ord2', etimsInvoiceNumber:'NS00000146', status:'TRANSMITTED', taxableAmount:8600, taxAmount:1376, totalAmount:9976, qrCodeUrl:'https://etims.kra.go.ke/etims/v?tin=P051234567X&rcpt=NS00000146', submittedAt:'2026-03-08T11:05:00Z', createdAt:'2026-03-08T11:00:00Z' },
-  { id:'3', invoiceNumber:'INV-2026-0145', orderId:'ord3', etimsInvoiceNumber:null, status:'ERROR', taxableAmount:3200, taxAmount:512, totalAmount:3712, qrCodeUrl:null, submittedAt:null, createdAt:'2026-03-07T16:30:00Z' },
-  { id:'4', invoiceNumber:'INV-2026-0144', orderId:'ord4', etimsInvoiceNumber:'NS00000144', status:'TRANSMITTED', taxableAmount:21000, taxAmount:3360, totalAmount:24360, qrCodeUrl:'https://etims.kra.go.ke/etims/v?tin=P051234567X&rcpt=NS00000144', submittedAt:'2026-03-07T10:15:00Z', createdAt:'2026-03-07T10:10:00Z' },
-  { id:'5', invoiceNumber:'INV-2026-0143', orderId:'ord5', etimsInvoiceNumber:null, status:'PENDING', taxableAmount:5500, taxAmount:880, totalAmount:6380, qrCodeUrl:null, submittedAt:null, createdAt:'2026-03-06T09:00:00Z' },
-]
-
-const mockReturns: TaxReturn[] = [
-  { id:'1', returnType:'VAT3', periodLabel:'Mar 2026', dueDate:'2026-04-20', status:'GENERATED',    netVatPayable:71200,  iTaxAcknowledgementNo:null,             csvDownloadReady:true  },
-  { id:'2', returnType:'VAT3', periodLabel:'Feb 2026', dueDate:'2026-03-20', status:'SUBMITTED',    netVatPayable:67200,  iTaxAcknowledgementNo:'ACK202602VAT001', csvDownloadReady:true  },
-  { id:'3', returnType:'VAT3', periodLabel:'Jan 2026', dueDate:'2026-02-20', status:'ACKNOWLEDGED', netVatPayable:60800,  iTaxAcknowledgementNo:'ACK202601VAT001', csvDownloadReady:true  },
-  { id:'4', returnType:'WHT',  periodLabel:'Feb 2026', dueDate:'2026-03-20', status:'SUBMITTED',    whtAmount:1350,       iTaxAcknowledgementNo:'ACK202602WHT001', csvDownloadReady:true  },
-  { id:'5', returnType:'TOT',  periodLabel:'Feb 2026', dueDate:'2026-03-20', status:'GENERATED',    totAmount:6300,       iTaxAcknowledgementNo:null,             csvDownloadReady:true  },
-]
+import { kraApi, KraComplianceStatus, EtimsInvoiceResponse, TaxReturnResponse } from '../services/api'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const ETIMS_STATUS_STYLE: Record<EtimsStatus, { bg: string; color: string; label: string }> = {
+const ETIMS_STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
   TRANSMITTED: { bg:'#E8F5E9', color:'#1B8B34', label:'Transmitted' },
   PENDING:     { bg:'#FFF8E1', color:'#FF8F00', label:'Pending' },
   REJECTED:    { bg:'#FFEBEE', color:'#C62828', label:'Rejected' },
   ERROR:       { bg:'#FFEBEE', color:'#C62828', label:'Error' },
 }
-const RETURN_STATUS_STYLE: Record<ReturnStatus, { bg: string; color: string }> = {
+const RETURN_STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   DRAFT:        { bg:'#F5F5F5', color:'#757575' },
   GENERATED:    { bg:'#E3F2FD', color:'#1565C0' },
   SUBMITTED:    { bg:'#FFF8E1', color:'#FF8F00' },
@@ -102,7 +46,23 @@ function ScoreRing({ score }: { score: number }) {
 
 // ── Tab: Compliance Overview ──────────────────────────────────────────────────
 function ComplianceTab() {
-  const c = mockCompliance
+  const [compliance, setCompliance] = useState<KraComplianceStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    kraApi.getCompliance().then(res => {
+      if (res.success && res.data) setCompliance(res.data)
+    }).finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div style={{ padding:40, textAlign:'center', color:'#888' }}>Loading...</div>
+
+  const c = compliance || {
+    pin: null, isEtimsRegistered: false, isVatRegistered: false,
+    complianceScore: 0, etimsTransmissionRate: 0,
+    pendingReturns: [], overdueReturns: [], recommendations: [], lastEtimsTransmission: null
+  }
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
@@ -195,8 +155,15 @@ function ComplianceTab() {
 
 // ── Tab: eTIMS Invoices ───────────────────────────────────────────────────────
 function EtimsTab() {
-  const [invoices, setInvoices] = useState(mockEtimsHistory)
-  const [filter, setFilter] = useState<'ALL'|EtimsStatus>('ALL')
+  const [invoices, setInvoices] = useState<EtimsInvoiceResponse[]>([])
+  const [filter, setFilter] = useState('ALL')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    kraApi.getEtimsHistory().then(res => {
+      if (res.success && res.data) setInvoices(res.data)
+    }).finally(() => setLoading(false))
+  }, [])
 
   const transmitted = invoices.filter(i => i.status === 'TRANSMITTED').length
   const errors      = invoices.filter(i => i.status === 'ERROR' || i.status === 'PENDING').length
@@ -204,8 +171,12 @@ function EtimsTab() {
 
   const filtered = filter === 'ALL' ? invoices : invoices.filter(i => i.status === filter)
 
-  function retryFailed() {
-    setInvoices(inv => inv.map(i => i.status === 'ERROR' || i.status === 'PENDING' ? {...i, status:'TRANSMITTED', etimsInvoiceNumber:`NS000001${i.id}0`} : i))
+  async function retryFailed() {
+    try {
+      await kraApi.retryEtims()
+      const res = await kraApi.getEtimsHistory()
+      if (res.success && res.data) setInvoices(res.data)
+    } catch (_) {}
   }
 
   return (
@@ -215,7 +186,7 @@ function EtimsTab() {
         <KpiCard title="Transmitted"     value={String(transmitted)}  change="Successfully signed" icon={<CheckCircle size={18}/>} color={G} />
         <KpiCard title="Failed/Pending"  value={String(errors)}        change="Need retransmission" icon={<AlertTriangle size={18}/>} color={errors > 0 ? '#C62828' : '#999'} />
         <KpiCard title="Transmission Rate" value={`${rate}%`}          change="KRA compliance"     icon={<BarChart2 size={18}/>} color="#1565C0" />
-        <KpiCard title="Last Sent"        value="Today 14:22"           change="INV-2026-0147"      icon={<Zap size={18}/>} color="#6A1B9A" />
+        <KpiCard title="Total Invoices"   value={String(invoices.length)} change="All time"         icon={<Zap size={18}/>} color="#6A1B9A" />
       </div>
 
       {/* What is eTIMS banner */}
@@ -232,7 +203,7 @@ function EtimsTab() {
       {/* Controls */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div style={{ display:'flex', gap:6 }}>
-          {(['ALL','TRANSMITTED','PENDING','ERROR'] as const).map(f => (
+          {(['ALL','TRANSMITTED','PENDING','ERROR']).map(f => (
             <button key={f} onClick={() => setFilter(f)} style={{
               padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:600, cursor:'pointer',
               border:`1px solid ${filter===f ? (f==='TRANSMITTED'?G:f==='ERROR'?'#C62828':'#FF8F00') : '#E0E0E0'}`,
@@ -250,8 +221,10 @@ function EtimsTab() {
 
       {/* Invoice list */}
       <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        {loading && <div style={{ padding:30, textAlign:'center', color:'#888' }}>Loading...</div>}
+        {!loading && filtered.length === 0 && <div style={{ padding:30, textAlign:'center', color:'#888' }}>No invoices yet</div>}
         {filtered.map(inv => {
-          const s = ETIMS_STATUS_STYLE[inv.status]
+          const s = ETIMS_STATUS_STYLE[inv.status] || { bg:'#F5F5F5', color:'#888', label: inv.status }
           return (
             <Card key={inv.id} style={{ padding:16 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -292,35 +265,47 @@ function EtimsTab() {
 
 // ── Tab: Tax Returns ──────────────────────────────────────────────────────────
 function ReturnsTab() {
-  const [returns, setReturns]     = useState(mockReturns)
+  const [returns, setReturns]     = useState<TaxReturnResponse[]>([])
   const [genType, setGenType]     = useState<'VAT3'|'TOT'|'WHT'>('VAT3')
-  const [genMonth, setGenMonth]   = useState(3)
-  const [genYear, setGenYear]     = useState(2026)
+  const [genMonth, setGenMonth]   = useState(new Date().getMonth() + 1)
+  const [genYear, setGenYear]     = useState(new Date().getFullYear())
   const [ackInput, setAckInput]   = useState<Record<string, string>>({})
+  const [loading, setLoading]     = useState(true)
+
+  useEffect(() => {
+    kraApi.getReturns().then(res => {
+      if (res.success && res.data) setReturns(res.data)
+    }).finally(() => setLoading(false))
+  }, [])
 
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
-  function generate() {
+  async function generate() {
     const label = `${months[genMonth-1]} ${genYear}`
     const existing = returns.find(r => r.returnType === genType && r.periodLabel === label)
-    if (!existing) {
-      setReturns(r => [...r, {
-        id: String(Date.now()), returnType: genType, periodLabel: label,
-        dueDate: `${genYear}-${String(genMonth+1).padStart(2,'0')}-20`,
-        status:'GENERATED', netVatPayable: genType==='VAT3' ? 71200 : undefined,
-        totAmount: genType==='TOT' ? 4200 : undefined, whtAmount: genType==='WHT' ? 1500 : undefined,
-        iTaxAcknowledgementNo: null, csvDownloadReady: true
-      }])
-    }
+    if (existing) return
+    const startDate = `${genYear}-${String(genMonth).padStart(2,'0')}-01`
+    const lastDay = new Date(genYear, genMonth, 0).getDate()
+    const endDate = `${genYear}-${String(genMonth).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`
+    try {
+      const fn = genType === 'VAT3' ? kraApi.generateVat3 : genType === 'TOT' ? kraApi.generateTot : kraApi.generateWht
+      const res = await fn({ periodStart: startDate, periodEnd: endDate })
+      if (res.success && res.data) setReturns(r => [...r, res.data!])
+    } catch (_) {}
   }
 
-  function markSubmitted(id: string) {
+  async function markSubmitted(id: string) {
     const ack = ackInput[id]
     if (!ack) return
-    setReturns(r => r.map(x => x.id === id ? {...x, status:'SUBMITTED', iTaxAcknowledgementNo:ack} : x))
+    try {
+      const res = await kraApi.markReturnSubmitted(id)
+      if (res.success && res.data) {
+        setReturns(r => r.map(x => x.id === id ? res.data! : x))
+      }
+    } catch (_) {}
   }
 
-  function getTaxAmount(r: TaxReturn) {
+  function getTaxAmount(r: TaxReturnResponse) {
     if (r.netVatPayable != null) return r.netVatPayable
     if (r.totAmount != null) return r.totAmount
     if (r.whtAmount != null) return r.whtAmount
@@ -365,8 +350,10 @@ function ReturnsTab() {
 
       {/* Returns list */}
       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {loading && <div style={{ padding:30, textAlign:'center', color:'#888' }}>Loading...</div>}
+        {!loading && returns.length === 0 && <div style={{ padding:30, textAlign:'center', color:'#888' }}>No returns yet</div>}
         {returns.map(r => {
-          const s  = RETURN_STATUS_STYLE[r.status]
+          const s  = RETURN_STATUS_STYLE[r.status] || { bg:'#F5F5F5', color:'#757575' }
           const tc = typeColor[r.returnType]
           const tb = typeBg[r.returnType]
           const amt = getTaxAmount(r)

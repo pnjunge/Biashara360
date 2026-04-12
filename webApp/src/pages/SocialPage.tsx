@@ -4,6 +4,7 @@ import {
   RefreshCw, ChevronDown, Search, Settings, Circle, ArrowRight,
   Phone, MapPin, Package, AlertCircle, Wifi, Link, Copy
 } from 'lucide-react'
+import { socialApi, ConversationSummary, SocialChannel, SocialMessage } from '../services/api'
 
 // ── Brand Colors ──────────────────────────────────────────────────────────────
 const PLATFORM = {
@@ -13,55 +14,6 @@ const PLATFORM = {
   TIKTOK:    { color: '#000000', bg: '#F0F0F0', label: 'TikTok',    icon: '🎵' },
 }
 const G = '#1B8B34'
-
-// ── Sample Data ───────────────────────────────────────────────────────────────
-const SAMPLE_CONVS = [
-  { id:'c1', platform:'WHATSAPP',  channelName:'Biashara360 WA',    customerName:'Amina Wanjiru',   customerPhone:'+254712345678', status:'OPEN',            unreadCount:3, lastMessage:'Hii unga inauzwa bei gani?', lastMessageAt:'2026-03-08T14:30:00Z', isAiHandled:false, assignedOrderId:null },
-  { id:'c2', platform:'INSTAGRAM', channelName:'@biashara360ke',    customerName:'Kevin Omondi',    customerPhone:null,            status:'PENDING_PAYMENT', unreadCount:0, lastMessage:'Sawa, nitapeleka M-Pesa sasa', lastMessageAt:'2026-03-08T13:55:00Z', isAiHandled:true,  assignedOrderId:'ord123' },
-  { id:'c3', platform:'FACEBOOK',  channelName:'Biashara360 Page',  customerName:'Grace Muthoni',   customerPhone:'+254798765432', status:'OPEN',            unreadCount:1, lastMessage:'Do you do deliveries to Nakuru?', lastMessageAt:'2026-03-08T12:20:00Z', isAiHandled:false, assignedOrderId:null },
-  { id:'c4', platform:'TIKTOK',    channelName:'@biashara360',      customerName:'TikTok User 902', customerPhone:null,            status:'COMPLETED',       unreadCount:0, lastMessage:'Asante sana! Order imefika 🙏', lastMessageAt:'2026-03-08T10:00:00Z', isAiHandled:true,  assignedOrderId:'ord119' },
-  { id:'c5', platform:'WHATSAPP',  channelName:'Biashara360 WA',    customerName:'Peter Kamau',     customerPhone:'+254711223344', status:'OPEN',            unreadCount:2, lastMessage:'Mnafungua saa ngapi?', lastMessageAt:'2026-03-08T09:45:00Z', isAiHandled:false, assignedOrderId:null },
-  { id:'c6', platform:'INSTAGRAM', channelName:'@biashara360ke',    customerName:'Sharon Achieng',  customerPhone:null,            status:'OPEN',            unreadCount:4, lastMessage:'I saw your post, how much for 2 bags?', lastMessageAt:'2026-03-08T09:10:00Z', isAiHandled:false, assignedOrderId:null },
-]
-
-const MESSAGES: Record<string, any[]> = {
-  c1: [
-    { id:'m1', direction:'INBOUND',  senderType:'CUSTOMER', content:'Habari! Mnauza unga wa dhahabu?', messageType:'TEXT', createdAt:'2026-03-08T14:20:00Z', isAiGenerated:false },
-    { id:'m2', direction:'OUTBOUND', senderType:'AI',       content:'Habari yako! Ndiyo, tunazo unga wa dhahabu. Bei ni KES 180 kwa kilo 2, KES 320 kwa kilo 5. Ungependa kuagiza kiasi gani? 😊', messageType:'TEXT', createdAt:'2026-03-08T14:21:00Z', isAiGenerated:true },
-    { id:'m3', direction:'INBOUND',  senderType:'CUSTOMER', content:'Hii unga inauzwa bei gani kwa debe?', messageType:'TEXT', createdAt:'2026-03-08T14:30:00Z', isAiGenerated:false },
-  ],
-  c2: [
-    { id:'m4', direction:'INBOUND',  senderType:'CUSTOMER', content:'Ninaomba order ya 3 bottles za cooking oil', messageType:'TEXT', createdAt:'2026-03-08T13:30:00Z', isAiGenerated:false },
-    { id:'m5', direction:'OUTBOUND', senderType:'AI',       content:'Asante Kevin! Cooking oil ya KES 195 × 3 = KES 585 total. Nitakutumia maelekezo ya kulipa sasa hivi! 🛍️', messageType:'TEXT', createdAt:'2026-03-08T13:31:00Z', isAiGenerated:true },
-    { id:'m6', direction:'OUTBOUND', senderType:'AGENT',    content:'Hujambo Kevin! 🛍️\n\n*Order ya Cooking Oil × 3*\n💰 Jumla: *KES 585*\n\n💳 *Lipa kwa Mpesa:*\nPaybill: 174379\nAccount: ORD-2026-0122\nKiasi: KES 585\n\nAsante kwa kununua! 🙏', messageType:'PAYMENT_REQUEST', createdAt:'2026-03-08T13:32:00Z', isAiGenerated:false },
-    { id:'m7', direction:'INBOUND',  senderType:'CUSTOMER', content:'Sawa, nitapeleka M-Pesa sasa', messageType:'TEXT', createdAt:'2026-03-08T13:55:00Z', isAiGenerated:false },
-  ],
-  c3: [
-    { id:'m8', direction:'INBOUND',  senderType:'CUSTOMER', content:'Do you do deliveries to Nakuru?', messageType:'TEXT', createdAt:'2026-03-08T12:20:00Z', isAiGenerated:false },
-  ],
-  c4: [
-    { id:'m9',  direction:'INBOUND',  senderType:'CUSTOMER', content:'Naomba order ya sugar 2kg na rice 5kg', messageType:'TEXT', createdAt:'2026-03-08T08:00:00Z', isAiGenerated:false },
-    { id:'m10', direction:'OUTBOUND', senderType:'AI',       content:'Sawa! Sugar 2kg (KES 280) + Rice 5kg (KES 620) = KES 900. Nikusaidie kumaliza order? 😊', messageType:'TEXT', createdAt:'2026-03-08T08:01:00Z', isAiGenerated:true },
-    { id:'m11', direction:'INBOUND',  senderType:'CUSTOMER', content:'Asante sana! Order imefika 🙏', messageType:'TEXT', createdAt:'2026-03-08T10:00:00Z', isAiGenerated:false },
-  ],
-  c5: [
-    { id:'m12', direction:'INBOUND', senderType:'CUSTOMER', content:'Mnafungua saa ngapi?', messageType:'TEXT', createdAt:'2026-03-08T09:45:00Z', isAiGenerated:false },
-    { id:'m13', direction:'INBOUND', senderType:'CUSTOMER', content:'Na mnafunga saa ngapi jioni?', messageType:'TEXT', createdAt:'2026-03-08T09:46:00Z', isAiGenerated:false },
-  ],
-  c6: [
-    { id:'m14', direction:'INBOUND', senderType:'CUSTOMER', content:'I saw your post, how much for 2 bags?', messageType:'TEXT', createdAt:'2026-03-08T09:10:00Z', isAiGenerated:false },
-    { id:'m15', direction:'INBOUND', senderType:'CUSTOMER', content:'Can you deliver to Westlands?', messageType:'TEXT', createdAt:'2026-03-08T09:11:00Z', isAiGenerated:false },
-    { id:'m16', direction:'INBOUND', senderType:'CUSTOMER', content:'What are your payment options?', messageType:'TEXT', createdAt:'2026-03-08T09:12:00Z', isAiGenerated:false },
-    { id:'m17', direction:'INBOUND', senderType:'CUSTOMER', content:'I saw your post, how much for 2 bags?', messageType:'TEXT', createdAt:'2026-03-08T09:13:00Z', isAiGenerated:false },
-  ],
-}
-
-const CHANNELS_DATA = [
-  { id:'ch1', platform:'WHATSAPP',  channelName:'Biashara360 WA',   externalId:'254700000001', phoneNumber:'+254700000001', isActive:true,  autoReplyEnabled:true,  webhookVerifyToken:'abc123tok', webhookUrl:'https://api.biashara360.co.ke/v1/social/webhook/whatsapp', unreadCount:5 },
-  { id:'ch2', platform:'INSTAGRAM', channelName:'@biashara360ke',   externalId:'17841400000001', phoneNumber:null,          isActive:true,  autoReplyEnabled:true,  webhookVerifyToken:'def456tok', webhookUrl:'https://api.biashara360.co.ke/v1/social/webhook/instagram', unreadCount:4 },
-  { id:'ch3', platform:'FACEBOOK',  channelName:'Biashara360 Page', externalId:'100000000001',  phoneNumber:null,          isActive:true,  autoReplyEnabled:false, webhookVerifyToken:'ghi789tok', webhookUrl:'https://api.biashara360.co.ke/v1/social/webhook/facebook',  unreadCount:1 },
-  { id:'ch4', platform:'TIKTOK',    channelName:'@biashara360',     externalId:'tt_openid_001', phoneNumber:null,          isActive:false, autoReplyEnabled:false, webhookVerifyToken:'jkl012tok', webhookUrl:'https://api.biashara360.co.ke/v1/social/webhook/tiktok/ch4', unreadCount:0 },
-]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function timeAgo(iso: string) {
@@ -96,9 +48,9 @@ function StatusDot({ status }: { status: string }) {
 
 // ── Tab: Inbox ────────────────────────────────────────────────────────────────
 function InboxTab() {
-  const [convs, setConvs]         = useState(SAMPLE_CONVS)
-  const [active, setActive]       = useState<string | null>('c1')
-  const [msgs, setMsgs]           = useState(MESSAGES)
+  const [convs, setConvs]         = useState<ConversationSummary[]>([])
+  const [active, setActive]       = useState<string | null>(null)
+  const [msgs, setMsgs]           = useState<Record<string, SocialMessage[]>>({})
   const [draft, setDraft]         = useState('')
   const [filterPlatform, setFP]   = useState('ALL')
   const [filterStatus, setFS]     = useState('ALL')
@@ -110,7 +62,26 @@ function InboxTab() {
   const [payAmt, setPayAmt]       = useState('')
   const [payDesc, setPayDesc]     = useState('')
   const [copied, setCopied]       = useState(false)
+  const [loading, setLoading]     = useState(true)
   const msgEnd = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    socialApi.getInbox().then(res => {
+      if (res.success && res.data) {
+        setConvs(res.data)
+        if (res.data.length > 0) setActive(res.data[0].id)
+      }
+    }).finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    if (!active || msgs[active]) return
+    socialApi.getConversation(active).then(res => {
+      if (res.success && res.data) {
+        setMsgs(m => ({ ...m, [active]: res.data!.messages }))
+      }
+    })
+  }, [active])
 
   useEffect(() => { msgEnd.current?.scrollIntoView({ behavior:'smooth' }) }, [active, msgs])
 
@@ -125,51 +96,57 @@ function InboxTab() {
     return true
   })
 
-  function send() {
+  async function send() {
     if (!draft.trim() || !active) return
-    const msg = { id: `m${Date.now()}`, direction:'OUTBOUND', senderType:'AGENT', content:draft, messageType:'TEXT', createdAt:new Date().toISOString(), isAiGenerated:false }
+    const content = draft
+    const msg: SocialMessage = { id: `m${Date.now()}`, direction:'OUTBOUND', senderType:'AGENT', content, messageType:'TEXT', createdAt:new Date().toISOString(), isAiGenerated:false }
     setMsgs(m => ({ ...m, [active]: [...(m[active]||[]), msg] }))
-    setConvs(cs => cs.map(c => c.id === active ? {...c, lastMessage:draft, lastMessageAt:new Date().toISOString()} : c))
+    setConvs(cs => cs.map(c => c.id === active ? {...c, lastMessage:content, lastMessageAt:new Date().toISOString()} : c))
     setDraft('')
     setAiSug(null)
+    try {
+      await socialApi.sendMessage({ conversationId: active, content, messageType: 'TEXT' })
+    } catch (_) {}
   }
 
-  function getAiReply() {
+  async function getAiReply() {
     if (!activeConv) return
     setAiLoading(true)
     setAiSug(null)
-    setTimeout(() => {
+    try {
       const lastCustomerMsg = [...activeMsgs].reverse().find(m => m.direction === 'INBOUND')?.content || ''
-      const suggestions: Record<string, string> = {
-        'bei gani': `Habari! ${activeConv.customerName.split(' ')[0]} 😊 Bei yetu ni:\n• Unga 2kg - KES 180\n• Unga 5kg - KES 320\n• Unga debe - KES 1,200\n\nUngependa kuagiza?`,
-        'delivery': `Ndiyo, tunafanya delivery Nairobi yote na Kenya! Delivery ya Nairobi ni KES 150. Unataka tuwasilishe wapi? 📦`,
-        'how much': `Hi ${activeConv.customerName.split(' ')[0]}! 😊 Our prices:\n• 2kg bag - KES 180\n• 5kg bag - KES 320\n\nShall I prepare an order for you?`,
-        'payment': `Tunakubali M-Pesa (Paybill 174379), Cash, na Card. Unataka kulipa kwa njia gani? 💳`,
-        'saa ngapi': `Tunafungua 7:00 asubuhi hadi 9:00 usiku kila siku! 🕖 Je, ungependa kuagiza kitu?`,
+      const res = await socialApi.getAiReply({ conversationId: active, lastMessage: lastCustomerMsg, customerName: activeConv.customerName })
+      if (res.success && res.data) {
+        setAiSug(res.data.suggestedReply)
       }
-      const key = Object.keys(suggestions).find(k => lastCustomerMsg.toLowerCase().includes(k))
-      const reply = key ? suggestions[key] : `Habari ${activeConv.customerName.split(' ')[0]}! Asante kwa kuwasiliana nasi. Ninawezaje kukusaidia leo? 😊`
-      setAiSug(reply)
+    } catch (_) {
+      setAiSug(`Habari ${activeConv.customerName.split(' ')[0]}! Asante kwa kuwasiliana nasi. Ninawezaje kukusaidia leo? 😊`)
+    } finally {
       setAiLoading(false)
-    }, 1200)
+    }
   }
 
-  function sendAiReply() {
+  async function sendAiReply() {
     if (!aiSuggestion || !active) return
-    const msg = { id: `m${Date.now()}`, direction:'OUTBOUND', senderType:'AI', content:aiSuggestion, messageType:'TEXT', createdAt:new Date().toISOString(), isAiGenerated:true }
+    const content = aiSuggestion
+    const msg: SocialMessage = { id: `m${Date.now()}`, direction:'OUTBOUND', senderType:'AI', content, messageType:'TEXT', createdAt:new Date().toISOString(), isAiGenerated:true }
     setMsgs(m => ({ ...m, [active]: [...(m[active]||[]), msg] }))
-    setConvs(cs => cs.map(c => c.id === active ? {...c, lastMessage:aiSuggestion, lastMessageAt:new Date().toISOString(), isAiHandled:true} : c))
+    setConvs(cs => cs.map(c => c.id === active ? {...c, lastMessage:content, lastMessageAt:new Date().toISOString(), isAiHandled:true} : c))
     setAiSug(null)
+    try {
+      await socialApi.sendMessage({ conversationId: active, content, messageType: 'TEXT', isAiGenerated: true })
+    } catch (_) {}
   }
 
   function sendPayment() {
     if (!active || !payAmt) return
     const amt = parseFloat(payAmt)
     const payMsg = `Hujambo ${activeConv?.customerName.split(' ')[0]}! 🛍️\n\n*${payDesc || 'Order yako'}*\n💰 Jumla: *KES ${amt.toLocaleString()}*\n\n💳 *Lipa kwa Mpesa:*\nPaybill: 174379\nAccount: ORD-${Date.now().toString().slice(-4)}\nKiasi: KES ${amt.toLocaleString()}\n\n📱 Au piga simu: ${activeConv?.customerPhone || '0700000000'}\n\nAsante kwa kununua! 🙏`
-    const msg = { id:`m${Date.now()}`, direction:'OUTBOUND', senderType:'AGENT', content:payMsg, messageType:'PAYMENT_REQUEST', createdAt:new Date().toISOString(), isAiGenerated:false }
+    const msg: SocialMessage = { id:`m${Date.now()}`, direction:'OUTBOUND', senderType:'AGENT', content:payMsg, messageType:'PAYMENT_REQUEST', createdAt:new Date().toISOString(), isAiGenerated:false }
     setMsgs(m => ({ ...m, [active]: [...(m[active]||[]), msg] }))
     setConvs(cs => cs.map(c => c.id === active ? {...c, status:'PENDING_PAYMENT', lastMessage:payMsg.slice(0,60), lastMessageAt:new Date().toISOString()} : c))
     setPayAmt(''); setPayDesc(''); setPayMod(false)
+    socialApi.sendMessage({ conversationId: active, content: payMsg, messageType: 'PAYMENT_REQUEST' }).catch(() => {})
   }
 
   const totalUnread = convs.reduce((s, c) => s + c.unreadCount, 0)
@@ -204,7 +181,10 @@ function InboxTab() {
         </div>
 
         <div style={{ flex:1, overflowY:'auto' }}>
-          {filtered.length === 0 && (
+          {loading && (
+            <div style={{ padding:30, textAlign:'center', color:'#999', fontSize:13 }}>Loading...</div>
+          )}
+          {!loading && filtered.length === 0 && (
             <div style={{ padding:30, textAlign:'center', color:'#999', fontSize:13 }}>No conversations found</div>
           )}
           {filtered.map(c => {
@@ -438,10 +418,17 @@ function InboxTab() {
 
 // ── Tab: Channels ─────────────────────────────────────────────────────────────
 function ChannelsTab() {
-  const [channels, setChannels] = useState(CHANNELS_DATA)
+  const [channels, setChannels] = useState<SocialChannel[]>([])
   const [showAdd, setShowAdd]   = useState(false)
   const [newPlatform, setNP]    = useState('WHATSAPP')
   const [copied, setCopied]     = useState<string|null>(null)
+  const [loading, setLoading]   = useState(true)
+
+  useEffect(() => {
+    socialApi.getChannels().then(res => {
+      if (res.success && res.data) setChannels(res.data)
+    }).finally(() => setLoading(false))
+  }, [])
 
   function copy(text: string, key: string) {
     navigator.clipboard.writeText(text).catch(()=>{})
@@ -449,8 +436,19 @@ function ChannelsTab() {
     setTimeout(() => setCopied(null), 1800)
   }
 
-  function toggle(id: string) {
-    setChannels(cs => cs.map(c => c.id === id ? {...c, autoReplyEnabled: !c.autoReplyEnabled} : c))
+  async function toggle(id: string) {
+    const ch = channels.find(c => c.id === id)
+    if (!ch) return
+    try {
+      const res = await socialApi.updateChannelSettings(id, { autoReplyEnabled: !ch.autoReplyEnabled })
+      if (res.success && res.data) {
+        setChannels(cs => cs.map(c => c.id === id ? res.data! : c))
+      } else {
+        setChannels(cs => cs.map(c => c.id === id ? {...c, autoReplyEnabled: !c.autoReplyEnabled} : c))
+      }
+    } catch (_) {
+      setChannels(cs => cs.map(c => c.id === id ? {...c, autoReplyEnabled: !c.autoReplyEnabled} : c))
+    }
   }
 
   const connected = channels.filter(c => c.isActive).length
@@ -502,6 +500,9 @@ function ChannelsTab() {
     <div style={{ display:'flex', flexDirection:'column', gap:16, padding:'4px 0' }}>
 
       {/* Summary KPIs */}
+      {loading ? (
+        <div style={{ padding:30, textAlign:'center', color:'#999', fontSize:13 }}>Loading...</div>
+      ) : (
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
         {Object.entries(PLATFORM).map(([key, p]) => {
           const ch = channels.find(c => c.platform === key)
@@ -524,9 +525,13 @@ function ChannelsTab() {
           )
         })}
       </div>
+      )}
 
       {/* Connected channels */}
       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {channels.length === 0 && !loading && (
+          <div style={{ padding:30, textAlign:'center', color:'#999', fontSize:13 }}>No channels connected yet</div>
+        )}
         {channels.map(ch => {
           const p = PLATFORM[ch.platform as keyof typeof PLATFORM]
           return (
@@ -755,10 +760,9 @@ function AnalyticsTab() {
 // ── Main Social Page ──────────────────────────────────────────────────────────
 export default function SocialPage() {
   const [tab, setTab] = useState<'inbox'|'channels'|'analytics'>('inbox')
-  const totalUnread   = SAMPLE_CONVS.reduce((s, c) => s + c.unreadCount, 0)
 
   const tabs = [
-    { key:'inbox',     label:'Unified Inbox',    badge: totalUnread > 0 ? totalUnread : null },
+    { key:'inbox',     label:'Unified Inbox',    badge: null },
     { key:'channels',  label:'Connected Channels', badge: null },
     { key:'analytics', label:'Analytics',          badge: null },
   ]
