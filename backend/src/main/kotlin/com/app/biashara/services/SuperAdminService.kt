@@ -83,7 +83,7 @@ class SuperAdminService {
 
     fun listBusinesses(): List<BusinessResponse> = transaction {
         BusinessesTable
-            .selectAll()
+            .select { BusinessesTable.type neq "SYSTEM" }
             .orderBy(BusinessesTable.createdAt, SortOrder.DESC)
             .map {
                 BusinessResponse(

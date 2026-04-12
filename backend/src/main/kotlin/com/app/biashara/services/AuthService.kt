@@ -125,7 +125,7 @@ class AuthService {
         ApiResponse(success = true, data = auth, message = "Token refreshed")
     }
 
-    private fun issueTokens(userId: String, businessId: String, role: String): AuthResponse {
+    private fun issueTokens(userId: String, businessId: String?, role: String): AuthResponse {
         val accessToken  = JwtUtils.generateAccessToken(userId, businessId, role)
         val refreshToken = JwtUtils.generateRefreshToken(userId)
         val now = Clock.System.now()

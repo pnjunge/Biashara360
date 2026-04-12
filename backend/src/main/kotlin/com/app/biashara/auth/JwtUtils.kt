@@ -47,16 +47,18 @@ object JwtUtils {
         refreshTokenExpiry = resolve(config, "jwt.refreshTokenExpiry", "JWT_REFRESH_TOKEN_EXPIRY", "2592000").toLong()
     }
 
-    fun generateAccessToken(userId: String, businessId: String, role: String): String {
-        return JWT.create()
+    fun generateAccessToken(userId: String, businessId: String?, role: String): String {
+        val builder = JWT.create()
             .withIssuer(issuer)
             .withAudience(audience)
             .withSubject(userId)
-            .withClaim("businessId", businessId)
             .withClaim("role", role)
             .withClaim("type", "access")
             .withExpiresAt(Date(System.currentTimeMillis() + accessTokenExpiry * 1000))
-            .sign(Algorithm.HMAC256(secret))
+        if (businessId != null) {
+            builder.withClaim("businessId", businessId)
+        }
+        return builder.sign(Algorithm.HMAC256(secret))
     }
 
     fun generateRefreshToken(userId: String): String {

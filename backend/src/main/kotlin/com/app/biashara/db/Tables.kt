@@ -27,7 +27,7 @@ object BusinessesTable : Table("businesses") {
 
 object UsersTable : Table("users") {
     val id = varchar("id", 36)
-    val businessId = varchar("business_id", 36).references(BusinessesTable.id, CASCADE, SET_NULL)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, CASCADE, SET_NULL).nullable()
     val name = varchar("name", 255)
     val email = varchar("email", 255).uniqueIndex()
     val phone = varchar("phone", 20).uniqueIndex()
