@@ -447,25 +447,58 @@ export function UserCreationPage() {
 }
 
 // ── Business Profile ──────────────────────────────────────────────────────────
-export function BusinessPage() {
-  const [saved, setSaved] = useState(false)
-  const [form, setForm] = useState({
-    name: "Wanjiru's Fashion",
-    owner: 'Wanjiru Kamau',
-    phone: '+254 712 345 678',
-    email: 'wanjiru@biashara360.co.ke',
-    type: 'Retail',
-    county: 'Nairobi',
-    address: 'Tom Mboya Street, CBD',
-    pin: 'P051234567A',
-    paybill: '174379',
-    accountNumber: '0745678',
-  })
+type BusinessProfile = {
+  name: string; owner: string; phone: string; email: string
+  type: string; county: string; address: string
+  pin: string; paybill: string; accountNumber: string
+}
 
-  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+const defaultBusiness: BusinessProfile = {
+  name: "Wanjiru's Fashion",
+  owner: 'Wanjiru Kamau',
+  phone: '+254 712 345 678',
+  email: 'wanjiru@biashara360.co.ke',
+  type: 'Retail',
+  county: 'Nairobi',
+  address: 'Tom Mboya Street, CBD',
+  pin: 'P051234567A',
+  paybill: '174379',
+  accountNumber: '0745678',
+}
+
+const emptyBusiness: BusinessProfile = {
+  name: '', owner: '', phone: '', email: '',
+  type: '', county: '', address: '',
+  pin: '', paybill: '', accountNumber: '',
+}
+
+export function BusinessPage() {
+  const [businesses, setBusinesses] = useState<BusinessProfile[]>([defaultBusiness])
+  const [activeIdx, setActiveIdx] = useState(0)
+  const [saved, setSaved] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [newForm, setNewForm] = useState<BusinessProfile>(emptyBusiness)
+  const [newError, setNewError] = useState('')
+
+  const form = businesses[activeIdx]
+  const setForm = (updater: (prev: BusinessProfile) => BusinessProfile) =>
+    setBusinesses(prev => prev.map((b, i) => i === activeIdx ? updater(b) : b))
+
+  const f = (k: keyof BusinessProfile) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(prev => ({ ...prev, [k]: e.target.value }))
 
   const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 3000) }
+
+  const openNew = () => { setNewForm(emptyBusiness); setNewError(''); setShowNew(true) }
+
+  const handleCreate = () => {
+    if (!newForm.name.trim()) { setNewError('Business name is required.'); return }
+    setBusinesses(prev => [...prev, newForm])
+    setActiveIdx(businesses.length)
+    setShowNew(false)
+  }
+
+  const nf = (k: keyof BusinessProfile) => (v: string) => setNewForm(prev => ({ ...prev, [k]: v }))
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <Card style={{ padding: 20, marginBottom: 16 }}>
@@ -474,7 +507,7 @@ export function BusinessPage() {
     </Card>
   )
 
-  const Field = ({ label, field }: { label: string; field: keyof typeof form }) => (
+  const Field = ({ label, field }: { label: string; field: keyof BusinessProfile }) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <span style={{ fontSize: 13, color: 'var(--b360-text-secondary)', width: 160 }}>{label}</span>
       <input
@@ -487,12 +520,50 @@ export function BusinessPage() {
 
   return (
     <div className="fade-in" style={{ maxWidth: 680 }}>
+      {showNew && (
+        <Modal title="New Business" onClose={() => setShowNew(false)}
+          footer={<><Btn variant="secondary" onClick={() => setShowNew(false)}>Cancel</Btn><Btn onClick={handleCreate}>Create Business</Btn></>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {newError && <p style={{ color: 'var(--b360-red)', fontSize: 12 }}>{newError}</p>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <Input label="Business Name *" value={newForm.name} onChange={nf('name')} placeholder="e.g. Kamau Supplies" />
+              <Input label="Owner Name" value={newForm.owner} onChange={nf('owner')} placeholder="e.g. John Kamau" />
+              <Input label="Phone Number" value={newForm.phone} onChange={nf('phone')} placeholder="+254..." />
+              <Input label="Email Address" value={newForm.email} onChange={nf('email')} placeholder="email@example.com" type="email" />
+              <Input label="Business Type" value={newForm.type} onChange={nf('type')} placeholder="e.g. Retail" />
+              <Input label="County" value={newForm.county} onChange={nf('county')} placeholder="e.g. Nairobi" />
+            </div>
+            <Input label="Address" value={newForm.address} onChange={nf('address')} placeholder="e.g. Moi Avenue, CBD" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <Input label="KRA PIN" value={newForm.pin} onChange={nf('pin')} placeholder="P0XXXXXXXXX" />
+              <Input label="Paybill Number" value={newForm.paybill} onChange={nf('paybill')} placeholder="e.g. 174379" />
+              <Input label="Account Number" value={newForm.accountNumber} onChange={nf('accountNumber')} placeholder="e.g. 0745678" />
+            </div>
+          </div>
+        </Modal>
+      )}
+
       <PageHeader title="Business Profile" action={
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {saved && <span style={{ fontSize: 12, color: 'var(--b360-green)', fontWeight: 600 }}>✓ Saved</span>}
           <Btn onClick={handleSave}>Save Changes</Btn>
+          <Btn icon={<Plus size={14} />} onClick={openNew}>New Business</Btn>
         </div>
       } />
+
+      {businesses.length > 1 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          {businesses.map((b, i) => (
+            <button key={i} onClick={() => setActiveIdx(i)} style={{
+              padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              border: '1px solid var(--b360-border)',
+              background: i === activeIdx ? 'var(--b360-green)' : 'white',
+              color: i === activeIdx ? 'white' : 'var(--b360-text-secondary)',
+            }}>{b.name || `Business ${i + 1}`}</button>
+          ))}
+        </div>
+      )}
+
       <Section title="General Information">
         <Field label="Business Name"  field="name" />
         <Field label="Owner Name"     field="owner" />
