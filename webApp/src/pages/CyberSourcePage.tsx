@@ -1,28 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { CreditCard, Shield, CheckCircle, XCircle, Clock, RefreshCw, Trash2, Plus, ChevronRight } from 'lucide-react'
 import { Card, PageHeader, StatusBadge, DataTable, Btn, KpiCard } from '../components/ui'
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-interface SavedCard { id: string; last4: string; type: string; expiry: string; holder: string; isDefault: boolean }
-interface CsTransaction {
-  id: string; orderId: string; csTransactionId: string; amount: number; currency: string
-  status: string; type: string; cardLast4: string; cardType: string; approvalCode: string
-  reconciliationId: string; createdAt: string
-}
-
-// ── Mock data ─────────────────────────────────────────────────────────────────
-const mockCards: SavedCard[] = [
-  { id: '1', last4: '4242', type: 'VISA',       expiry: '12/27', holder: 'Amina Hassan',  isDefault: true  },
-  { id: '2', last4: '5555', type: 'MASTERCARD', expiry: '06/26', holder: 'Brian Otieno',  isDefault: false },
-]
-
-const mockTransactions: CsTransaction[] = [
-  { id: 't1', orderId: 'B360-0042', csTransactionId: '7285900622826740503954', amount: 4500, currency: 'KES', status: 'CAPTURED',    type: 'CAPTURE',       cardLast4: '4242', cardType: 'VISA',       approvalCode: 'HH8765', reconciliationId: '5760049254246816104015', createdAt: 'Today 14:32' },
-  { id: 't2', orderId: 'B360-0041', csTransactionId: '7285900622826740503955', amount: 1500, currency: 'KES', status: 'AUTHORIZED',  type: 'AUTHORIZATION', cardLast4: '5555', cardType: 'MASTERCARD', approvalCode: 'AB1234', reconciliationId: '5760049254246816104016', createdAt: 'Today 11:05' },
-  { id: 't3', orderId: 'B360-0039', csTransactionId: '7285900622826740503956', amount: 6800, currency: 'KES', status: 'REFUNDED',    type: 'REFUND',        cardLast4: '4242', cardType: 'VISA',       approvalCode: '',       reconciliationId: '5760049254246816104017', createdAt: 'Yesterday' },
-  { id: 't4', orderId: 'B360-0037', csTransactionId: '7285900622826740503957', amount: 2200, currency: 'KES', status: 'DECLINED',    type: 'AUTHORIZATION', cardLast4: '4111', cardType: 'VISA',       approvalCode: '',       reconciliationId: '',                        createdAt: 'Mon' },
-  { id: 't5', orderId: 'B360-0035', csTransactionId: '7285900622826740503958', amount: 3200, currency: 'KES', status: 'VOIDED',      type: 'VOID',          cardLast4: '5555', cardType: 'MASTERCARD', approvalCode: '',       reconciliationId: '',                        createdAt: 'Sun' },
-]
+import { cyberSourceApi, CsTransactionRecord, SavedCardResponse } from '../services/api'
 
 // ── Card brand logo ───────────────────────────────────────────────────────────
 function CardBrand({ type }: { type: string }) {
@@ -217,7 +196,7 @@ function UnifiedCheckoutWidget({ orderId, amount, onSuccess, onCancel }:
 
 // ── Saved Card Picker ─────────────────────────────────────────────────────────
 function SavedCardPicker({ cards, onSelect, selectedId, onNew }:
-  { cards: SavedCard[]; onSelect: (id: string) => void; selectedId: string; onNew: () => void }) {
+  { cards: SavedCardResponse[]; onSelect: (id: string) => void; selectedId: string; onNew: () => void }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
       {cards.map(card => (
@@ -292,19 +271,45 @@ function PaymentResult({ result, onClose }: { result: any; onClose: () => void }
 export default function CyberSourcePage() {
   const [activeTab, setActiveTab] = useState<'charge' | 'transactions' | 'saved'>('charge')
   const [payMethod, setPayMethod] = useState<'new' | 'saved'>('saved')
-  const [selectedCard, setSelectedCard] = useState('1')
+  const [selectedCard, setSelectedCard] = useState('')
   const [amount, setAmount] = useState('4500')
   const [orderId, setOrderId] = useState('B360-0042')
   const [showWidget, setShowWidget] = useState(false)
   const [payResult, setPayResult] = useState<any>(null)
-  const [transactions] = useState<CsTransaction[]>(mockTransactions)
-  const [savedCards] = useState<SavedCard[]>(mockCards)
-  const [refundModal, setRefundModal] = useState<CsTransaction | null>(null)
+  const [transactions, setTransactions] = useState<CsTransactionRecord[]>([])
+  const [savedCards, setSavedCards] = useState<SavedCardResponse[]>([])
+  const [refundModal, setRefundModal] = useState<CsTransactionRecord | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const captured = transactions.filter(t => t.status === 'CAPTURED').reduce((s, t) => s + t.amount, 0)
+  useEffect(() => {
+    Promise.all([
+      cyberSourceApi.getTransactions(),
+      cyberSourceApi.getSavedCards(),
+    ]).then(([txns, cards]) => {
+      if (txns.success && txns.data) setTransactions(txns.data)
+      if (cards.success && cards.data) {
+        setSavedCards(cards.data)
+        const def = cards.data.find(c => c.isDefault)
+        if (def) setSelectedCard(def.id)
+        else if (cards.data.length > 0) setSelectedCard(cards.data[0].id)
+      }
+    }).finally(() => setLoading(false))
+  }, [])
+
+  async function deleteCard(id: string) {
+    if (!window.confirm('Remove this saved card? This cannot be undone.')) return
+    try {
+      await cyberSourceApi.deleteSavedCard(id)
+      setSavedCards(prev => prev.filter(c => c.id !== id))
+    } catch (_) {
+      alert('Failed to remove card. Please try again.')
+    }
+  }
+
+  const captured   = transactions.filter(t => t.status === 'CAPTURED').reduce((s, t) => s + t.amount, 0)
   const authorized = transactions.filter(t => t.status === 'AUTHORIZED').reduce((s, t) => s + t.amount, 0)
-  const declined = transactions.filter(t => t.status === 'DECLINED').length
-  const refunded = transactions.filter(t => t.status === 'REFUNDED').reduce((s, t) => s + t.amount, 0)
+  const declined   = transactions.filter(t => t.status === 'DECLINED').length
+  const refunded   = transactions.filter(t => t.status === 'REFUNDED').reduce((s, t) => s + t.amount, 0)
 
   const Tab = ({ id, label }: { id: typeof activeTab; label: string }) => (
     <button onClick={() => setActiveTab(id)} style={{
@@ -427,6 +432,11 @@ export default function CyberSourcePage() {
       {/* ── Transaction History Tab ── */}
       {activeTab === 'transactions' && (
         <Card>
+          {loading ? (
+            <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
+          ) : transactions.length === 0 ? (
+            <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No transactions yet</div>
+          ) : (
           <DataTable
             headers={['CS Transaction ID', 'Order', 'Type', 'Card', 'Amount', 'Status', 'Approval', 'Reconciliation ID', 'Date', 'Actions']}
             rows={transactions.map(t => [
@@ -444,7 +454,7 @@ export default function CyberSourcePage() {
               <span style={{ fontFamily:'monospace', fontSize:10, color:'var(--b360-text-secondary)' }}>
                 {t.reconciliationId ? t.reconciliationId.slice(0,16)+'…' : '—'}
               </span>,
-              <span style={{ color:'var(--b360-text-secondary)', fontSize:12 }}>{t.createdAt}</span>,
+              <span style={{ color:'var(--b360-text-secondary)', fontSize:12 }}>{new Date(t.createdAt).toLocaleDateString('en-KE')}</span>,
               <div style={{ display:'flex', gap:4 }}>
                 {t.status === 'AUTHORIZED' && (
                   <Btn variant="secondary" small icon={<CheckCircle size={11}/>}>Capture</Btn>
@@ -458,6 +468,7 @@ export default function CyberSourcePage() {
               </div>
             ])}
           />
+          )}
         </Card>
       )}
 
@@ -487,7 +498,13 @@ export default function CyberSourcePage() {
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, alignItems:'start' }}>
           <Card style={{ padding:20 }}>
             <h3 style={{ fontWeight:700, marginBottom:16 }}>Tokenized Cards (CyberSource TMS)</h3>
+            {loading ? (
+              <div style={{ padding:30, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
+            ) : (
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {savedCards.length === 0 && (
+                <div style={{ padding:20, textAlign:'center', color:'var(--b360-text-secondary)', fontSize:13 }}>No saved cards yet</div>
+              )}
               {savedCards.map(card => (
                 <div key={card.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px',
                   border:'1px solid var(--b360-border)', borderRadius:10, background:'white' }}>
@@ -500,7 +517,7 @@ export default function CyberSourcePage() {
                     </div>
                     <div style={{ fontSize:12, color:'var(--b360-text-secondary)', marginTop:2 }}>{card.holder} · Exp {card.expiry}</div>
                   </div>
-                  <button style={{ color:'var(--b360-red)', background:'var(--b360-red-bg)', border:'none',
+                  <button onClick={() => deleteCard(card.id)} style={{ color:'var(--b360-red)', background:'var(--b360-red-bg)', border:'none',
                     borderRadius:6, padding:'6px 8px', cursor:'pointer' }}>
                     <Trash2 size={13}/>
                   </button>
@@ -508,6 +525,7 @@ export default function CyberSourcePage() {
               ))}
               <Btn variant="secondary" icon={<Plus size={14}/>}>Add New Card</Btn>
             </div>
+            )}
           </Card>
           <Card style={{ padding:20 }}>
             <h3 style={{ fontWeight:700, marginBottom:12 }}>About Card Tokenization</h3>
