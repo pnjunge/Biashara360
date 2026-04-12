@@ -51,7 +51,7 @@ export function ExpensesPage() {
       {loading ? (
         <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
       ) : expenses.length === 0 ? (
-        <Card style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' } as any}>No expenses yet</Card>
+        <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No expenses yet</div>
       ) : (
         <>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
@@ -135,7 +135,7 @@ export function PaymentsPage() {
       {loading ? (
         <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
       ) : payments.length === 0 ? (
-        <Card style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' } as any}>No payments yet</Card>
+        <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No payments yet</div>
       ) : (
         <>
           {unreconciled.length > 0 && (
