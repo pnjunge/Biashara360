@@ -10,7 +10,7 @@ import io.ktor.server.routing.*
 import org.koin.ktor.ext.inject
 
 // ─── Business Settings Routes ─────────────────────────────────────────────────
-// Admin or Superadmin only.
+// Admin only.
 //
 //   GET /v1/settings/mpesa          get current Mpesa config (secrets masked)
 //   PUT /v1/settings/mpesa          save / update Mpesa config
@@ -27,7 +27,7 @@ fun Route.businessSettingsRoutes() {
 
         route("/mpesa") {
             get {
-                if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                if (!call.hasRole("ADMIN")) {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                     return@get
                 }
@@ -41,7 +41,7 @@ fun Route.businessSettingsRoutes() {
             }
 
             put {
-                if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                if (!call.hasRole("ADMIN")) {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                     return@put
                 }
@@ -56,7 +56,7 @@ fun Route.businessSettingsRoutes() {
 
         route("/cybersource") {
             get {
-                if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                if (!call.hasRole("ADMIN")) {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                     return@get
                 }
@@ -70,7 +70,7 @@ fun Route.businessSettingsRoutes() {
             }
 
             put {
-                if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                if (!call.hasRole("ADMIN")) {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                     return@put
                 }

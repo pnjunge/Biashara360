@@ -87,7 +87,7 @@ fun Route.productRoutes() {
 
             delete {
                 val businessId = call.businessId()
-                if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                if (!call.hasRole("ADMIN")) {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                     return@delete
                 }
@@ -225,7 +225,7 @@ fun Route.expenseRoutes() {
 
         delete("/{id}") {
             val businessId = call.businessId()
-            if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+            if (!call.hasRole("ADMIN")) {
                 call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                 return@delete
             }
@@ -313,7 +313,7 @@ fun Route.reportRoutes() {
     route("/reports") {
         get("/profit-summary") {
             val businessId = call.businessId()
-            if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+            if (!call.hasRole("ADMIN")) {
                 call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                 return@get
             }
@@ -339,7 +339,7 @@ fun Route.userRoutes() {
     route("/users") {
         get {
             val businessId = call.businessId()
-            if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+            if (!call.hasRole("ADMIN")) {
                 call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                 return@get
             }
@@ -348,7 +348,7 @@ fun Route.userRoutes() {
 
         post {
             val businessId = call.businessId()
-            if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+            if (!call.hasRole("ADMIN")) {
                 call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                 return@post
             }
@@ -360,7 +360,7 @@ fun Route.userRoutes() {
         route("/{id}") {
             patch("/role") {
                 val businessId = call.businessId()
-                if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                if (!call.hasRole("ADMIN")) {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                     return@patch
                 }
@@ -372,7 +372,7 @@ fun Route.userRoutes() {
 
             patch("/status") {
                 val businessId = call.businessId()
-                if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                if (!call.hasRole("ADMIN")) {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                     return@patch
                 }

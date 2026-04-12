@@ -32,7 +32,7 @@ object UsersTable : Table("users") {
     val email = varchar("email", 255).uniqueIndex()
     val phone = varchar("phone", 20).uniqueIndex()
     val passwordHash = varchar("password_hash", 255)
-    val role = varchar("role", 20).default("ADMIN")
+    val role = varchar("role", 20).default("STAFF")
     val twoFactorEnabled = bool("two_factor_enabled").default(true)
     val preferredLanguage = varchar("preferred_language", 10).default("ENGLISH")
     val isActive = bool("is_active").default(true)
