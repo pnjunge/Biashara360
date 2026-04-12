@@ -42,7 +42,8 @@ fun Application.configureSecurity() {
             validate { credential ->
                 val type = credential.payload.getClaim("type").asString()
                 val businessId = credential.payload.getClaim("businessId").asString()
-                if (type == "access" && !businessId.isNullOrBlank()) {
+                val role = credential.payload.getClaim("role").asString()
+                if (type == "access" && (!businessId.isNullOrBlank() || role == "SUPERADMIN")) {
                     JWTPrincipal(credential.payload)
                 } else null
             }
