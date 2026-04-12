@@ -232,6 +232,24 @@ export interface StkPushResponse {
   responseCode: string; responseDescription: string
 }
 
+export interface UserResponse {
+  id: string
+  name: string
+  email: string
+  phone: string
+  role: string
+  businessId: string
+  preferredLanguage: string
+}
+
+export interface InviteUserRequest {
+  name: string
+  email: string
+  phone: string
+  password: string
+  role?: string   // 'ADMIN' | 'STAFF', defaults to 'STAFF'
+}
+
 // ── API Service Objects ───────────────────────────────────────────────────────
 
 export const productApi = {
@@ -494,6 +512,25 @@ export const socialApi = {
   },
   getAiReply: async (data: any) => {
     const res = await client.post<ApiResponse<AiReply>>('/social/messages/ai-reply', data)
+    return res.data
+  },
+}
+
+export const userApi = {
+  list: async () => {
+    const res = await client.get<ApiResponse<UserResponse[]>>('/users')
+    return res.data
+  },
+  invite: async (data: InviteUserRequest) => {
+    const res = await client.post<ApiResponse<UserResponse>>('/users', data)
+    return res.data
+  },
+  updateRole: async (id: string, role: string) => {
+    const res = await client.patch<ApiResponse<UserResponse>>(`/users/${id}/role`, { role })
+    return res.data
+  },
+  setStatus: async (id: string, isActive: boolean) => {
+    const res = await client.patch<ApiResponse<UserResponse>>(`/users/${id}/status`, { isActive })
     return res.data
   },
 }

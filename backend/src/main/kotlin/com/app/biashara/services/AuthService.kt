@@ -50,6 +50,9 @@ class AuthService {
         if (!PasswordUtils.verify(req.password, user[UsersTable.passwordHash]))
             return@transaction ApiResponse(false, message = "Invalid credentials")
 
+        if (!user[UsersTable.isActive])
+            return@transaction ApiResponse(false, message = "Account is deactivated")
+
         val userId = user[UsersTable.id]
 
         if (user[UsersTable.twoFactorEnabled]) {

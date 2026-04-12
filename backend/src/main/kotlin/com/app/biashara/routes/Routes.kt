@@ -87,6 +87,10 @@ fun Route.productRoutes() {
 
             delete {
                 val businessId = call.businessId()
+                if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                    return@delete
+                }
                 val id = call.parameters["id"]!!
                 val result = productService.delete(id, businessId)
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
@@ -221,6 +225,10 @@ fun Route.expenseRoutes() {
 
         delete("/{id}") {
             val businessId = call.businessId()
+            if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                return@delete
+            }
             val id = call.parameters["id"]!!
             val result = expenseService.delete(id, businessId)
             call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
@@ -304,6 +312,10 @@ fun Route.reportRoutes() {
     route("/reports") {
         get("/profit-summary") {
             val businessId = call.businessId()
+            if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                return@get
+            }
             val startDate = call.request.queryParameters["startDate"] ?: run {
                 call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "startDate required"))
                 return@get
@@ -318,10 +330,70 @@ fun Route.reportRoutes() {
     }
 }
 
+// ─── User Management Routes ───────────────────────────────────────────────────
+
+fun Route.userRoutes() {
+    val userService: UserManagementService by inject()
+
+    route("/users") {
+        get {
+            val businessId = call.businessId()
+            if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                return@get
+            }
+            call.respond(ApiResponse(true, data = userService.listUsers(businessId)))
+        }
+
+        post {
+            val businessId = call.businessId()
+            if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                return@post
+            }
+            val req = call.receive<InviteUserRequest>()
+            val result = userService.inviteUser(businessId, req)
+            call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
+        }
+
+        route("/{id}") {
+            patch("/role") {
+                val businessId = call.businessId()
+                if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                    return@patch
+                }
+                val userId = call.parameters["id"]!!
+                val req = call.receive<UpdateUserRoleRequest>()
+                val result = userService.updateRole(userId, businessId, req)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+
+            patch("/status") {
+                val businessId = call.businessId()
+                if (!call.hasRole("ADMIN", "SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                    return@patch
+                }
+                val userId = call.parameters["id"]!!
+                val req = call.receive<UpdateUserStatusRequest>()
+                val result = userService.setActiveStatus(userId, businessId, req)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
+            }
+        }
+    }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 fun ApplicationCall.businessId(): String =
     principal<JWTPrincipal>()!!.payload.getClaim("businessId").asString()
+
+fun ApplicationCall.userRole(): String =
+    principal<JWTPrincipal>()!!.payload.getClaim("role").asString() ?: ""
+
+fun ApplicationCall.hasRole(vararg roles: String): Boolean =
+    userRole() in roles
 
 fun String.normalizePhone(): String = when {
     startsWith("07") -> "254${substring(1)}"
