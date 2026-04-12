@@ -26,9 +26,18 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('accessToken'))
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login: () => setIsAuthenticated(true), logout: () => setIsAuthenticated(false) }}>
+    <AuthContext.Provider value={{
+      isAuthenticated,
+      login: () => setIsAuthenticated(true),
+      logout: () => {
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        localStorage.removeItem('user')
+        setIsAuthenticated(false)
+      }
+    }}>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />

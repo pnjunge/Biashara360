@@ -1,3 +1,6 @@
+[variables]
+VITE_API_BASE_URL = "https://biashara360-production.up.railway.app/v1"
+
 [phases.install]
 cmds = ["npm ci"]
 

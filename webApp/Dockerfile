@@ -5,6 +5,11 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+# Allow overriding the API URL at build time (e.g. via Railway build variables)
+ARG VITE_API_BASE_URL=https://biashara360-production.up.railway.app/v1
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 RUN npm run build
 
 FROM node:20-alpine
