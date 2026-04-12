@@ -47,7 +47,7 @@ data class UserResponse(
     val email: String,
     val phone: String,
     val role: String,
-    val businessId: String,
+    val businessId: String?,
     val preferredLanguage: String
 )
 

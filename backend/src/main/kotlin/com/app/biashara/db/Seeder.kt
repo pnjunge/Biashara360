@@ -29,27 +29,12 @@ fun seedSuperuser() {
         }
 
         val now = Clock.System.now()
-        val businessId = generateId()
         val userId = generateId()
 
-        // Create the system business that owns the superuser account
-        BusinessesTable.insert {
-            it[id]               = businessId
-            it[name]             = "Biashara360 System"
-            it[type]             = "SYSTEM"
-            it[ownerPhone]       = superuserPhone
-            it[ownerEmail]       = superuserEmail
-            it[currency]         = "KES"
-            it[subscriptionTier] = "ENTERPRISE"
-            it[enabledModules]   = "INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS"
-            it[createdAt]        = now
-            it[updatedAt]        = now
-        }
-
-        // Create the superuser account
+        // Create the superuser account without a business (SUPERADMIN is system-level)
         UsersTable.insert {
             it[id]               = userId
-            it[UsersTable.businessId] = businessId
+            it[businessId]       = null
             it[name]             = "System Administrator"
             it[email]            = superuserEmail
             it[phone]            = superuserPhone
