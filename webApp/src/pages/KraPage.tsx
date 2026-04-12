@@ -283,7 +283,10 @@ function ReturnsTab() {
   async function generate() {
     const label = `${months[genMonth-1]} ${genYear}`
     const existing = returns.find(r => r.returnType === genType && r.periodLabel === label)
-    if (existing) return
+    if (existing) {
+      alert(`A ${genType} return for ${label} already exists.`)
+      return
+    }
     const startDate = `${genYear}-${String(genMonth).padStart(2,'0')}-01`
     const lastDay = new Date(genYear, genMonth, 0).getDate()
     const endDate = `${genYear}-${String(genMonth).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`

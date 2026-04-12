@@ -187,6 +187,7 @@ function TaxCalculatorTab() {
   const [selected, setSelected] = useState<string[]>([])
   const [inclusive, setInclusive] = useState(false)
   const [rates, setRates] = useState<TaxRateResponse[]>([])
+  const [ratesLoading, setRatesLoading] = useState(true)
 
   useEffect(() => {
     taxApi.getRates().then(res => {
@@ -195,7 +196,7 @@ function TaxCalculatorTab() {
         const firstActive = res.data.find(r => r.isActive)
         if (firstActive) setSelected([firstActive.id])
       }
-    })
+    }).finally(() => setRatesLoading(false))
   }, [])
 
   const activeRates = rates.filter(r => r.isActive)
@@ -230,7 +231,8 @@ function TaxCalculatorTab() {
         </div>
         <div style={{ marginBottom:16 }}>
           <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:8 }}>Apply Tax Rates</label>
-          {activeRates.length === 0 && <div style={{ fontSize:13, color:'#888' }}>No active rates. Seed defaults in the Tax Rates tab.</div>}
+          {ratesLoading && <div style={{ fontSize:13, color:'#888' }}>Loading tax rates...</div>}
+          {!ratesLoading && activeRates.length === 0 && <div style={{ fontSize:13, color:'#888' }}>No active rates. Seed defaults in the Tax Rates tab.</div>}
           {activeRates.map(r => (
             <div key={r.id} onClick={() => toggle(r.id)} style={{
               display:'flex', justifyContent:'space-between', alignItems:'center',

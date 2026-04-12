@@ -29,8 +29,13 @@ export function ExpensesPage() {
   }, [])
 
   async function handleDelete(id: string) {
-    await expenseApi.delete(id)
-    setExpenses(prev => prev.filter(e => e.id !== id))
+    if (!window.confirm('Delete this expense? This cannot be undone.')) return
+    try {
+      await expenseApi.delete(id)
+      setExpenses(prev => prev.filter(e => e.id !== id))
+    } catch (_) {
+      alert('Failed to delete expense. Please try again.')
+    }
   }
 
   const total = expenses.reduce((s, e) => s + e.amount, 0)

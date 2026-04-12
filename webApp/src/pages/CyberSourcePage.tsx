@@ -297,8 +297,13 @@ export default function CyberSourcePage() {
   }, [])
 
   async function deleteCard(id: string) {
-    await cyberSourceApi.deleteSavedCard(id)
-    setSavedCards(prev => prev.filter(c => c.id !== id))
+    if (!window.confirm('Remove this saved card? This cannot be undone.')) return
+    try {
+      await cyberSourceApi.deleteSavedCard(id)
+      setSavedCards(prev => prev.filter(c => c.id !== id))
+    } catch (_) {
+      alert('Failed to remove card. Please try again.')
+    }
   }
 
   const captured   = transactions.filter(t => t.status === 'CAPTURED').reduce((s, t) => s + t.amount, 0)

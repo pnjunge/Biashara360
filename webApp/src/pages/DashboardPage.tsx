@@ -31,7 +31,7 @@ export default function DashboardPage() {
       if (ord.success && ord.data) setRecentOrders(ord.data.data)
       if (prods.success && prods.data) setLowStockProducts(prods.data)
       if (custs.success && custs.data) setCustomerCount(custs.data.length)
-    }).finally(() => setLoading(false))
+    }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   const fmt = (v: number) => `KES ${v.toLocaleString()}`

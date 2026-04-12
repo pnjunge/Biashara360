@@ -760,9 +760,16 @@ function AnalyticsTab() {
 // ── Main Social Page ──────────────────────────────────────────────────────────
 export default function SocialPage() {
   const [tab, setTab] = useState<'inbox'|'channels'|'analytics'>('inbox')
+  const [totalUnread, setTotalUnread] = useState<number | null>(null)
+
+  useEffect(() => {
+    socialApi.getInboxStats().then(res => {
+      if (res.success && res.data) setTotalUnread(res.data.totalUnread)
+    }).catch(() => {})
+  }, [])
 
   const tabs = [
-    { key:'inbox',     label:'Unified Inbox',    badge: null },
+    { key:'inbox',     label:'Unified Inbox',    badge: totalUnread && totalUnread > 0 ? totalUnread : null },
     { key:'channels',  label:'Connected Channels', badge: null },
     { key:'analytics', label:'Analytics',          badge: null },
   ]
