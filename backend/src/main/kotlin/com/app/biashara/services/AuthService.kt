@@ -74,7 +74,18 @@ class AuthService {
             )
         } else {
             val auth = issueTokens(userId, user[UsersTable.businessId], user[UsersTable.role])
-            ApiResponse(success = true, data = LoginResponse(userId, false, emptyList()), message = "Login successful")
+            ApiResponse(
+                success = true,
+                data = LoginResponse(
+                    userId = userId,
+                    requiresOtp = false,
+                    otpChannels = emptyList(),
+                    accessToken = auth.accessToken,
+                    refreshToken = auth.refreshToken,
+                    user = auth.user
+                ),
+                message = "Login successful"
+            )
         }
     }
 

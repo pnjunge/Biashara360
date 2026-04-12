@@ -21,7 +21,10 @@ data class LoginRequest(val email: String, val password: String)
 data class LoginResponse(
     val userId: String,
     val requiresOtp: Boolean,
-    val otpChannels: List<String>
+    val otpChannels: List<String>,
+    val accessToken: String? = null,
+    val refreshToken: String? = null,
+    val user: UserResponse? = null
 )
 
 @Serializable

@@ -25,6 +25,11 @@ export default function LoginPage() {
         if (result.data.requiresOtp) {
           setStep('otp')
         } else {
+          if (result.data.accessToken) {
+            localStorage.setItem('accessToken', result.data.accessToken)
+            localStorage.setItem('refreshToken', result.data.refreshToken!)
+            localStorage.setItem('user', JSON.stringify(result.data.user))
+          }
           login()
           navigate('/dashboard')
         }
