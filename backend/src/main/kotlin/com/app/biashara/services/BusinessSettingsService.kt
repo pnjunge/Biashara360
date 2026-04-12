@@ -24,6 +24,7 @@ class BusinessSettingsService {
                     shortCode    = it[MpesaConfigsTable.shortCode],
                     callbackUrl  = it[MpesaConfigsTable.callbackUrl],
                     environment  = it[MpesaConfigsTable.environment],
+                    accountType  = it[MpesaConfigsTable.accountType],
                     updatedAt    = it[MpesaConfigsTable.updatedAt].toString()
                 )
             }
@@ -37,6 +38,10 @@ class BusinessSettingsService {
         if (env !in listOf("sandbox", "production")) {
             return@transaction ApiResponse(false, message = "Environment must be 'sandbox' or 'production'")
         }
+        val acctType = req.accountType.lowercase()
+        if (acctType !in listOf("paybill", "till")) {
+            return@transaction ApiResponse(false, message = "accountType must be 'paybill' or 'till'")
+        }
 
         val now = Clock.System.now()
         val exists = MpesaConfigsTable.select { MpesaConfigsTable.businessId eq businessId }.count() > 0
@@ -49,6 +54,7 @@ class BusinessSettingsService {
                 it[passKey]        = req.passKey
                 it[callbackUrl]    = req.callbackUrl
                 it[environment]    = env
+                it[accountType]    = acctType
                 it[updatedAt]      = now
             }
         } else {
@@ -61,6 +67,7 @@ class BusinessSettingsService {
                 it[passKey]        = req.passKey
                 it[callbackUrl]    = req.callbackUrl
                 it[environment]    = env
+                it[accountType]    = acctType
                 it[createdAt]      = now
                 it[updatedAt]      = now
             }
@@ -72,6 +79,7 @@ class BusinessSettingsService {
             shortCode   = req.shortCode,
             callbackUrl = req.callbackUrl,
             environment = env,
+            accountType = acctType,
             updatedAt   = now.toString()
         )
         ApiResponse(success = true, data = resp, message = "Mpesa configuration saved")
@@ -150,7 +158,8 @@ class BusinessSettingsService {
                     shortCode      = it[MpesaConfigsTable.shortCode],
                     passKey        = it[MpesaConfigsTable.passKey],
                     callbackUrl    = it[MpesaConfigsTable.callbackUrl],
-                    isSandbox      = it[MpesaConfigsTable.environment] == "sandbox"
+                    isSandbox      = it[MpesaConfigsTable.environment] == "sandbox",
+                    accountType    = it[MpesaConfigsTable.accountType]
                 )
             }
     }
@@ -178,5 +187,6 @@ data class MpesaRuntimeConfig(
     val shortCode: String,
     val passKey: String,
     val callbackUrl: String,
-    val isSandbox: Boolean
+    val isSandbox: Boolean,
+    val accountType: String = "paybill"   // paybill | till
 )

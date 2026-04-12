@@ -14,6 +14,7 @@ object MpesaConfigsTable : Table("mpesa_configs") {
     val passKey        = varchar("pass_key", 500)
     val callbackUrl    = varchar("callback_url", 500)
     val environment    = varchar("environment", 20).default("sandbox")  // sandbox | production
+    val accountType    = varchar("account_type", 10).default("paybill") // paybill | till
     val createdAt      = timestamp("created_at")
     val updatedAt      = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)

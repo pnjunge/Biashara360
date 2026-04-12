@@ -358,7 +358,8 @@ data class MpesaConfigRequest(
     val shortCode: String,
     val passKey: String,
     val callbackUrl: String,
-    val environment: String = "sandbox"
+    val environment: String = "sandbox",
+    val accountType: String = "paybill"   // paybill | till
 )
 
 @Serializable
@@ -368,6 +369,7 @@ data class MpesaConfigResponse(
     val shortCode: String,
     val callbackUrl: String,
     val environment: String,
+    val accountType: String,
     val updatedAt: String
 )
 
