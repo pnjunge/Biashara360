@@ -4,7 +4,6 @@ import com.app.biashara.db.DatabaseFactory
 import com.app.biashara.di.configureKoin
 import com.app.biashara.plugins.*
 import com.app.biashara.routes.*
-import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
@@ -56,6 +55,8 @@ fun Application.module() {
                 taxRoutes()
                 kraRoutes()
                 socialRoutes()
+                settingsRoutes()
+                superAdminRoutes()
             }
         }
         // Public webhook routes — no auth

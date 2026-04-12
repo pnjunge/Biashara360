@@ -83,7 +83,9 @@ object DatabaseFactory {
                 SocialChannelsTable,
                 SocialConversationsTable,
                 SocialMessagesTable,
-                SocialOrdersTable
+                SocialOrdersTable,
+                CyberSourceConfigsTable,
+                MpesaConfigsTable
             )
         }
     }

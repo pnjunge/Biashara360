@@ -1,38 +1,51 @@
 package com.app.biashara.services
-import io.ktor.server.config.ApplicationConfig
 
+import io.ktor.server.config.ApplicationConfig
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.server.application.*
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Base64
 
 class MpesaService(
     private val httpClient: HttpClient,
-    private val config: ApplicationConfig
+    private val config: ApplicationConfig,
+    private val settingsService: SettingsService
 ) {
-    private val consumerKey get() = config.property("mpesa.consumerKey").getString()
-    private val consumerSecret get() = config.property("mpesa.consumerSecret").getString()
-    private val shortCode get() = config.property("mpesa.shortCode").getString()
-    private val passKey get() = config.property("mpesa.passKey").getString()
-    private val callbackUrl get() = config.property("mpesa.callbackUrl").getString()
-    private val isSandbox get() = config.property("mpesa.environment").getString() == "sandbox"
+    // Global fallback credentials from application config
+    private val globalConsumerKey    get() = runCatching { config.property("mpesa.consumerKey").getString() }.getOrDefault("")
+    private val globalConsumerSecret get() = runCatching { config.property("mpesa.consumerSecret").getString() }.getOrDefault("")
+    private val globalShortCode      get() = runCatching { config.property("mpesa.shortCode").getString() }.getOrDefault("")
+    private val globalPassKey        get() = runCatching { config.property("mpesa.passKey").getString() }.getOrDefault("")
+    private val globalCallbackUrl    get() = runCatching { config.property("mpesa.callbackUrl").getString() }.getOrDefault("")
+    private val globalIsSandbox      get() = runCatching { config.property("mpesa.environment").getString() }.getOrDefault("sandbox") == "sandbox"
 
-    private val baseUrl get() = if (isSandbox)
-        "https://sandbox.safaricom.co.ke"
-    else
-        "https://api.safaricom.co.ke"
+    /** Resolve credentials: prefer per-business DB config, fall back to global config. */
+    private fun resolveConfig(businessId: String): MpesaDbConfig {
+        val dbCfg = settingsService.loadMpesaConfig(businessId)
+        return dbCfg ?: MpesaDbConfig(
+            consumerKey    = globalConsumerKey,
+            consumerSecret = globalConsumerSecret,
+            shortCode      = globalShortCode,
+            passKey        = globalPassKey,
+            callbackUrl    = globalCallbackUrl,
+            environment    = if (globalIsSandbox) "sandbox" else "production"
+        )
+    }
 
     // ── Get OAuth Token ──────────────────────────────────────────────────────
 
-    private suspend fun getAccessToken(): String {
+    private suspend fun getAccessToken(cfg: MpesaDbConfig): String {
+        val baseUrl = if (cfg.environment == "sandbox")
+            "https://sandbox.safaricom.co.ke"
+        else
+            "https://api.safaricom.co.ke"
+
         val credentials = Base64.getEncoder()
-            .encodeToString("$consumerKey:$consumerSecret".toByteArray())
+            .encodeToString("${cfg.consumerKey}:${cfg.consumerSecret}".toByteArray())
 
         val response: DarajaTokenResponse = httpClient.get("$baseUrl/oauth/v1/generate?grant_type=client_credentials") {
             headers { append(HttpHeaders.Authorization, "Basic $credentials") }
@@ -43,29 +56,36 @@ class MpesaService(
     // ── STK Push ─────────────────────────────────────────────────────────────
 
     suspend fun initiateSTKPush(
+        businessId: String,
         phoneNumber: String,
         amount: Double,
         accountReference: String,
         transactionDesc: String
     ): StkPushResult {
         return try {
-            val token = getAccessToken()
+            val cfg     = resolveConfig(businessId)
+            val baseUrl = if (cfg.environment == "sandbox")
+                "https://sandbox.safaricom.co.ke"
+            else
+                "https://api.safaricom.co.ke"
+
+            val token     = getAccessToken(cfg)
             val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
-            val password = Base64.getEncoder().encodeToString(
-                "$shortCode$passKey$timestamp".toByteArray()
+            val password  = Base64.getEncoder().encodeToString(
+                "${cfg.shortCode}${cfg.passKey}$timestamp".toByteArray()
             )
 
             val payload = StkPushPayload(
-                BusinessShortCode = shortCode,
-                Password = password,
-                Timestamp = timestamp,
-                Amount = amount.toInt(),
-                PartyA = phoneNumber,
-                PartyB = shortCode,
-                PhoneNumber = phoneNumber,
-                CallBackURL = callbackUrl,
-                AccountReference = accountReference,
-                TransactionDesc = transactionDesc
+                BusinessShortCode = cfg.shortCode,
+                Password          = password,
+                Timestamp         = timestamp,
+                Amount            = amount.toInt(),
+                PartyA            = phoneNumber,
+                PartyB            = cfg.shortCode,
+                PhoneNumber       = phoneNumber,
+                CallBackURL       = cfg.callbackUrl,
+                AccountReference  = accountReference,
+                TransactionDesc   = transactionDesc
             )
 
             val response: StkPushResponse = httpClient.post("$baseUrl/mpesa/stkpush/v1/processrequest") {
@@ -77,8 +97,8 @@ class MpesaService(
             StkPushResult.Success(
                 merchantRequestId = response.MerchantRequestID,
                 checkoutRequestId = response.CheckoutRequestID,
-                responseCode = response.ResponseCode,
-                customerMessage = response.CustomerMessage
+                responseCode      = response.ResponseCode,
+                customerMessage   = response.CustomerMessage
             )
         } catch (e: Exception) {
             StkPushResult.Error(e.message ?: "Failed to initiate payment")

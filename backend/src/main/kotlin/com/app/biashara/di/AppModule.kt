@@ -1,8 +1,6 @@
 package com.app.biashara.di
 
 import com.app.biashara.services.*
-import com.app.biashara.services.CyberSourceConfig
-import com.app.biashara.services.CyberSourceService
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -43,8 +41,10 @@ fun appModule(config: ApplicationConfig) = module {
     single { CustomerService() }
     single { ExpenseService() }
     single { PaymentService() }
-    single { MpesaService(get(), config) }
+    single { SettingsService() }
+    single { MpesaService(get(), config, get()) }
     single { UserManagementService() }
+    single { SuperAdminService() }
 
     // CyberSource card payment services
     single {
@@ -56,7 +56,7 @@ fun appModule(config: ApplicationConfig) = module {
         )
     }
     single { CyberSourceService(get(), get()) }
-    single { CyberSourcePaymentService(get()) }
+    single { CyberSourcePaymentService(get(), get(), get(), get()) }
     single { TaxService() }
     single { KraService() }
     single { EtimsService(get()) }

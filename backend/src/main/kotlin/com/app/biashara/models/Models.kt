@@ -320,6 +320,70 @@ data class PagedResponse<T>(
     val hasMore: Boolean
 )
 
+// ─── Super Admin ──────────────────────────────────────────────────────────────
+
+@Serializable
+data class CreateBusinessRequest(
+    val businessName: String,
+    val businessType: String,
+    val adminName: String,
+    val adminEmail: String,
+    val adminPhone: String,
+    val adminPassword: String,
+    val currency: String = "KES",
+    val subscriptionTier: String = "FREEMIUM"
+)
+
+@Serializable
+data class BusinessResponse(
+    val id: String,
+    val name: String,
+    val type: String,
+    val ownerEmail: String,
+    val ownerPhone: String,
+    val currency: String,
+    val subscriptionTier: String,
+    val createdAt: String
+)
+
+// ─── Settings — CyberSource ───────────────────────────────────────────────────
+
+@Serializable
+data class CyberSourceSettingsRequest(
+    val merchantId: String,
+    val merchantKeyId: String,
+    val merchantSecretKey: String,
+    val environment: String = "sandbox"
+)
+
+@Serializable
+data class CyberSourceSettingsResponse(
+    val merchantId: String,
+    val merchantKeyId: String,
+    val environment: String,
+    val isConfigured: Boolean
+)
+
+// ─── Settings — M-Pesa ────────────────────────────────────────────────────────
+
+@Serializable
+data class MpesaSettingsRequest(
+    val consumerKey: String,
+    val consumerSecret: String,
+    val shortCode: String,
+    val passKey: String,
+    val callbackUrl: String,
+    val environment: String = "sandbox"
+)
+
+@Serializable
+data class MpesaSettingsResponse(
+    val shortCode: String,
+    val callbackUrl: String,
+    val environment: String,
+    val isConfigured: Boolean
+)
+
 // ─── CyberSource ──────────────────────────────────────────────────────────────
 
 @Serializable

@@ -260,6 +260,7 @@ fun Route.paymentRoutes() {
                 }
 
             val result = mpesaService.initiateSTKPush(
+                businessId = businessId,
                 phoneNumber = req.phoneNumber.normalizePhone(),
                 amount = order.subtotal,
                 accountReference = order.orderNumber,

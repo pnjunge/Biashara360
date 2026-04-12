@@ -4,6 +4,7 @@ import com.app.biashara.db.CsCustomerTokensTable
 import com.app.biashara.db.CyberSourceTransactionsTable
 import com.app.biashara.db.PaymentsTable
 import com.app.biashara.models.*
+import io.ktor.client.*
 import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -11,8 +12,17 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID
 
 class CyberSourcePaymentService(
-    private val cs: CyberSourceService
+    private val cs: CyberSourceService,
+    private val httpClient: HttpClient,
+    private val settingsService: SettingsService,
+    private val globalConfig: CyberSourceConfig
 ) {
+
+    /** Returns a CyberSourceService backed by the per-business DB config, or the global fallback. */
+    private fun csForBusiness(businessId: String): CyberSourceService {
+        val cfg = settingsService.loadCyberSourceConfig(businessId) ?: globalConfig
+        return if (cfg === globalConfig) cs else CyberSourceService(cfg, httpClient)
+    }
 
     // ── Charge (Auth + optional capture) ──────────────────────────────────────
     suspend fun charge(businessId: String, req: CsChargeRequest): CsChargeResponse {
@@ -33,11 +43,12 @@ class CyberSourcePaymentService(
             capture      = req.captureImmediately
         )
 
-        // 3. Call CyberSource
+        // 3. Call CyberSource (using per-business config if configured)
+        val csClient = csForBusiness(businessId)
         val result = if (req.captureImmediately) {
-            cs.authorizeAndCapture(csRequest)
+            csClient.authorizeAndCapture(csRequest)
         } else {
-            cs.authorizePayment(csRequest)
+            csClient.authorizePayment(csRequest)
         }
 
         // 4. Persist and return
@@ -123,7 +134,7 @@ class CyberSourcePaymentService(
             )
         )
 
-        return when (val result = cs.capturePayment(txn.csTransactionId!!, csReq)) {
+        return when (val result = csForBusiness(businessId).capturePayment(txn.csTransactionId!!, csReq)) {
             is CsResult.Success -> {
                 updateTransactionStatus(txn.id, "CAPTURED", result.data.id)
                 CsChargeResponse(
@@ -153,7 +164,7 @@ class CyberSourcePaymentService(
             )
         )
 
-        return when (val result = cs.refundPayment(txn.csTransactionId!!, csReq)) {
+        return when (val result = csForBusiness(businessId).refundPayment(txn.csTransactionId!!, csReq)) {
             is CsResult.Success -> {
                 persistTransaction(
                     businessId = businessId, orderId = txn.orderId, csTransId = result.data.id,
@@ -182,7 +193,7 @@ class CyberSourcePaymentService(
             clientReferenceInformation = CsClientRef("VOID-${txn.orderId}")
         )
 
-        return when (val result = cs.voidAuthorization(txn.csTransactionId!!, csReq)) {
+        return when (val result = csForBusiness(businessId).voidAuthorization(txn.csTransactionId!!, csReq)) {
             is CsResult.Success -> {
                 updateTransactionStatus(txn.id, "VOIDED", null)
                 CsChargeResponse(
