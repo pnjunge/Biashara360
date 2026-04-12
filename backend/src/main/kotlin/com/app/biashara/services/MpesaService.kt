@@ -24,6 +24,7 @@ class MpesaService(
     private val defaultPassKey get() = config.propertyOrNull("mpesa.passKey")?.getString() ?: ""
     private val defaultCallbackUrl get() = config.propertyOrNull("mpesa.callbackUrl")?.getString() ?: ""
     private val defaultIsSandbox get() = config.propertyOrNull("mpesa.environment")?.getString() != "production"
+    private val defaultAccountType get() = config.propertyOrNull("mpesa.accountType")?.getString() ?: "paybill"
 
     private fun resolveConfig(businessId: String?): MpesaRuntimeConfig {
         if (businessId != null && settingsService != null) {
@@ -36,7 +37,8 @@ class MpesaService(
             shortCode      = defaultShortCode,
             passKey        = defaultPassKey,
             callbackUrl    = defaultCallbackUrl,
-            isSandbox      = defaultIsSandbox
+            isSandbox      = defaultIsSandbox,
+            accountType    = defaultAccountType
         )
     }
 
@@ -74,10 +76,12 @@ class MpesaService(
                 "${cfg.shortCode}${cfg.passKey}$timestamp".toByteArray()
             )
 
+            val transactionType = if (cfg.accountType == "till") "CustomerBuyGoodsOnline" else "CustomerPayBillOnline"
             val payload = StkPushPayload(
                 BusinessShortCode = cfg.shortCode,
                 Password = password,
                 Timestamp = timestamp,
+                TransactionType = transactionType,
                 Amount = amount.toInt(),
                 PartyA = phoneNumber,
                 PartyB = cfg.shortCode,
