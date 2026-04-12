@@ -386,6 +386,133 @@ export function ReportsPage() {
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────
+// ── User Creation ─────────────────────────────────────────────────────────────
+export function UserCreationPage() {
+  const emptyUser = { name: '', email: '', phone: '', role: 'STAFF', password: '' }
+  const [users, setUsers] = useState([
+    { id: '1', name: 'Wanjiru Kamau', email: 'wanjiru@example.com', phone: '+254712345678', role: 'ADMIN' },
+    { id: '2', name: 'James Otieno', email: 'james@example.com', phone: '+254723456789', role: 'STAFF' },
+  ])
+  const [showAdd, setShowAdd] = useState(false)
+  const [form, setForm] = useState(emptyUser)
+  const [error, setError] = useState('')
+
+  const f = (k: keyof typeof emptyUser) => (v: string) => setForm(prev => ({ ...prev, [k]: v }))
+
+  const handleAdd = () => {
+    if (!form.name || !form.email || !form.phone || !form.password) { setError('All fields are required.'); return }
+    setUsers(prev => [...prev, { id: String(Date.now()), ...form }])
+    setShowAdd(false); setForm(emptyUser); setError('')
+  }
+
+  const handleDelete = (id: string) => {
+    if (!window.confirm('Remove this user?')) return
+    setUsers(prev => prev.filter(u => u.id !== id))
+  }
+
+  const ROLES = [{ value: 'ADMIN', label: 'Admin' }, { value: 'MANAGER', label: 'Manager' }, { value: 'STAFF', label: 'Staff' }]
+
+  const roleColor = (role: string) => role === 'ADMIN' ? 'PAID' : role === 'MANAGER' ? 'PENDING' : 'COD'
+
+  return (
+    <div className="fade-in">
+      <PageHeader title="User Management" action={<Btn onClick={() => setShowAdd(true)} icon={<Plus size={14} />}>Add User</Btn>} />
+      <Card style={{ padding: 0 }}>
+        <DataTable
+          headers={['Name', 'Email', 'Phone', 'Role', '']}
+          rows={users.map(u => [
+            u.name,
+            u.email,
+            u.phone,
+            <StatusBadge key="role" status={roleColor(u.role)} />,
+            <Btn key="del" variant="danger" small onClick={() => handleDelete(u.id)}>Remove</Btn>,
+          ])}
+        />
+      </Card>
+      {showAdd && (
+        <Modal title="Add New User" onClose={() => { setShowAdd(false); setForm(emptyUser); setError('') }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Input label="Full Name" value={form.name} onChange={f('name')} placeholder="e.g. Jane Mwangi" />
+            <Input label="Email" value={form.email} onChange={f('email')} placeholder="jane@example.com" />
+            <Input label="Phone" value={form.phone} onChange={f('phone')} placeholder="+254 7XX XXX XXX" />
+            <Input label="Password" value={form.password} onChange={f('password')} placeholder="Temporary password" />
+            <Select label="Role" value={form.role} onChange={f('role')} options={ROLES} />
+            {error && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{error}</div>}
+            <Btn onClick={handleAdd}>Create User</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// ── Business Profile ──────────────────────────────────────────────────────────
+export function BusinessPage() {
+  const [saved, setSaved] = useState(false)
+  const [form, setForm] = useState({
+    name: "Wanjiru's Fashion",
+    owner: 'Wanjiru Kamau',
+    phone: '+254 712 345 678',
+    email: 'wanjiru@biashara360.co.ke',
+    type: 'Retail',
+    county: 'Nairobi',
+    address: 'Tom Mboya Street, CBD',
+    pin: 'P051234567A',
+    paybill: '174379',
+    accountNumber: '0745678',
+  })
+
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm(prev => ({ ...prev, [k]: e.target.value }))
+
+  const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 3000) }
+
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <Card style={{ padding: 20, marginBottom: 16 }}>
+      <h3 style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>{title}</h3>
+      <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
+    </Card>
+  )
+
+  const Field = ({ label, field }: { label: string; field: keyof typeof form }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <span style={{ fontSize: 13, color: 'var(--b360-text-secondary)', width: 160 }}>{label}</span>
+      <input
+        value={form[field]}
+        onChange={f(field)}
+        style={{ flex: 1, maxWidth: 320, padding: '8px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+      />
+    </div>
+  )
+
+  return (
+    <div className="fade-in" style={{ maxWidth: 680 }}>
+      <PageHeader title="Business Profile" action={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {saved && <span style={{ fontSize: 12, color: 'var(--b360-green)', fontWeight: 600 }}>✓ Saved</span>}
+          <Btn onClick={handleSave}>Save Changes</Btn>
+        </div>
+      } />
+      <Section title="General Information">
+        <Field label="Business Name"  field="name" />
+        <Field label="Owner Name"     field="owner" />
+        <Field label="Phone Number"   field="phone" />
+        <Field label="Email Address"  field="email" />
+        <Field label="Business Type"  field="type" />
+        <Field label="County"         field="county" />
+        <Field label="Address"        field="address" />
+      </Section>
+      <Section title="Tax & Compliance">
+        <Field label="KRA PIN"        field="pin" />
+      </Section>
+      <Section title="Mpesa Integration">
+        <Field label="Paybill Number"   field="paybill" />
+        <Field label="Account Number"   field="accountNumber" />
+      </Section>
+    </div>
+  )
+}
+
 export function SettingsPage() {
   const [twoFA, setTwoFA] = useState(true)
   const [sms, setSms] = useState(true)

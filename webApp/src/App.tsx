@@ -14,6 +14,8 @@ import CyberSourcePage from './pages/CyberSourcePage'
 import TaxPage from './pages/TaxPage'
 import KraPage from './pages/KraPage'
 import SocialPage from './pages/SocialPage'
+import UserCreationPage from './pages/UserCreationPage'
+import BusinessPage from './pages/BusinessPage'
 
 // ── Auth Context ──────────────────────────────────────────────────────────────
 interface AuthCtx { isAuthenticated: boolean; login: () => void; logout: () => void }
@@ -48,6 +50,8 @@ export default function App() {
             <Route path="tax"           element={<TaxPage />} />
             <Route path="kra"           element={<KraPage />} />
             <Route path="social"        element={<SocialPage />} />
+            <Route path="users"         element={<UserCreationPage />} />
+            <Route path="business"      element={<BusinessPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
