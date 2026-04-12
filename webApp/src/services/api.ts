@@ -21,8 +21,24 @@ client.interceptors.request.use((config) => {
 // Handle errors globally
 client.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    const originalRequest = error.config
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      const storedRefreshToken = localStorage.getItem('refreshToken')
+      if (storedRefreshToken) {
+        originalRequest._retry = true
+        try {
+          const res = await client.post<ApiResponse<AuthResponse>>('/auth/refresh', { refreshToken: storedRefreshToken })
+          if (res.data.success && res.data.data) {
+            localStorage.setItem('accessToken', res.data.data.accessToken)
+            localStorage.setItem('refreshToken', res.data.data.refreshToken)
+            originalRequest.headers.Authorization = `Bearer ${res.data.data.accessToken}`
+            return client(originalRequest)
+          }
+        } catch {
+          // refresh failed — fall through to logout
+        }
+      }
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('isAuthenticated')
@@ -42,6 +58,9 @@ export interface LoginResponse {
   userId: string
   requiresOtp: boolean
   otpChannels: string[]
+  accessToken?: string
+  refreshToken?: string
+  user?: AuthResponse['user']
 }
 
 export interface OtpVerifyRequest {
