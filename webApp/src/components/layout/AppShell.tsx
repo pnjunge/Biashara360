@@ -4,7 +4,7 @@ import { useAuth } from '../../App'
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
   CreditCard, BarChart3, Settings, LogOut, Bell, Search,
-  ChevronLeft, Menu, Shield, FileCheck, MessageSquare
+  ChevronLeft, Menu, Shield, FileCheck, MessageSquare, UserPlus, Building2
 } from 'lucide-react'
 import styles from './AppShell.module.css'
 
@@ -19,6 +19,8 @@ const navItems = [
   { to: '/tax',           icon: Receipt,          label: 'Tax' },
   { to: '/kra',           icon: FileCheck,        label: 'KRA iTax' },
   { to: '/social',        icon: MessageSquare,    label: 'Social Inbox' },
+  { to: '/users',         icon: UserPlus,         label: 'User Creation' },
+  { to: '/business',      icon: Building2,        label: 'Business' },
   { to: '/reports',       icon: BarChart3,        label: 'Reports' },
 ]
 
