@@ -21,4 +21,5 @@ echo "Connecting to database..."
 exec java \
   -XX:+UseContainerSupport \
   -XX:MaxRAMPercentage=75.0 \
+  -Dconfig.file=/app/application.conf \
   -jar app.jar
