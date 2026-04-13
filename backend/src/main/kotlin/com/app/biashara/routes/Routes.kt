@@ -1,5 +1,7 @@
 package com.app.biashara.routes
 
+import com.app.biashara.auth.generateId
+import com.app.biashara.db.*
 import com.app.biashara.models.*
 import com.app.biashara.services.*
 import io.ktor.http.*
@@ -9,6 +11,9 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.datetime.Clock
+import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.transactions.transaction
 import org.koin.ktor.ext.inject
 
 // ─── Auth Routes ──────────────────────────────────────────────────────────────
@@ -53,6 +58,7 @@ fun Route.productRoutes() {
     val productService: ProductService by inject()
 
     route("/products") {
+        moduleGuard("INVENTORY")
         get {
             val businessId = call.businessId()
             val query = call.request.queryParameters["q"]
@@ -113,6 +119,7 @@ fun Route.orderRoutes() {
     val orderService: OrderService by inject()
 
     route("/orders") {
+        moduleGuard("SALES")
         get {
             val businessId = call.businessId()
             val status = call.request.queryParameters["status"]
@@ -163,6 +170,7 @@ fun Route.customerRoutes() {
     val customerService: CustomerService by inject()
 
     route("/customers") {
+        moduleGuard("CRM")
         get {
             val businessId = call.businessId()
             val query = call.request.queryParameters["q"]
@@ -208,6 +216,7 @@ fun Route.expenseRoutes() {
     val expenseService: ExpenseService by inject()
 
     route("/expenses") {
+        moduleGuard("EXPENSES")
         get {
             val businessId = call.businessId()
             val category = call.request.queryParameters["category"]
@@ -244,6 +253,8 @@ fun Route.paymentRoutes() {
     val orderService: OrderService by inject()
 
     route("/payments") {
+        moduleGuard("PAYMENTS")
+
         get {
             val businessId = call.businessId()
             val unreconciled = call.request.queryParameters["unreconciled"]?.toBoolean()
@@ -268,30 +279,27 @@ fun Route.paymentRoutes() {
             )
 
             when (result) {
-                is StkPushResult.Success -> call.respond(ApiResponse(true, data = mapOf(
-                    "merchantRequestId" to result.merchantRequestId,
-                    "checkoutRequestId" to result.checkoutRequestId,
-                    "responseCode" to result.responseCode,
-                    "responseDescription" to "Success",
-                    "customerMessage" to result.customerMessage
-                )))
+                is StkPushResult.Success -> {
+                    // Persist checkoutRequestId on the order so the Safaricom callback
+                    // can resolve the tenant and update the order status.
+                    transaction {
+                        OrdersTable.update({
+                            (OrdersTable.id eq req.orderId) and (OrdersTable.businessId eq businessId)
+                        }) {
+                            it[OrdersTable.stkCheckoutRequestId] = result.checkoutRequestId
+                            it[OrdersTable.updatedAt] = Clock.System.now()
+                        }
+                    }
+                    call.respond(ApiResponse(true, data = mapOf(
+                        "merchantRequestId" to result.merchantRequestId,
+                        "checkoutRequestId" to result.checkoutRequestId,
+                        "responseCode" to result.responseCode,
+                        "responseDescription" to "Success",
+                        "customerMessage" to result.customerMessage
+                    )))
+                }
                 is StkPushResult.Error -> call.respond(HttpStatusCode.BadGateway,
                     ApiResponse<Unit>(false, message = result.message))
-            }
-        }
-
-        // Mpesa Daraja callback — no auth required
-        post("/mpesa/callback") {
-            val callback = call.receive<MpesaCallbackRequest>()
-            when (val result = mpesaService.processCallback(callback)) {
-                is MpesaCallbackResult.Success -> {
-                    // Save payment record — reconcile with order later
-                    // TODO: look up pending order by checkoutRequestId
-                    call.respond(HttpStatusCode.OK, mapOf("ResultCode" to 0, "ResultDesc" to "Success"))
-                }
-                is MpesaCallbackResult.Failed -> {
-                    call.respond(HttpStatusCode.OK, mapOf("ResultCode" to 0, "ResultDesc" to "Received"))
-                }
             }
         }
 
@@ -305,12 +313,86 @@ fun Route.paymentRoutes() {
     }
 }
 
+// ─── M-Pesa Daraja Callback (public — no JWT) ─────────────────────────────────
+//
+// Safaricom calls this endpoint after an STK push completes. We look up the
+// pending order via stkCheckoutRequestId, persist the payment, and mark the
+// order as PAID. We always respond 200 so Safaricom does not retry.
+
+fun Route.mpesaCallbackRoute() {
+    post("/payments/mpesa/callback") {
+        val callback = try { call.receive<MpesaCallbackRequest>() } catch (e: Exception) {
+            println("[MpesaCallback] Failed to deserialize callback payload: ${e.message}")
+            call.respond(HttpStatusCode.OK, mapOf("ResultCode" to 0, "ResultDesc" to "Received"))
+            return@post
+        }
+        val stkCallback = callback.Body.stkCallback
+        val checkoutRequestId = stkCallback.CheckoutRequestID
+
+        if (stkCallback.ResultCode == 0) {
+            val metadata = stkCallback.CallbackMetadata?.Item ?: emptyList()
+            val amount   = metadata.find { it.Name == "Amount" }?.Value?.toDoubleOrNull() ?: 0.0
+            val txCode   = metadata.find { it.Name == "MpesaReceiptNumber" }?.Value ?: ""
+            val phone    = metadata.find { it.Name == "PhoneNumber" }?.Value ?: ""
+            val payerName = metadata.find { it.Name == "FirstName" }?.Value ?: "Unknown"
+
+            // Resolve tenant + order from the checkoutRequestId stored at initiate time
+            transaction {
+                val orderRow = OrdersTable
+                    .select { OrdersTable.stkCheckoutRequestId eq checkoutRequestId }
+                    .firstOrNull()
+
+                if (orderRow != null) {
+                    val businessId   = orderRow[OrdersTable.businessId]
+                    val orderId      = orderRow[OrdersTable.id]
+                    val orderSubtotal = orderRow[OrdersTable.subtotal]
+                    val now          = Clock.System.now()
+
+                    // Warn on amount discrepancy (log but still accept — partial payments are valid)
+                    if (Math.abs(amount - orderSubtotal) > orderSubtotal * 0.01) {
+                        println("[MpesaCallback] Amount mismatch for order $orderId: " +
+                            "expected $orderSubtotal, received $amount (txCode=$txCode)")
+                    }
+
+                    // Save payment record (auto-reconciled since it came from the callback)
+                    PaymentsTable.insert {
+                        it[PaymentsTable.id]              = generateId()
+                        it[PaymentsTable.businessId]      = businessId
+                        it[PaymentsTable.orderId]         = orderId
+                        it[PaymentsTable.transactionCode] = txCode
+                        it[PaymentsTable.amount]          = amount
+                        it[PaymentsTable.payerPhone]      = phone
+                        it[PaymentsTable.payerName]       = payerName
+                        it[PaymentsTable.method]          = "MPESA"
+                        it[PaymentsTable.status]          = "SUCCESS"
+                        it[PaymentsTable.channel]         = "STK_PUSH"
+                        it[PaymentsTable.reconciled]      = true
+                        it[PaymentsTable.transactionDate] = now
+                    }
+
+                    // Mark order as paid
+                    OrdersTable.update({ OrdersTable.id eq orderId }) {
+                        it[OrdersTable.paymentStatus]         = "PAID"
+                        it[OrdersTable.mpesaTransactionCode]  = txCode
+                        it[OrdersTable.updatedAt]             = now
+                    }
+                } else {
+                    println("[MpesaCallback] No order found for checkoutRequestId=$checkoutRequestId (txCode=$txCode)")
+                }
+            }
+        }
+
+        call.respond(HttpStatusCode.OK, mapOf("ResultCode" to 0, "ResultDesc" to "Accepted"))
+    }
+}
+
 // ─── Reports Routes ───────────────────────────────────────────────────────────
 
 fun Route.reportRoutes() {
     val expenseService: ExpenseService by inject()
 
     route("/reports") {
+        moduleGuard("REPORTS")
         get("/profit-summary") {
             val businessId = call.businessId()
             if (!call.hasRole("ADMIN")) {
@@ -385,16 +467,77 @@ fun Route.userRoutes() {
     }
 }
 
+// ─── Dashboard Route ──────────────────────────────────────────────────────────
+
+fun Route.dashboardRoute() {
+    val dashboardService: DashboardService by inject()
+
+    get("/dashboard") {
+        val businessId = call.businessId()
+        val data = dashboardService.getDashboard(businessId)
+        call.respond(ApiResponse(true, data = data))
+    }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 fun ApplicationCall.businessId(): String =
-    principal<JWTPrincipal>()!!.payload.getClaim("businessId").asString()
+    principal<JWTPrincipal>()?.payload?.getClaim("businessId")?.asString()
+        ?: throw IllegalArgumentException("No businessId associated with this token")
 
 fun ApplicationCall.userRole(): String =
-    principal<JWTPrincipal>()!!.payload.getClaim("role").asString() ?: ""
+    principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() ?: ""
 
 fun ApplicationCall.hasRole(vararg roles: String): Boolean =
     userRole() in roles
+
+/**
+ * Returns true when the business's enabledModules list contains [module].
+ * SUPERADMIN users (no businessId) always pass the check.
+ *
+ * Results are cached for 60 s per (businessId, module) pair to avoid a DB
+ * hit on every guarded request. The cache is process-scoped; a restart or a
+ * 60-second wait is required to pick up module changes.
+ */
+private val moduleCache = java.util.concurrent.ConcurrentHashMap<Pair<String, String>, Pair<Long, Boolean>>()
+private const val MODULE_CACHE_TTL_MS = 60_000L
+
+fun ApplicationCall.hasModule(module: String): Boolean {
+    if (userRole() == "SUPERADMIN") return true
+    val bId = principal<JWTPrincipal>()?.payload?.getClaim("businessId")?.asString()
+        ?: return false
+    val cacheKey = bId to module.uppercase()
+    val cached = moduleCache[cacheKey]
+    if (cached != null && System.currentTimeMillis() - cached.first < MODULE_CACHE_TTL_MS) {
+        return cached.second
+    }
+    val result = transaction {
+        BusinessesTable.select { BusinessesTable.id eq bId }
+            .firstOrNull()
+            ?.get(BusinessesTable.enabledModules)
+            ?.split(",")
+            ?.any { it.trim().equals(module, ignoreCase = true) }
+            ?: false
+    }
+    moduleCache[cacheKey] = System.currentTimeMillis() to result
+    return result
+}
+
+/**
+ * Route-level module guard. Intercepts every call under the current route and
+ * responds 403 when [module] is not in the business's enabledModules.
+ */
+fun Route.moduleGuard(module: String) {
+    intercept(ApplicationCallPipeline.Plugins) {
+        if (!call.hasModule(module)) {
+            call.respond(
+                HttpStatusCode.Forbidden,
+                ApiResponse<Unit>(false, message = "Module '$module' is not enabled for this business")
+            )
+            finish()
+        }
+    }
+}
 
 fun String.normalizePhone(): String = when {
     startsWith("07") -> "254${substring(1)}"

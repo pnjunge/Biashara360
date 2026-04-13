@@ -128,6 +128,7 @@ object OrdersTable : Table("orders") {
     val deliveryStatus = varchar("delivery_status", 20).default("PENDING")
     val paymentMethod = varchar("payment_method", 30).default("MPESA")
     val mpesaTransactionCode = varchar("mpesa_transaction_code", 50).nullable()
+    val stkCheckoutRequestId = varchar("stk_checkout_request_id", 100).nullable()
     val notes = text("notes").default("")
     val subtotal = double("subtotal")
     val createdAt = timestamp("created_at")

@@ -4,6 +4,12 @@ import com.app.biashara.auth.generateId
 import com.app.biashara.db.*
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.plus
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -157,18 +163,33 @@ class ExpenseService {
 
     fun getProfitSummary(businessId: String, startDate: String, endDate: String): ProfitSummaryResponse = transaction {
         val start = kotlinx.datetime.LocalDate.parse(startDate)
-        val end = kotlinx.datetime.LocalDate.parse(endDate)
+        val end   = kotlinx.datetime.LocalDate.parse(endDate)
 
-        val revenueData = OrdersTable
+        // Convert date range to instants for the orders timestamp column
+        val tz         = TimeZone.of("Africa/Nairobi")
+        val startInstant = start.atStartOfDayIn(tz)
+        val endInstant   = end.plus(1, DateTimeUnit.DAY).atStartOfDayIn(tz)
+
+        // Revenue: paid orders in the date range
+        val totalRevenue = OrdersTable
             .slice(OrdersTable.subtotal.sum())
             .select {
                 (OrdersTable.businessId eq businessId) and
-                (OrdersTable.paymentStatus eq "PAID")
-            }.first()
-        val totalRevenue = revenueData[OrdersTable.subtotal.sum()] ?: 0.0
+                (OrdersTable.paymentStatus eq "PAID") and
+                (OrdersTable.createdAt greaterEq startInstant) and
+                (OrdersTable.createdAt less endInstant)
+            }.first()[OrdersTable.subtotal.sum()] ?: 0.0
 
-        // Simplified COGS calculation
-        val totalCOGS = 0.0  // TODO: Implement full COGS calculation with proper joins
+        // COGS: sum of (buyingPrice × quantity) for items in paid orders in the date range,
+        // computed with a single join to avoid a separate ID-list query.
+        val totalCOGS = (OrderItemsTable innerJoin OrdersTable)
+            .slice(OrderItemsTable.buyingPrice, OrderItemsTable.quantity)
+            .select {
+                (OrdersTable.businessId eq businessId) and
+                (OrdersTable.paymentStatus eq "PAID") and
+                (OrdersTable.createdAt greaterEq startInstant) and
+                (OrdersTable.createdAt less endInstant)
+            }.sumOf { it[OrderItemsTable.buyingPrice] * it[OrderItemsTable.quantity] }
 
         val totalExpenses = ExpensesTable
             .slice(ExpensesTable.amount.sum())
@@ -267,3 +288,103 @@ data class PaymentResponse(
     val method: String, val status: String, val channel: String,
     val reconciled: Boolean, val transactionDate: String
 )
+
+// ─── Dashboard Service ────────────────────────────────────────────────────────
+
+class DashboardService(
+    private val productService: ProductService,
+    private val orderService: OrderService
+) {
+
+    fun getDashboard(businessId: String): DashboardResponse = transaction {
+        val tz         = TimeZone.of("Africa/Nairobi")
+        val now        = Clock.System.now()
+        val localNow   = now.toLocalDateTime(tz)
+        val today      = localNow.date
+        val todayStart = today.atStartOfDayIn(tz)
+        val monthStart = LocalDate(today.year, today.monthNumber, 1).atStartOfDayIn(tz)
+
+        // Revenue this calendar month (paid orders)
+        val totalRevenueMonth = OrdersTable
+            .slice(OrdersTable.subtotal.sum())
+            .select {
+                (OrdersTable.businessId eq businessId) and
+                (OrdersTable.paymentStatus eq "PAID") and
+                (OrdersTable.createdAt greaterEq monthStart) and
+                (OrdersTable.createdAt less now)  // up to now within the month
+            }.first()[OrdersTable.subtotal.sum()] ?: 0.0
+
+        // COGS for paid orders this month — single join, no separate ID-list query
+        val totalCogsMonth = (OrderItemsTable innerJoin OrdersTable)
+            .slice(OrderItemsTable.buyingPrice, OrderItemsTable.quantity)
+            .select {
+                (OrdersTable.businessId eq businessId) and
+                (OrdersTable.paymentStatus eq "PAID") and
+                (OrdersTable.createdAt greaterEq monthStart) and
+                (OrdersTable.createdAt less now)
+            }.sumOf { it[OrderItemsTable.buyingPrice] * it[OrderItemsTable.quantity] }
+
+        // Expenses this month (by recordedAt timestamp)
+        val totalExpensesMonth = ExpensesTable
+            .slice(ExpensesTable.amount.sum())
+            .select {
+                (ExpensesTable.businessId eq businessId) and
+                (ExpensesTable.recordedAt greaterEq monthStart) and
+                (ExpensesTable.recordedAt less now)
+            }.first()[ExpensesTable.amount.sum()] ?: 0.0
+
+        val netProfitMonth = totalRevenueMonth - totalCogsMonth - totalExpensesMonth
+
+        // Orders created today
+        val totalOrdersToday = OrdersTable
+            .select {
+                (OrdersTable.businessId eq businessId) and
+                (OrdersTable.createdAt greaterEq todayStart)
+            }.count().toInt()
+
+        // Orders with pending payment
+        val pendingOrdersCount = OrdersTable
+            .select {
+                (OrdersTable.businessId eq businessId) and
+                (OrdersTable.paymentStatus eq "PENDING")
+            }.count().toInt()
+
+        // Orders not yet paid
+        val unpaidOrdersCount = OrdersTable
+            .select {
+                (OrdersTable.businessId eq businessId) and
+                (OrdersTable.paymentStatus neq "PAID")
+            }.count().toInt()
+
+        // Products below or at low-stock threshold
+        val lowStockCount = ProductsTable
+            .select {
+                (ProductsTable.businessId eq businessId) and
+                (ProductsTable.isActive eq true) and
+                (ProductsTable.currentStock lessEq ProductsTable.lowStockThreshold)
+            }.count().toInt()
+
+        // Active customers
+        val totalCustomers = CustomersTable
+            .select {
+                (CustomersTable.businessId eq businessId) and
+                (CustomersTable.isActive eq true)
+            }.count().toInt()
+
+        // Delegate to existing services for rich object lists (avoids duplicating row mappers)
+        val recentOrders    = orderService.getAll(businessId, null, 1, 5).data
+        val lowStockProducts = productService.getAll(businessId, null, lowStockOnly = true).take(10)
+
+        DashboardResponse(
+            totalRevenueMonth  = totalRevenueMonth,
+            netProfitMonth     = netProfitMonth,
+            totalOrdersToday   = totalOrdersToday,
+            pendingOrdersCount = pendingOrdersCount,
+            lowStockCount      = lowStockCount,
+            totalCustomers     = totalCustomers,
+            unpaidOrdersCount  = unpaidOrdersCount,
+            recentOrders       = recentOrders,
+            lowStockProducts   = lowStockProducts
+        )
+    }
+}
