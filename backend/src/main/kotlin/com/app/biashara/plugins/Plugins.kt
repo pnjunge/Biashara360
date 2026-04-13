@@ -9,6 +9,7 @@ import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
+import io.ktor.server.plugins.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.plugins.defaultheaders.*
@@ -77,6 +78,10 @@ fun Application.configureStatusPages() {
     install(StatusPages) {
         exception<Throwable> { call, cause ->
             when (cause) {
+                is BadRequestException -> call.respond(
+                    HttpStatusCode.BadRequest,
+                    ApiResponse<Unit>(false, message = cause.message ?: "Bad request")
+                )
                 is IllegalArgumentException -> call.respond(
                     HttpStatusCode.BadRequest,
                     ApiResponse<Unit>(false, message = cause.message ?: "Bad request")

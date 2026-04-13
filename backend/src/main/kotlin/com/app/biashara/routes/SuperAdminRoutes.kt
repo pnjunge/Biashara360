@@ -5,6 +5,7 @@ import com.app.biashara.services.SuperAdminService
 import com.app.biashara.services.SystemSettingsService
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -39,8 +40,22 @@ fun Route.superAdminRoutes() {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
                     return@post
                 }
-                val req = call.receive<CreateBusinessWithAdminRequest>()
-                val result = superAdminService.createBusinessWithAdmin(req)
+                val req = try {
+                    call.receive<CreateBusinessWithAdminRequest>()
+                } catch (e: BadRequestException) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Invalid request body: ${e.message ?: "malformed JSON or missing required fields"}"))
+                    return@post
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Could not parse request: ${e.message ?: "unknown error"}"))
+                    return@post
+                }
+                val result = try {
+                    superAdminService.createBusinessWithAdmin(req)
+                } catch (e: Exception) {
+                    call.application.log.error("Error creating business with admin", e)
+                    call.respond(HttpStatusCode.InternalServerError, ApiResponse<Unit>(false, message = "An internal error occurred while creating the business"))
+                    return@post
+                }
                 call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
             }
         }

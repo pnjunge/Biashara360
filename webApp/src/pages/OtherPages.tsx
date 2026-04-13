@@ -448,6 +448,10 @@ export function UserCreationPage() {
       setAdminError('All fields are required.')
       return
     }
+    if (adminPassword.length < 6) {
+      setAdminError('Password must be at least 6 characters.')
+      return
+    }
     setAdminSaving(true); setAdminError('')
     try {
       const res = await superAdminApi.createBusinessWithAdmin(adminForm)

@@ -11,7 +11,8 @@ import org.jetbrains.exposed.sql.transactions.transaction
 
 class SuperAdminService {
 
-    fun createBusinessWithAdmin(req: CreateBusinessWithAdminRequest): ApiResponse<BusinessWithAdminResponse> = transaction {
+    fun createBusinessWithAdmin(req: CreateBusinessWithAdminRequest): ApiResponse<BusinessWithAdminResponse> = try {
+        transaction {
         if (req.businessName.isBlank() || req.businessType.isBlank()) {
             return@transaction ApiResponse(false, message = "Business name and type are required")
         }
@@ -79,6 +80,21 @@ class SuperAdminService {
             preferredLanguage = "ENGLISH"
         )
         ApiResponse(success = true, data = BusinessWithAdminResponse(businessResp, adminResp), message = "Business and admin created successfully")
+    }
+    } catch (e: org.jetbrains.exposed.exceptions.ExposedSQLException) {
+        val cause = e.cause?.message ?: e.message ?: "Database error"
+        if (cause.contains("unique", ignoreCase = true) || cause.contains("duplicate", ignoreCase = true)) {
+            ApiResponse(false, message = "A user with that email or phone number already exists")
+        } else {
+            throw e
+        }
+    } catch (e: java.sql.SQLException) {
+        val msg = e.message ?: "Database error"
+        if (msg.contains("unique", ignoreCase = true) || msg.contains("duplicate", ignoreCase = true)) {
+            ApiResponse(false, message = "A user with that email or phone number already exists")
+        } else {
+            throw e
+        }
     }
 
     fun listBusinesses(): List<BusinessResponse> = transaction {
