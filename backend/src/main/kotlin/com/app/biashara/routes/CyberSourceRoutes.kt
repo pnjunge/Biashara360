@@ -29,7 +29,12 @@ fun Route.cyberSourcePublicRoutes() {
             val origin = call.request.queryParameters["origin"]
                 ?: call.request.headers["Origin"]
                 ?: "https://biashara360.co.ke"
-            val jwt = csService.getCaptureContext(origin)
+            val rawBusinessId = call.request.queryParameters["businessId"]
+            // Validate UUID format to reject obviously invalid values; an unrecognised
+            // but well-formed ID will simply fall back to the global config in the service.
+            val uuidRegex = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+            val businessId = rawBusinessId?.takeIf { uuidRegex.matches(it) }
+            val jwt = csService.getCaptureContext(origin, businessId)
             if (jwt != null) {
                 call.respond(ApiResponse(true, data = mapOf("captureContextJwt" to jwt)))
             } else {
