@@ -603,6 +603,7 @@ export function BusinessPage() {
   // ── Admin: business profile ──
   const [form, setForm] = useState<BusinessProfileRequest>(emptyProfile)
   const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError, setProfileError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -619,14 +620,17 @@ export function BusinessPage() {
         .finally(() => setBizLoading(false))
     } else {
       setProfileLoading(true)
+      setProfileError('')
       businessApi.getProfile()
         .then(res => {
           if (res.success && res.data) {
             const d = res.data
             setForm({ name: d.name, owner: d.owner, phone: d.phone, email: d.email, type: d.type, county: d.county, address: d.address, kraPin: d.kraPin, paybillNumber: d.paybillNumber, accountNumber: d.accountNumber })
+          } else {
+            setProfileError(res.message || 'Failed to load business profile.')
           }
         })
-        .catch(() => {})
+        .catch(() => setProfileError('Network error. Could not load business profile.'))
         .finally(() => setProfileLoading(false))
     }
   }, [isSuperAdmin])
@@ -697,6 +701,10 @@ export function BusinessPage() {
   // ── Admin view: editable business profile ──
   if (profileLoading) {
     return <div style={{ padding: 32, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading business profile…</div>
+  }
+
+  if (profileError) {
+    return <div style={{ padding: 32, color: 'var(--b360-red)' }}>{profileError}</div>
   }
 
   return (

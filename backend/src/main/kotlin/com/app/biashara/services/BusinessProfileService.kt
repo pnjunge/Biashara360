@@ -55,7 +55,8 @@ class BusinessProfileService {
             it[updatedAt]     = now
         }
 
-        val updated = getProfile(businessId)!!
+        val updated = getProfile(businessId)
+            ?: return@transaction ApiResponse(false, message = "Business not found after update")
         ApiResponse(success = true, data = updated, message = "Business profile updated")
     }
 }
