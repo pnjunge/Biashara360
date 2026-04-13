@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, Download, Share2, FileText, Table, Building2 } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
-import { expenseApi, paymentApi, orderApi, reportApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, userApi, superAdminApi, BusinessResponse, UserResponse, InviteUserRequest } from '../services/api'
+import { expenseApi, paymentApi, orderApi, reportApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, userApi, superAdminApi, businessApi, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest } from '../services/api'
 import { useAuth } from '../App'
 
 function getCurrentMonthRange() {
@@ -584,58 +584,67 @@ export function UserCreationPage() {
 }
 
 // ── Business Profile ──────────────────────────────────────────────────────────
-type BusinessProfile = {
-  name: string; owner: string; phone: string; email: string
-  type: string; county: string; address: string
-  pin: string; paybill: string; accountNumber: string
-}
 
-const defaultBusiness: BusinessProfile = {
-  name: "Wanjiru's Fashion",
-  owner: 'Wanjiru Kamau',
-  phone: '+254 712 345 678',
-  email: 'wanjiru@biashara360.co.ke',
-  type: 'Retail',
-  county: 'Nairobi',
-  address: 'Tom Mboya Street, CBD',
-  pin: 'P051234567A',
-  paybill: '174379',
-  accountNumber: '0745678',
-}
-
-const emptyBusiness: BusinessProfile = {
+const emptyProfile: BusinessProfileRequest = {
   name: '', owner: '', phone: '', email: '',
   type: '', county: '', address: '',
-  pin: '', paybill: '', accountNumber: '',
+  kraPin: '', paybillNumber: '', accountNumber: '',
 }
 
 export function BusinessPage() {
-  const [businesses, setBusinesses] = useState<BusinessProfile[]>([defaultBusiness])
-  const [activeIdx, setActiveIdx] = useState(0)
-  const [saved, setSaved] = useState(false)
-  const [showNew, setShowNew] = useState(false)
-  const [newForm, setNewForm] = useState<BusinessProfile>(emptyBusiness)
-  const [newError, setNewError] = useState('')
+  const { user: currentUser } = useAuth()
+  const isSuperAdmin = currentUser?.role === 'SUPERADMIN'
 
-  const form = businesses[activeIdx]
-  const setForm = (updater: (prev: BusinessProfile) => BusinessProfile) =>
-    setBusinesses(prev => prev.map((b, i) => i === activeIdx ? updater(b) : b))
+  // ── SuperAdmin: business list ──
+  const [businesses, setBusinesses] = useState<BusinessResponse[]>([])
+  const [bizLoading, setBizLoading] = useState(false)
+  const [bizError, setBizError] = useState('')
 
-  const f = (k: keyof BusinessProfile) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm(prev => ({ ...prev, [k]: e.target.value }))
+  // ── Admin: business profile ──
+  const [form, setForm] = useState<BusinessProfileRequest>(emptyProfile)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 3000) }
+  useEffect(() => {
+    if (isSuperAdmin) {
+      setBizLoading(true)
+      setBizError('')
+      superAdminApi.listBusinesses()
+        .then(res => {
+          if (res.success && res.data) setBusinesses(res.data)
+          else setBizError(res.message || 'Failed to load businesses.')
+        })
+        .catch(() => setBizError('Network error. Could not load businesses.'))
+        .finally(() => setBizLoading(false))
+    } else {
+      setProfileLoading(true)
+      businessApi.getProfile()
+        .then(res => {
+          if (res.success && res.data) {
+            const d = res.data
+            setForm({ name: d.name, owner: d.owner, phone: d.phone, email: d.email, type: d.type, county: d.county, address: d.address, kraPin: d.kraPin, paybillNumber: d.paybillNumber, accountNumber: d.accountNumber })
+          }
+        })
+        .catch(() => {})
+        .finally(() => setProfileLoading(false))
+    }
+  }, [isSuperAdmin])
 
-  const openNew = () => { setNewForm(emptyBusiness); setNewError(''); setShowNew(true) }
+  const f = (k: keyof BusinessProfileRequest) => (v: string) => setForm(prev => ({ ...prev, [k]: v }))
 
-  const handleCreate = () => {
-    if (!newForm.name.trim()) { setNewError('Business name is required.'); return }
-    setBusinesses(prev => [...prev, newForm])
-    setActiveIdx(businesses.length)
-    setShowNew(false)
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveMsg(null)
+    try {
+      const res = await businessApi.updateProfile(form)
+      setSaveMsg({ ok: res.success, text: res.message || (res.success ? 'Saved' : 'Failed to save') })
+    } catch (e: any) {
+      setSaveMsg({ ok: false, text: e.response?.data?.message || 'Network error. Please try again.' })
+    } finally {
+      setSaving(false)
+    }
   }
-
-  const nf = (k: keyof BusinessProfile) => (v: string) => setNewForm(prev => ({ ...prev, [k]: v }))
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <Card style={{ padding: 20, marginBottom: 16 }}>
@@ -644,78 +653,79 @@ export function BusinessPage() {
     </Card>
   )
 
-  const Field = ({ label, field }: { label: string; field: keyof BusinessProfile }) => (
+  const Field = ({ label, field }: { label: string; field: keyof BusinessProfileRequest }) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <span style={{ fontSize: 13, color: 'var(--b360-text-secondary)', width: 160 }}>{label}</span>
       <input
         value={form[field]}
-        onChange={f(field)}
+        onChange={e => f(field)(e.target.value)}
         style={{ flex: 1, maxWidth: 320, padding: '8px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
       />
     </div>
   )
 
+  // ── SuperAdmin view: list of all businesses ──
+  if (isSuperAdmin) {
+    return (
+      <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <PageHeader title="Businesses" />
+        <Card style={{ padding: 0 }}>
+          {bizLoading ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading businesses…</div>
+          ) : bizError ? (
+            <div style={{ padding: 24, color: 'var(--b360-red)' }}>{bizError}</div>
+          ) : businesses.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Go to Users to create one.</div>
+          ) : (
+            <DataTable
+              headers={['Business Name', 'Type', 'Owner Email', 'Owner Phone', 'Tier', 'Created']}
+              rows={businesses.map(b => [
+                b.name,
+                b.type,
+                b.ownerEmail,
+                b.ownerPhone,
+                <StatusBadge key="tier" status={b.subscriptionTier === 'FREEMIUM' ? 'COD' : 'PAID'} />,
+                new Date(b.createdAt).toLocaleDateString(),
+              ])}
+            />
+          )}
+        </Card>
+      </div>
+    )
+  }
+
+  // ── Admin view: editable business profile ──
+  if (profileLoading) {
+    return <div style={{ padding: 32, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading business profile…</div>
+  }
+
   return (
     <div className="fade-in" style={{ maxWidth: 680 }}>
-      {showNew && (
-        <Modal title="New Business" onClose={() => setShowNew(false)}
-          footer={<><Btn variant="secondary" onClick={() => setShowNew(false)}>Cancel</Btn><Btn onClick={handleCreate}>Create Business</Btn></>}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {newError && <p style={{ color: 'var(--b360-red)', fontSize: 12 }}>{newError}</p>}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Business Name *" value={newForm.name} onChange={nf('name')} placeholder="e.g. Kamau Supplies" />
-              <Input label="Owner Name" value={newForm.owner} onChange={nf('owner')} placeholder="e.g. John Kamau" />
-              <Input label="Phone Number" value={newForm.phone} onChange={nf('phone')} placeholder="+254..." />
-              <Input label="Email Address" value={newForm.email} onChange={nf('email')} placeholder="email@example.com" type="email" />
-              <Input label="Business Type" value={newForm.type} onChange={nf('type')} placeholder="e.g. Retail" />
-              <Input label="County" value={newForm.county} onChange={nf('county')} placeholder="e.g. Nairobi" />
-            </div>
-            <Input label="Address" value={newForm.address} onChange={nf('address')} placeholder="e.g. Moi Avenue, CBD" />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <Input label="KRA PIN" value={newForm.pin} onChange={nf('pin')} placeholder="P0XXXXXXXXX" />
-              <Input label="Paybill Number" value={newForm.paybill} onChange={nf('paybill')} placeholder="e.g. 174379" />
-              <Input label="Account Number" value={newForm.accountNumber} onChange={nf('accountNumber')} placeholder="e.g. 0745678" />
-            </div>
-          </div>
-        </Modal>
-      )}
-
       <PageHeader title="Business Profile" action={
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {saved && <span style={{ fontSize: 12, color: 'var(--b360-green)', fontWeight: 600 }}>✓ Saved</span>}
-          <Btn onClick={handleSave}>Save Changes</Btn>
-          <Btn icon={<Plus size={14} />} onClick={openNew}>New Business</Btn>
+          {saveMsg && (
+            <span style={{ fontSize: 12, color: saveMsg.ok ? 'var(--b360-green)' : 'var(--b360-red)', fontWeight: 600 }}>
+              {saveMsg.ok ? '✓ ' : '✗ '}{saveMsg.text}
+            </span>
+          )}
+          <Btn onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</Btn>
         </div>
       } />
-
-      {businesses.length > 1 && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          {businesses.map((b, i) => (
-            <button key={i} onClick={() => setActiveIdx(i)} style={{
-              padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              border: '1px solid var(--b360-border)',
-              background: i === activeIdx ? 'var(--b360-green)' : 'white',
-              color: i === activeIdx ? 'white' : 'var(--b360-text-secondary)',
-            }}>{b.name || `Business ${i + 1}`}</button>
-          ))}
-        </div>
-      )}
-
       <Section title="General Information">
-        <Field label="Business Name"  field="name" />
-        <Field label="Owner Name"     field="owner" />
-        <Field label="Phone Number"   field="phone" />
-        <Field label="Email Address"  field="email" />
-        <Field label="Business Type"  field="type" />
-        <Field label="County"         field="county" />
-        <Field label="Address"        field="address" />
+        <Field label="Business Name" field="name" />
+        <Field label="Owner Name"    field="owner" />
+        <Field label="Phone Number"  field="phone" />
+        <Field label="Email Address" field="email" />
+        <Field label="Business Type" field="type" />
+        <Field label="County"        field="county" />
+        <Field label="Address"       field="address" />
       </Section>
       <Section title="Tax & Compliance">
-        <Field label="KRA PIN"        field="pin" />
+        <Field label="KRA PIN" field="kraPin" />
       </Section>
       <Section title="Mpesa Integration">
-        <Field label="Paybill Number"   field="paybill" />
-        <Field label="Account Number"   field="accountNumber" />
+        <Field label="Paybill Number"  field="paybillNumber" />
+        <Field label="Account Number"  field="accountNumber" />
       </Section>
     </div>
   )
