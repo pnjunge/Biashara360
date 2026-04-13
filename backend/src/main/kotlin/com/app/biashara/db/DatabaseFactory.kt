@@ -84,7 +84,8 @@ object DatabaseFactory {
                 SocialMessagesTable,
                 SocialOrdersTable,
                 MpesaConfigsTable,
-                CyberSourceConfigsTable
+                CyberSourceConfigsTable,
+                SystemSettingsTable
             )
         }
     }

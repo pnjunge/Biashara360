@@ -349,6 +349,14 @@ data class BusinessWithAdminResponse(
     val admin: UserResponse
 )
 
+// ─── System Settings ─────────────────────────────────────────────────────────
+
+@Serializable
+data class SystemSettingRequest(val value: String)
+
+@Serializable
+data class SystemSettingResponse(val key: String, val value: String)
+
 // ─── Business Settings — Mpesa ────────────────────────────────────────────────
 
 @Serializable

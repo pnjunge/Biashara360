@@ -614,6 +614,14 @@ export const superAdminApi = {
     const res = await client.post<ApiResponse<BusinessWithAdminResponse>>('/admin/businesses', data)
     return res.data
   },
+  getMpesaCallbackUrl: async () => {
+    const res = await client.get<ApiResponse<{ key: string; value: string }>>('/admin/settings/mpesa-callback')
+    return res.data
+  },
+  saveMpesaCallbackUrl: async (value: string) => {
+    const res = await client.put<ApiResponse<{ key: string; value: string }>>('/admin/settings/mpesa-callback', { value })
+    return res.data
+  },
 }
 
 export default client
