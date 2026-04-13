@@ -35,16 +35,14 @@ fun Application.module() {
         // Public routes (no auth)
         route("/v1") {
             authRoutes()
-
-            // Mpesa callback is public (called by Safaricom)
-            post("/payments/mpesa/callback") {
-                // Handled in paymentRoutes — mounted separately below
-            }
+            // Mpesa Daraja callback — called by Safaricom, no JWT required
+            mpesaCallbackRoute()
         }
 
         // Protected routes (JWT required)
         authenticate("jwt-auth") {
             route("/v1") {
+                dashboardRoute()
                 productRoutes()
                 orderRoutes()
                 customerRoutes()
