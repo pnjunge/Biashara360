@@ -236,7 +236,7 @@ class LogoutUseCase(private val repo: AuthRepository) {
 
 // --- Helpers ---
 
-internal fun generateId(): String {
+fun generateId(): String {
     val chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     return (1..20).map { chars.random() }.joinToString("")
 }

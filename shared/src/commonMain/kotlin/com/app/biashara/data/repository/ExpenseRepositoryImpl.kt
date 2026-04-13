@@ -72,7 +72,7 @@ class ExpenseRepositoryImpl(
         val startInstant = period.startDate.atStartOfDayIn(TimeZone.of("Africa/Nairobi")).toString()
         val endInstant = period.endDate.atStartOfDayIn(TimeZone.of("Africa/Nairobi")).toString()
         val totalRevenue = queries.sumOrderRevenueByPeriod(businessId, startInstant, endInstant)
-            .executeAsOne().COALESCE ?: 0.0
+            .executeAsOne().total_revenue ?: 0.0
 
         // Cost of goods: sum from order items in the period
         val itemsInPeriod = queries.selectItemsByOrders(businessId, startInstant, endInstant)
@@ -83,7 +83,7 @@ class ExpenseRepositoryImpl(
 
         // Expenses
         val totalExpenses = queries.sumExpensesByPeriodAll(businessId, startStr, endStr)
-            .executeAsOne().COALESCE ?: 0.0
+            .executeAsOne().total_amount ?: 0.0
 
         val netProfit = grossProfit - totalExpenses
 

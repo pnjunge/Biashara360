@@ -54,11 +54,11 @@ class CustomerRepositoryImpl(
     }
 
     override suspend fun getCustomerStats(customerId: String): CustomerStats {
-        val orderCount = queries.selectOrderCountForCustomer(customerId).executeAsOne()
-        val totalSpent = queries.sumOrderSpendForCustomer(customerId).executeAsOne().COALESCE ?: 0.0
-        val avg = queries.avgOrderValueForCustomer(customerId).executeAsOne().COALESCE ?: 0.0
+        val orderCount = queries.selectOrderCountForCustomer(customerId).executeAsOne().order_count
+        val totalSpent = queries.sumOrderSpendForCustomer(customerId).executeAsOne().total_spent ?: 0.0
+        val avg = queries.avgOrderValueForCustomer(customerId).executeAsOne().avg_value ?: 0.0
         val lastOrderDate = queries.lastOrderDateForCustomer(customerId)
-            .executeAsOneOrNull()?.MAX?.let {
+            .executeAsOneOrNull()?.last_date?.let {
                 runCatching { Instant.parse(it) }.getOrNull()
             }
         return CustomerStats(

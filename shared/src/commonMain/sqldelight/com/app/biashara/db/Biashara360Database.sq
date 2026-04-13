@@ -244,19 +244,19 @@ countPendingOrders:
 SELECT COUNT(*) FROM OrderEntity WHERE business_id = :businessId AND payment_status = 'PENDING';
 
 selectOrderCountForCustomer:
-SELECT COUNT(*) FROM OrderEntity WHERE customer_id = :customerId;
+SELECT COUNT(*) AS order_count FROM OrderEntity WHERE customer_id = :customerId;
 
 sumOrderSpendForCustomer:
-SELECT COALESCE(SUM(subtotal), 0.0) FROM OrderEntity WHERE customer_id = :customerId;
+SELECT COALESCE(SUM(subtotal), 0.0) AS total_spent FROM OrderEntity WHERE customer_id = :customerId;
 
 avgOrderValueForCustomer:
-SELECT COALESCE(AVG(subtotal), 0.0) FROM OrderEntity WHERE customer_id = :customerId;
+SELECT COALESCE(AVG(subtotal), 0.0) AS avg_value FROM OrderEntity WHERE customer_id = :customerId;
 
 lastOrderDateForCustomer:
-SELECT MAX(created_at) FROM OrderEntity WHERE customer_id = :customerId;
+SELECT MAX(created_at) AS last_date FROM OrderEntity WHERE customer_id = :customerId;
 
 sumOrderRevenueByPeriod:
-SELECT COALESCE(SUM(subtotal), 0.0) FROM OrderEntity WHERE business_id = :businessId AND created_at >= :start AND created_at <= :end;
+SELECT COALESCE(SUM(subtotal), 0.0) AS total_revenue FROM OrderEntity WHERE business_id = :businessId AND created_at >= :start AND created_at <= :end;
 
 selectItemsByOrders:
 SELECT oi.* FROM OrderItemEntity oi
@@ -264,4 +264,4 @@ JOIN OrderEntity o ON oi.order_id = o.id
 WHERE o.business_id = :businessId AND o.created_at >= :start AND o.created_at <= :end;
 
 sumExpensesByPeriodAll:
-SELECT COALESCE(SUM(amount), 0.0) FROM ExpenseEntity WHERE business_id = :businessId AND expense_date >= :start AND expense_date <= :end;
+SELECT COALESCE(SUM(amount), 0.0) AS total_amount FROM ExpenseEntity WHERE business_id = :businessId AND expense_date >= :start AND expense_date <= :end;
