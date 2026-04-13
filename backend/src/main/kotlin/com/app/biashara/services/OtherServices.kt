@@ -180,21 +180,16 @@ class ExpenseService {
                 (OrdersTable.createdAt less endInstant)
             }.first()[OrdersTable.subtotal.sum()] ?: 0.0
 
-        // COGS: sum of (buyingPrice × quantity) for items in paid orders in the date range
-        val paidOrderIds = OrdersTable
-            .slice(OrdersTable.id)
+        // COGS: sum of (buyingPrice × quantity) for items in paid orders in the date range,
+        // computed with a single join to avoid a separate ID-list query.
+        val totalCOGS = (OrderItemsTable innerJoin OrdersTable)
+            .slice(OrderItemsTable.buyingPrice, OrderItemsTable.quantity)
             .select {
                 (OrdersTable.businessId eq businessId) and
                 (OrdersTable.paymentStatus eq "PAID") and
                 (OrdersTable.createdAt greaterEq startInstant) and
                 (OrdersTable.createdAt less endInstant)
-            }.map { it[OrdersTable.id] }
-
-        val totalCOGS = if (paidOrderIds.isEmpty()) 0.0
-        else OrderItemsTable
-            .slice(OrderItemsTable.buyingPrice, OrderItemsTable.quantity)
-            .select { OrderItemsTable.orderId inList paidOrderIds }
-            .sumOf { it[OrderItemsTable.buyingPrice] * it[OrderItemsTable.quantity] }
+            }.sumOf { it[OrderItemsTable.buyingPrice] * it[OrderItemsTable.quantity] }
 
         val totalExpenses = ExpensesTable
             .slice(ExpensesTable.amount.sum())
@@ -319,21 +314,15 @@ class DashboardService(
                 (OrdersTable.createdAt less now)  // up to now within the month
             }.first()[OrdersTable.subtotal.sum()] ?: 0.0
 
-        // COGS for paid orders this month
-        val monthPaidIds = OrdersTable
-            .slice(OrdersTable.id)
+        // COGS for paid orders this month — single join, no separate ID-list query
+        val totalCogsMonth = (OrderItemsTable innerJoin OrdersTable)
+            .slice(OrderItemsTable.buyingPrice, OrderItemsTable.quantity)
             .select {
                 (OrdersTable.businessId eq businessId) and
                 (OrdersTable.paymentStatus eq "PAID") and
                 (OrdersTable.createdAt greaterEq monthStart) and
                 (OrdersTable.createdAt less now)
-            }.map { it[OrdersTable.id] }
-
-        val totalCogsMonth = if (monthPaidIds.isEmpty()) 0.0
-        else OrderItemsTable
-            .slice(OrderItemsTable.buyingPrice, OrderItemsTable.quantity)
-            .select { OrderItemsTable.orderId inList monthPaidIds }
-            .sumOf { it[OrderItemsTable.buyingPrice] * it[OrderItemsTable.quantity] }
+            }.sumOf { it[OrderItemsTable.buyingPrice] * it[OrderItemsTable.quantity] }
 
         // Expenses this month (by recordedAt timestamp)
         val totalExpensesMonth = ExpensesTable

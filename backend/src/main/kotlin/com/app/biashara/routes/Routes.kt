@@ -322,6 +322,7 @@ fun Route.paymentRoutes() {
 fun Route.mpesaCallbackRoute() {
     post("/payments/mpesa/callback") {
         val callback = try { call.receive<MpesaCallbackRequest>() } catch (e: Exception) {
+            println("[MpesaCallback] Failed to deserialize callback payload: ${e.message}")
             call.respond(HttpStatusCode.OK, mapOf("ResultCode" to 0, "ResultDesc" to "Received"))
             return@post
         }
@@ -342,9 +343,16 @@ fun Route.mpesaCallbackRoute() {
                     .firstOrNull()
 
                 if (orderRow != null) {
-                    val businessId = orderRow[OrdersTable.businessId]
-                    val orderId    = orderRow[OrdersTable.id]
-                    val now        = Clock.System.now()
+                    val businessId   = orderRow[OrdersTable.businessId]
+                    val orderId      = orderRow[OrdersTable.id]
+                    val orderSubtotal = orderRow[OrdersTable.subtotal]
+                    val now          = Clock.System.now()
+
+                    // Warn on amount discrepancy (log but still accept — partial payments are valid)
+                    if (Math.abs(amount - orderSubtotal) > orderSubtotal * 0.01) {
+                        println("[MpesaCallback] Amount mismatch for order $orderId: " +
+                            "expected $orderSubtotal, received $amount (txCode=$txCode)")
+                    }
 
                     // Save payment record (auto-reconciled since it came from the callback)
                     PaymentsTable.insert {
@@ -368,6 +376,8 @@ fun Route.mpesaCallbackRoute() {
                         it[OrdersTable.mpesaTransactionCode]  = txCode
                         it[OrdersTable.updatedAt]             = now
                     }
+                } else {
+                    println("[MpesaCallback] No order found for checkoutRequestId=$checkoutRequestId (txCode=$txCode)")
                 }
             }
         }
@@ -484,12 +494,24 @@ fun ApplicationCall.hasRole(vararg roles: String): Boolean =
 /**
  * Returns true when the business's enabledModules list contains [module].
  * SUPERADMIN users (no businessId) always pass the check.
+ *
+ * Results are cached for 60 s per (businessId, module) pair to avoid a DB
+ * hit on every guarded request. The cache is process-scoped; a restart or a
+ * 60-second wait is required to pick up module changes.
  */
+private val moduleCache = java.util.concurrent.ConcurrentHashMap<Pair<String, String>, Pair<Long, Boolean>>()
+private const val MODULE_CACHE_TTL_MS = 60_000L
+
 fun ApplicationCall.hasModule(module: String): Boolean {
     if (userRole() == "SUPERADMIN") return true
     val bId = principal<JWTPrincipal>()?.payload?.getClaim("businessId")?.asString()
         ?: return false
-    return transaction {
+    val cacheKey = bId to module.uppercase()
+    val cached = moduleCache[cacheKey]
+    if (cached != null && System.currentTimeMillis() - cached.first < MODULE_CACHE_TTL_MS) {
+        return cached.second
+    }
+    val result = transaction {
         BusinessesTable.select { BusinessesTable.id eq bId }
             .firstOrNull()
             ?.get(BusinessesTable.enabledModules)
@@ -497,6 +519,8 @@ fun ApplicationCall.hasModule(module: String): Boolean {
             ?.any { it.trim().equals(module, ignoreCase = true) }
             ?: false
     }
+    moduleCache[cacheKey] = System.currentTimeMillis() to result
+    return result
 }
 
 /**
