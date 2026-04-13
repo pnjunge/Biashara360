@@ -5,6 +5,7 @@ import com.app.biashara.domain.repository.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDate
 
 // --- Inventory Use Cases ---
 
@@ -124,6 +125,114 @@ data class DashboardSummary(
     val period: ReportPeriod,
     val profitSummary: ProfitSummary
 )
+
+// --- Order Use Cases ---
+
+class GetOrdersUseCase(private val repo: OrderRepository) {
+    operator fun invoke(businessId: String) = repo.getOrders(businessId)
+}
+
+class GetOrdersByStatusUseCase(private val repo: OrderRepository) {
+    operator fun invoke(businessId: String, status: PaymentStatus) =
+        repo.getOrdersByStatus(businessId, status)
+}
+
+class GetOrderUseCase(private val repo: OrderRepository) {
+    suspend operator fun invoke(id: String) = repo.getOrder(id)
+}
+
+class GetRecentOrdersUseCase(private val repo: OrderRepository) {
+    fun invoke(businessId: String, limit: Int = 5) =
+        repo.getOrdersByDateRange(businessId, LocalDate(2000, 1, 1), LocalDate(9999, 12, 31))
+}
+
+// --- Customer Use Cases ---
+
+class GetCustomersUseCase(private val repo: CustomerRepository) {
+    operator fun invoke(businessId: String) = repo.getCustomers(businessId)
+}
+
+class GetCustomerUseCase(private val repo: CustomerRepository) {
+    suspend operator fun invoke(id: String) = repo.getCustomer(id)
+}
+
+class GetCustomerStatsUseCase(private val repo: CustomerRepository) {
+    suspend operator fun invoke(customerId: String) = repo.getCustomerStats(customerId)
+}
+
+class SaveCustomerUseCase(private val repo: CustomerRepository) {
+    suspend operator fun invoke(customer: Customer): Result<Customer> {
+        if (customer.name.isBlank()) return Result.failure(IllegalArgumentException("Customer name required"))
+        if (customer.phone.isBlank()) return Result.failure(IllegalArgumentException("Phone number required"))
+        return repo.saveCustomer(customer)
+    }
+}
+
+class SearchCustomersUseCase(private val repo: CustomerRepository) {
+    operator fun invoke(businessId: String, query: String) =
+        repo.searchCustomers(businessId, query)
+}
+
+// --- Expense Use Cases ---
+
+class GetExpensesUseCase(private val repo: ExpenseRepository) {
+    operator fun invoke(businessId: String) = repo.getExpenses(businessId)
+}
+
+class SaveExpenseUseCase(private val repo: ExpenseRepository) {
+    suspend operator fun invoke(expense: Expense): Result<Expense> {
+        if (expense.amount <= 0) return Result.failure(IllegalArgumentException("Amount must be positive"))
+        if (expense.description.isBlank()) return Result.failure(IllegalArgumentException("Description required"))
+        return repo.saveExpense(expense)
+    }
+}
+
+class DeleteExpenseUseCase(private val repo: ExpenseRepository) {
+    suspend operator fun invoke(id: String) = repo.deleteExpense(id)
+}
+
+class GetProfitSummaryUseCase(private val repo: ExpenseRepository) {
+    suspend operator fun invoke(businessId: String, period: ReportPeriod) =
+        repo.getProfitSummary(businessId, period)
+}
+
+// --- Payment Use Cases ---
+
+class GetPaymentsUseCase(private val repo: PaymentRepository) {
+    operator fun invoke(businessId: String) = repo.getPayments(businessId)
+}
+
+class GetUnreconciledPaymentsUseCase(private val repo: PaymentRepository) {
+    operator fun invoke(businessId: String) = repo.getUnreconciledPayments(businessId)
+}
+
+class ReconcilePaymentUseCase(private val repo: PaymentRepository) {
+    suspend operator fun invoke(paymentId: String, orderId: String) =
+        repo.reconcilePayment(paymentId, orderId)
+}
+
+// --- Auth Use Cases ---
+
+class LoginUseCase(private val repo: AuthRepository) {
+    suspend operator fun invoke(email: String, password: String) =
+        repo.login(email, password)
+}
+
+class VerifyOtpUseCase(private val repo: AuthRepository) {
+    suspend operator fun invoke(userId: String, otp: String, channel: String) =
+        repo.verifyOtp(userId, otp, channel)
+}
+
+class RegisterUseCase(private val repo: AuthRepository) {
+    suspend operator fun invoke(
+        name: String, phone: String, email: String, password: String,
+        businessName: String, businessType: BusinessType
+    ) = repo.register(name, phone, email, password, businessName, businessType)
+}
+
+class LogoutUseCase(private val repo: AuthRepository) {
+    suspend operator fun invoke() = repo.logout()
+}
 
 // --- Helpers ---
 
