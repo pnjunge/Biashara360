@@ -13,6 +13,12 @@ import org.jetbrains.exposed.sql.transactions.transaction
 class AuthService {
 
     fun register(req: RegisterRequest): ApiResponse<UserResponse> = transaction {
+        val emailExists = UsersTable.select { UsersTable.email eq req.email }.count() > 0
+        if (emailExists) return@transaction ApiResponse(false, message = "Email already registered")
+
+        val phoneExists = UsersTable.select { UsersTable.phone eq req.phone }.count() > 0
+        if (phoneExists) return@transaction ApiResponse(false, message = "Phone number already registered")
+
         val now = Clock.System.now()
         val businessId = generateId()
         val userId = generateId()

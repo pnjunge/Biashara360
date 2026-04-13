@@ -444,8 +444,12 @@ export function UserCreationPage() {
 
   const handleCreateAdmin = async () => {
     const { businessName, businessType, adminName, adminEmail, adminPhone, adminPassword } = adminForm
-    if (!businessName || !businessType || !adminName || !adminEmail || !adminPhone || !adminPassword) {
+    if (!businessName.trim() || !businessType.trim() || !adminName.trim() || !adminEmail.trim() || !adminPhone.trim() || !adminPassword) {
       setAdminError('All fields are required.')
+      return
+    }
+    if (adminPassword.length < 6) {
+      setAdminError('Temporary password must be at least 6 characters.')
       return
     }
     setAdminSaving(true); setAdminError('')
