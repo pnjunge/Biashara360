@@ -46,6 +46,14 @@ class SystemSettingsService {
         if (!url.startsWith("https://")) {
             return ApiResponse(false, message = "Callback URL must start with https://")
         }
+        try {
+            val parsed = java.net.URL(url)
+            if (parsed.host.isNullOrBlank()) {
+                return ApiResponse(false, message = "Callback URL must contain a valid host")
+            }
+        } catch (e: java.net.MalformedURLException) {
+            return ApiResponse(false, message = "Callback URL is not a valid URL: ${e.message}")
+        }
         saveSetting(KEY_MPESA_CALLBACK_URL, url)
         return ApiResponse(true, data = SystemSettingResponse(KEY_MPESA_CALLBACK_URL, url), message = "Mpesa callback URL updated")
     }
