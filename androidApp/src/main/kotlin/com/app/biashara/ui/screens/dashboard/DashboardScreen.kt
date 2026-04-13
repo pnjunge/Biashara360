@@ -1,7 +1,6 @@
 package com.app.biashara.ui.screens.dashboard
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,22 +19,39 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.app.biashara.domain.model.Order
+import com.app.biashara.domain.model.Product
+import com.app.biashara.presentation.viewmodel.DashboardViewModel
 import com.app.biashara.ui.navigation.Screen
 import com.app.biashara.ui.theme.*
+import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(navController: NavController) {
-    // In full impl, collect from DashboardViewModel via koin
-    val businessName = "Wanjiru's Fashion"
+fun DashboardScreen(
+    navController: NavController,
+    viewModel: DashboardViewModel = koinInject()
+) {
+    val state by viewModel.state.collectAsState()
+
+    LaunchedEffect(Unit) { viewModel.loadDashboard() }
+
+    val greeting = if (state.userName.isNotBlank()) "Habari, ${state.userName.split(" ").first()}! 👋"
+    else "Habari! 👋"
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("Habari, Wanjiru! 👋", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(businessName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        Text(greeting, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        if (state.businessName.isNotBlank()) {
+                            Text(
+                                state.businessName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -50,20 +66,39 @@ fun DashboardScreen(navController: NavController) {
             )
         }
     ) { padding ->
+        if (state.isLoading && state.recentOrders.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = B360Green)
+            }
+            return@Scaffold
+        }
+
+        if (state.error != null) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Filled.ErrorOutline, null, tint = B360Red, modifier = Modifier.size(48.dp))
+                    Text(state.error!!, color = Color.Gray, fontSize = 14.sp)
+                    Button(onClick = { viewModel.dismissError(); viewModel.loadDashboard() },
+                        colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
+                        Text("Retry")
+                    }
+                }
+            }
+            return@Scaffold
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding).background(B360Surface),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Revenue Banner
             item {
                 RevenueBannerCard(
-                    monthRevenue = 145_650.0,
-                    netProfit = 38_200.0,
-                    pendingPayments = 12_300.0
+                    monthRevenue = state.monthRevenue,
+                    netProfit = state.netProfit,
+                    pendingOrders = state.pendingOrders
                 )
             }
-            // Quick Actions
             item {
                 Text("Quick Actions", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
@@ -74,37 +109,41 @@ fun DashboardScreen(navController: NavController) {
                     item { QuickActionChip(Icons.Filled.People, "New Customer", Color(0xFF7B1FA2)) { navController.navigate(Screen.Customers.route) } }
                 }
             }
-            // Stats Row
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard(Modifier.weight(1f), "Orders Today", "24", Icons.Filled.ShoppingCart, B360Green)
-                    StatCard(Modifier.weight(1f), "Low Stock", "3", Icons.Filled.Warning, B360Amber)
+                    StatCard(Modifier.weight(1f), "Total Orders", "${state.totalOrders}", Icons.Filled.ShoppingCart, B360Green)
+                    StatCard(Modifier.weight(1f), "Low Stock", "${state.lowStockCount}", Icons.Filled.Warning, B360Amber)
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard(Modifier.weight(1f), "Customers", "186", Icons.Filled.People, B360Blue)
-                    StatCard(Modifier.weight(1f), "Unpaid Orders", "7", Icons.Filled.Pending, B360Red)
+                    StatCard(Modifier.weight(1f), "Customers", "${state.topCustomers.size}", Icons.Filled.People, B360Blue)
+                    StatCard(Modifier.weight(1f), "Unpaid Orders", "${state.pendingOrders}", Icons.Filled.Pending, B360Red)
                 }
             }
-            // Low Stock Alerts
-            item {
-                LowStockAlertsSection(
-                    onViewAll = { navController.navigate(Screen.Inventory.route) }
-                )
+            if (state.lowStockProducts.isNotEmpty()) {
+                item {
+                    LowStockAlertsSection(
+                        products = state.lowStockProducts,
+                        onViewAll = { navController.navigate(Screen.Inventory.route) }
+                    )
+                }
             }
-            // Recent Orders
-            item {
-                RecentOrdersSection(
-                    onViewAll = { navController.navigate(Screen.Orders.route) }
-                )
+            if (state.recentOrders.isNotEmpty()) {
+                item {
+                    RecentOrdersSection(
+                        orders = state.recentOrders,
+                        onViewAll = { navController.navigate(Screen.Orders.route) },
+                        onOrderClick = { id -> navController.navigate(Screen.OrderDetail.createRoute(id)) }
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun RevenueBannerCard(monthRevenue: Double, netProfit: Double, pendingPayments: Double) {
+fun RevenueBannerCard(monthRevenue: Double, netProfit: Double, pendingOrders: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -122,7 +161,7 @@ fun RevenueBannerCard(monthRevenue: Double, netProfit: Double, pendingPayments: 
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     MiniStat("Net Profit", "KES ${"%,.0f".format(netProfit)}", Color.White)
-                    MiniStat("Pending", "KES ${"%,.0f".format(pendingPayments)}", Color(0xFFFFD54F))
+                    MiniStat("Pending Orders", "$pendingOrders", Color(0xFFFFD54F))
                 }
             }
         }
@@ -139,11 +178,7 @@ fun MiniStat(label: String, value: String, valueColor: Color) {
 
 @Composable
 fun QuickActionChip(icon: ImageVector, label: String, color: Color, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        color = color.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(12.dp)
-    ) {
+    Surface(onClick = onClick, color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(12.dp)) {
         Row(
             Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -170,59 +205,56 @@ fun StatCard(modifier: Modifier, title: String, value: String, icon: ImageVector
 }
 
 @Composable
-fun LowStockAlertsSection(onViewAll: () -> Unit) {
-    // Sample data
-    val lowStockItems = listOf(
-        Pair("Black Dress Size M", 2),
-        Pair("Ankara Print Fabric", 1),
-        Pair("Gold Hoop Earrings", 3)
-    )
+fun LowStockAlertsSection(products: List<Product>, onViewAll: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Filled.Warning, contentDescription = null, tint = B360Amber, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Warning, null, tint = B360Amber, modifier = Modifier.size(18.dp))
                     Text("Low Stock Alerts", fontWeight = FontWeight.Bold)
                 }
                 TextButton(onClick = onViewAll) { Text("View All") }
             }
-            lowStockItems.forEach { (name, qty) ->
+            products.take(5).forEachIndexed { index, product ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(name, style = MaterialTheme.typography.bodyMedium)
-                    Badge(containerColor = if (qty <= 1) B360Red else B360Amber) {
-                        Text("$qty left", color = Color.White, fontSize = 11.sp)
+                    Text(product.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Badge(containerColor = if (product.isOutOfStock) B360Red else B360Amber) {
+                        Text("${product.currentStock} left", color = Color.White, fontSize = 11.sp)
                     }
                 }
-                if (name != lowStockItems.last().first) Divider(color = Color(0xFFF0F0F0))
+                if (index < products.size - 1 && index < 4) Divider(color = Color(0xFFF0F0F0))
             }
         }
     }
 }
 
 @Composable
-fun RecentOrdersSection(onViewAll: () -> Unit) {
-    val orders = listOf(
-        Triple("B360-0042", "Amina Hassan", "PAID"),
-        Triple("B360-0041", "Brian Otieno", "PENDING"),
-        Triple("B360-0040", "Grace Njeri", "COD")
-    )
+fun RecentOrdersSection(orders: List<Order>, onViewAll: () -> Unit, onOrderClick: (String) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Recent Orders", fontWeight = FontWeight.Bold)
                 TextButton(onClick = onViewAll) { Text("View All") }
             }
-            orders.forEach { (orderNo, customer, status) ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text(orderNo, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        Text(customer, color = Color.Gray, fontSize = 12.sp)
-                    }
-                    Surface(color = paymentStatusColor(status).copy(alpha = 0.15f), shape = RoundedCornerShape(20.dp)) {
-                        Text(status, color = paymentStatusColor(status), fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+            orders.take(5).forEachIndexed { index, order ->
+                Surface(onClick = { onOrderClick(order.id) }, color = Color.Transparent) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(order.orderNumber, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(order.customerName, color = Color.Gray, fontSize = 12.sp)
+                        }
+                        Surface(color = paymentStatusColor(order.paymentStatus.name).copy(alpha = 0.15f), shape = RoundedCornerShape(20.dp)) {
+                            Text(
+                                order.paymentStatus.displayLabel(),
+                                color = paymentStatusColor(order.paymentStatus.name),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
-                if (orderNo != orders.last().first) Divider(color = Color(0xFFF0F0F0))
+                if (index < orders.size - 1 && index < 4) Divider(color = Color(0xFFF0F0F0))
             }
         }
     }

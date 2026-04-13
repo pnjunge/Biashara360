@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../App'
 import { authApi } from '../services/api'
+import { Btn, Input } from '../components/ui'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -16,6 +17,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!email.trim() || !password) { setError('Email and password are required'); return }
     setLoading(true)
     setError('')
     try {
@@ -84,23 +86,27 @@ export default function LoginPage() {
             <>
               <h2 style={{ fontSize:18, fontWeight:700, marginBottom:20 }}>Sign in to your account</h2>
               <form onSubmit={handleLogin} style={{ display:'flex', flexDirection:'column', gap:16 }}>
-                <div>
-                  <label style={{ fontSize:12, fontWeight:500, color:'var(--b360-text-secondary)', display:'block', marginBottom:5 }}>Email</label>
-                  <input type="email" placeholder="wanjiru@example.com" value={email} onChange={e => setEmail(e.target.value)}
-                    required style={{ width:'100%', padding:'10px 12px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, fontFamily:'inherit', outline:'none' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize:12, fontWeight:500, color:'var(--b360-text-secondary)', display:'block', marginBottom:5 }}>Password</label>
-                  <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)}
-                    required style={{ width:'100%', padding:'10px 12px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, fontFamily:'inherit', outline:'none' }} />
-                </div>
+                <Input
+                  label="Email"
+                  placeholder="wanjiru@example.com"
+                  value={email}
+                  onChange={setEmail}
+                  type="email"
+                />
+                <Input
+                  label="Password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={setPassword}
+                  type="password"
+                />
                 {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
-                <button type="submit" disabled={loading} style={{
-                  background:'var(--b360-green)', color:'white', padding:'11px', borderRadius:8,
-                  fontWeight:700, fontSize:14, opacity: loading ? 0.7 : 1, cursor:'pointer', border:'none', fontFamily:'inherit'
-                }}>
+                <Btn
+                  type="submit"
+                  disabled={loading || !email.trim() || !password}
+                >
                   {loading ? 'Signing in...' : 'Sign In'}
-                </button>
+                </Btn>
                 <p style={{ textAlign:'center', fontSize:12, color:'var(--b360-text-secondary)' }}>
                   2FA required for all accounts
                 </p>
@@ -114,18 +120,19 @@ export default function LoginPage() {
                 <p style={{ fontSize:13, color:'var(--b360-text-secondary)' }}>We sent a 6-digit code to your phone via SMS</p>
               </div>
               <form onSubmit={handleOtp} style={{ display:'flex', flexDirection:'column', gap:16 }}>
-                <input type="text" placeholder="Enter 6-digit code" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/,'').slice(0,6))}
-                  maxLength={6} style={{ textAlign:'center', letterSpacing:12, fontSize:28, fontWeight:700, padding:'14px', border:'2px solid var(--b360-green)', borderRadius:10, fontFamily:'inherit', outline:'none' }} />
+                <Input
+                  placeholder="Enter 6-digit code"
+                  value={otp}
+                  onChange={v => setOtp(v.replace(/\D/g, '').slice(0, 6))}
+                  type="text"
+                />
                 {error && <p style={{ color:'var(--b360-red)', fontSize:12, textAlign:'center' }}>{error}</p>}
-                <button type="submit" disabled={loading || otp.length < 6} style={{
-                  background:'var(--b360-green)', color:'white', padding:11, borderRadius:8,
-                  fontWeight:700, fontSize:14, opacity:(loading || otp.length<6) ? 0.6 : 1, cursor:'pointer', border:'none', fontFamily:'inherit'
-                }}>
+                <Btn type="submit" disabled={loading || otp.length < 6}>
                   {loading ? 'Verifying...' : 'Verify & Sign In'}
-                </button>
-                <button type="button" onClick={() => setStep('login')} style={{ fontSize:12, color:'var(--b360-text-secondary)', background:'none', border:'none', cursor:'pointer' }}>
+                </Btn>
+                <Btn variant="secondary" onClick={() => setStep('login')}>
                   ← Back to login
-                </button>
+                </Btn>
               </form>
             </>
           )}
