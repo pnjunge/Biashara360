@@ -213,11 +213,16 @@ class CyberSourcePaymentService(
     }
 
     // ── Capture Context for Unified Checkout widget ───────────────────────────
-    suspend fun getCaptureContext(targetOrigin: String): String? =
-        when (val r = cs.generateCaptureContext(targetOrigin)) {
+    // When businessId is supplied, the tenant's DB-stored credentials are used.
+    // If no tenant config is found for that businessId, csFor() falls back to
+    // the globally configured service (same behaviour as all other payment ops).
+    suspend fun getCaptureContext(targetOrigin: String, businessId: String? = null): String? {
+        val csService = if (businessId != null) csFor(businessId) else cs
+        return when (val r = csService.generateCaptureContext(targetOrigin)) {
             is CsResult.Success -> r.data
             is CsResult.Failure -> null
         }
+    }
 
     // ── Saved cards ───────────────────────────────────────────────────────────
     fun getSavedCards(businessId: String, customerId: String? = null): List<CsSavedCard> =
