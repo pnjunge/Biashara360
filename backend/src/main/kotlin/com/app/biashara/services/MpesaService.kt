@@ -15,14 +15,19 @@ import java.util.Base64
 class MpesaService(
     private val httpClient: HttpClient,
     private val config: ApplicationConfig,
-    private val settingsService: BusinessSettingsService? = null
+    private val settingsService: BusinessSettingsService? = null,
+    private val systemSettingsService: SystemSettingsService? = null
 ) {
-    // Fall-back to application-level config when no per-business DB config is found
+    // Fall-back to application-level config when no per-business DB config is found.
+    // For the callback URL, the system settings DB value takes precedence over application.conf.
     private val defaultConsumerKey get() = config.propertyOrNull("mpesa.consumerKey")?.getString() ?: ""
     private val defaultConsumerSecret get() = config.propertyOrNull("mpesa.consumerSecret")?.getString() ?: ""
     private val defaultShortCode get() = config.propertyOrNull("mpesa.shortCode")?.getString() ?: ""
     private val defaultPassKey get() = config.propertyOrNull("mpesa.passKey")?.getString() ?: ""
-    private val defaultCallbackUrl get() = config.propertyOrNull("mpesa.callbackUrl")?.getString() ?: ""
+    private val defaultCallbackUrl get() =
+        systemSettingsService?.getMpesaCallbackUrl()
+            ?: config.propertyOrNull("mpesa.callbackUrl")?.getString()
+            ?: ""
     private val defaultIsSandbox get() = config.propertyOrNull("mpesa.environment")?.getString() != "production"
     private val defaultAccountType get() = config.propertyOrNull("mpesa.accountType")?.getString() ?: "paybill"
 
