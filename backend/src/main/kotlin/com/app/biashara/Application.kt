@@ -56,6 +56,7 @@ fun Application.module() {
                 socialRoutes()
                 superAdminRoutes()
                 businessSettingsRoutes()
+                businessProfileRoutes()
             }
         }
         // Public webhook routes — no auth

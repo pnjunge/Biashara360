@@ -605,6 +605,45 @@ export interface BusinessWithAdminResponse {
   admin: UserResponse
 }
 
+export interface BusinessProfileRequest {
+  name: string
+  owner: string
+  phone: string
+  email: string
+  type: string
+  county: string
+  address: string
+  kraPin: string
+  paybillNumber: string
+  accountNumber: string
+}
+
+export interface BusinessProfileResponse {
+  id: string
+  name: string
+  owner: string
+  phone: string
+  email: string
+  type: string
+  county: string
+  address: string
+  kraPin: string
+  paybillNumber: string
+  accountNumber: string
+  subscriptionTier: string
+}
+
+export const businessApi = {
+  getProfile: async () => {
+    const res = await client.get<ApiResponse<BusinessProfileResponse>>('/business/profile')
+    return res.data
+  },
+  updateProfile: async (data: BusinessProfileRequest) => {
+    const res = await client.put<ApiResponse<BusinessProfileResponse>>('/business/profile', data)
+    return res.data
+  },
+}
+
 export const superAdminApi = {
   listBusinesses: async () => {
     const res = await client.get<ApiResponse<BusinessResponse[]>>('/admin/businesses')

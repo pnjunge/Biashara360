@@ -467,6 +467,39 @@ fun Route.userRoutes() {
     }
 }
 
+// ─── Business Profile Routes ──────────────────────────────────────────────────
+
+fun Route.businessProfileRoutes() {
+    val businessProfileService: BusinessProfileService by inject()
+
+    route("/business/profile") {
+        get {
+            if (!call.hasRole("ADMIN")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                return@get
+            }
+            val businessId = call.businessId()
+            val profile = businessProfileService.getProfile(businessId)
+            if (profile == null) {
+                call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(false, message = "Business not found"))
+            } else {
+                call.respond(ApiResponse(true, data = profile))
+            }
+        }
+
+        put {
+            if (!call.hasRole("ADMIN")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                return@put
+            }
+            val businessId = call.businessId()
+            val req = call.receive<BusinessProfileRequest>()
+            val result = businessProfileService.updateProfile(businessId, req)
+            call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+        }
+    }
+}
+
 // ─── Dashboard Route ──────────────────────────────────────────────────────────
 
 fun Route.dashboardRoute() {

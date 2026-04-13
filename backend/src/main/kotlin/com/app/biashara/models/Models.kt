@@ -320,6 +320,38 @@ data class PagedResponse<T>(
     val hasMore: Boolean
 )
 
+// ─── Business Profile ─────────────────────────────────────────────────────────
+
+@Serializable
+data class BusinessProfileRequest(
+    val name: String,
+    val owner: String = "",
+    val phone: String,
+    val email: String,
+    val type: String,
+    val county: String = "",
+    val address: String = "",
+    val kraPin: String = "",
+    val paybillNumber: String = "",
+    val accountNumber: String = ""
+)
+
+@Serializable
+data class BusinessProfileResponse(
+    val id: String,
+    val name: String,
+    val owner: String,
+    val phone: String,
+    val email: String,
+    val type: String,
+    val county: String,
+    val address: String,
+    val kraPin: String,
+    val paybillNumber: String,
+    val accountNumber: String,
+    val subscriptionTier: String
+)
+
 // ─── Super Admin — Business Management ───────────────────────────────────────
 
 @Serializable
