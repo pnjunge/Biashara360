@@ -89,20 +89,3 @@ class InventoryViewModel(
         }
     }
 }
-
-// Stub ViewModels for other modules
-class OrdersViewModel {
-    private val _state = MutableStateFlow(emptyList<Any>())
-}
-
-class CustomersViewModel {
-    private val _state = MutableStateFlow(emptyList<Any>())
-}
-
-class ExpensesViewModel {
-    private val _state = MutableStateFlow(emptyList<Any>())
-}
-
-class PaymentsViewModel {
-    private val _state = MutableStateFlow(emptyList<Any>())
-}

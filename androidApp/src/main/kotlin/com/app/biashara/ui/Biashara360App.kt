@@ -170,7 +170,10 @@ fun Biashara360App() {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(0) { inclusive = true }
                         }
-                    }
+                    },
+                    onNavigateToPayments = { navController.navigate(Screen.Payments.route) },
+                    onNavigateToKra = { navController.navigate(Screen.Kra.route) },
+                    onNavigateToSocial = { navController.navigate(Screen.Social.route) }
                 )
             }
         }

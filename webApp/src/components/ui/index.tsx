@@ -57,15 +57,15 @@ export function Card({ children, style }: { children: React.ReactNode; style?: R
 }
 
 // ── Button ────────────────────────────────────────────────────────────────────
-export function Btn({ children, variant='primary', onClick, icon, small, disabled }:
-  { children: React.ReactNode; variant?: 'primary'|'secondary'|'danger'; onClick?: () => void; icon?: React.ReactNode; small?: boolean; disabled?: boolean }) {
+export function Btn({ children, variant='primary', onClick, icon, small, disabled, type='button' }:
+  { children: React.ReactNode; variant?: 'primary'|'secondary'|'danger'; onClick?: () => void; icon?: React.ReactNode; small?: boolean; disabled?: boolean; type?: 'button'|'submit'|'reset' }) {
   const styles: Record<string, React.CSSProperties> = {
     primary:   { background:'var(--b360-green)',  color:'white', border:'none' },
     secondary: { background:'white', color:'var(--b360-text)', border:'1px solid var(--b360-border)' },
     danger:    { background:'var(--b360-red-bg)', color:'var(--b360-red)', border:'1px solid var(--b360-red)' },
   }
   return (
-    <button type="button" onClick={onClick} disabled={disabled} style={{
+    <button type={type} onClick={onClick} disabled={disabled} style={{
       display:'flex', alignItems:'center', gap:6, padding: small ? '6px 12px' : '9px 16px',
       borderRadius:8, fontSize: small ? 12 : 13, fontWeight:600, cursor: disabled ? 'not-allowed' : 'pointer',
       transition:'opacity 0.15s', opacity: disabled ? 0.6 : 1,
