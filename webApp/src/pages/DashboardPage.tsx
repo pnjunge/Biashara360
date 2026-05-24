@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users } from 'lucide-react'
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
-import { productApi, orderApi, customerApi, reportApi, ProductResponse, OrderResponse, CustomerResponse, ProfitSummaryResponse } from '../services/api'
+import { productApi, orderApi, customerApi, reportApi, ProductResponse, OrderResponse, ProfitSummaryResponse } from '../services/api'
 
 function getCurrentMonthRange() {
   const now = new Date()
