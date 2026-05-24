@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { socialApi, ConversationSummary, SocialChannel, SocialMessage } from '../services/api'
 
-// ── Brand Colors ──────────────────────────────────────────────────────────────
+// ── Brand Colors ──────────────────────────────────────────────────────────[...]
 const PLATFORM = {
   WHATSAPP:  { color: '#25D366', bg: '#E8FBF0', label: 'WhatsApp',  icon: '💬' },
   INSTAGRAM: { color: '#E1306C', bg: '#FDE8F0', label: 'Instagram', icon: '📸' },
@@ -15,7 +15,7 @@ const PLATFORM = {
 }
 const G = '#1B8B34'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────…[...]
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
   if (diff < 60000)   return 'Just now'
@@ -27,7 +27,7 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-KE', { hour:'2-digit', minute:'2-digit' })
 }
 
-// ── Platform Badge ────────────────────────────────────────────────────────────
+// ── Platform Badge ─────────────────────────────────────────────────────────[...]
 function PlatformBadge({ platform, size = 'sm' }: { platform: string; size?: 'sm'|'md' }) {
   const p = PLATFORM[platform as keyof typeof PLATFORM]
   if (!p) return null
@@ -40,13 +40,13 @@ function PlatformBadge({ platform, size = 'sm' }: { platform: string; size?: 'sm
   )
 }
 
-// ── Status Dot ────────────────────────────────────────────────────────────────
+// ── Status Dot ──────────────────────────────────────────────────────────…[...]
 function StatusDot({ status }: { status: string }) {
   const colors: Record<string, string> = { OPEN:'#1B8B34', PENDING_PAYMENT:'#FF8F00', COMPLETED:'#1565C0', CLOSED:'#999' }
   return <Circle size={8} fill={colors[status]||'#999'} color={colors[status]||'#999'} />
 }
 
-// ── Tab: Inbox ────────────────────────────────────────────────────────────────
+// ── Tab: Inbox ──────────────────────────────────────────────────────────…[...]
 function InboxTab() {
   const [convs, setConvs]         = useState<ConversationSummary[]>([])
   const [active, setActive]       = useState<string | null>(null)
@@ -67,7 +67,7 @@ function InboxTab() {
 
   useEffect(() => {
     socialApi.getInbox().then(res => {
-      if (res.success && res.data) {
+      if (res.success && Array.isArray(res.data)) {
         setConvs(res.data)
         if (res.data.length > 0) setActive(res.data[0].id)
       }
@@ -85,16 +85,16 @@ function InboxTab() {
 
   useEffect(() => { msgEnd.current?.scrollIntoView({ behavior:'smooth' }) }, [active, msgs])
 
-  const activeConv = convs.find(c => c.id === active)
+  const activeConv = Array.isArray(convs) ? convs.find(c => c.id === active) : null
   const activeMsgs = active ? (msgs[active] || []) : []
 
-  const filtered = convs.filter(c => {
+  const filtered = Array.isArray(convs) ? convs.filter(c => {
     if (filterPlatform !== 'ALL' && c.platform !== filterPlatform) return false
     if (filterStatus   !== 'ALL' && c.status   !== filterStatus)   return false
     if (search && !(c.customerName || '').toLowerCase().includes(search.toLowerCase()) &&
         !(c.lastMessage || '').toLowerCase().includes(search.toLowerCase())) return false
     return true
-  })
+  }) : []
 
   async function send() {
     if (!draft.trim() || !active) return
@@ -141,15 +141,15 @@ function InboxTab() {
   function sendPayment() {
     if (!active || !payAmt) return
     const amt = parseFloat(payAmt)
-    const payMsg = `Hujambo ${activeConv?.customerName.split(' ')[0]}! 🛍️\n\n*${payDesc || 'Order yako'}*\n💰 Jumla: *KES ${amt.toLocaleString()}*\n\n💳 *Lipa kwa Mpesa:*\nPaybill: 174379\nAccount: ORD-${Date.now().toString().slice(-4)}\nKiasi: KES ${amt.toLocaleString()}\n\n📱 Au piga simu: ${activeConv?.customerPhone || '0700000000'}\n\nAsante kwa kununua! 🙏`
-    const msg: SocialMessage = { id:`m${Date.now()}`, direction:'OUTBOUND', senderType:'AGENT', content:payMsg, messageType:'PAYMENT_REQUEST', createdAt:new Date().toISOString(), isAiGenerated:false }
+    const payMsg = `Hujambo ${activeConv?.customerName.split(' ')[0]}! 🛍️\n\n*${payDesc || 'Order yako'}*\n💰 Jumla: *KES ${amt.toLocaleString()}*\n\n💳 *Lipa kwa Mpesa:*\nPaybill: 17437[...]
+    const msg: SocialMessage = { id:`m${Date.now()}`, direction:'OUTBOUND', senderType:'AGENT', content:payMsg, messageType:'PAYMENT_REQUEST', createdAt:new Date().toISOString(), isAiGenerated:fa[...]
     setMsgs(m => ({ ...m, [active]: [...(m[active]||[]), msg] }))
     setConvs(cs => cs.map(c => c.id === active ? {...c, status:'PENDING_PAYMENT', lastMessage:payMsg.slice(0,60), lastMessageAt:new Date().toISOString()} : c))
     setPayAmt(''); setPayDesc(''); setPayMod(false)
     socialApi.sendMessage({ conversationId: active, content: payMsg, messageType: 'PAYMENT_REQUEST' }).catch(() => {})
   }
 
-  const totalUnread = convs.reduce((s, c) => s + c.unreadCount, 0)
+  const totalUnread = Array.isArray(convs) ? convs.reduce((s, c) => s + c.unreadCount, 0) : 0
 
   return (
     <div style={{ display:'flex', height:'calc(100vh - 120px)', background:'#F4F7F5', borderRadius:16, overflow:'hidden', border:'1px solid #E5E9E7' }}>
@@ -162,7 +162,8 @@ function InboxTab() {
           <div style={{ position:'relative', marginBottom:10 }}>
             <Search size={14} color='#999' style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)' }} />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search conversations…"
-              style={{ width:'100%', paddingLeft:32, paddingRight:10, paddingTop:8, paddingBottom:8, borderRadius:10, border:'1px solid #E8EDE9', fontSize:12, outline:'none', boxSizing:'border-box' }} />
+              style={{ width:'100%', paddingLeft:32, paddingRight:10, paddingTop:8, paddingBottom:8, borderRadius:10, border:'1px solid #E8EDE9', fontSize:12, outline:'none', boxSizing:'border-bo[...]
+            />
           </div>
           <div style={{ display:'flex', gap:4, overflowX:'auto', paddingBottom:4 }}>
             {['ALL','WHATSAPP','INSTAGRAM','FACEBOOK','TIKTOK'].map(p => {
@@ -199,7 +200,7 @@ function InboxTab() {
               }}>
                 {/* Avatar */}
                 <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
-                  <div style={{ width:40, height:40, borderRadius:'50%', background:p?.bg||'#EEE', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0, position:'relative' }}>
+                  <div style={{ width:40, height:40, borderRadius:'50%', background:p?.bg||'#EEE', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0, positio[...]
                     {(c.customerName || '?').charAt(0)}
                     <span style={{ position:'absolute', bottom:-2, right:-2, fontSize:12 }}>{p?.icon}</span>
                   </div>
@@ -218,7 +219,7 @@ function InboxTab() {
                     </div>
                   </div>
                   {c.unreadCount > 0 && (
-                    <div style={{ background:p?.color||G, color:'white', borderRadius:'50%', width:18, height:18, fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <div style={{ background:p?.color||G, color:'white', borderRadius:'50%', width:18, height:18, fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:[...]
                       {c.unreadCount}
                     </div>
                   )}
@@ -236,7 +237,7 @@ function InboxTab() {
           {/* Chat header */}
           <div style={{ padding:'14px 20px', background:'white', borderBottom:'1px solid #E8EDE9', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-              <div style={{ width:42, height:42, borderRadius:'50%', background:PLATFORM[activeConv.platform as keyof typeof PLATFORM]?.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>
+              <div style={{ width:42, height:42, borderRadius:'50%', background:PLATFORM[activeConv.platform as keyof typeof PLATFORM]?.bg, display:'flex', alignItems:'center', justifyContent:'ce[...]
                 {(activeConv.customerName || '?').charAt(0)}
               </div>
               <div>
@@ -250,10 +251,10 @@ function InboxTab() {
               </div>
             </div>
             <div style={{ display:'flex', gap:8 }}>
-              <button onClick={() => setOrdMod(true)} style={{ padding:'7px 14px', borderRadius:8, border:`1.5px solid ${G}`, background:'white', color:G, fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
+              <button onClick={() => setOrdMod(true)} style={{ padding:'7px 14px', borderRadius:8, border:`1.5px solid ${G}`, background:'white', color:G, fontSize:12, fontWeight:700, cursor:'poi[...]
                 <ShoppingCart size={13} /> Order
               </button>
-              <button onClick={() => setPayMod(true)} style={{ padding:'7px 14px', borderRadius:8, border:'none', background:G, color:'white', fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
+              <button onClick={() => setPayMod(true)} style={{ padding:'7px 14px', borderRadius:8, border:'none', background:G, color:'white', fontSize:12, fontWeight:700, cursor:'pointer', displ[...]
                 <CreditCard size={13} /> Request Payment
               </button>
             </div>
@@ -295,9 +296,9 @@ function InboxTab() {
                 <div style={{ fontSize:12, color:'#333', whiteSpace:'pre-wrap', lineHeight:1.5 }}>{aiSuggestion}</div>
               </div>
               <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-                <button onClick={() => { setDraft(aiSuggestion); setAiSug(null) }} style={{ padding:'5px 10px', borderRadius:7, border:`1px solid ${G}`, background:'white', color:G, fontSize:11, fontWeight:600, cursor:'pointer' }}>Edit</button>
-                <button onClick={sendAiReply} style={{ padding:'5px 10px', borderRadius:7, border:'none', background:G, color:'white', fontSize:11, fontWeight:700, cursor:'pointer' }}>Send</button>
-                <button onClick={() => setAiSug(null)} style={{ padding:'5px 8px', borderRadius:7, border:'1px solid #DDD', background:'white', color:'#999', fontSize:11, cursor:'pointer' }}><X size={11}/></button>
+                <button onClick={() => { setDraft(aiSuggestion); setAiSug(null) }} style={{ padding:'5px 10px', borderRadius:7, border:`1px solid ${G}`, background:'white', color:G, fontSize:11, [...]
+                <button onClick={sendAiReply} style={{ padding:'5px 10px', borderRadius:7, border:'none', background:G, color:'white', fontSize:11, fontWeight:700, cursor:'pointer' }}>Send</butto[...]
+                <button onClick={() => setAiSug(null)} style={{ padding:'5px 8px', borderRadius:7, border:'1px solid #DDD', background:'white', color:'#999', fontSize:11, cursor:'pointer' }}><X s[...]
               </div>
             </div>
           )}
@@ -305,7 +306,7 @@ function InboxTab() {
           {/* Compose Bar */}
           <div style={{ padding:'12px 16px 16px', background:'white', borderTop:'1px solid #E8EDE9' }}>
             <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
-              <button onClick={getAiReply} disabled={aiLoading} title="Get AI reply suggestion" style={{ padding:'10px 12px', borderRadius:10, border:`1.5px solid ${G}`, background: aiLoading ? '#F0F8F1' : 'white', color:G, cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', gap:5 }}>
+              <button onClick={getAiReply} disabled={aiLoading} title="Get AI reply suggestion" style={{ padding:'10px 12px', borderRadius:10, border:`1.5px solid ${G}`, background: aiLoading ? '[...]
                 {aiLoading ? <RefreshCw size={14} className="spin" /> : <Zap size={14} />}
                 <span style={{ fontSize:11, fontWeight:700 }}>{aiLoading ? 'Thinking…' : 'AI Reply'}</span>
               </button>
@@ -317,7 +318,7 @@ function InboxTab() {
                 rows={2}
                 style={{ flex:1, padding:'10px 14px', borderRadius:10, border:'1.5px solid #E8EDE9', fontSize:13, resize:'none', outline:'none', fontFamily:'inherit', lineHeight:1.5 }}
               />
-              <button onClick={send} disabled={!draft.trim()} style={{ padding:'10px 16px', borderRadius:10, border:'none', background: draft.trim() ? G : '#E8EDE9', color: draft.trim() ? 'white' : '#AAA', cursor: draft.trim() ? 'pointer' : 'default', flexShrink:0, display:'flex', alignItems:'center', gap:5, fontWeight:700, fontSize:13 }}>
+              <button onClick={send} disabled={!draft.trim()} style={{ padding:'10px 16px', borderRadius:10, border:'none', background: draft.trim() ? G : '#E8EDE9', color: draft.trim() ? 'white'[...]
                 <Send size={14} /> Send
               </button>
             </div>
@@ -356,12 +357,12 @@ function InboxTab() {
             {payAmt && (
               <div style={{ marginBottom:20, padding:14, background:'#F0F8F1', borderRadius:10, border:`1px solid ${G}`, fontSize:12 }}>
                 <div style={{ fontWeight:700, color:G, marginBottom:6 }}>Preview message:</div>
-                <div style={{ color:'#333', lineHeight:1.6 }}>Hujambo {activeConv?.customerName.split(' ')[0]}! 🛍️<br/><b>{payDesc||'Order yako'}</b><br/>💰 KES {parseFloat(payAmt||'0').toLocaleString()}<br/>💳 Lipa Mpesa Paybill 174379…</div>
+                <div style={{ color:'#333', lineHeight:1.6 }}>Hujambo {activeConv?.customerName.split(' ')[0]}! 🛍️<br/><b>{payDesc||'Order yako'}</b><br/>💰 KES {parseFloat(payAmt||'0').to[...]
               </div>
             )}
             <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => setPayMod(false)} style={{ flex:1, padding:'11px', borderRadius:10, border:'1.5px solid #E0E0E0', background:'white', fontSize:13, fontWeight:600, cursor:'pointer' }}>Cancel</button>
-              <button onClick={sendPayment} disabled={!payAmt} style={{ flex:2, padding:'11px', borderRadius:10, border:'none', background:payAmt ? G : '#E0E0E0', color:'white', fontSize:13, fontWeight:800, cursor:payAmt?'pointer':'default' }}>
+              <button onClick={() => setPayMod(false)} style={{ flex:1, padding:'11px', borderRadius:10, border:'1.5px solid #E0E0E0', background:'white', fontSize:13, fontWeight:600, cursor:'poi[...]
+              <button onClick={sendPayment} disabled={!payAmt} style={{ flex:2, padding:'11px', borderRadius:10, border:'none', background:payAmt ? G : '#E0E0E0', color:'white', fontSize:13, font[...]
                 <CreditCard size={14} style={{ verticalAlign:'middle', marginRight:6 }}/>Send Payment Request + M-Pesa STK
               </button>
             </div>
@@ -395,10 +396,10 @@ function InboxTab() {
               <b>💡 Tip:</b> After creating, use the product search in the Orders page to add items, then come back to send the payment request.
             </div>
             <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => setOrdMod(false)} style={{ flex:1, padding:'11px', borderRadius:10, border:'1.5px solid #E0E0E0', background:'white', fontSize:13, fontWeight:600, cursor:'pointer' }}>Cancel</button>
+              <button onClick={() => setOrdMod(false)} style={{ flex:1, padding:'11px', borderRadius:10, border:'1.5px solid #E0E0E0', background:'white', fontSize:13, fontWeight:600, cursor:'poi[...]
               <button onClick={() => {
                 setOrdMod(false)
-                const msg = { id:`m${Date.now()}`, direction:'OUTBOUND', senderType:'AGENT', content:`✅ Order created for ${activeConv?.customerName}! Nitakutumia maelekezo ya kulipa hivi karibuni.`, messageType:'TEXT', createdAt:new Date().toISOString(), isAiGenerated:false }
+                const msg = { id:`m${Date.now()}`, direction:'OUTBOUND', senderType:'AGENT', content:`✅ Order created for ${activeConv?.customerName}! Nitakutumia maelekezo ya kulipa hivi karib[...]
                 if (active) setMsgs(m => ({ ...m, [active]: [...(m[active]||[]), msg] }))
               }} style={{ flex:2, padding:'11px', borderRadius:10, border:'none', background:G, color:'white', fontSize:13, fontWeight:800, cursor:'pointer' }}>
                 <ShoppingCart size={14} style={{ verticalAlign:'middle', marginRight:6 }}/>Create Order + Notify Customer
@@ -416,7 +417,7 @@ function InboxTab() {
   )
 }
 
-// ── Tab: Channels ─────────────────────────────────────────────────────────────
+// ── Tab: Channels ─────────────────────────────────────────────────────────[...]
 function ChannelsTab() {
   const [channels, setChannels] = useState<SocialChannel[]>([])
   const [showAdd, setShowAdd]   = useState(false)
@@ -517,7 +518,7 @@ function ChannelsTab() {
                 }
               </div>
               {ch?.isActive && ch.unreadCount > 0 && (
-                <div style={{ position:'absolute', top:12, right:12, background:p.color, color:'white', borderRadius:'50%', width:20, height:20, fontSize:11, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <div style={{ position:'absolute', top:12, right:12, background:p.color, color:'white', borderRadius:'50%', width:20, height:20, fontSize:11, fontWeight:800, display:'flex', align[...]
                   {ch.unreadCount}
                 </div>
               )}
@@ -575,7 +576,7 @@ function ChannelsTab() {
                     <div style={{ fontSize:11, fontWeight:600, color:'#666', marginBottom:3 }}>Webhook URL</div>
                     <code style={{ fontSize:11, color:'#333', fontFamily:'monospace' }}>{ch.webhookUrl}</code>
                   </div>
-                  <button onClick={() => copy(ch.webhookUrl, `url-${ch.id}`)} style={{ padding:'5px 10px', borderRadius:7, border:'1px solid #DDD', background:'white', cursor:'pointer', fontSize:11, display:'flex', alignItems:'center', gap:4 }}>
+                  <button onClick={() => copy(ch.webhookUrl, `url-${ch.id}`)} style={{ padding:'5px 10px', borderRadius:7, border:'1px solid #DDD', background:'white', cursor:'pointer', fontSize:[...]
                     {copied === `url-${ch.id}` ? <><Check size={11} color={G}/> Copied</> : <><Copy size={11}/> Copy</>}
                   </button>
                 </div>
@@ -584,7 +585,7 @@ function ChannelsTab() {
                     <div style={{ fontSize:11, fontWeight:600, color:'#666', marginBottom:3 }}>Verify Token</div>
                     <code style={{ fontSize:11, color:'#333', fontFamily:'monospace' }}>{ch.webhookVerifyToken}</code>
                   </div>
-                  <button onClick={() => copy(ch.webhookVerifyToken, `tok-${ch.id}`)} style={{ padding:'5px 10px', borderRadius:7, border:'1px solid #DDD', background:'white', cursor:'pointer', fontSize:11, display:'flex', alignItems:'center', gap:4 }}>
+                  <button onClick={() => copy(ch.webhookVerifyToken, `tok-${ch.id}`)} style={{ padding:'5px 10px', borderRadius:7, border:'1px solid #DDD', background:'white', cursor:'pointer', f[...]
                     {copied === `tok-${ch.id}` ? <><Check size={11} color={G}/> Copied</> : <><Copy size={11}/> Copy</>}
                   </button>
                 </div>
@@ -595,7 +596,7 @@ function ChannelsTab() {
       </div>
 
       {/* Add channel button */}
-      <button onClick={() => setShowAdd(true)} style={{ padding:'14px', borderRadius:12, border:`2px dashed ${G}`, background:'white', color:G, fontSize:14, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+      <button onClick={() => setShowAdd(true)} style={{ padding:'14px', borderRadius:12, border:`2px dashed ${G}`, background:'white', color:G, fontSize:14, fontWeight:700, cursor:'pointer', disp[...]
         + Connect New Channel
       </button>
 
@@ -636,7 +637,7 @@ function ChannelsTab() {
             {/* Form fields */}
             {[
               { label:'Channel Name', placeholder:'e.g. My WhatsApp Business', key:'channelName' },
-              { label: newPlatform === 'WHATSAPP' ? 'Phone Number ID (from Meta)' : newPlatform === 'TIKTOK' ? 'TikTok Open ID / Client Key' : 'Page ID / Account ID', placeholder:'Numeric ID from developer console', key:'externalId' },
+              { label: newPlatform === 'WHATSAPP' ? 'Phone Number ID (from Meta)' : newPlatform === 'TIKTOK' ? 'TikTok Open ID / Client Key' : 'Page ID / Account ID', placeholder:'Numeric ID from[...]
               ...(newPlatform === 'WHATSAPP' ? [{ label:'Phone Number', placeholder:'+254700000001', key:'phone' }] : []),
               { label:'Access Token', placeholder:'Long-lived access token', key:'token' },
             ].map(f => (
@@ -650,15 +651,16 @@ function ChannelsTab() {
             <div style={{ marginBottom:20 }}>
               <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5, color:'#666' }}>AI Auto-reply Persona (optional)</label>
               <textarea placeholder="e.g. You are a friendly sales agent for Biashara360. Reply in Swahili/English. Keep replies short and helpful."
-                rows={3} style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #E0E0E0', fontSize:13, outline:'none', resize:'vertical', boxSizing:'border-box', fontFamily:'inherit' }} />
+                rows={3} style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #E0E0E0', fontSize:13, outline:'none', resize:'vertical', boxSizing:'border-box', fontFami[...]
+              />
             </div>
 
             <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => setShowAdd(false)} style={{ flex:1, padding:'12px', borderRadius:10, border:'1.5px solid #E0E0E0', background:'white', fontSize:13, fontWeight:600, cursor:'pointer' }}>Cancel</button>
+              <button onClick={() => setShowAdd(false)} style={{ flex:1, padding:'12px', borderRadius:10, border:'1.5px solid #E0E0E0', background:'white', fontSize:13, fontWeight:600, cursor:'po[...]
               <button onClick={() => {
-                setChannels(cs => [...cs, { id:`ch${Date.now()}`, platform:newPlatform, channelName:`New ${PLATFORM[newPlatform as keyof typeof PLATFORM].label} Channel`, externalId:'pending', phoneNumber:null, isActive:true, autoReplyEnabled:true, webhookVerifyToken:`tok${Date.now()}`, webhookUrl:`https://api.biashara360.co.ke/v1/social/webhook/${newPlatform.toLowerCase()}`, unreadCount:0 }])
+                setChannels(cs => [...cs, { id:`ch${Date.now()}`, platform:newPlatform, channelName:`New ${PLATFORM[newPlatform as keyof typeof PLATFORM].label} Channel`, externalId:'pending', ph[...]
                 setShowAdd(false)
-              }} style={{ flex:2, padding:'12px', borderRadius:10, border:'none', background:PLATFORM[newPlatform as keyof typeof PLATFORM].color, color:'white', fontSize:13, fontWeight:800, cursor:'pointer' }}>
+              }} style={{ flex:2, padding:'12px', borderRadius:10, border:'none', background:PLATFORM[newPlatform as keyof typeof PLATFORM].color, color:'white', fontSize:13, fontWeight:800, curs[...]
                 Connect {PLATFORM[newPlatform as keyof typeof PLATFORM].icon} {PLATFORM[newPlatform as keyof typeof PLATFORM].label}
               </button>
             </div>
@@ -669,7 +671,7 @@ function ChannelsTab() {
   )
 }
 
-// ── Tab: Analytics ────────────────────────────────────────────────────────────
+// ── Tab: Analytics ────────────────────────────────────────────────────────…[...]
 function AnalyticsTab() {
   const stats = [
     { platform:'WHATSAPP',  conversations:48, orders:12, revenue:87600, responseTime:'1m 22s' },
@@ -758,7 +760,7 @@ function AnalyticsTab() {
   )
 }
 
-// ── Main Social Page ──────────────────────────────────────────────────────────
+// ── Main Social Page ────────────────────────────────────────────────────────[...]
 export default function SocialPage() {
   const [tab, setTab] = useState<'inbox'|'channels'|'analytics'>('inbox')
   const [totalUnread, setTotalUnread] = useState<number | null>(null)
