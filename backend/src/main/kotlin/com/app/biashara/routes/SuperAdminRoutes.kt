@@ -15,6 +15,7 @@ import org.koin.ktor.ext.inject
 //
 //   GET  /v1/admin/businesses                   list all businesses
 //   POST /v1/admin/businesses                   create a business with its first admin user
+//   PUT  /v1/admin/users/{id}/business          link an existing user to a business
 //   GET  /v1/admin/settings/mpesa-callback      get system-wide Mpesa callback URL
 //   PUT  /v1/admin/settings/mpesa-callback      update system-wide Mpesa callback URL
 
@@ -42,6 +43,38 @@ fun Route.superAdminRoutes() {
                 val req = call.receive<CreateBusinessWithAdminRequest>()
                 val result = superAdminService.createBusinessWithAdmin(req)
                 call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
+            }
+
+            patch("/{id}/status") {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@patch
+                }
+                val businessId = call.parameters["id"]
+                if (businessId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Business id is required"))
+                    return@patch
+                }
+                val req = call.receive<UpdateBusinessStatusRequest>()
+                val result = superAdminService.setBusinessActiveStatus(businessId, req)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
+            }
+        }
+
+        route("/users") {
+            put("/{id}/business") {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@put
+                }
+                val userId = call.parameters["id"]
+                if (userId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "User id is required"))
+                    return@put
+                }
+                val req = call.receive<LinkUserToBusinessRequest>()
+                val result = superAdminService.linkUserToBusiness(userId, req)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
             }
         }
 

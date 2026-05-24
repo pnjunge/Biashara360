@@ -24,6 +24,7 @@ object BusinessesTable : Table("businesses") {
     val currency = varchar("currency", 10).default("KES")
     val subscriptionTier = varchar("subscription_tier", 20).default("FREEMIUM")
     val enabledModules = text("enabled_modules").default("INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS")
+    val isActive = bool("is_active").default(true)
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)

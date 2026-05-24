@@ -18,7 +18,16 @@ import UserCreationPage from './pages/UserCreationPage'
 import BusinessPage from './pages/BusinessPage'
 
 // ── Auth Context ──────────────────────────────────────────────────────────────
-interface AuthUser { id: string; name: string; email: string; phone: string; role: string; businessId: string; preferredLanguage: string }
+interface AuthUser {
+  id: string
+  name: string
+  email: string
+  phone: string
+  role: string
+  businessId: string | null
+  businessName?: string | null
+  preferredLanguage: string
+}
 interface AuthCtx { isAuthenticated: boolean; user: AuthUser | null; login: () => void; logout: () => void }
 export const AuthContext = createContext<AuthCtx>({ isAuthenticated: false, user: null, login: () => {}, logout: () => {} })
 export const useAuth = () => useContext(AuthContext)
@@ -26,6 +35,12 @@ export const useAuth = () => useContext(AuthContext)
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth()
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
+}
+
+function RoleProtectedRoute({ children, blockedRoles }: { children: React.ReactNode; blockedRoles: string[] }) {
+  const { user } = useAuth()
+  const role = (user?.role || '').toUpperCase()
+  return blockedRoles.includes(role) ? <Navigate to="/dashboard" replace /> : <>{children}</>
 }
 
 export default function App() {
@@ -46,7 +61,12 @@ export default function App() {
   }
   return (
     <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<PrivateRoute><AppShell /></PrivateRoute>}>
@@ -58,13 +78,13 @@ export default function App() {
             <Route path="expenses"   element={<ExpensesPage />} />
             <Route path="payments"   element={<PaymentsPage />} />
             <Route path="reports"    element={<ReportsPage />} />
-            <Route path="settings"   element={<SettingsPage />} />
+            <Route path="settings"   element={<RoleProtectedRoute blockedRoles={["STAFF"]}><SettingsPage /></RoleProtectedRoute>} />
             <Route path="card-payments" element={<CyberSourcePage />} />
             <Route path="tax"           element={<TaxPage />} />
             <Route path="kra"           element={<KraPage />} />
             <Route path="social"        element={<SocialPage />} />
-            <Route path="users"         element={<UserCreationPage />} />
-            <Route path="business"      element={<BusinessPage />} />
+            <Route path="users"         element={<RoleProtectedRoute blockedRoles={["STAFF"]}><UserCreationPage /></RoleProtectedRoute>} />
+            <Route path="business"      element={<RoleProtectedRoute blockedRoles={["STAFF"]}><BusinessPage /></RoleProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

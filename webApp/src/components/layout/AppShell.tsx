@@ -29,6 +29,11 @@ export default function AppShell() {
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
   const [search, setSearch] = useState('')
+  const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
+  const visibleNavItems = navItems.filter(item => {
+    if (!isStaff) return true
+    return item.to !== '/users' && item.to !== '/business'
+  })
 
   return (
     <div className={styles.shell}>
@@ -50,7 +55,7 @@ export default function AppShell() {
         </div>
 
         <nav className={styles.nav}>
-          {navItems.map(({ to, icon: Icon, label }) => (
+          {visibleNavItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to} to={to}
               className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
@@ -63,10 +68,12 @@ export default function AppShell() {
         </nav>
 
         <div className={styles.sidebarBottom}>
-          <NavLink to="/settings" className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}>
-            <Settings size={18} />
-            {!collapsed && <span>Settings</span>}
-          </NavLink>
+          {!isStaff && (
+            <NavLink to="/settings" className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}>
+              <Settings size={18} />
+              {!collapsed && <span>Settings</span>}
+            </NavLink>
+          )}
           <button className={styles.navItem} onClick={() => { logout(); navigate('/login') }}>
             <LogOut size={18} />
             {!collapsed && <span>Sign Out</span>}

@@ -6,6 +6,20 @@ import {
 } from 'lucide-react'
 import { socialApi, ConversationSummary, SocialChannel, SocialMessage } from '../services/api'
 
+function normalizeConversations(data: unknown): ConversationSummary[] {
+  if (Array.isArray(data)) return data as ConversationSummary[]
+
+  if (data && typeof data === 'object') {
+    const maybePaged = data as { data?: unknown; items?: unknown; conversations?: unknown }
+
+    if (Array.isArray(maybePaged.data)) return maybePaged.data as ConversationSummary[]
+    if (Array.isArray(maybePaged.items)) return maybePaged.items as ConversationSummary[]
+    if (Array.isArray(maybePaged.conversations)) return maybePaged.conversations as ConversationSummary[]
+  }
+
+  return []
+}
+
 // ── Brand Colors ──────────────────────────────────────────────────────────────
 const PLATFORM = {
   WHATSAPP:  { color: '#25D366', bg: '#E8FBF0', label: 'WhatsApp',  icon: '💬' },
@@ -68,8 +82,9 @@ function InboxTab() {
   useEffect(() => {
     socialApi.getInbox().then(res => {
       if (res.success && res.data) {
-        setConvs(res.data)
-        if (res.data.length > 0) setActive(res.data[0].id)
+        const normalized = normalizeConversations(res.data)
+        setConvs(normalized)
+        if (normalized.length > 0) setActive(normalized[0].id)
       }
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users } from 'lucide-react'
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
 import { productApi, orderApi, customerApi, reportApi, ProductResponse, OrderResponse, ProfitSummaryResponse } from '../services/api'
+import { useAuth } from '../App'
 
 function getCurrentMonthRange() {
   const now = new Date()
@@ -13,11 +14,13 @@ function getCurrentMonthRange() {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
+  const { user } = useAuth()
   const [profitSummary, setProfitSummary] = useState<ProfitSummaryResponse | null>(null)
   const [recentOrders, setRecentOrders] = useState<OrderResponse[]>([])
   const [lowStockProducts, setLowStockProducts] = useState<ProductResponse[]>([])
   const [customerCount, setCustomerCount] = useState<number>(0)
   const [loading, setLoading] = useState(true)
+  const businessName = user?.businessName?.trim() || 'Your Business'
 
   useEffect(() => {
     const { startDate, endDate } = getCurrentMonthRange()
@@ -39,6 +42,10 @@ export default function DashboardPage() {
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
       <PageHeader title="Dashboard" />
+      <Card style={{ padding:16 }}>
+        <div style={{ fontSize:12, color:'var(--b360-text-secondary)', marginBottom:4 }}>Business</div>
+        <div style={{ fontWeight:700, fontSize:16 }}>{businessName}</div>
+      </Card>
 
       {loading ? (
         <>

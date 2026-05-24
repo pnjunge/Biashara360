@@ -78,7 +78,8 @@ export interface AuthResponse {
     email: string
     phone: string
     role: string
-    businessId: string
+    businessId: string | null
+    businessName?: string | null
     preferredLanguage: string
   }
 }
@@ -240,6 +241,7 @@ export interface UserResponse {
   role: string
   businessId: string
   preferredLanguage: string
+  isActive?: boolean
 }
 
 export interface InviteUserRequest {
@@ -517,20 +519,28 @@ export const socialApi = {
 }
 
 export const userApi = {
-  list: async () => {
-    const res = await client.get<ApiResponse<UserResponse[]>>('/users')
+  list: async (businessId?: string) => {
+    const res = await client.get<ApiResponse<UserResponse[]>>('/users', {
+      params: businessId ? { businessId } : undefined,
+    })
     return res.data
   },
-  invite: async (data: InviteUserRequest) => {
-    const res = await client.post<ApiResponse<UserResponse>>('/users', data)
+  invite: async (data: InviteUserRequest, businessId?: string) => {
+    const res = await client.post<ApiResponse<UserResponse>>('/users', data, {
+      params: businessId ? { businessId } : undefined,
+    })
     return res.data
   },
-  updateRole: async (id: string, role: string) => {
-    const res = await client.patch<ApiResponse<UserResponse>>(`/users/${id}/role`, { role })
+  updateRole: async (id: string, role: string, businessId?: string) => {
+    const res = await client.patch<ApiResponse<UserResponse>>(`/users/${id}/role`, { role }, {
+      params: businessId ? { businessId } : undefined,
+    })
     return res.data
   },
-  setStatus: async (id: string, isActive: boolean) => {
-    const res = await client.patch<ApiResponse<UserResponse>>(`/users/${id}/status`, { isActive })
+  setStatus: async (id: string, isActive: boolean, businessId?: string) => {
+    const res = await client.patch<ApiResponse<UserResponse>>(`/users/${id}/status`, { isActive }, {
+      params: businessId ? { businessId } : undefined,
+    })
     return res.data
   },
 }
@@ -588,7 +598,12 @@ export interface BusinessResponse {
   ownerPhone: string
   ownerEmail: string
   subscriptionTier: string
+  isActive: boolean
   createdAt: string
+}
+
+export interface UpdateBusinessStatusRequest {
+  isActive: boolean
 }
 
 export interface CreateBusinessWithAdminRequest {
@@ -603,6 +618,11 @@ export interface CreateBusinessWithAdminRequest {
 export interface BusinessWithAdminResponse {
   business: BusinessResponse
   admin: UserResponse
+}
+
+export interface LinkUserToBusinessRequest {
+  businessId: string
+  role?: string
 }
 
 export interface BusinessProfileRequest {
@@ -651,6 +671,14 @@ export const superAdminApi = {
   },
   createBusinessWithAdmin: async (data: CreateBusinessWithAdminRequest) => {
     const res = await client.post<ApiResponse<BusinessWithAdminResponse>>('/admin/businesses', data)
+    return res.data
+  },
+  linkUserToBusiness: async (userId: string, data: LinkUserToBusinessRequest) => {
+    const res = await client.put<ApiResponse<UserResponse>>(`/admin/users/${userId}/business`, data)
+    return res.data
+  },
+  setBusinessStatus: async (businessId: string, data: UpdateBusinessStatusRequest) => {
+    const res = await client.patch<ApiResponse<BusinessResponse>>(`/admin/businesses/${businessId}/status`, data)
     return res.data
   },
   getMpesaCallbackUrl: async () => {

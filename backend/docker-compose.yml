@@ -18,7 +18,9 @@ services:
       retries: 5
 
   api:
-    build: .
+    build:
+      context: ..
+      dockerfile: Dockerfile
     container_name: biashara360-api
     ports:
       - "8080:8080"
@@ -28,7 +30,7 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/biashara360
       DB_USER: biashara360
       DB_PASSWORD: postgres
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: 12345678
       MPESA_CONSUMER_KEY: ${MPESA_CONSUMER_KEY:-your_consumer_key}
       MPESA_CONSUMER_SECRET: ${MPESA_CONSUMER_SECRET:-your_consumer_secret}
       MPESA_SHORT_CODE: ${MPESA_SHORT_CODE:-174379}

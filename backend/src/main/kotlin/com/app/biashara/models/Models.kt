@@ -372,6 +372,7 @@ data class BusinessResponse(
     val ownerPhone: String,
     val ownerEmail: String,
     val subscriptionTier: String,
+    val isActive: Boolean,
     val createdAt: String
 )
 
@@ -380,6 +381,15 @@ data class BusinessWithAdminResponse(
     val business: BusinessResponse,
     val admin: UserResponse
 )
+
+@Serializable
+data class LinkUserToBusinessRequest(
+    val businessId: String,
+    val role: String? = null
+)
+
+@Serializable
+data class UpdateBusinessStatusRequest(val isActive: Boolean)
 
 // ─── System Settings ─────────────────────────────────────────────────────────
 

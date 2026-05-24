@@ -67,6 +67,7 @@ class SuperAdminService {
             ownerPhone       = req.adminPhone,
             ownerEmail       = req.adminEmail,
             subscriptionTier = "FREEMIUM",
+            isActive         = true,
             createdAt        = now.toString()
         )
         val adminResp = UserResponse(
@@ -93,8 +94,78 @@ class SuperAdminService {
                     ownerPhone       = it[BusinessesTable.ownerPhone],
                     ownerEmail       = it[BusinessesTable.ownerEmail],
                     subscriptionTier = it[BusinessesTable.subscriptionTier],
+                    isActive         = it[BusinessesTable.isActive],
                     createdAt        = it[BusinessesTable.createdAt].toString()
                 )
             }
+    }
+
+    fun setBusinessActiveStatus(businessId: String, req: UpdateBusinessStatusRequest): ApiResponse<BusinessResponse> = transaction {
+        BusinessesTable.select {
+            (BusinessesTable.id eq businessId) and (BusinessesTable.type neq "SYSTEM")
+        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Business not found")
+
+        BusinessesTable.update({ BusinessesTable.id eq businessId }) {
+            it[isActive] = req.isActive
+            it[updatedAt] = Clock.System.now()
+        }
+
+        val updated = BusinessesTable.select { BusinessesTable.id eq businessId }.first()
+        ApiResponse(
+            success = true,
+            data = BusinessResponse(
+                id = updated[BusinessesTable.id],
+                name = updated[BusinessesTable.name],
+                type = updated[BusinessesTable.type],
+                ownerPhone = updated[BusinessesTable.ownerPhone],
+                ownerEmail = updated[BusinessesTable.ownerEmail],
+                subscriptionTier = updated[BusinessesTable.subscriptionTier],
+                isActive = updated[BusinessesTable.isActive],
+                createdAt = updated[BusinessesTable.createdAt].toString()
+            ),
+            message = if (req.isActive) "Business activated" else "Business deactivated"
+        )
+    }
+
+    fun linkUserToBusiness(userId: String, req: LinkUserToBusinessRequest): ApiResponse<UserResponse> = transaction {
+        val businessExists = BusinessesTable.select { BusinessesTable.id eq req.businessId }.count() > 0
+        if (!businessExists) {
+            return@transaction ApiResponse(false, message = "Business not found")
+        }
+
+        val user = UsersTable.select { UsersTable.id eq userId }.firstOrNull()
+            ?: return@transaction ApiResponse(false, message = "User not found")
+
+        if (user[UsersTable.role] == "SUPERADMIN") {
+            return@transaction ApiResponse(false, message = "Cannot assign SUPERADMIN to a business")
+        }
+
+        val normalizedRole = req.role?.uppercase()
+        if (normalizedRole != null && normalizedRole !in setOf("ADMIN", "STAFF")) {
+            return@transaction ApiResponse(false, message = "Role must be ADMIN or STAFF")
+        }
+
+        UsersTable.update({ UsersTable.id eq userId }) {
+            it[businessId] = req.businessId
+            if (normalizedRole != null) {
+                it[role] = normalizedRole
+            }
+            it[updatedAt] = Clock.System.now()
+        }
+
+        val updated = UsersTable.select { UsersTable.id eq userId }.first()
+        ApiResponse(
+            success = true,
+            data = UserResponse(
+                id = updated[UsersTable.id],
+                name = updated[UsersTable.name],
+                email = updated[UsersTable.email],
+                phone = updated[UsersTable.phone],
+                role = updated[UsersTable.role],
+                businessId = updated[UsersTable.businessId],
+                preferredLanguage = updated[UsersTable.preferredLanguage]
+            ),
+            message = "User linked to business successfully"
+        )
     }
 }

@@ -418,22 +418,41 @@ fun Route.reportRoutes() {
 fun Route.userRoutes() {
     val userService: UserManagementService by inject()
 
+    suspend fun ApplicationCall.resolveUserManagementBusinessId(role: String): String? {
+        return if (role == "SUPERADMIN") {
+            val selectedBusinessId = request.queryParameters["businessId"]
+            if (selectedBusinessId.isNullOrBlank()) {
+                respond(
+                    HttpStatusCode.BadRequest,
+                    ApiResponse<Unit>(false, message = "businessId query param is required for SUPERADMIN")
+                )
+                null
+            } else {
+                selectedBusinessId
+            }
+        } else {
+            businessId()
+        }
+    }
+
     route("/users") {
         get {
-            val businessId = call.businessId()
-            if (!call.hasRole("ADMIN")) {
+            val role = call.userRole()
+            if (role != "ADMIN" && role != "SUPERADMIN") {
                 call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                 return@get
             }
+            val businessId = call.resolveUserManagementBusinessId(role) ?: return@get
             call.respond(ApiResponse(true, data = userService.listUsers(businessId)))
         }
 
         post {
-            val businessId = call.businessId()
-            if (!call.hasRole("ADMIN")) {
+            val role = call.userRole()
+            if (role != "ADMIN" && role != "SUPERADMIN") {
                 call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                 return@post
             }
+            val businessId = call.resolveUserManagementBusinessId(role) ?: return@post
             val req = call.receive<InviteUserRequest>()
             val result = userService.inviteUser(businessId, req)
             call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
@@ -441,11 +460,12 @@ fun Route.userRoutes() {
 
         route("/{id}") {
             patch("/role") {
-                val businessId = call.businessId()
-                if (!call.hasRole("ADMIN")) {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN") {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                     return@patch
                 }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@patch
                 val userId = call.parameters["id"]!!
                 val req = call.receive<UpdateUserRoleRequest>()
                 val result = userService.updateRole(userId, businessId, req)
@@ -453,11 +473,12 @@ fun Route.userRoutes() {
             }
 
             patch("/status") {
-                val businessId = call.businessId()
-                if (!call.hasRole("ADMIN")) {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN") {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                     return@patch
                 }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@patch
                 val userId = call.parameters["id"]!!
                 val req = call.receive<UpdateUserStatusRequest>()
                 val result = userService.setActiveStatus(userId, businessId, req)
@@ -534,10 +555,21 @@ fun ApplicationCall.hasRole(vararg roles: String): Boolean =
  */
 private val moduleCache = java.util.concurrent.ConcurrentHashMap<Pair<String, String>, Pair<Long, Boolean>>()
 private const val MODULE_CACHE_TTL_MS = 60_000L
+private const val DEFAULT_ENABLED_MODULES = "INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS"
 
 fun ApplicationCall.hasModule(module: String): Boolean {
     if (userRole() == "SUPERADMIN") return true
-    val bId = principal<JWTPrincipal>()?.payload?.getClaim("businessId")?.asString()
+    val principal = principal<JWTPrincipal>() ?: return false
+    val userId = principal.payload.subject
+    val bId = principal.payload.getClaim("businessId")?.asString()
+        ?.takeIf { it.isNotBlank() }
+        ?: transaction {
+            UsersTable
+                .select { UsersTable.id eq userId }
+                .firstOrNull()
+                ?.get(UsersTable.businessId)
+                ?.takeIf { it.isNotBlank() }
+        }
         ?: return false
     val cacheKey = bId to module.uppercase()
     val cached = moduleCache[cacheKey]
@@ -545,12 +577,16 @@ fun ApplicationCall.hasModule(module: String): Boolean {
         return cached.second
     }
     val result = transaction {
-        BusinessesTable.select { BusinessesTable.id eq bId }
+        val enabledModules = BusinessesTable
+            .select { BusinessesTable.id eq bId }
             .firstOrNull()
             ?.get(BusinessesTable.enabledModules)
-            ?.split(",")
-            ?.any { it.trim().equals(module, ignoreCase = true) }
-            ?: false
+            ?.takeIf { it.isNotBlank() }
+            ?: DEFAULT_ENABLED_MODULES
+
+        enabledModules
+            .split(",")
+            .any { it.trim().equals(module, ignoreCase = true) }
     }
     moduleCache[cacheKey] = System.currentTimeMillis() to result
     return result

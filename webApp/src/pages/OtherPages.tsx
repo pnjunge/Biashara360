@@ -411,12 +411,17 @@ export function UserCreationPage() {
   const [usersLoading, setUsersLoading] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState<InviteUserRequest>(emptyUser)
+  const [selectedBusinessId, setSelectedBusinessId] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
   const loadUsers = () => {
+    if (isSuperAdmin && !selectedBusinessId) {
+      setUsers([])
+      return
+    }
     setUsersLoading(true)
-    userApi.list().then(res => {
+    userApi.list(isSuperAdmin ? selectedBusinessId : undefined).then(res => {
       if (res.success && res.data) setUsers(res.data)
     }).catch(() => {}).finally(() => setUsersLoading(false))
   }
@@ -426,16 +431,25 @@ export function UserCreationPage() {
     setBizLoading(true)
     setBizError('')
     superAdminApi.listBusinesses().then(res => {
-      if (res.success && res.data) setBusinesses(res.data)
+      if (res.success && res.data) {
+        setBusinesses(res.data)
+        if (!selectedBusinessId && res.data.length > 0) {
+          setSelectedBusinessId(res.data[0].id)
+        }
+      }
       else setBizError(res.message || 'Failed to load businesses.')
     }).catch(() => setBizError('Network error. Could not load businesses.')).finally(() => setBizLoading(false))
   }
 
   useEffect(() => {
-    loadUsers()
     loadBusinesses()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuperAdmin])
+
+  useEffect(() => {
+    loadUsers()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuperAdmin, selectedBusinessId])
 
   // ── Handlers ──
 
@@ -467,10 +481,16 @@ export function UserCreationPage() {
 
   const handleAdd = async () => {
     if (!form.name || !form.email || !form.phone || !form.password) { setError('All fields are required.'); return }
+    if (isSuperAdmin && !selectedBusinessId) { setError('Please select a business.'); return }
     setSaving(true); setError('')
     try {
-      const res = await userApi.invite(form)
-      if (res.success) { setShowAdd(false); setForm(emptyUser); loadUsers() }
+      const res = await userApi.invite(form, isSuperAdmin ? selectedBusinessId : undefined)
+      if (res.success && res.data) {
+        setShowAdd(false)
+        setForm(emptyUser)
+        if (!isSuperAdmin) setSelectedBusinessId('')
+        loadUsers()
+      }
       else setError(res.message || 'Failed to create user.')
     } catch (e: any) {
       setError(e.response?.data?.message || 'Network error. Please try again.')
@@ -478,9 +498,21 @@ export function UserCreationPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Remove this user?')) return
-    await userApi.setStatus(id, false)
-    setUsers(prev => prev.filter(u => u.id !== id))
+    if (!window.confirm('Disable this user?')) return
+    await userApi.setStatus(id, false, isSuperAdmin ? selectedBusinessId : undefined)
+    setUsers(prev => prev.map(u => (u.id === id ? { ...u, isActive: false } : u)))
+  }
+
+  const handleToggleUserStatus = async (id: string, isActive: boolean) => {
+    await userApi.setStatus(id, isActive, isSuperAdmin ? selectedBusinessId : undefined)
+    setUsers(prev => prev.map(u => (u.id === id ? { ...u, isActive } : u)))
+  }
+
+  const handleToggleBusinessStatus = async (id: string, isActive: boolean) => {
+    const res = await superAdminApi.setBusinessStatus(id, { isActive })
+    if (res.success && res.data) {
+      setBusinesses(prev => prev.map(b => (b.id === id ? res.data! : b)))
+    }
   }
 
   const ROLES = [{ value: 'ADMIN', label: 'Admin' }, { value: 'MANAGER', label: 'Manager' }, { value: 'STAFF', label: 'Staff' }]
@@ -517,13 +549,22 @@ export function UserCreationPage() {
 
       {/* ── Add User Modal (regular admin) ── */}
       {showAdd && (
-        <Modal title="Add New User" onClose={() => { setShowAdd(false); setForm(emptyUser); setError('') }}>
+        <Modal title="Add New User" onClose={() => { setShowAdd(false); setForm(emptyUser); setSelectedBusinessId(''); setError('') }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Input label="Full Name" value={form.name} onChange={f('name')} placeholder="e.g. Jane Mwangi" />
             <Input label="Email" value={form.email} onChange={f('email')} placeholder="jane@example.com" />
             <Input label="Phone" value={form.phone} onChange={f('phone')} placeholder="+254 7XX XXX XXX" />
             <Input label="Password" value={form.password} onChange={f('password')} placeholder="Temporary password" />
             <Select label="Role" value={form.role ?? 'STAFF'} onChange={f('role')} options={ROLES} />
+            {isSuperAdmin && (
+              <Select
+                label="Business *"
+                value={selectedBusinessId}
+                onChange={setSelectedBusinessId}
+                options={businesses.map(b => ({ value: b.id, label: b.name }))}
+                placeholder={bizLoading ? 'Loading businesses…' : 'Select business'}
+              />
+            )}
             {error && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{error}</div>}
             <Btn onClick={handleAdd} disabled={saving}>{saving ? 'Creating...' : 'Create User'}</Btn>
           </div>
@@ -546,14 +587,18 @@ export function UserCreationPage() {
               <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Create one above.</div>
             ) : (
               <DataTable
-                headers={['Business Name', 'Type', 'Owner Email', 'Owner Phone', 'Tier', 'Created']}
+                headers={['Business Name', 'Type', 'Owner Email', 'Owner Phone', 'Tier', 'Status', 'Created', 'Action']}
                 rows={businesses.map(b => [
                   b.name,
                   b.type,
                   b.ownerEmail,
                   b.ownerPhone,
                   <StatusBadge key="tier" status={b.subscriptionTier === 'FREEMIUM' ? 'COD' : 'PAID'} />,
+                  <StatusBadge key="status" status={b.isActive ? 'PAID' : 'FAILED'} />,
                   new Date(b.createdAt).toLocaleDateString(),
+                  <Btn key="biz-status" variant={b.isActive ? 'danger' : 'secondary'} small onClick={() => handleToggleBusinessStatus(b.id, !b.isActive)}>
+                    {b.isActive ? 'Disable' : 'Enable'}
+                  </Btn>,
                 ])}
               />
             )}
@@ -562,19 +607,22 @@ export function UserCreationPage() {
       )}
 
       {/* ── User Management ── */}
-      <PageHeader title="User Management" action={<Btn onClick={() => setShowAdd(true)} icon={<Plus size={14} />}>Add User</Btn>} />
+      <PageHeader title="User Management" action={<Btn onClick={() => { setSelectedBusinessId(businesses[0]?.id ?? ''); setShowAdd(true) }} icon={<Plus size={14} />}>Add User</Btn>} />
       <Card style={{ padding: 0 }}>
         {usersLoading ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading users…</div>
         ) : (
           <DataTable
-            headers={['Name', 'Email', 'Phone', 'Role', '']}
+            headers={['Name', 'Email', 'Phone', 'Role', 'Status', '']}
             rows={users.map(u => [
               u.name,
               u.email,
               u.phone,
               <StatusBadge key="role" status={roleColor(u.role)} />,
-              <Btn key="del" variant="danger" small onClick={() => handleDelete(u.id)}>Remove</Btn>,
+              <StatusBadge key="status" status={u.isActive === false ? 'FAILED' : 'PAID'} />,
+              <Btn key="del" variant={u.isActive === false ? 'secondary' : 'danger'} small onClick={() => handleToggleUserStatus(u.id, u.isActive === false)}>
+                {u.isActive === false ? 'Enable' : 'Disable'}
+              </Btn>,
             ])}
           />
         )}
@@ -606,6 +654,13 @@ export function BusinessPage() {
   const [profileError, setProfileError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const handleToggleBusinessStatus = async (id: string, isActive: boolean) => {
+    const res = await superAdminApi.setBusinessStatus(id, { isActive })
+    if (res.success && res.data) {
+      setBusinesses(prev => prev.map(b => (b.id === id ? res.data! : b)))
+    }
+  }
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -682,14 +737,18 @@ export function BusinessPage() {
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Go to Users to create one.</div>
           ) : (
             <DataTable
-              headers={['Business Name', 'Type', 'Owner Email', 'Owner Phone', 'Tier', 'Created']}
+              headers={['Business Name', 'Type', 'Owner Email', 'Owner Phone', 'Tier', 'Status', 'Created', 'Action']}
               rows={businesses.map(b => [
                 b.name,
                 b.type,
                 b.ownerEmail,
                 b.ownerPhone,
                 <StatusBadge key="tier" status={b.subscriptionTier === 'FREEMIUM' ? 'COD' : 'PAID'} />,
+                <StatusBadge key="status" status={b.isActive ? 'PAID' : 'FAILED'} />,
                 new Date(b.createdAt).toLocaleDateString(),
+                <Btn key="biz-status" variant={b.isActive ? 'danger' : 'secondary'} small onClick={() => handleToggleBusinessStatus(b.id, !b.isActive)}>
+                  {b.isActive ? 'Disable' : 'Enable'}
+                </Btn>,
               ])}
             />
           )}
