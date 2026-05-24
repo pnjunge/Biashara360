@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users } from 'lucide-react'
-import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select } from '../components/ui'
+import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
 import { productApi, orderApi, customerApi, reportApi, ProductResponse, OrderResponse, CustomerResponse, ProfitSummaryResponse } from '../services/api'
 
 function getCurrentMonthRange() {
@@ -41,10 +41,26 @@ export default function DashboardPage() {
       <PageHeader title="Dashboard" />
 
       {loading ? (
-        <div style={{ textAlign:'center', padding:40, color:'var(--b360-text-secondary)' }}>Loading...</div>
+        <>
+          <div className="responsive-grid responsive-grid-4">
+            {[0, 1, 2, 3].map(i => (
+              <Card key={i} style={{ padding:20 }}>
+                <Skeleton width="45%" height={12} />
+                <div style={{ marginTop:12 }}><Skeleton width="65%" height={24} radius={10} /></div>
+                <div style={{ marginTop:10 }}><Skeleton width="55%" height={12} /></div>
+              </Card>
+            ))}
+          </div>
+          <Card style={{ padding:20 }}>
+            <Skeleton width="35%" height={16} />
+            <div style={{ marginTop:14, display:'flex', flexDirection:'column', gap:10 }}>
+              {[0, 1, 2, 3].map(i => <Skeleton key={i} height={12} />)}
+            </div>
+          </Card>
+        </>
       ) : (
         <>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:16 }}>
+          <div className="responsive-grid responsive-grid-4">
             <KpiCard title="Monthly Revenue" value={profitSummary ? fmt(profitSummary.totalRevenue) : 'KES 0'} change={profitSummary ? `${(profitSummary.grossMargin * 100).toFixed(1)}% gross margin` : 'Current month'} icon={<TrendingUp size={18}/>} color="var(--b360-green)" />
             <KpiCard title="Net Profit"      value={profitSummary ? fmt(profitSummary.netProfit) : 'KES 0'} change={profitSummary ? `${(profitSummary.netMargin * 100).toFixed(1)}% net margin` : 'Current month'} icon={<TrendingUp size={18}/>} color="var(--b360-blue)" />
             <KpiCard title="Customers"       value={String(customerCount)} change="Total registered" icon={<Users size={18}/>} color="var(--b360-amber)" />
@@ -57,7 +73,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div style={{ display:'grid', gridTemplateColumns:'1.6fr 1fr', gap:16 }}>
+          <div className="responsive-grid responsive-grid-2">
             <Card style={{ padding:20 }}>
               <h3 style={{ fontWeight:700, marginBottom:4 }}>Current Month Summary</h3>
               <p style={{ fontSize:12, color:'var(--b360-text-secondary)', marginBottom:16 }}>Profit & Loss overview</p>
@@ -91,7 +107,10 @@ export default function DashboardPage() {
             <Card style={{ padding:20 }}>
               <h3 style={{ fontWeight:700, marginBottom:16 }}>Recent Orders</h3>
               {recentOrders.length === 0 ? (
-                <div style={{ padding:30, textAlign:'center', color:'var(--b360-text-secondary)', fontSize:13 }}>No orders yet</div>
+                <div style={{ padding:30, textAlign:'center', color:'var(--b360-text-secondary)', fontSize:13 }}>
+                  <p style={{ marginBottom:10 }}>No orders yet</p>
+                  <Btn small>Create Order</Btn>
+                </div>
               ) : (
                 <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
                   {recentOrders.slice(0, 4).map((o, i) => (

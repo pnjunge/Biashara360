@@ -50,10 +50,15 @@ export function PageHeader({ title, action }: { title: string; action?: React.Re
 // ── Card ──────────────────────────────────────────────────────────────────────
 export function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ background:'white', borderRadius:12, border:'1px solid var(--b360-border)', boxShadow:'var(--shadow-sm)', ...style }}>
+    <div style={{ background:'white', borderRadius:12, border:'1px solid var(--b360-border)', boxShadow:'var(--shadow-md)', ...style }}>
       {children}
     </div>
   )
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+export function Skeleton({ height = 14, width = '100%', radius = 8 }: { height?: number; width?: number | string; radius?: number }) {
+  return <div className="skeleton" style={{ height, width, borderRadius: radius }} />
 }
 
 // ── Button ────────────────────────────────────────────────────────────────────
@@ -79,12 +84,12 @@ export function Btn({ children, variant='primary', onClick, icon, small, disable
 // ── Table ─────────────────────────────────────────────────────────────────────
 export function DataTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
   return (
-    <div style={{ overflowX:'auto' }}>
+    <div style={{ overflowX:'auto', borderRadius:12 }}>
       <table style={{ width:'100%', borderCollapse:'collapse' }}>
         <thead>
           <tr style={{ background:'#F9FAFB', borderBottom:'2px solid var(--b360-border)' }}>
             {headers.map((h, i) => (
-              <th key={i} style={{ padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--b360-text-secondary)', textTransform:'uppercase', letterSpacing:0.5 }}>
+              <th key={i} style={{ position:'sticky', top:0, zIndex:1, background:'#F9FAFB', padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--b360-text-secondary)', textTransform:'uppercase', letterSpacing:0.5 }}>
                 {h}
               </th>
             ))}
