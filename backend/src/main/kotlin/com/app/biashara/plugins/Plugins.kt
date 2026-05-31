@@ -59,6 +59,24 @@ fun Application.configureSecurity() {
 
 fun Application.configureCors() {
     install(CORS) {
+        // 🔒 SECURITY FIX: Restrict CORS to specific domains instead of anyHost()
+        // Update these domains to match your actual frontend domains
+        val allowedDomains = environment.config.propertyOrNull("cors.allowedDomains")
+            ?.getList()
+            ?: listOf(
+                "localhost:3000",
+                "localhost:5173",
+                "localhost:8080"
+            )
+        
+        allowedDomains.forEach { domain ->
+            allowHost(domain)
+        }
+        
+        // In production, use:
+        // allowHost("app.biashara360.com")
+        // allowHost("admin.biashara360.com")
+        
         allowMethod(HttpMethod.Options)
         allowMethod(HttpMethod.Get)
         allowMethod(HttpMethod.Post)
@@ -68,8 +86,8 @@ fun Application.configureCors() {
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)
         allowHeader("X-Tenant-ID")
-        // In production, restrict to your domains
-        anyHost()
+        allowCredentials = true
+        maxAgeInSeconds = 86400 // 24 hours
     }
 }
 
@@ -105,9 +123,13 @@ fun Application.configureStatusPages() {
 
 fun Application.configureDefaultHeaders() {
     install(DefaultHeaders) {
+        // 🔒 SECURITY: Comprehensive security headers
         header("X-Content-Type-Options", "nosniff")
         header("X-Frame-Options", "DENY")
         header("X-XSS-Protection", "1; mode=block")
-        header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+        header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
+        header("Referrer-Policy", "strict-origin-when-cross-origin")
+        header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
     }
 }
