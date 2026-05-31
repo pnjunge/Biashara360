@@ -3,11 +3,10 @@ import io.ktor.server.config.ApplicationConfig
 
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.server.application.*
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Base64
@@ -75,6 +74,12 @@ class MpesaService(
     ): StkPushResult {
         return try {
             val cfg = resolveConfig(businessId)
+            val missing = validateConfig(cfg)
+            if (missing.isNotEmpty()) {
+                return StkPushResult.Error(
+                    "M-Pesa is not configured. Update: ${missing.joinToString(", ")}"
+                )
+            }
             val token = getAccessToken(cfg)
             val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
             val password = Base64.getEncoder().encodeToString(
@@ -108,9 +113,21 @@ class MpesaService(
                 responseCode = response.ResponseCode,
                 customerMessage = response.CustomerMessage
             )
+        } catch (e: ClientRequestException) {
+            StkPushResult.Error("M-Pesa request failed (${e.response.status.value}). Check your Daraja credentials and callback URL.")
         } catch (e: Exception) {
             StkPushResult.Error(e.message ?: "Failed to initiate payment")
         }
+    }
+
+    private fun validateConfig(cfg: MpesaRuntimeConfig): List<String> {
+        val missing = mutableListOf<String>()
+        if (cfg.consumerKey.isBlank() || cfg.consumerKey.contains("your_")) missing += "MPESA_CONSUMER_KEY"
+        if (cfg.consumerSecret.isBlank() || cfg.consumerSecret.contains("your_")) missing += "MPESA_CONSUMER_SECRET"
+        if (cfg.passKey.isBlank() || cfg.passKey.contains("your_")) missing += "MPESA_PASS_KEY"
+        if (cfg.shortCode.isBlank() || cfg.shortCode.contains("your_")) missing += "MPESA_SHORT_CODE"
+        if (cfg.callbackUrl.isBlank() || cfg.callbackUrl.contains("your-domain")) missing += "MPESA_CALLBACK_URL"
+        return missing
     }
 
     // ── Process Callback ──────────────────────────────────────────────────────

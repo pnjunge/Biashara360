@@ -9,10 +9,7 @@ plugins {
     alias(libs.plugins.ktor).apply(false)
 }
 
-subprojects {
-    afterEvaluate {
-        extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.apply {
-            compileSdkVersion(34)
-        }
-    }
-}
+// The Android modules set their own compileSdk in their individual build files.
+// Removing a global afterEvaluate that touched Android extensions to avoid
+// early configuration side-effects which can lead to "configuration resolved"
+// timing issues with dependency alignment.

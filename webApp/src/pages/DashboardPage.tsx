@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users } from 'lucide-react'
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
-import { productApi, orderApi, customerApi, reportApi, ProductResponse, OrderResponse, ProfitSummaryResponse } from '../services/api'
+import { productApi, orderApi, customerApi, reportApi, businessApi, ProductResponse, OrderResponse, ProfitSummaryResponse } from '../services/api'
 import { useAuth } from '../App'
 
 function getCurrentMonthRange() {
@@ -19,8 +19,20 @@ export default function DashboardPage() {
   const [recentOrders, setRecentOrders] = useState<OrderResponse[]>([])
   const [lowStockProducts, setLowStockProducts] = useState<ProductResponse[]>([])
   const [customerCount, setCustomerCount] = useState<number>(0)
+  const [resolvedBusinessName, setResolvedBusinessName] = useState('')
   const [loading, setLoading] = useState(true)
-  const businessName = user?.businessName?.trim() || 'Your Business'
+  const businessName = user?.businessName?.trim() || resolvedBusinessName || 'Your Business'
+
+  useEffect(() => {
+    if (user?.businessName?.trim()) return
+    businessApi.getProfile()
+      .then(res => {
+        if (res.success && res.data?.name) {
+          setResolvedBusinessName(res.data.name)
+        }
+      })
+      .catch(() => {})
+  }, [user?.businessName])
 
   useEffect(() => {
     const { startDate, endDate } = getCurrentMonthRange()

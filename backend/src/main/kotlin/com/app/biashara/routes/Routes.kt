@@ -535,9 +535,20 @@ fun Route.dashboardRoute() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-fun ApplicationCall.businessId(): String =
-    principal<JWTPrincipal>()?.payload?.getClaim("businessId")?.asString()
-        ?: throw IllegalArgumentException("No businessId associated with this token")
+fun ApplicationCall.businessId(): String {
+    val principal = principal<JWTPrincipal>()
+        ?: throw IllegalArgumentException("No auth token associated with this request")
+    val role = principal.payload.getClaim("role")?.asString()
+    val tokenBusinessId = principal.payload.getClaim("businessId")?.asString()?.takeIf { it.isNotBlank() }
+    if (tokenBusinessId != null) return tokenBusinessId
+
+    if (role == "SUPERADMIN") {
+        val scopedBusinessId = request.queryParameters["businessId"]?.takeIf { it.isNotBlank() }
+        if (scopedBusinessId != null) return scopedBusinessId
+    }
+
+    throw IllegalArgumentException("No businessId associated with this token")
+}
 
 fun ApplicationCall.userRole(): String =
     principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() ?: ""
@@ -597,7 +608,7 @@ fun ApplicationCall.hasModule(module: String): Boolean {
  * responds 403 when [module] is not in the business's enabledModules.
  */
 fun Route.moduleGuard(module: String) {
-    intercept(ApplicationCallPipeline.Plugins) {
+    intercept(ApplicationCallPipeline.Call) {
         if (!call.hasModule(module)) {
             call.respond(
                 HttpStatusCode.Forbidden,

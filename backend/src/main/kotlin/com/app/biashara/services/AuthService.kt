@@ -143,6 +143,15 @@ class AuthService {
         val userRow = transaction {
             UsersTable.select { UsersTable.id eq userId }.first()
         }
+        val businessName = businessId?.let { bizId ->
+            transaction {
+                BusinessesTable
+                    .slice(BusinessesTable.name)
+                    .select { BusinessesTable.id eq bizId }
+                    .firstOrNull()
+                    ?.get(BusinessesTable.name)
+            }
+        }
         return AuthResponse(
             accessToken = accessToken,
             refreshToken = refreshToken,
@@ -153,7 +162,8 @@ class AuthService {
                 userRow[UsersTable.phone],
                 userRow[UsersTable.role],
                 userRow[UsersTable.businessId],
-                userRow[UsersTable.preferredLanguage]
+                userRow[UsersTable.preferredLanguage],
+                businessName
             )
         )
     }

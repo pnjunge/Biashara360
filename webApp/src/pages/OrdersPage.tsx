@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, KpiCard, Modal, Input, Select } from '../components/ui'
 import { ShoppingCart, Plus, Eye } from 'lucide-react'
-import { orderApi, productApi, OrderResponse, ProductResponse } from '../services/api'
+import { orderApi, productApi, customerApi, OrderResponse, ProductResponse, CustomerResponse } from '../services/api'
 
 const PAYMENT_METHODS = ['CASH','MPESA','CARD','COD']
 
@@ -20,6 +20,8 @@ export function OrdersPage() {
   const [form, setForm] = useState(emptyOrder)
   const [items, setItems] = useState<OrderItem[]>([{ productId:'', productName:'', quantity:1, unitPrice:0 }])
   const [products, setProducts] = useState<ProductResponse[]>([])
+  const [customers, setCustomers] = useState<CustomerResponse[]>([])
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
 
   const loadOrders = () => {
     setLoading(true)
@@ -33,11 +35,27 @@ export function OrdersPage() {
   const openNew = () => {
     setForm(emptyOrder)
     setItems([{ productId:'', productName:'', quantity:1, unitPrice:0 }])
+    setSelectedCustomerId('')
     setError('')
     setShowNew(true)
     if (products.length === 0) {
       productApi.list().then(res => { if (res.success && res.data) setProducts(res.data) })
     }
+    if (customers.length === 0) {
+      customerApi.list().then(res => { if (res.success && res.data) setCustomers(res.data) })
+    }
+  }
+
+  const onSelectCustomer = (customerId: string) => {
+    setSelectedCustomerId(customerId)
+    if (!customerId) return
+    const selected = customers.find(c => c.id === customerId)
+    if (!selected) return
+    setForm(prev => ({
+      ...prev,
+      customerName: selected.name,
+      customerPhone: selected.phone,
+    }))
   }
 
   const setItemField = (idx: number, field: keyof OrderItem, value: string | number) => {
@@ -61,7 +79,8 @@ export function OrdersPage() {
     try {
       const res = await orderApi.create({
         ...form,
-        items: items.map(it => ({ productId: it.productId, quantity: it.quantity })),
+        customerId: selectedCustomerId || null,
+        items: items.map(it => ({ productId: it.productId, quantity: it.quantity, unitPrice: it.unitPrice })),
       })
       if (res.success) { setShowNew(false); loadOrders() }
       else setError(res.message || 'Failed to create order.')
@@ -80,6 +99,15 @@ export function OrdersPage() {
           footer={<><Btn variant="secondary" onClick={() => setShowNew(false)}>Cancel</Btn><Btn onClick={handleCreateOrder} disabled={saving}>{saving ? 'Creating...' : 'Create Order'}</Btn></>}>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
+            <Select
+              label="Link Existing Customer (Optional)"
+              value={selectedCustomerId}
+              onChange={onSelectCustomer}
+              options={[
+                { value: '', label: 'Walk-in / New customer' },
+                ...customers.map(c => ({ value: c.id, label: `${c.name} (${c.phone})` })),
+              ]}
+            />
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <Input label="Customer Name *" value={form.customerName} onChange={f('customerName')} placeholder="e.g. Jane Wanjiru" />
               <Input label="Phone *" value={form.customerPhone} onChange={f('customerPhone')} placeholder="+254..." />

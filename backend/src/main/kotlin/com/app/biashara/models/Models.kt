@@ -48,7 +48,8 @@ data class UserResponse(
     val phone: String,
     val role: String,
     val businessId: String?,
-    val preferredLanguage: String
+    val preferredLanguage: String,
+    val businessName: String? = null
 )
 
 // ─── Products ─────────────────────────────────────────────────────────────────
