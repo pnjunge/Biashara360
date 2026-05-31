@@ -5,6 +5,7 @@ import com.app.biashara.auth.generateId
 import com.app.biashara.db.BusinessesTable
 import com.app.biashara.db.UsersTable
 import com.app.biashara.models.*
+import com.app.biashara.utils.ValidationUtils
 import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -12,14 +13,42 @@ import org.jetbrains.exposed.sql.transactions.transaction
 class SuperAdminService {
 
     fun createBusinessWithAdmin(req: CreateBusinessWithAdminRequest): ApiResponse<BusinessWithAdminResponse> = transaction {
+        // 🔒 SECURITY FIX: Enhanced input validation
+        
+        // Validate business data
         if (req.businessName.isBlank() || req.businessType.isBlank()) {
             return@transaction ApiResponse(false, message = "Business name and type are required")
         }
+        if (!ValidationUtils.isValidBusinessName(req.businessName)) {
+            return@transaction ApiResponse(false, message = "Invalid business name format")
+        }
+
+        // Validate admin data
         if (req.adminName.isBlank() || req.adminEmail.isBlank() || req.adminPhone.isBlank()) {
             return@transaction ApiResponse(false, message = "Admin name, email, and phone are required")
         }
-        if (req.adminPassword.length < 6) {
-            return@transaction ApiResponse(false, message = "Admin password must be at least 6 characters")
+        
+        // 🔒 SECURITY FIX: Validate name format
+        if (!ValidationUtils.isValidPersonName(req.adminName)) {
+            return@transaction ApiResponse(false, message = "Invalid admin name format")
+        }
+
+        // 🔒 SECURITY FIX: Validate email format
+        if (!ValidationUtils.isValidEmail(req.adminEmail)) {
+            return@transaction ApiResponse(false, message = "Invalid email format")
+        }
+
+        // 🔒 SECURITY FIX: Validate phone format
+        if (!ValidationUtils.isValidPhoneKE(req.adminPhone)) {
+            return@transaction ApiResponse(false, message = "Invalid phone number format (must be Kenyan: +254XXX...)")
+        }
+
+        // 🔒 SECURITY FIX: Enforce strong password policy (min 12 chars, complexity)
+        if (!ValidationUtils.isValidPassword(req.adminPassword)) {
+            return@transaction ApiResponse(
+                false, 
+                message = ValidationUtils.getPasswordRequirements()
+            )
         }
 
         val emailExists = UsersTable.select { UsersTable.email eq req.adminEmail }.count() > 0
@@ -36,7 +65,7 @@ class SuperAdminService {
             it[id]               = businessId
             it[name]             = req.businessName
             it[type]             = req.businessType
-            it[ownerPhone]       = req.adminPhone
+            it[ownerPhone]       = ValidationUtils.normalizePhoneKE(req.adminPhone)
             it[ownerEmail]       = req.adminEmail
             it[currency]         = "KES"
             it[subscriptionTier] = "FREEMIUM"
@@ -50,10 +79,10 @@ class SuperAdminService {
             it[UsersTable.businessId] = businessId
             it[name]             = req.adminName
             it[email]            = req.adminEmail
-            it[phone]            = req.adminPhone
+            it[phone]            = ValidationUtils.normalizePhoneKE(req.adminPhone)
             it[passwordHash]     = PasswordUtils.hash(req.adminPassword)
             it[role]             = "ADMIN"
-            it[twoFactorEnabled] = false
+            it[twoFactorEnabled] = true // 🔒 SECURITY: Enable 2FA by default
             it[preferredLanguage] = "ENGLISH"
             it[isActive]         = true
             it[createdAt]        = now
@@ -64,7 +93,7 @@ class SuperAdminService {
             id               = businessId,
             name             = req.businessName,
             type             = req.businessType,
-            ownerPhone       = req.adminPhone,
+            ownerPhone       = ValidationUtils.normalizePhoneKE(req.adminPhone),
             ownerEmail       = req.adminEmail,
             subscriptionTier = "FREEMIUM",
             isActive         = true,
@@ -74,7 +103,7 @@ class SuperAdminService {
             id               = adminId,
             name             = req.adminName,
             email            = req.adminEmail,
-            phone            = req.adminPhone,
+            phone            = ValidationUtils.normalizePhoneKE(req.adminPhone),
             role             = "ADMIN",
             businessId       = businessId,
             preferredLanguage = "ENGLISH"
@@ -101,6 +130,11 @@ class SuperAdminService {
     }
 
     fun setBusinessActiveStatus(businessId: String, req: UpdateBusinessStatusRequest): ApiResponse<BusinessResponse> = transaction {
+        // 🔒 SECURITY: Validate UUID format
+        if (!ValidationUtils.isValidUUID(businessId)) {
+            return@transaction ApiResponse(false, message = "Invalid business ID format")
+        }
+
         BusinessesTable.select {
             (BusinessesTable.id eq businessId) and (BusinessesTable.type neq "SYSTEM")
         }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Business not found")
@@ -128,6 +162,14 @@ class SuperAdminService {
     }
 
     fun linkUserToBusiness(userId: String, req: LinkUserToBusinessRequest): ApiResponse<UserResponse> = transaction {
+        // 🔒 SECURITY: Validate UUIDs
+        if (!ValidationUtils.isValidUUID(userId)) {
+            return@transaction ApiResponse(false, message = "Invalid user ID format")
+        }
+        if (!ValidationUtils.isValidUUID(req.businessId)) {
+            return@transaction ApiResponse(false, message = "Invalid business ID format")
+        }
+
         val businessExists = BusinessesTable.select { BusinessesTable.id eq req.businessId }.count() > 0
         if (!businessExists) {
             return@transaction ApiResponse(false, message = "Business not found")
