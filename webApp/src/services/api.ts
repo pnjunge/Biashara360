@@ -309,6 +309,10 @@ export const orderApi = {
     const res = await client.patch<ApiResponse<OrderResponse>>(`/orders/${id}/delivery-status`, data)
     return res.data
   },
+  cancel: async (id: string) => {
+    const res = await client.post<ApiResponse<OrderResponse>>(`/orders/${id}/cancel`)
+    return res.data
+  },
 }
 
 export const customerApi = {
@@ -667,6 +671,10 @@ export const businessApi = {
 export const superAdminApi = {
   listBusinesses: async () => {
     const res = await client.get<ApiResponse<BusinessResponse[]>>('/admin/businesses')
+    return res.data
+  },
+  createBusiness: async (data: { businessName: string; businessType: string }) => {
+    const res = await client.post<ApiResponse<BusinessResponse>>('/admin/businesses/simple', data)
     return res.data
   },
   createBusinessWithAdmin: async (data: CreateBusinessWithAdminRequest) => {

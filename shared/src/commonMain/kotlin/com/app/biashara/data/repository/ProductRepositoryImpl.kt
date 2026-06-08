@@ -2,19 +2,48 @@ package com.app.biashara.data.repository
 
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
+import com.app.biashara.data.remote.ApiResponse
+import com.app.biashara.data.remote.BASE_URL
 import com.app.biashara.db.Biashara360Database
 import com.app.biashara.db.ProductEntity
 import com.app.biashara.domain.model.*
 import com.app.biashara.domain.repository.ProductRepository
 import com.app.biashara.domain.usecase.generateId
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.put
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 
+@kotlinx.serialization.Serializable
+data class ProductDto(
+    val id: String,
+    val businessId: String,
+    val sku: String,
+    val name: String,
+    val description: String = "",
+    val buyingPrice: Double,
+    val sellingPrice: Double,
+    val currentStock: Int,
+    val lowStockThreshold: Int = 5,
+    val category: String = "",
+    val imageUrl: String? = null,
+    val isActive: Boolean = true,
+    val createdAt: String,
+    val updatedAt: String
+)
+
 class ProductRepositoryImpl(
-    private val database: Biashara360Database
+    private val database: Biashara360Database,
+    private val client: HttpClient
 ) : ProductRepository {
 
     private val queries = database.biashara360DatabaseQueries
@@ -108,6 +137,56 @@ class ProductRepositoryImpl(
                     )
                 }
             }
+
+    /** Sync products from API and update local cache **/
+    suspend fun syncProductsFromApi(businessId: String): Result<List<Product>> = runCatching {
+        val response: ApiResponse<List<ProductDto>> = client.get("$BASE_URL/products") {
+            url { parameters.append("businessId", businessId) }
+        }.body()
+
+        if (!response.success || response.data == null) {
+            throw Exception(response.message.ifBlank { "Failed to fetch products" })
+        }
+
+        // Update local cache
+        response.data.forEach { dto ->
+            queries.insertProduct(
+                id = dto.id,
+                business_id = dto.businessId,
+                sku = dto.sku,
+                name = dto.name,
+                description = dto.description,
+                buying_price = dto.buyingPrice,
+                selling_price = dto.sellingPrice,
+                current_stock = dto.currentStock.toLong(),
+                low_stock_threshold = dto.lowStockThreshold.toLong(),
+                category = dto.category,
+                image_url = dto.imageUrl,
+                is_active = if (dto.isActive) 1L else 0L,
+                created_at = dto.createdAt,
+                updated_at = dto.updatedAt
+            )
+        }
+
+        response.data.map { it.toDomain() }
+    }
+
+    private fun ProductDto.toDomain() = Product(
+        id = id,
+        businessId = businessId,
+        sku = sku,
+        name = name,
+        description = description,
+        buyingPrice = buyingPrice,
+        sellingPrice = sellingPrice,
+        currentStock = currentStock,
+        lowStockThreshold = lowStockThreshold,
+        category = category,
+        imageUrl = imageUrl,
+        isActive = isActive,
+        createdAt = Instant.parse(createdAt),
+        updatedAt = Instant.parse(updatedAt)
+    )
 
     private fun ProductEntity.toDomain() = Product(
         id = id,

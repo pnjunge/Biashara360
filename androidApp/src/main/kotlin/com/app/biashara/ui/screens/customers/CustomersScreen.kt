@@ -20,13 +20,14 @@ import com.app.biashara.domain.usecase.generateId
 import com.app.biashara.presentation.viewmodel.CustomersViewModel
 import com.app.biashara.ui.theme.*
 import kotlinx.datetime.Clock
+import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomersScreen(
     onCustomerDetail: (String) -> Unit,
-    viewModel: CustomersViewModel = koinInject()
+    viewModel: CustomersViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
     var showAddSheet by remember { mutableStateOf(false) }
@@ -213,7 +214,7 @@ fun CustomerCard(customer: Customer, onClick: () -> Unit) {
 fun CustomerDetailScreen(
     customerId: String,
     onBack: () -> Unit,
-    viewModel: CustomersViewModel = koinInject()
+    viewModel: CustomersViewModel = kmpViewModel()
 ) {
     val detailState by viewModel.detailState.collectAsState()
 

@@ -36,19 +36,6 @@ data class TaxReturnUi(
     val ackNo: String?
 )
 
-private val sampleEtims = listOf(
-    EtimsInvoiceUi("1","INV-2026-0147","NS00000147","TRANSMITTED",12500.0,2000.0,14500.0,"Today 14:22"),
-    EtimsInvoiceUi("2","INV-2026-0146","NS00000146","TRANSMITTED",8600.0,1376.0,9976.0,"Today 11:05"),
-    EtimsInvoiceUi("3","INV-2026-0145",null,"ERROR",3200.0,512.0,3712.0,null),
-    EtimsInvoiceUi("4","INV-2026-0144","NS00000144","TRANSMITTED",21000.0,3360.0,24360.0,"Yesterday 10:15"),
-    EtimsInvoiceUi("5","INV-2026-0143",null,"PENDING",5500.0,880.0,6380.0,null),
-)
-private val sampleReturns = listOf(
-    TaxReturnUi("1","VAT3","Mar 2026","2026-04-20","GENERATED",71200.0,null),
-    TaxReturnUi("2","VAT3","Feb 2026","2026-03-20","SUBMITTED",67200.0,"ACK202602VAT001"),
-    TaxReturnUi("3","VAT3","Jan 2026","2026-02-20","ACKNOWLEDGED",60800.0,"ACK202601VAT001"),
-    TaxReturnUi("4","WHT","Feb 2026","2026-03-20","SUBMITTED",1350.0,"ACK202602WHT001"),
-)
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
@@ -180,7 +167,7 @@ fun KraComplianceTab() {
 
 @Composable
 fun KraEtimsTab() {
-    var invoices by remember { mutableStateOf(sampleEtims) }
+    var invoices by remember { mutableStateOf(emptyList<EtimsInvoiceUi>()) }
 
     val transmitted = invoices.count { it.status == "TRANSMITTED" }
     val errors      = invoices.count { it.status == "ERROR" || it.status == "PENDING" }
@@ -263,7 +250,7 @@ fun KraEtimsTab() {
 
 @Composable
 fun KraReturnsTab() {
-    var returns by remember { mutableStateOf(sampleReturns) }
+    var returns by remember { mutableStateOf(emptyList<TaxReturnUi>()) }
     val typeColor = mapOf("VAT3" to B360Green, "TOT" to Color(0xFF1565C0), "WHT" to Color(0xFF6A1B9A))
     val typeBg    = mapOf("VAT3" to Color(0xFFE8F5E9), "TOT" to Color(0xFFE3F2FD), "WHT" to Color(0xFFF3E5F5))
     val statusColor = mapOf("DRAFT" to Color(0xFF757575), "GENERATED" to Color(0xFF1565C0), "SUBMITTED" to Color(0xFFFF8F00), "ACKNOWLEDGED" to B360Green)
@@ -339,8 +326,8 @@ fun KraReturnsTab() {
 
 @Composable
 fun KraSetupTab() {
-    var pin by remember { mutableStateOf("P051234567X") }
-    var sdcId by remember { mutableStateOf("SDCK2024001") }
+    var pin by remember { mutableStateOf("") }
+    var sdcId by remember { mutableStateOf("") }
     var env by remember { mutableStateOf("sandbox") }
     var saved by remember { mutableStateOf(false) }
 

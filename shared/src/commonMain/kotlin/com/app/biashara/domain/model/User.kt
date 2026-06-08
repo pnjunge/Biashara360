@@ -10,7 +10,7 @@ data class User(
     val phone: String,
     val name: String,
     val role: UserRole,
-    val businessId: String,
+    val businessId: String?,
     val createdAt: Instant,
     val twoFactorEnabled: Boolean = true,
     val preferredLanguage: Language = Language.ENGLISH
@@ -18,7 +18,7 @@ data class User(
 
 @Serializable
 enum class UserRole {
-    ADMIN, STAFF, VIEWER
+    SUPERADMIN, ADMIN, STAFF, VIEWER
 }
 
 @Serializable

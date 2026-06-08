@@ -18,6 +18,7 @@ import com.app.biashara.domain.model.Order
 import com.app.biashara.domain.model.PaymentStatus
 import com.app.biashara.presentation.viewmodel.OrdersViewModel
 import com.app.biashara.ui.theme.*
+import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -25,7 +26,7 @@ import org.koin.compose.koinInject
 fun OrdersScreen(
     onOrderDetail: (String) -> Unit,
     onCreateOrder: () -> Unit,
-    viewModel: OrdersViewModel = koinInject()
+    viewModel: OrdersViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -149,7 +150,7 @@ fun StatusBadge(label: String, color: Color) {
 fun OrderDetailScreen(
     orderId: String,
     onBack: () -> Unit,
-    viewModel: OrdersViewModel = koinInject()
+    viewModel: OrdersViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val order = state.orders.find { it.id == orderId }

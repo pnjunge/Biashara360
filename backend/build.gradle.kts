@@ -72,6 +72,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.5.0")
 
+    // Email (Jakarta Mail for SMTP OTP delivery)
+    implementation("com.sun.mail:jakarta.mail:2.0.1")
+
     // Logging
     implementation("ch.qos.logback:logback-classic:$logback_version")
 

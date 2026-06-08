@@ -17,11 +17,12 @@ import androidx.compose.ui.unit.sp
 import com.app.biashara.domain.model.Payment
 import com.app.biashara.presentation.viewmodel.PaymentsViewModel
 import com.app.biashara.ui.theme.*
+import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PaymentsScreen(viewModel: PaymentsViewModel = koinInject()) {
+fun PaymentsScreen(viewModel: PaymentsViewModel = kmpViewModel()) {
     val state by viewModel.state.collectAsState()
     var matchPayment by remember { mutableStateOf<Payment?>(null) }
     var matchOrderId by remember { mutableStateOf("") }

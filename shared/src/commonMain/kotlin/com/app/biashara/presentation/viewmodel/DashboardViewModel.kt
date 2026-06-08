@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.datetime.*
 
+import com.app.biashara.data.repository.*
+
 data class DashboardState(
     val isLoading: Boolean = false,
     val businessName: String = "",
@@ -25,17 +27,21 @@ data class DashboardState(
     val lowStockCount: Int = 0,
     val lowStockProducts: List<Product> = emptyList(),
     val recentOrders: List<Order> = emptyList(),
-    val topCustomers: List<Customer> = emptyList(),
-    val error: String? = null
+    val topCustomers: List<Pair<Customer, CustomerStats>> = emptyList(),
+    val error: String? = null,
+    val isSyncing: Boolean = false
 )
 
 class DashboardViewModel(
     private val getDashboardSummaryUseCase: GetDashboardSummaryUseCase,
     private val getLowStockAlertsUseCase: GetLowStockAlertsUseCase,
-    private val getOrdersUseCase: GetOrdersUseCase
-) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
+    private val getOrdersUseCase: GetOrdersUseCase,
+    private val productRepository: ProductRepositoryImpl? = null,
+    private val orderRepository: OrderRepositoryImpl? = null,
+    private val expenseRepository: ExpenseRepositoryImpl? = null,
+    private val customerRepository: CustomerRepositoryImpl? = null,
+    private val paymentRepository: PaymentRepositoryImpl? = null
+) : KmpViewModel() {
     private val _state = MutableStateFlow(DashboardState(isLoading = true))
     val state: StateFlow<DashboardState> = _state.asStateFlow()
 
@@ -48,23 +54,39 @@ class DashboardViewModel(
                 businessName = UserSession.getUserName().ifBlank { "My Business" }
             )
         }
+        
+        // Load flows immediately from local DB
+        observeLocalData(businessId)
+        
+        // Sync remote data in the background
         scope.launch {
+            _state.update { it.copy(isSyncing = true) }
             try {
-                val today = Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
-                val monthStart = LocalDate(today.year, today.month, 1)
-                val period = ReportPeriod(monthStart, today, "This Month")
-
-                val summary = getDashboardSummaryUseCase(businessId, period)
-                _state.update {
-                    it.copy(
-                        monthRevenue = summary.profitSummary.totalRevenue,
-                        netProfit = summary.profitSummary.netProfit
-                    )
-                }
-            } catch (e: Exception) {
-                _state.update { it.copy(error = e.message) }
-            }
+                productRepository?.syncProductsFromApi(businessId)
+            } catch (_: Exception) {}
+            try {
+                orderRepository?.syncOrdersFromApi(businessId)
+            } catch (_: Exception) {}
+            try {
+                expenseRepository?.syncExpensesFromApi(businessId)
+            } catch (_: Exception) {}
+            try {
+                customerRepository?.syncCustomersFromApi(businessId)
+            } catch (_: Exception) {}
+            try {
+                paymentRepository?.syncPaymentsFromApi(businessId)
+            } catch (_: Exception) {}
+            
+            _state.update { it.copy(isSyncing = false) }
+            
+            // Reload financial stats now that local cache is fresh
+            loadFinancialSummary(businessId)
         }
+    }
+
+    private fun observeLocalData(businessId: String) {
+        loadFinancialSummary(businessId)
+        
         scope.launch {
             try {
                 getLowStockAlertsUseCase(businessId).collect { products ->
@@ -90,6 +112,35 @@ class DashboardViewModel(
                 }
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message) }
+            }
+        }
+        scope.launch {
+            try {
+                customerRepository?.getTopCustomersWithStats(businessId, 4)?.collect { topList ->
+                    _state.update {
+                        it.copy(topCustomers = topList)
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
+    private fun loadFinancialSummary(businessId: String) {
+        scope.launch {
+            try {
+                val today = Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+                val monthStart = LocalDate(today.year, today.month, 1)
+                val period = ReportPeriod(monthStart, today, "This Month")
+
+                val summary = getDashboardSummaryUseCase(businessId, period)
+                _state.update {
+                    it.copy(
+                        monthRevenue = summary.profitSummary.totalRevenue,
+                        netProfit = summary.profitSummary.netProfit
+                    )
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message) }
             }
         }
     }

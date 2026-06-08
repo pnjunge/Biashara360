@@ -52,19 +52,8 @@ private val TYPE_COLORS = mapOf(
     "CUSTOM" to Color(0xFF37474F)
 )
 
-private val sampleRates = listOf(
-    TaxRateUi("1","VAT",    "Value Added Tax",   16.0,  true,  "PRODUCTS", false, "16% VAT — mandatory for businesses >KES 5M turnover"),
-    TaxRateUi("2","TOT",    "Turnover Tax",       1.5,  false, "ALL",      false, "1.5% TOT for businesses KES 1M–5M turnover"),
-    TaxRateUi("3","WHT",    "Withholding Tax",    3.0,  true,  "SERVICES", false, "3% WHT deducted at source"),
-    TaxRateUi("4","EXCISE", "Excise Duty",       20.0,  false, "PRODUCTS", false, "Alcohol, tobacco & specified goods"),
-)
 
-private val sampleRemittances = listOf(
-    RemittanceUi("1","VAT","Feb 2026",420000.0,67200.0,"PAID",   "KRA-2026-02-VAT-001"),
-    RemittanceUi("2","VAT","Jan 2026",380000.0,60800.0,"PAID",   "KRA-2026-01-VAT-001"),
-    RemittanceUi("3","WHT","Feb 2026",45000.0,  1350.0,"FILED",  "KRA-2026-02-WHT-001"),
-    RemittanceUi("4","VAT","Mar 2026",0.0,          0.0,"PENDING",null),
-)
+
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
@@ -198,7 +187,7 @@ fun TaxSummaryTab() {
 
 @Composable
 fun TaxRatesTab() {
-    var rates by remember { mutableStateOf(sampleRates) }
+    var rates by remember { mutableStateOf(emptyList<TaxRateUi>()) }
     var showAdd by remember { mutableStateOf(false) }
 
     LazyColumn(
@@ -298,7 +287,7 @@ fun TaxCalculatorTab() {
     var selectedIds by remember { mutableStateOf(setOf("1")) }
 
     val numAmount = amount.toDoubleOrNull() ?: 0.0
-    val activeRates = sampleRates.filter { it.isActive }
+    val activeRates = emptyList<TaxRateUi>()
     val selectedRates = activeRates.filter { it.id in selectedIds }
     val lines = selectedRates.map { r ->
         TaxLineUi(r.name, r.taxType, r.ratePercent, Math.round(numAmount * r.ratePercent / 100 * 100.0) / 100.0)
@@ -424,7 +413,7 @@ fun RemittancesTab() {
             }
         }
 
-        items(sampleRemittances, key = { it.id }) { r ->
+         items(emptyList<RemittanceUi>(), key = { it.id }) { r ->
             val (statusColor, statusBg) = when (r.status) {
                 "PAID"    -> Pair(Color(0xFF1B8B34), Color(0xFFE8F5E9))
                 "FILED"   -> Pair(Color(0xFF1565C0), Color(0xFFE3F2FD))

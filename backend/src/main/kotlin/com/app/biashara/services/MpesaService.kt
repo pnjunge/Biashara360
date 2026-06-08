@@ -5,8 +5,13 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Base64
@@ -86,7 +91,7 @@ class MpesaService(
                 "${cfg.shortCode}${cfg.passKey}$timestamp".toByteArray()
             )
 
-            val transactionType = if (cfg.accountType == "till") "CustomerBuyGoodsOnline" else "CustomerPayBillOnline"
+            val transactionType = if (cfg.accountType == "paybill") "CustomerPayBillOnline" else "CustomerBuyGoodsOnline"
             val payload = StkPushPayload(
                 BusinessShortCode = cfg.shortCode,
                 Password = password,
@@ -101,21 +106,53 @@ class MpesaService(
                 TransactionDesc = transactionDesc
             )
 
-            val response: StkPushResponse = httpClient.post("${baseUrl(cfg.isSandbox)}/mpesa/stkpush/v1/processrequest") {
+            val httpResponse = httpClient.post("${baseUrl(cfg.isSandbox)}/mpesa/stkpush/v1/processrequest") {
                 headers { append(HttpHeaders.Authorization, "Bearer $token") }
                 contentType(ContentType.Application.Json)
+                val jsonPayload = lenientJson.encodeToString(StkPushPayload.serializer(), payload)
+                println("[MpesaSTK] Sending Request to ${baseUrl(cfg.isSandbox)}/mpesa/stkpush/v1/processrequest:")
+                println("[MpesaSTK] Payload: $jsonPayload")
                 setBody(payload)
-            }.body()
+            }
+
+            val rawBody = httpResponse.bodyAsText()
+            println("[MpesaSTK] Response ${httpResponse.status.value}: $rawBody")
+
+            if (!httpResponse.status.isSuccess()) {
+                // Parse Daraja error shape: {"requestId":"...","errorCode":"...","errorMessage":"..."}
+                val errMsg = try {
+                    val obj = lenientJson.decodeFromString(JsonObject.serializer(), rawBody)
+                    obj["errorMessage"]?.jsonPrimitive?.contentOrNull
+                        ?: obj["ResultDesc"]?.jsonPrimitive?.contentOrNull
+                        ?: "Daraja error (${httpResponse.status.value})"
+                } catch (_: Exception) { "Daraja error (${httpResponse.status.value}): $rawBody" }
+                return StkPushResult.Error(errMsg)
+            }
+
+            val response = try {
+                lenientJson.decodeFromString(StkPushResponse.serializer(), rawBody)
+            } catch (e: Exception) {
+                println("[MpesaSTK] Failed to parse success body: ${e.message}")
+                return StkPushResult.Error("Unexpected Daraja response format: $rawBody")
+            }
 
             StkPushResult.Success(
-                merchantRequestId = response.MerchantRequestID,
-                checkoutRequestId = response.CheckoutRequestID,
-                responseCode = response.ResponseCode,
-                customerMessage = response.CustomerMessage
+                merchantRequestId = response.MerchantRequestID ?: "",
+                checkoutRequestId = response.CheckoutRequestID ?: "",
+                responseCode      = response.ResponseCode ?: "0",
+                customerMessage   = response.CustomerMessage ?: "Payment request sent"
             )
         } catch (e: ClientRequestException) {
-            StkPushResult.Error("M-Pesa request failed (${e.response.status.value}). Check your Daraja credentials and callback URL.")
+            val rawErr = try { e.response.bodyAsText() } catch (_: Exception) { "" }
+            println("[MpesaSTK] ClientRequestException: ${e.response.status.value} — $rawErr")
+            val friendly = try {
+                val obj = lenientJson.decodeFromString(JsonObject.serializer(), rawErr)
+                obj["errorMessage"]?.jsonPrimitive?.contentOrNull
+                    ?: "M-Pesa request failed (${e.response.status.value})"
+            } catch (_: Exception) { "M-Pesa request failed (${e.response.status.value})" }
+            StkPushResult.Error(friendly)
         } catch (e: Exception) {
+            println("[MpesaSTK] Exception: ${e.message}")
             StkPushResult.Error(e.message ?: "Failed to initiate payment")
         }
     }
@@ -159,6 +196,13 @@ class MpesaService(
 
 // ── Daraja DTOs ───────────────────────────────────────────────────────────────
 
+private val lenientJson = Json {
+    ignoreUnknownKeys = true
+    isLenient = true
+    coerceInputValues = true
+    encodeDefaults = true
+}
+
 @Serializable
 data class DarajaTokenResponse(val access_token: String, val expires_in: String)
 
@@ -177,13 +221,14 @@ data class StkPushPayload(
     val TransactionDesc: String
 )
 
+// All fields nullable — Safaricom returns different shapes for success vs error
 @Serializable
 data class StkPushResponse(
-    val MerchantRequestID: String,
-    val CheckoutRequestID: String,
-    val ResponseCode: String,
-    val ResponseDescription: String,
-    val CustomerMessage: String
+    val MerchantRequestID: String?     = null,
+    val CheckoutRequestID: String?     = null,
+    val ResponseCode: String?          = null,
+    val ResponseDescription: String?   = null,
+    val CustomerMessage: String?       = null
 )
 
 sealed class StkPushResult {

@@ -5,12 +5,14 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import InventoryPage from './pages/InventoryPage'
 import OrdersPage from './pages/OrdersPage'
+import PosPage from './pages/PosPage'
 import CustomersPage from './pages/CustomersPage'
 import ExpensesPage from './pages/ExpensesPage'
 import PaymentsPage from './pages/PaymentsPage'
 import ReportsPage from './pages/ReportsPage'
 import SettingsPage from './pages/SettingsPage'
 import CyberSourcePage from './pages/CyberSourcePage'
+import CyberSourceSettingsPage from './pages/CyberSourceSettingsPage'
 import TaxPage from './pages/TaxPage'
 import KraPage from './pages/KraPage'
 import SocialPage from './pages/SocialPage'
@@ -73,6 +75,7 @@ export default function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard"  element={<DashboardPage />} />
             <Route path="inventory"  element={<InventoryPage />} />
+            <Route path="pos"        element={<PosPage />} />
             <Route path="orders"     element={<OrdersPage />} />
             <Route path="customers"  element={<CustomersPage />} />
             <Route path="expenses"   element={<ExpensesPage />} />
@@ -80,6 +83,7 @@ export default function App() {
             <Route path="reports"    element={<ReportsPage />} />
             <Route path="settings"   element={<RoleProtectedRoute blockedRoles={["STAFF"]}><SettingsPage /></RoleProtectedRoute>} />
             <Route path="card-payments" element={<CyberSourcePage />} />
+            <Route path="cybersource-settings" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><CyberSourceSettingsPage /></RoleProtectedRoute>} />
             <Route path="tax"           element={<TaxPage />} />
             <Route path="kra"           element={<KraPage />} />
             <Route path="social"        element={<SocialPage />} />

@@ -108,7 +108,7 @@ export function OrdersPage() {
                 ...customers.map(c => ({ value: c.id, label: `${c.name} (${c.phone})` })),
               ]}
             />
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
               <Input label="Customer Name *" value={form.customerName} onChange={f('customerName')} placeholder="e.g. Jane Wanjiru" />
               <Input label="Phone *" value={form.customerPhone} onChange={f('customerPhone')} placeholder="+254..." />
             </div>
@@ -157,13 +157,19 @@ export function OrdersPage() {
         <Modal title={`Order ${viewOrder.orderNumber}`} onClose={() => setViewOrder(null)} wide
           footer={<Btn variant="secondary" onClick={() => setViewOrder(null)}>Close</Btn>}>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Customer</span><div style={{ fontWeight:600 }}>{viewOrder.customerName}</div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Phone</span><div style={{ fontWeight:600 }}>{viewOrder.customerPhone}</div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Delivery</span><div style={{ fontWeight:600 }}>{viewOrder.deliveryLocation || '—'}</div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Payment</span><div><StatusBadge status={viewOrder.paymentStatus} /></div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Delivery Status</span><div><StatusBadge status={viewOrder.deliveryStatus} /></div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Date</span><div style={{ fontWeight:600 }}>{new Date(viewOrder.createdAt).toLocaleDateString('en-KE')}</div></div>
+              {viewOrder.mpesaTransactionCode && (
+                <div>
+                  <span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>M-Pesa Ref</span>
+                  <div style={{ fontWeight:700, color:'var(--b360-green)', fontFamily:'monospace' }}>{viewOrder.mpesaTransactionCode}</div>
+                </div>
+              )}
             </div>
             <div style={{ borderTop:'1px solid var(--b360-border)', paddingTop:12 }}>
               <div style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)', marginBottom:8 }}>Items</div>
@@ -185,7 +191,7 @@ export function OrdersPage() {
       <PageHeader title="Orders"
         action={<Btn icon={<Plus size={14} />} onClick={openNew}>New Order</Btn>} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div className="responsive-grid responsive-grid-4" style={{ gap: 12 }}>
         <KpiCard title="Total Orders"   value={String(orders.length)}                                                      change="All time"      icon={<ShoppingCart size={18} />} color="var(--b360-blue)" />
         <KpiCard title="Delivered"      value={String(orders.filter(o => o.deliveryStatus === 'DELIVERED').length)}        change="Completed"     icon={<ShoppingCart size={18} />} color="var(--b360-green)" />
         <KpiCard title="In Progress"    value={String(orders.filter(o => o.deliveryStatus === 'PROCESSING' || o.deliveryStatus === 'SHIPPED').length)} change="Active" icon={<ShoppingCart size={18} />} color="var(--b360-amber)" />
@@ -205,7 +211,14 @@ export function OrdersPage() {
               <span style={{ fontWeight: 600 }}>{o.customerName}</span>,
               o.items.length,
               <span style={{ fontWeight: 700 }}>KES {o.subtotal.toLocaleString()}</span>,
-              <StatusBadge status={o.paymentStatus} />,
+              <div>
+                <StatusBadge status={o.paymentStatus} />
+                {o.mpesaTransactionCode && (
+                  <div style={{ fontSize:10, fontFamily:'monospace', color:'var(--b360-green)', fontWeight:700, marginTop:4 }}>
+                    {o.mpesaTransactionCode}
+                  </div>
+                )}
+              </div>,
               <StatusBadge status={o.deliveryStatus} />,
               <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>{new Date(o.createdAt).toLocaleDateString('en-KE')}</span>,
               <Btn small icon={<Eye size={12}/>} onClick={() => setViewOrder(o)}>View</Btn>,

@@ -6,15 +6,15 @@ services:
     image: postgres:16-alpine
     container_name: biashara360-db
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-biashara360}
-      POSTGRES_USER: ${POSTGRES_USER:-biashara360}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "${DB_PORT:-5435}:5432"
+      - "${DB_PORT:-5436}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-biashara360}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,14 +23,18 @@ services:
     build: .
     container_name: biashara360-api
     ports:
-      - "${API_PORT:-8080}:8080"
+      - "${API_PORT:-8081}:8080"
     env_file:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-jdbc:postgresql://postgres:5432/biashara360}
-      DB_USER: ${DB_USER:-biashara360}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      AFRICASTALKING_USERNAME: dummyUser
+      AFRICASTALKING_APIKEY: dummyKey
+      AFRICASTALKING_ENVIRONMENT: sandbox
+      AFRICASTALKING_SENDERID: ""
       MPESA_CONSUMER_KEY: ${MPESA_CONSUMER_KEY:-your_consumer_key}
       MPESA_CONSUMER_SECRET: ${MPESA_CONSUMER_SECRET:-your_consumer_secret}
       MPESA_SHORT_CODE: ${MPESA_SHORT_CODE:-174379}

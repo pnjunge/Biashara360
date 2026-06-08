@@ -2,18 +2,36 @@ package com.app.biashara.data.repository
 
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
+import com.app.biashara.data.remote.ApiResponse
+import com.app.biashara.data.remote.BASE_URL
 import com.app.biashara.db.Biashara360Database
 import com.app.biashara.db.ExpenseEntity
 import com.app.biashara.domain.model.*
 import com.app.biashara.domain.repository.ExpenseRepository
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.*
 
+@kotlinx.serialization.Serializable
+data class ExpenseDto(
+    val id: String,
+    val businessId: String,
+    val category: String,
+    val amount: Double,
+    val description: String,
+    val receiptUrl: String? = null,
+    val recordedAt: String,
+    val expenseDate: String
+)
+
 class ExpenseRepositoryImpl(
-    private val database: Biashara360Database
+    private val database: Biashara360Database,
+    private val client: HttpClient? = null
 ) : ExpenseRepository {
 
     private val queries = database.biashara360DatabaseQueries
@@ -102,20 +120,61 @@ class ExpenseRepositoryImpl(
             netProfit = netProfit,
             cashflowIn = cashflowIn,
             cashflowOut = cashflowOut
-        )
+         )
+     }
+
+    /** Sync expenses from API and update local cache **/
+    suspend fun syncExpensesFromApi(businessId: String): Result<List<Expense>> = runCatching {
+        if (client == null) throw IllegalStateException("HTTP client not configured")
+
+        val response: ApiResponse<List<ExpenseDto>> = client.get("$BASE_URL/expenses") {
+            url { parameters.append("businessId", businessId) }
+        }.body()
+
+        if (!response.success || response.data == null) {
+            throw Exception(response.message.ifBlank { "Failed to fetch expenses" })
+        }
+
+        // Update local cache
+        response.data.forEach { dto ->
+            queries.insertExpense(
+                id = dto.id,
+                business_id = dto.businessId,
+                category = dto.category,
+                amount = dto.amount,
+                description = dto.description,
+                receipt_url = dto.receiptUrl,
+                recorded_at = dto.recordedAt,
+                expense_date = dto.expenseDate
+            )
+        }
+
+        response.data.map { it.toDomain() }
     }
 
-    private fun ExpenseEntity.toDomain() = Expense(
+    private fun ExpenseDto.toDomain() = Expense(
         id = id,
-        businessId = business_id,
+        businessId = businessId,
         category = runCatching { ExpenseCategory.valueOf(category) }
             .getOrDefault(ExpenseCategory.MISCELLANEOUS),
         amount = amount,
         description = description,
-        receiptUrl = receipt_url,
-        recordedAt = runCatching { Instant.parse(recorded_at) }
-            .getOrDefault(Clock.System.now()),
-        expenseDate = runCatching { LocalDate.parse(expense_date) }
-            .getOrDefault(Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date)
+        receiptUrl = receiptUrl,
+        recordedAt = Instant.parse(recordedAt),
+        expenseDate = LocalDate.parse(expenseDate)
     )
+
+     private fun ExpenseEntity.toDomain() = Expense(
+         id = id,
+         businessId = business_id,
+         category = runCatching { ExpenseCategory.valueOf(category) }
+             .getOrDefault(ExpenseCategory.MISCELLANEOUS),
+         amount = amount,
+         description = description,
+         receiptUrl = receipt_url,
+         recordedAt = runCatching { Instant.parse(recorded_at) }
+             .getOrDefault(Clock.System.now()),
+         expenseDate = runCatching { LocalDate.parse(expense_date) }
+             .getOrDefault(Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date)
+     )
 }

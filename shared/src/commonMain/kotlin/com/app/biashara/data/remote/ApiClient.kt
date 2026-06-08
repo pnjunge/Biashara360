@@ -13,7 +13,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
-const val BASE_URL = "https://api.biashara360.co.ke/v1"
+var BASE_URL = "https://extension-brake-php-administrator.trycloudflare.com/v1" // Cloudflare tunnel endpoint
 
 fun createHttpClient(tokenStorage: TokenStorage): HttpClient {
     return HttpClient {
@@ -91,7 +91,10 @@ data class LoginRequest(val email: String, val password: String)
 data class LoginResponse(
     val userId: String,
     val requiresOtp: Boolean,
-    val otpChannels: List<String>
+    val otpChannels: List<String>,
+    val accessToken: String? = null,
+    val refreshToken: String? = null,
+    val user: UserDto? = null
 )
 
 @kotlinx.serialization.Serializable
@@ -111,7 +114,9 @@ data class UserDto(
     val email: String,
     val phone: String,
     val role: String,
-    val businessId: String
+    val businessId: String?,
+    val preferredLanguage: String? = null,
+    val businessName: String? = null
 )
 
 // Mpesa Daraja DTOs

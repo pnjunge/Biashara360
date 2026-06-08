@@ -137,6 +137,70 @@ class OrderService {
         ApiResponse(true, data = order)
     }
 
+    fun cancel(id: String, businessId: String): ApiResponse<OrderResponse> = transaction {
+        val order = OrdersTable.select {
+            (OrdersTable.id eq id) and (OrdersTable.businessId eq businessId)
+        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Order not found")
+
+        val currentPaymentStatus = order[OrdersTable.paymentStatus]
+        if (currentPaymentStatus == "CANCELLED") {
+            return@transaction ApiResponse(false, message = "Order is already cancelled")
+        }
+
+        // Revert stock for all items
+        val items = OrderItemsTable.select { OrderItemsTable.orderId eq id }
+        val now = Clock.System.now()
+        items.forEach { item ->
+            val productId = item[OrderItemsTable.productId]
+            val quantity = item[OrderItemsTable.quantity]
+            
+            val product = ProductsTable.select { ProductsTable.id eq productId }.firstOrNull()
+            if (product != null) {
+                ProductsTable.update({ ProductsTable.id eq productId }) {
+                    it[currentStock] = product[ProductsTable.currentStock] + quantity
+                    it[updatedAt] = now
+                }
+                
+                // Add stock movement record (STOCK_IN/CANCEL_ORDER)
+                StockMovementsTable.insert {
+                    it[StockMovementsTable.id] = generateId()
+                    it[StockMovementsTable.productId] = productId
+                    it[StockMovementsTable.businessId] = businessId
+                    it[StockMovementsTable.type] = "STOCK_IN"
+                    it[StockMovementsTable.quantity] = quantity
+                    it[StockMovementsTable.note] = "Cancelled Order ${order[OrdersTable.orderNumber]}"
+                    it[StockMovementsTable.orderId] = id
+                    it[StockMovementsTable.recordedAt] = now
+                }
+            }
+        }
+
+        // Revert loyalty points if customerId is present
+        order[OrdersTable.customerId]?.let { cid ->
+            val subtotal = order[OrdersTable.subtotal]
+            val points = (subtotal / 100).toInt()
+            if (points > 0) {
+                val customer = CustomersTable.select { CustomersTable.id eq cid }.firstOrNull()
+                if (customer != null) {
+                    CustomersTable.update({ CustomersTable.id eq cid }) {
+                        it[loyaltyPoints] = Math.max(0, customer[CustomersTable.loyaltyPoints] - points)
+                        it[updatedAt] = now
+                    }
+                }
+            }
+        }
+
+        // Update order status
+        OrdersTable.update({ OrdersTable.id eq id }) {
+            it[paymentStatus] = "CANCELLED"
+            it[deliveryStatus] = "CANCELLED"
+            it[updatedAt] = now
+        }
+
+        val updatedOrder = OrdersTable.select { OrdersTable.id eq id }.first().toResponse()
+        ApiResponse(true, data = updatedOrder, message = "Order ${order[OrdersTable.orderNumber]} cancelled successfully")
+    }
+
     private fun generateOrderNumber(businessId: String): String {
         val count = OrdersTable.select { OrdersTable.businessId eq businessId }.count()
         return "B360-%04d".format(count + 1)

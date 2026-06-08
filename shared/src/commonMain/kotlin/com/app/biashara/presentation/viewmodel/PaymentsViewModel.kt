@@ -9,10 +9,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+import com.app.biashara.data.repository.PaymentRepositoryImpl
+
 data class PaymentsState(
     val isLoading: Boolean = false,
     val payments: List<Payment> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+    val isSyncing: Boolean = false
 ) {
     val totalReconciled: Double get() = payments.filter { it.reconciled }.sumOf { it.amount }
     val totalUnmatched: Double get() = payments.filter { !it.reconciled }.sumOf { it.amount }
@@ -20,10 +23,9 @@ data class PaymentsState(
 
 class PaymentsViewModel(
     private val getPaymentsUseCase: GetPaymentsUseCase,
-    private val reconcilePaymentUseCase: ReconcilePaymentUseCase
-) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
+    private val reconcilePaymentUseCase: ReconcilePaymentUseCase,
+    private val paymentRepository: PaymentRepositoryImpl? = null
+) : KmpViewModel() {
     private val _state = MutableStateFlow(PaymentsState(isLoading = true))
     val state: StateFlow<PaymentsState> = _state.asStateFlow()
 
@@ -41,6 +43,17 @@ class PaymentsViewModel(
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
+        }
+        syncPayments(businessId)
+    }
+
+    fun syncPayments(businessId: String) {
+        scope.launch {
+            _state.update { it.copy(isSyncing = true) }
+            try {
+                paymentRepository?.syncPaymentsFromApi(businessId)
+            } catch (_: Exception) { }
+            _state.update { it.copy(isSyncing = false) }
         }
     }
 

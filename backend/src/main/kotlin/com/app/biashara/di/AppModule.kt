@@ -16,10 +16,10 @@ import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
 
-fun Application.configureKoin() {
+fun Application.configureKoin(appConfig: ApplicationConfig) {
     install(Koin) {
         slf4jLogger()
-        modules(appModule(environment.config))
+        modules(appModule(appConfig))
     }
 }
 
@@ -28,7 +28,7 @@ fun appModule(config: ApplicationConfig) = module {
     single {
         HttpClient(CIO) {
             install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
+                json(Json { ignoreUnknownKeys = true; isLenient = true; encodeDefaults = true })
             }
             install(Logging) {
                 level = LogLevel.INFO
@@ -36,8 +36,12 @@ fun appModule(config: ApplicationConfig) = module {
         }
     }
 
+    // SMS & Email services for OTP delivery
+    single { SmsService(config, get()) }
+    single { EmailService(config) }
+
     // Services
-    single { AuthService() }
+    single { AuthService(get(), get()) }
     single { ProductService() }
     single { OrderService() }
     single { CustomerService() }

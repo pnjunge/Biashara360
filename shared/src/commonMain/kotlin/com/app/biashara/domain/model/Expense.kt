@@ -45,9 +45,9 @@ data class ProfitSummary(
     val totalExpenses: Double,
     val netProfit: Double,
     val cashflowIn: Double,
-    val cashflowOut: Double,
-    val netCashflow: Double get() = cashflowIn - cashflowOut
+    val cashflowOut: Double
 ) {
+    val netCashflow: Double get() = cashflowIn - cashflowOut
     val grossMargin: Double get() =
         if (totalRevenue > 0) (grossProfit / totalRevenue) * 100 else 0.0
     val netMargin: Double get() =

@@ -14,6 +14,7 @@ sealed class Screen(val route: String) {
 
     // Main
     object Dashboard : Screen("dashboard")
+    object Pos : Screen("pos")
     object Inventory : Screen("inventory")
     object AddProduct : Screen("add_product?productId={productId}") {
         fun createRoute(productId: String? = null) =
@@ -36,6 +37,7 @@ sealed class Screen(val route: String) {
     object Social : Screen("social")
     object Reports : Screen("reports")
     object Settings : Screen("settings")
+    object CyberSourceSettings : Screen("cybersource_settings")
 }
 
 data class BottomNavItem(
@@ -47,8 +49,8 @@ data class BottomNavItem(
 
 val bottomNavItems = listOf(
     BottomNavItem(Screen.Dashboard, "Dashboard", Icons.Filled.Home, "Nyumbani"),
+    BottomNavItem(Screen.Pos, "POS", Icons.Filled.Storefront, "Mauzo"),
     BottomNavItem(Screen.Orders, "Orders", Icons.Filled.ShoppingCart, "Maagizo"),
     BottomNavItem(Screen.Inventory, "Stock", Icons.Filled.Inventory, "Hifadhi"),
-    BottomNavItem(Screen.Customers, "Customers", Icons.Filled.People, "Wateja"),
-    BottomNavItem(Screen.Expenses, "Expenses", Icons.Filled.AccountBalance, "Gharama")
+    BottomNavItem(Screen.Customers, "Customers", Icons.Filled.People, "Wateja")
 )

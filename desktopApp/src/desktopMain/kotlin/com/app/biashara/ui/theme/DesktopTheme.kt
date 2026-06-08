@@ -4,27 +4,27 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-val B360Green = Color(0xFF1B8B34)
-val B360GreenDark = Color(0xFF0F5E22)
-val B360GreenLight = Color(0xFF4CAF63)
-val B360Amber = Color(0xFFFF8C00)
-val B360Red = Color(0xFFD32F2F)
-val B360Blue = Color(0xFF1565C0)
-val B360Surface = Color(0xFFF4F7F5)
-val B360SidebarBg = Color(0xFF1A2332)
-val B360SidebarSelected = Color(0xFF243447)
+val B360Green = Color(0xFF10B981)
+val B360GreenDark = Color(0xFF047857)
+val B360GreenLight = Color(0xFF34D399)
+val B360Amber = Color(0xFFF59E0B)
+val B360Red = Color(0xFFEF4444)
+val B360Blue = Color(0xFF3B82F6)
+val B360Surface = Color(0xFFF8FAFC)
+val B360SidebarBg = Color(0xFF0F172A)
+val B360SidebarSelected = Color(0xFF1E293B)
 
 private val DesktopColorScheme = lightColorScheme(
     primary = B360Green,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFB7ECC4),
+    primaryContainer = Color(0xFFD1FAE5),
     onPrimaryContainer = B360GreenDark,
     secondary = B360Amber,
     onSecondary = Color.White,
     background = B360Surface,
     surface = Color.White,
-    onSurface = Color(0xFF1C1B1F),
-    outline = Color(0xFFE0E0E0)
+    onSurface = Color(0xFF0F172A),
+    outline = Color(0xFFE2E8F0)
 )
 
 @Composable

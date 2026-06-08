@@ -10,23 +10,50 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.datetime.*
 
+import com.app.biashara.data.repository.*
+
 data class ReportsState(
     val isLoading: Boolean = false,
     val profitSummary: ProfitSummary? = null,
     val selectedPeriodLabel: String = "This Month",
-    val error: String? = null
+    val error: String? = null,
+    val isSyncing: Boolean = false
 )
 
 class ReportsViewModel(
-    private val getProfitSummaryUseCase: GetProfitSummaryUseCase
-) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
+    private val getProfitSummaryUseCase: GetProfitSummaryUseCase,
+    private val orderRepository: OrderRepositoryImpl? = null,
+    private val expenseRepository: ExpenseRepositoryImpl? = null,
+    private val paymentRepository: PaymentRepositoryImpl? = null
+) : KmpViewModel() {
     private val _state = MutableStateFlow(ReportsState(isLoading = true))
     val state: StateFlow<ReportsState> = _state.asStateFlow()
 
     fun loadReport(periodLabel: String = "This Month") {
         val businessId = UserSession.getBusinessId()
+        // Load immediately from current local cache
+        loadLocalReport(businessId, periodLabel)
+        
+        // Sync in background
+        scope.launch {
+            _state.update { it.copy(isSyncing = true) }
+            try {
+                orderRepository?.syncOrdersFromApi(businessId)
+            } catch (_: Exception) {}
+            try {
+                expenseRepository?.syncExpensesFromApi(businessId)
+            } catch (_: Exception) {}
+            try {
+                paymentRepository?.syncPaymentsFromApi(businessId)
+            } catch (_: Exception) {}
+            
+            _state.update { it.copy(isSyncing = false) }
+            // Reload report with updated synced data
+            loadLocalReport(businessId, periodLabel)
+        }
+    }
+
+    private fun loadLocalReport(businessId: String, periodLabel: String) {
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null, selectedPeriodLabel = periodLabel) }
             try {

@@ -79,7 +79,7 @@ class CustomerService {
 
     fun getTopCustomers(businessId: String, limit: Int = 10): List<CustomerResponse> = transaction {
         // Join with orders to rank by total spent
-        val topIds = (OrdersTable innerJoin CustomersTable)
+        val topIds = OrdersTable.innerJoin(CustomersTable, { customerId }, { id })
             .slice(OrdersTable.customerId, OrdersTable.subtotal.sum())
             .select { (OrdersTable.businessId eq businessId) and (OrdersTable.customerId.isNotNull()) }
             .groupBy(OrdersTable.customerId)

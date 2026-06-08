@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.app.biashara.UserSession
 import com.app.biashara.presentation.viewmodel.AuthViewModel
 import com.app.biashara.ui.theme.B360Green
+import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,7 +33,8 @@ fun SettingsScreen(
     onNavigateToPayments: (() -> Unit)? = null,
     onNavigateToKra: (() -> Unit)? = null,
     onNavigateToSocial: (() -> Unit)? = null,
-    authViewModel: AuthViewModel = koinInject()
+    onNavigateToCyberSourceSettings: (() -> Unit)? = null,
+    authViewModel: AuthViewModel = kmpViewModel()
 ) {
     val context = LocalContext.current
     val currentUser by UserSession.currentUser.collectAsState()
@@ -166,7 +168,7 @@ fun SettingsScreen(
             item {
                 SettingsSection("Integrations") {
                     SettingsNavItem("M-Pesa Setup", Icons.Filled.PhoneAndroid) { onNavigateToPayments?.invoke() }
-                    SettingsNavItem("Card Payments", Icons.Filled.CreditCard) { onNavigateToPayments?.invoke() }
+                    SettingsNavItem("Card / CyberSource Config", Icons.Filled.CreditCard) { onNavigateToCyberSourceSettings?.invoke() }
                     SettingsNavItem("KRA eTIMS", Icons.Filled.Assignment) { onNavigateToKra?.invoke() }
                     SettingsNavItem("Social Channels", Icons.Filled.Share) { onNavigateToSocial?.invoke() }
                 }

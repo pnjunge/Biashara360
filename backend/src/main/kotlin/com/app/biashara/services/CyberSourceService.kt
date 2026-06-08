@@ -391,10 +391,10 @@ class CyberSourceService(
                     billTo = CsBillTo(
                         firstName = firstName,
                         lastName = lastName,
-                        address1 = "Nairobi",
-                        locality = "Nairobi",
-                        administrativeArea = "NBI",
-                        postalCode = "00100",
+                        address1 = "",
+                        locality = "",
+                        administrativeArea = "",
+                        postalCode = "",
                         country = "KE",
                         email = email.ifEmpty { "customer@biashara360.co.ke" },
                         phoneNumber = phone
@@ -406,15 +406,6 @@ class CyberSourceService(
                 )
             )
         }
-
-        // Sandbox test card numbers
-        val SANDBOX_VISA_SUCCESS      = "4111111111111111"
-        val SANDBOX_VISA_DECLINE      = "4242424242424242"
-        val SANDBOX_MASTERCARD        = "5555555555554444"
-        val SANDBOX_AMEX              = "378282246310005"
-        val SANDBOX_EXPIRY_MONTH      = "12"
-        val SANDBOX_EXPIRY_YEAR       = "2031"
-        val SANDBOX_CVV               = "123"
     }
 }
 

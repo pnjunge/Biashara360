@@ -23,6 +23,7 @@ import com.app.biashara.domain.usecase.generateId
 import com.app.biashara.presentation.viewmodel.ExpensesViewModel
 import com.app.biashara.ui.theme.*
 import kotlinx.datetime.*
+import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
 
 private val categoryColors = mapOf(
@@ -42,7 +43,7 @@ private val categoryColors = mapOf(
 @Composable
 fun ExpensesScreen(
     onAddExpense: () -> Unit,
-    viewModel: ExpensesViewModel = koinInject()
+    viewModel: ExpensesViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -158,7 +159,7 @@ fun ExpensesScreen(
 fun AddExpenseScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit,
-    viewModel: ExpensesViewModel = koinInject()
+    viewModel: ExpensesViewModel = kmpViewModel()
 ) {
     var description by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
@@ -212,15 +213,15 @@ fun AddExpenseScreen(
                     )
                 },
                 containerColor = B360Green,
-                expanded = !saving
-            ) {
-                if (saving) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
-                else {
-                    Icon(Icons.Filled.Check, null, tint = Color.White)
-                    Spacer(Modifier.width(8.dp))
+                expanded = !saving,
+                icon = {
+                    if (saving) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                    else Icon(Icons.Filled.Check, null, tint = Color.White)
+                },
+                text = {
                     Text("Save Expense", color = Color.White)
                 }
-            }
+            )
         }
     ) { padding ->
         Column(

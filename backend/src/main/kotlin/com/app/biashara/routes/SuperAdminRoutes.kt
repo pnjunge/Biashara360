@@ -14,7 +14,9 @@ import org.koin.ktor.ext.inject
 // All routes require SUPERADMIN role.
 //
 //   GET  /v1/admin/businesses                   list all businesses
-//   POST /v1/admin/businesses                   create a business with its first admin user
+//   POST /v1/admin/businesses                   create a business WITH its first admin user
+//   POST /v1/admin/businesses/simple            create a business WITHOUT an admin (add user later)
+//   PATCH /v1/admin/businesses/{id}/status      enable/disable a business
 //   PUT  /v1/admin/users/{id}/business          link an existing user to a business
 //   GET  /v1/admin/settings/mpesa-callback      get system-wide Mpesa callback URL
 //   PUT  /v1/admin/settings/mpesa-callback      update system-wide Mpesa callback URL
@@ -35,6 +37,18 @@ fun Route.superAdminRoutes() {
                 call.respond(ApiResponse(true, data = businesses))
             }
 
+            // Create business WITHOUT an admin user (admin added later via Users menu)
+            post("/simple") {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@post
+                }
+                val req = call.receive<CreateBusinessOnlyRequest>()
+                val result = superAdminService.createBusinessOnly(req)
+                call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
+            }
+
+            // Create business WITH first admin user
             post {
                 if (!call.hasRole("SUPERADMIN")) {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))

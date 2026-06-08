@@ -111,6 +111,46 @@ class SuperAdminService {
         ApiResponse(success = true, data = BusinessWithAdminResponse(businessResp, adminResp), message = "Business and admin created successfully")
     }
 
+    fun createBusinessOnly(req: CreateBusinessOnlyRequest): ApiResponse<BusinessResponse> = transaction {
+        if (req.businessName.isBlank() || req.businessType.isBlank()) {
+            return@transaction ApiResponse(false, message = "Business name and type are required")
+        }
+        if (!ValidationUtils.isValidBusinessName(req.businessName)) {
+            return@transaction ApiResponse(false, message = "Invalid business name format")
+        }
+
+        val now = Clock.System.now()
+        val businessId = generateId()
+
+        BusinessesTable.insert {
+            it[id]               = businessId
+            it[name]             = req.businessName
+            it[type]             = req.businessType.uppercase()
+            it[ownerPhone]       = ""
+            it[ownerEmail]       = ""
+            it[currency]         = "KES"
+            it[subscriptionTier] = "FREEMIUM"
+            it[enabledModules]   = "INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS"
+            it[createdAt]        = now
+            it[updatedAt]        = now
+        }
+
+        ApiResponse(
+            success = true,
+            data = BusinessResponse(
+                id               = businessId,
+                name             = req.businessName,
+                type             = req.businessType.uppercase(),
+                ownerPhone       = "",
+                ownerEmail       = "",
+                subscriptionTier = "FREEMIUM",
+                isActive         = true,
+                createdAt        = now.toString()
+            ),
+            message = "Business created successfully"
+        )
+    }
+
     fun listBusinesses(): List<BusinessResponse> = transaction {
         BusinessesTable
             .select { BusinessesTable.type neq "SYSTEM" }

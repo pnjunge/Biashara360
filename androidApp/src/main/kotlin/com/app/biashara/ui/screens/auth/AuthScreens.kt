@@ -26,13 +26,14 @@ import com.app.biashara.presentation.viewmodel.AuthStep
 import com.app.biashara.presentation.viewmodel.AuthViewModel
 import com.app.biashara.ui.theme.B360Green
 import com.app.biashara.ui.theme.B360GreenDark
+import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
 
 @Composable
 fun LoginScreen(
     onLoginSuccess: (String) -> Unit,
     onRegister: () -> Unit,
-    viewModel: AuthViewModel = koinInject()
+    viewModel: AuthViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -135,7 +136,7 @@ fun LoginScreen(
 fun RegisterScreen(
     onRegistered: () -> Unit,
     onBack: () -> Unit,
-    viewModel: AuthViewModel = koinInject()
+    viewModel: AuthViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -218,7 +219,7 @@ fun RegisterScreen(
 fun OtpScreen(
     userId: String,
     onVerified: () -> Unit,
-    viewModel: AuthViewModel = koinInject()
+    viewModel: AuthViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
 

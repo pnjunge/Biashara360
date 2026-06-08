@@ -47,12 +47,15 @@ object CyberSourceConfigsTable : Table("cybersource_configs") {
 object ConfigurationAuditTable : Table("configuration_audit") {
     val id            = varchar("id", 36)
     val businessId    = varchar("business_id", 36).references(BusinessesTable.id)
-    val userId        = varchar("user_id", 36).nullable().references(UsersTable.id)
+    val userId        = varchar("user_id", 36).references(UsersTable.id).nullable()
     val entityType    = varchar("entity_type", 50)  // MPESA_CONFIG, CYBERSOURCE_CONFIG, etc.
     val entityId      = varchar("entity_id", 36)
     val action        = varchar("action", 20)       // CREATE, UPDATE, DELETE
     val changesSummary = text("changes_summary")    // JSON description of what changed
     val timestamp     = timestamp("timestamp")
     override val primaryKey = PrimaryKey(id)
-    index(false, businessId, timestamp)
+
+    init {
+        index(false, businessId, timestamp)
+    }
 }

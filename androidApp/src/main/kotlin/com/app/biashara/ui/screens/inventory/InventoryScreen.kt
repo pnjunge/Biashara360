@@ -20,6 +20,7 @@ import com.app.biashara.domain.model.Product
 import com.app.biashara.presentation.viewmodel.InventoryFilter
 import com.app.biashara.presentation.viewmodel.InventoryViewModel
 import com.app.biashara.ui.theme.*
+import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,7 +28,7 @@ import org.koin.compose.koinInject
 fun InventoryScreen(
     onAddProduct: () -> Unit,
     onEditProduct: (String) -> Unit,
-    viewModel: InventoryViewModel = koinInject()
+    viewModel: InventoryViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
 

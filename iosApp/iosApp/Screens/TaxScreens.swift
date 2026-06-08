@@ -42,21 +42,6 @@ struct RemittanceItem: Identifiable {
     }
 }
 
-// ── Sample Data ───────────────────────────────────────────────────────────────
-
-private let sampleRates = [
-    TaxRateItem(id:"1", taxType:"VAT",    name:"Value Added Tax",  ratePercent:16.0, isActive:true,  appliesTo:"PRODUCTS", isInclusive:false, description:"16% VAT on taxable goods & services. Mandatory for >KES 5M annual turnover."),
-    TaxRateItem(id:"2", taxType:"TOT",    name:"Turnover Tax",     ratePercent:1.5,  isActive:false, appliesTo:"ALL",      isInclusive:false, description:"1.5% TOT on gross receipts. For businesses KES 1M–5M turnover."),
-    TaxRateItem(id:"3", taxType:"WHT",    name:"Withholding Tax",  ratePercent:3.0,  isActive:true,  appliesTo:"SERVICES", isInclusive:false, description:"3% WHT deducted at source on qualifying payments."),
-    TaxRateItem(id:"4", taxType:"EXCISE", name:"Excise Duty",      ratePercent:20.0, isActive:false, appliesTo:"PRODUCTS", isInclusive:false, description:"Excise Duty on alcohol, tobacco & specified goods."),
-]
-
-private let sampleRemittances = [
-    RemittanceItem(id:"1", taxType:"VAT", period:"Feb 2026", taxableAmount:420000, taxAmount:67200, status:"PAID",    receiptNumber:"KRA-2026-02-VAT-001"),
-    RemittanceItem(id:"2", taxType:"VAT", period:"Jan 2026", taxableAmount:380000, taxAmount:60800, status:"PAID",    receiptNumber:"KRA-2026-01-VAT-001"),
-    RemittanceItem(id:"3", taxType:"WHT", period:"Feb 2026", taxableAmount:45000,  taxAmount:1350,  status:"FILED",   receiptNumber:"KRA-2026-02-WHT-001"),
-    RemittanceItem(id:"4", taxType:"VAT", period:"Mar 2026", taxableAmount:0,       taxAmount:0,     status:"PENDING", receiptNumber:nil),
-]
 
 let b360Green = Color(red: 0.11, green: 0.55, blue: 0.20)
 

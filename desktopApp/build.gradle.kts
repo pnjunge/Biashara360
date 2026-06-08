@@ -17,6 +17,7 @@ kotlin {
                 implementation(compose.materialIconsExtended)
                 implementation(compose.components.resources)
                 implementation(libs.kotlinx.coroutines.swing)
+                implementation(libs.kotlinx.datetime)
                 implementation(libs.koin.core)
                 implementation(libs.ktor.client.java)
                 implementation(libs.kotlinx.serialization.json)
@@ -35,9 +36,9 @@ compose.desktop {
             description = "Biashara360ERP - Business Management for Kenyan Traders"
             copyright = "© 2025 Biashara360ERP"
             vendor = "Biashara360ERP"
-            linux { iconFile.set(project.file("src/main/resources/icon.png")) }
-            windows { iconFile.set(project.file("src/main/resources/icon.ico")) }
-            macOS { iconFile.set(project.file("src/main/resources/icon.icns")) }
+            linux { iconFile.set(project.file("src/desktopMain/resources/icon.png")) }
+            windows { iconFile.set(project.file("src/desktopMain/resources/icon.ico")) }
+            macOS { iconFile.set(project.file("src/desktopMain/resources/icon.icns")) }
         }
     }
 }

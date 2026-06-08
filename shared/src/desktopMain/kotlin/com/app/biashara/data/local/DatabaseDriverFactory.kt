@@ -8,9 +8,16 @@ import java.io.File
 actual class DatabaseDriverFactory {
     actual fun createDriver(): SqlDriver {
         val dbPath = File(System.getProperty("user.home"), ".biashara360/biashara360.db")
+        val isNewDb = !dbPath.exists()
         dbPath.parentFile.mkdirs()
         val driver = JdbcSqliteDriver("jdbc:sqlite:${dbPath.absolutePath}")
-        Biashara360Database.Schema.create(driver)
+        if (isNewDb) {
+            try {
+                Biashara360Database.Schema.create(driver)
+            } catch (e: Exception) {
+                // Ignore if schema already created
+            }
+        }
         return driver
     }
 }

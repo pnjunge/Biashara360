@@ -63,7 +63,7 @@ export function CustomersPage() {
           footer={<><Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn><Btn onClick={handleAddCustomer} disabled={saving}>{saving ? 'Saving...' : 'Add Customer'}</Btn></>}>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
               <Input label="Full Name *" value={form.name} onChange={f('name')} placeholder="e.g. Jane Wanjiru" />
               <Input label="Phone *" value={form.phone} onChange={f('phone')} placeholder="+254..." />
             </div>
@@ -78,7 +78,7 @@ export function CustomersPage() {
         <Modal title={viewCustomer.name} onClose={() => setViewCustomer(null)}
           footer={<Btn variant="secondary" onClick={() => setViewCustomer(null)}>Close</Btn>}>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Phone</span><div style={{ fontWeight:600 }}>{viewCustomer.phone}</div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Email</span><div style={{ fontWeight:600 }}>{viewCustomer.email || '—'}</div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Location</span><div style={{ fontWeight:600 }}>{viewCustomer.location || '—'}</div></div>
@@ -101,7 +101,7 @@ export function CustomersPage() {
       <PageHeader title="Customers"
         action={<Btn icon={<Plus size={14} />} onClick={openAdd}>Add Customer</Btn>} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div className="responsive-grid responsive-grid-4" style={{ gap: 12 }}>
         <KpiCard title="Total Customers" value={String(customers.length)} change="All time"         icon={<Users size={18} />} color="var(--b360-blue)" />
         <KpiCard title="VIP Customers"   value={String(customers.filter(c => customerStatus(c) === 'VIP').length)} change="Top spenders" icon={<Users size={18} />} color="var(--b360-green)" />
         <KpiCard title="New Customers"   value={String(customers.filter(c => customerStatus(c) === 'NEW').length)} change="First order"   icon={<Users size={18} />} color="var(--b360-amber)" />

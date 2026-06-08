@@ -23,6 +23,7 @@ interface OrderRepository {
     suspend fun updateOrder(order: Order): Result<Order>
     suspend fun updatePaymentStatus(orderId: String, status: PaymentStatus, txCode: String?): Result<Unit>
     suspend fun updateDeliveryStatus(orderId: String, status: DeliveryStatus): Result<Unit>
+    suspend fun cancelOrder(orderId: String): Result<Unit>
     fun getOrdersForCustomer(customerId: String): Flow<List<Order>>
     fun getOrdersByDateRange(businessId: String, start: LocalDate, end: LocalDate): Flow<List<Order>>
     suspend fun generateOrderNumber(businessId: String): String
@@ -31,6 +32,7 @@ interface OrderRepository {
 interface CustomerRepository {
     fun getCustomers(businessId: String): Flow<List<Customer>>
     fun getTopCustomers(businessId: String, limit: Int = 10): Flow<List<Customer>>
+    fun getTopCustomersWithStats(businessId: String, limit: Int = 10): Flow<List<Pair<Customer, CustomerStats>>>
     fun getRepeatCustomers(businessId: String): Flow<List<Customer>>
     suspend fun getCustomer(id: String): Customer?
     suspend fun getCustomerByPhone(phone: String): Customer?

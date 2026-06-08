@@ -32,8 +32,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     buildFeatures {
@@ -46,7 +46,9 @@ android {
 }
 
 kotlin {
-    androidTarget()
+    androidTarget {
+        compilations.all { kotlinOptions { jvmTarget = "17" } }
+    }
     sourceSets {
         androidMain.dependencies {
             implementation(project(":shared"))
@@ -60,6 +62,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodel.compose)
             implementation(libs.androidx.datastore.preferences)
             implementation(libs.kotlinx.coroutines.android)
+            implementation(libs.kotlinx.datetime)
             implementation(libs.koin.android)
             implementation(libs.koin.compose)
             implementation(libs.coil.compose)
@@ -67,8 +70,7 @@ kotlin {
     }
 }
 
-// platform() / BOM and debugImplementation must live in the standard dependencies block
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
-    debugImplementation(libs.androidx.compose.ui.tooling)
 }
+

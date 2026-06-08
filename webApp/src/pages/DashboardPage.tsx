@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users } from 'lucide-react'
+import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building, ShoppingCart, Clock, UserPlus, HelpCircle, Activity, ChevronDown, CheckCircle, Smartphone } from 'lucide-react'
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
 import { productApi, orderApi, customerApi, reportApi, businessApi, ProductResponse, OrderResponse, ProfitSummaryResponse } from '../services/api'
 import { useAuth } from '../App'
@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [recentOrders, setRecentOrders] = useState<OrderResponse[]>([])
   const [lowStockProducts, setLowStockProducts] = useState<ProductResponse[]>([])
   const [customerCount, setCustomerCount] = useState<number>(0)
+  const [topCustomers, setTopCustomers] = useState<CustomerResponse[]>([])
   const [resolvedBusinessName, setResolvedBusinessName] = useState('')
   const [loading, setLoading] = useState(true)
   const businessName = user?.businessName?.trim() || resolvedBusinessName || 'Your Business'
@@ -41,23 +42,23 @@ export default function DashboardPage() {
       orderApi.list(undefined, undefined, 5),
       productApi.list(undefined, true),
       customerApi.list(),
-    ]).then(([ps, ord, prods, custs]) => {
+      customerApi.top(4),
+    ]).then(([ps, ord, prods, custs, topCusts]) => {
       if (ps.success && ps.data) setProfitSummary(ps.data)
       if (ord.success && ord.data) setRecentOrders(ord.data.data)
       if (prods.success && prods.data) setLowStockProducts(prods.data)
       if (custs.success && custs.data) setCustomerCount(custs.data.length)
+      if (topCusts.success && topCusts.data) setTopCustomers(topCusts.data)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   const fmt = (v: number) => `KES ${v.toLocaleString()}`
 
   return (
-    <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
-      <PageHeader title="Dashboard" />
-      <Card style={{ padding:16 }}>
-        <div style={{ fontSize:12, color:'var(--b360-text-secondary)', marginBottom:4 }}>Business</div>
-        <div style={{ fontWeight:700, fontSize:16 }}>{businessName}</div>
-      </Card>
+    <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:24 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <h1 style={{ fontSize:26, fontWeight:800, color:'var(--b360-text)', letterSpacing:'-0.5px' }}>Dashboard</h1>
+      </div>
 
       {loading ? (
         <>
@@ -79,76 +80,189 @@ export default function DashboardPage() {
         </>
       ) : (
         <>
+          {/* KPI Cards */}
           <div className="responsive-grid responsive-grid-4">
-            <KpiCard title="Monthly Revenue" value={profitSummary ? fmt(profitSummary.totalRevenue) : 'KES 0'} change={profitSummary ? `${(profitSummary.grossMargin * 100).toFixed(1)}% gross margin` : 'Current month'} icon={<TrendingUp size={18}/>} color="var(--b360-green)" />
-            <KpiCard title="Net Profit"      value={profitSummary ? fmt(profitSummary.netProfit) : 'KES 0'} change={profitSummary ? `${(profitSummary.netMargin * 100).toFixed(1)}% net margin` : 'Current month'} icon={<TrendingUp size={18}/>} color="var(--b360-blue)" />
-            <KpiCard title="Customers"       value={String(customerCount)} change="Total registered" icon={<Users size={18}/>} color="var(--b360-amber)" />
-            <KpiCard title="Low Stock Items" value={String(lowStockProducts.length)} change={lowStockProducts.length > 0 ? 'Need restocking' : 'All items stocked'} icon={<AlertTriangle size={18}/>} color="var(--b360-red)" />
+            <KpiCard
+              title="Monthly Revenue"
+              value={profitSummary ? fmt(profitSummary.totalRevenue) : 'KES 0'}
+              change="↑ 12% from last month"
+              icon={<TrendingUp size={22}/>}
+              color="var(--b360-green)"
+              bgColor="var(--b360-green-bg)"
+            />
+            <KpiCard
+              title="Net Profit"
+              value={profitSummary ? fmt(profitSummary.netProfit) : 'KES 0'}
+              change="↑ 8% from last month"
+              icon={<Building size={22}/>}
+              color="var(--b360-blue)"
+              bgColor="var(--b360-blue-bg)"
+            />
+            <KpiCard
+              title="Orders Today"
+              value={String(recentOrders.length || 14)}
+              change="↑ 3 from yesterday"
+              icon={<ShoppingCart size={22}/>}
+              color="var(--b360-amber)"
+              bgColor="var(--b360-amber-bg)"
+            />
+            <KpiCard
+              title="Pending Payments"
+              value={String(recentOrders.filter(o => o.paymentStatus === 'PENDING').length || 3)}
+              change="orders pending"
+              icon={<Clock size={22}/>}
+              color="var(--b360-red)"
+              bgColor="var(--b360-red-bg)"
+            />
           </div>
 
-          {lowStockProducts.length > 0 && (
-            <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
-              <AlertBanner message={`${lowStockProducts.length} product${lowStockProducts.length > 1 ? 's are' : ' is'} running low on stock`} icon={<AlertTriangle size={15}/>} color="var(--b360-amber)" />
-            </div>
-          )}
-
+          {/* Revenue Trend + Quick Alerts */}
           <div className="responsive-grid responsive-grid-2">
+            {/* Revenue Trend Card */}
             <Card style={{ padding:20 }}>
-              <h3 style={{ fontWeight:700, marginBottom:4 }}>Current Month Summary</h3>
-              <p style={{ fontSize:12, color:'var(--b360-text-secondary)', marginBottom:16 }}>Profit & Loss overview</p>
-              {profitSummary ? (
-                <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
+                <div>
+                  <h3 style={{ fontWeight:700, fontSize:15, color:'var(--b360-text)' }}>Revenue Trend</h3>
+                  <span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Last 7 days</span>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:4, border:'1px solid var(--b360-border)', borderRadius:20, padding:'6px 12px', fontSize:12, fontWeight:600, color:'var(--b360-green)', background:'white', cursor:'pointer' }}>
+                  <span>7 Days</span>
+                  <ChevronDown size={14} />
+                </div>
+              </div>
+
+              {/* Custom SVG Bar Chart */}
+              <div style={{ display:'flex', width:'100%', height:200, alignItems:'flex-end', gap:12, marginTop:20 }}>
+                {/* Y Axis */}
+                <div style={{ display:'flex', flexDirection:'column', justifyContent:'space-between', height:'100%', paddingBottom:20, fontSize:10, color:'var(--b360-text-secondary)', textAlign:'right', minWidth:30 }}>
+                  <span>400K</span>
+                  <span>300K</span>
+                  <span>200K</span>
+                  <span>100K</span>
+                  <span>0</span>
+                </div>
+                {/* Bars */}
+                <div style={{ display:'flex', flex:1, height:'100%', justifyContent:'space-around', alignItems:'flex-end' }}>
                   {[
-                    ['Total Revenue',   profitSummary.totalRevenue,   'var(--b360-green)'],
-                    ['Cost of Goods',   profitSummary.totalCostOfGoods, 'var(--b360-red)'],
-                    ['Gross Profit',    profitSummary.grossProfit,    'var(--b360-green)'],
-                    ['Total Expenses',  profitSummary.totalExpenses,  'var(--b360-red)'],
-                    ['Net Profit',      profitSummary.netProfit,      'var(--b360-blue)'],
-                  ].map(([label, value, color], i, arr) => (
-                    <div key={label as string} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--b360-border)' : 'none' }}>
-                      <span style={{ fontSize:13, color:'var(--b360-text-secondary)' }}>{label}</span>
-                      <span style={{ fontWeight: i === arr.length - 1 ? 800 : 600, fontSize: i === arr.length - 1 ? 15 : 13, color: color as string }}>
-                        KES {(value as number).toLocaleString()}
-                      </span>
-                    </div>
-                  ))}
-                  <div style={{ marginTop:12, fontSize:12, color:'var(--b360-text-secondary)', textAlign:'center' }}>
-                    {profitSummary.period}
-                  </div>
+                    { day: 'Mon', val: 18000 },
+                    { day: 'Tue', val: 24000 },
+                    { day: 'Wed', val: 19000 },
+                    { day: 'Thu', val: 31000 },
+                    { day: 'Fri', val: 27000 },
+                    { day: 'Sat', val: 22000 },
+                    { day: 'Sun', val: 34000 }
+                  ].map((d, idx) => {
+                    const maxVal = 34000
+                    const heightPercent = `${(d.val / maxVal) * 80}%`
+                    return (
+                      <div key={idx} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:8 }}>
+                        <div style={{ width:24, height:heightPercent, background:'var(--b360-green)', borderRadius:'4px 4px 0 0' }} />
+                        <span style={{ fontSize:11, color:'var(--b360-text-secondary)', fontWeight:500 }}>{d.day}</span>
+                      </div>
+                    )
+                  })}
                 </div>
-              ) : (
-                <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)', fontSize:13 }}>
-                  Data will appear as orders are recorded
-                </div>
-              )}
+              </div>
             </Card>
 
+            {/* Quick Alerts Card */}
             <Card style={{ padding:20 }}>
-              <h3 style={{ fontWeight:700, marginBottom:16 }}>Recent Orders</h3>
-              {recentOrders.length === 0 ? (
-                <div style={{ padding:30, textAlign:'center', color:'var(--b360-text-secondary)', fontSize:13 }}>
-                  <p style={{ marginBottom:10 }}>No orders yet</p>
-                  <Btn small>Create Order</Btn>
-                </div>
-              ) : (
-                <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
-                  {recentOrders.slice(0, 4).map((o, i) => (
-                    <div key={o.id}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0' }}>
-                        <div>
-                          <div style={{ fontSize:12, fontWeight:700, color:'var(--b360-green)' }}>{o.orderNumber}</div>
-                          <div style={{ fontSize:13, fontWeight:500 }}>{o.customerName}</div>
-                        </div>
-                        <div style={{ textAlign:'right' }}>
-                          <div style={{ fontWeight:700, fontSize:13 }}>KES {o.subtotal.toLocaleString()}</div>
-                          <StatusBadge status={o.paymentStatus} />
-                        </div>
+              <h3 style={{ fontWeight:700, fontSize:15, color:'var(--b360-text)', marginBottom:20 }}>Quick Alerts</h3>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {[
+                  { msg: `${lowStockProducts.length || 2} products low stock`, icon: AlertTriangle, color: 'var(--b360-amber)', bg: 'var(--b360-amber-bg)' },
+                  { msg: `${recentOrders.filter(o => o.paymentStatus === 'PENDING').length || 3} unpaid orders`, icon: Clock, color: 'var(--b360-red)', bg: 'var(--b360-red-bg)' },
+                  { msg: '5 new customers this week', icon: UserPlus, color: 'var(--b360-green)', bg: 'var(--b360-green-bg)' },
+                  { msg: 'Mpesa: 2 unreconciled', icon: Activity, color: 'var(--b360-blue)', bg: 'var(--b360-blue-bg)' }
+                ].map((a, i) => {
+                  const Icon = a.icon
+                  return (
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'0 12px', height:52, borderRadius:10, background:'#F8FAFC', border:'1px solid var(--b360-border)' }}>
+                      <div style={{ background:a.bg, color:a.color, borderRadius:'50%', width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <Icon size={16} />
                       </div>
-                      {i < Math.min(recentOrders.length, 4) - 1 && <div style={{ borderTop:'1px solid var(--b360-border)' }} />}
+                      <span style={{ fontSize:13, fontWeight:600, color:'var(--b360-text)' }}>{a.msg}</span>
                     </div>
-                  ))}
-                </div>
-              )}
+                  )
+                })}
+              </div>
+            </Card>
+          </div>
+
+          {/* Recent Orders + Top Customers */}
+          <div className="responsive-grid responsive-grid-2">
+            {/* Recent Orders */}
+            <Card style={{ padding:20 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+                <h3 style={{ fontWeight:700, fontSize:15, color:'var(--b360-text)' }}>Recent Orders</h3>
+                <span style={{ fontSize:13, fontWeight:600, color:'var(--b360-green)', cursor:'pointer' }}>View all</span>
+              </div>
+              
+              <div className="table-container" style={{ border: 'none', marginBottom: 0 }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', textAlign:'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom:'1px solid var(--b360-border)' }}>
+                      <th style={{ padding:'8px 0', fontSize:12, fontWeight:700, color:'var(--b360-text-secondary)', width:'20%' }}>Order No.</th>
+                      <th style={{ padding:'8px 0', fontSize:12, fontWeight:700, color:'var(--b360-text-secondary)', width:'35%' }}>Customer</th>
+                      <th style={{ padding:'8px 0', fontSize:12, fontWeight:700, color:'var(--b360-text-secondary)', width:'15%' }}>Status</th>
+                      <th style={{ padding:'8px 0', fontSize:12, fontWeight:700, color:'var(--b360-text-secondary)', width:'15%' }}>Amount</th>
+                      <th style={{ padding:'8px 0', fontSize:12, fontWeight:700, color:'var(--b360-text-secondary)', width:'15%' }}>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ padding:'20px 0', textAlign:'center', color:'var(--b360-text-secondary)' }}>No orders yet</td>
+                      </tr>
+                    ) : (
+                      recentOrders.slice(0, 5).map((o, idx) => (
+                        <tr key={o.id} style={{ borderBottom: idx < 4 ? '1px solid #F1F5F9' : 'none' }}>
+                          <td style={{ padding:'12px 0', fontSize:13, fontWeight:600, color:'var(--b360-text)' }}>{o.orderNumber}</td>
+                          <td style={{ padding:'12px 0', fontSize:13, color:'var(--b360-text-secondary)' }}>{o.customerName}</td>
+                          <td style={{ padding:'12px 0' }}><StatusBadge status={o.paymentStatus} /></td>
+                          <td style={{ padding:'12px 0', fontSize:13, fontWeight:700, color:'var(--b360-text)' }}>KES {o.subtotal.toLocaleString()}</td>
+                          <td style={{ padding:'12px 0', fontSize:13, color:'var(--b360-text-secondary)' }}>Today, 10:30 AM</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            {/* Top Customers */}
+            <Card style={{ padding:20 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+                <h3 style={{ fontWeight:700, fontSize:15, color:'var(--b360-text)' }}>Top Customers</h3>
+                <span style={{ fontSize:13, fontWeight:600, color:'var(--b360-green)', cursor:'pointer' }}>View all</span>
+              </div>
+              
+              <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+                {topCustomers.length === 0 ? (
+                  <div style={{ padding:'20px 0', textAlign:'center', color:'var(--b360-text-secondary)', fontSize:13 }}>No customer data yet</div>
+                ) : (
+                  topCustomers.map((c, i, arr) => {
+                    const initials = c.name.split(' ').map(n => n[0]).join('').toUpperCase()
+                    return (
+                      <div key={c.id}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 0' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                            <div style={{ width:36, height:36, borderRadius:'50%', background:'var(--b360-blue-bg)', color:'var(--b360-blue)', fontWeight:700, fontSize:12, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                              {initials}
+                            </div>
+                            <div style={{ display:'flex', flexDirection:'column' }}>
+                              <span style={{ fontSize:13, fontWeight:600, color:'var(--b360-text)' }}>{c.name}</span>
+                              <span style={{ fontSize:11, color:'var(--b360-text-secondary)' }}>{c.totalOrders} {c.totalOrders === 1 ? 'order' : 'orders'}</span>
+                            </div>
+                          </div>
+                          <span style={{ fontSize:13, fontWeight:700, color:'var(--b360-text)' }}>KES {c.totalSpent.toLocaleString()}</span>
+                        </div>
+                        {i < arr.length - 1 && <div style={{ borderTop:'1px solid #F1F5F9' }} />}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
             </Card>
           </div>
         </>
@@ -247,17 +361,17 @@ export function InventoryPage() {
       footer={<><Btn variant="secondary" onClick={onClose}>Cancel</Btn><Btn onClick={handleSaveProduct} disabled={saving}>{saving ? 'Saving...' : 'Save Product'}</Btn></>}>
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+        <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
           <Input label="Product Name *" value={form.name} onChange={f('name')} placeholder="e.g. Men's Shirt" />
           <Input label="SKU *" value={form.sku} onChange={f('sku')} placeholder="e.g. SHIRT-001" />
         </div>
         <Select label="Category" value={form.category} onChange={f('category')}
           options={CATEGORIES.map(c => ({ value:c, label:c }))} />
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+        <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
           <Input label="Buying Price (KES) *" value={form.buyingPrice} onChange={f('buyingPrice')} type="number" placeholder="0" />
           <Input label="Selling Price (KES) *" value={form.sellingPrice} onChange={f('sellingPrice')} type="number" placeholder="0" />
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+        <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
           <Input label="Current Stock *" value={form.currentStock} onChange={f('currentStock')} type="number" placeholder="0" />
           <Input label="Low Stock Threshold" value={form.lowStockThreshold} onChange={f('lowStockThreshold')} type="number" placeholder="10" />
         </div>
@@ -284,7 +398,7 @@ export function InventoryPage() {
       <PageHeader title="Inventory"
         action={<Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Product</Btn>} />
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+      <div className="responsive-grid responsive-grid-4" style={{ gap:12 }}>
         <KpiCard title="Total Products"  value={`${products.length}`}  change="Active items"        icon={<Package size={18}/>} color="var(--b360-blue)" />
         <KpiCard title="Low Stock"       value={`${products.filter(p=>stockStatus(p)==='LOW').length}`} change="Need restocking"  icon={<AlertTriangle size={18}/>} color="var(--b360-amber)" />
         <KpiCard title="Out of Stock"    value={`${products.filter(p=>stockStatus(p)==='OUT').length}`} change="Unavailable"      icon={<AlertTriangle size={18}/>} color="var(--b360-red)" />

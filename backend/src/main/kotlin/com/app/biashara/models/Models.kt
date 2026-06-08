@@ -1,6 +1,13 @@
 package com.app.biashara.models
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.*
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -29,6 +36,9 @@ data class LoginResponse(
 
 @Serializable
 data class OtpVerifyRequest(val userId: String, val otp: String, val channel: String)
+
+@Serializable
+data class ResendOtpRequest(val userId: String, val channel: String = "SMS")
 
 @Serializable
 data class AuthResponse(
@@ -247,14 +257,34 @@ data class MpesaCallbackMetadata(
     val Item: List<MpesaCallbackItem>
 )
 
+// Safaricom sends Value as a JSON number (not string) for Amount, PhoneNumber, etc.
+// This serializer coerces any JSON primitive into a Kotlin String.
+object AnyToStringSerializer : KSerializer<String?> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("AnyToString", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: String?) { encoder.encodeString(value ?: "") }
+    override fun deserialize(decoder: Decoder): String? {
+        val json = (decoder as? JsonDecoder)?.decodeJsonElement() ?: return decoder.decodeString()
+        return when (json) {
+            is JsonNull    -> null
+            is JsonPrimitive -> json.content   // works for both quoted strings and bare numbers
+            else           -> json.toString()
+        }
+    }
+}
+
 @Serializable
 data class MpesaCallbackItem(
     val Name: String,
+    @Serializable(with = AnyToStringSerializer::class)
     val Value: String? = null
 )
 
 @Serializable
 data class ReconcileRequest(val orderId: String)
+
+/** Typed acknowledgement sent back to Safaricom after processing a callback. */
+@Serializable
+data class DarajaAck(val ResultCode: Int = 0, val ResultDesc: String = "Accepted")
 
 // ─── Dashboard / Reports ──────────────────────────────────────────────────────
 
@@ -354,6 +384,13 @@ data class BusinessProfileResponse(
 )
 
 // ─── Super Admin — Business Management ───────────────────────────────────────
+
+/** Create a business without an admin user — admin is added later via Users menu */
+@Serializable
+data class CreateBusinessOnlyRequest(
+    val businessName: String,
+    val businessType: String
+)
 
 @Serializable
 data class CreateBusinessWithAdminRequest(

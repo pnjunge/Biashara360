@@ -114,13 +114,7 @@ class OrdersViewModel: ObservableObject {
         let items: Int
     }
 
-    @Published var orders: [Order] = [
-        .init(number: "B360-0042", customerName: "Amina Hassan",  customerPhone: "0712345678", deliveryLocation: "Westlands",       paymentStatus: "PAID",    deliveryStatus: "DELIVERED",  amount: 4500, date: "Today 2:30PM",  items: 2),
-        .init(number: "B360-0041", customerName: "Brian Otieno",  customerPhone: "0723456789", deliveryLocation: "Eastlands",        paymentStatus: "PENDING", deliveryStatus: "PROCESSING", amount: 1500, date: "Today 11:00AM", items: 1),
-        .init(number: "B360-0040", customerName: "Grace Njeri",   customerPhone: "0734567890", deliveryLocation: "Karen",            paymentStatus: "COD",     deliveryStatus: "SHIPPED",    amount: 3200, date: "Yesterday",     items: 3),
-        .init(number: "B360-0039", customerName: "David Kamau",   customerPhone: "0745678901", deliveryLocation: "Kiambu",           paymentStatus: "PAID",    deliveryStatus: "DELIVERED",  amount: 6800, date: "Yesterday",     items: 4),
-        .init(number: "B360-0038", customerName: "Mary Akinyi",   customerPhone: "0756789012", deliveryLocation: "Umoja, Nairobi",   paymentStatus: "PENDING", deliveryStatus: "PENDING",    amount: 700,  date: "Mon Mar 4",     items: 1),
-    ]
+    @Published var orders: [Order] = []
 
     @Published var filterStatus = "All"
     let statusFilters = ["All", "PAID", "PENDING", "COD"]
@@ -144,13 +138,7 @@ class CustomersViewModel: ObservableObject {
         var isRepeat: Bool { totalOrders > 1 }
     }
 
-    @Published var customers: [Customer] = [
-        .init(name: "Amina Hassan",  phone: "0712345678", email: "amina@gmail.com",  location: "Westlands",  totalOrders: 12, totalSpent: 54000, loyaltyPoints: 540),
-        .init(name: "Brian Otieno",  phone: "0723456789", email: nil,               location: "Eastlands",   totalOrders: 5,  totalSpent: 18500, loyaltyPoints: 185),
-        .init(name: "Grace Njeri",   phone: "0734567890", email: "grace@gmail.com",  location: "Karen",      totalOrders: 8,  totalSpent: 31200, loyaltyPoints: 312),
-        .init(name: "David Kamau",   phone: "0745678901", email: nil,               location: "Kiambu",      totalOrders: 4,  totalSpent: 16800, loyaltyPoints: 168),
-        .init(name: "Mary Akinyi",   phone: "0756789012", email: "mary@yahoo.com",   location: "Umoja",      totalOrders: 3,  totalSpent: 9800,  loyaltyPoints: 98),
-    ]
+    @Published var customers: [Customer] = []
 
     @Published var searchText = ""
 
@@ -170,13 +158,7 @@ class ExpensesViewModel: ObservableObject {
         let amount: Double
     }
 
-    @Published var expenses: [Expense] = [
-        .init(description: "Facebook & Instagram Ads", category: "ADVERTISING",    date: "Mar 7", amount: 5000),
-        .init(description: "Packaging materials",       category: "PACKAGING",      date: "Mar 6", amount: 1200),
-        .init(description: "Rider delivery fees",       category: "DELIVERY",       date: "Mar 6", amount: 800),
-        .init(description: "Monthly shop rent",          category: "RENT",           date: "Mar 1", amount: 15000),
-        .init(description: "Fabric & stock purchase",   category: "STOCK_PURCHASE", date: "Mar 1", amount: 45000),
-    ]
+    @Published var expenses: [Expense] = []
 
     var totalThisMonth: Double { expenses.reduce(0) { $0 + $1.amount } }
 

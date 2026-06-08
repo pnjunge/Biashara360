@@ -1,16 +1,19 @@
 import React from 'react'
 
 // ── KPI Card ──────────────────────────────────────────────────────────────────
-interface KpiCardProps { title: string; value: string; change: string; icon: React.ReactNode; color: string }
-export function KpiCard({ title, value, change, icon, color }: KpiCardProps) {
+interface KpiCardProps { title: string; value: string; change: string; icon: React.ReactNode; color: string; bgColor?: string }
+export function KpiCard({ title, value, change, icon, color, bgColor }: KpiCardProps) {
+  const bg = bgColor || `${color}12`
   return (
-    <div style={{ background:'white', borderRadius:12, padding:20, boxShadow:'var(--shadow-sm)', border:'1px solid var(--b360-border)' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
-        <span style={{ fontSize:12, color:'var(--b360-text-secondary)', fontWeight:500 }}>{title}</span>
-        <div style={{ background:`${color}18`, borderRadius:8, padding:8, color, display:'flex', alignItems:'center' }}>{icon}</div>
+    <div className="kpi-card" style={{ background:'white', borderRadius:'var(--radius-md)', padding:20, boxShadow:'var(--shadow-sm)', border:'1px solid var(--b360-border)', display:'flex', alignItems:'center', gap:16 }}>
+      <div style={{ background:bg, borderRadius:'50%', width:48, height:48, minWidth:48, color, display:'flex', alignItems:'center', justifyContent:'center' }}>
+        {icon}
       </div>
-      <div style={{ fontSize:22, fontWeight:800, color, marginBottom:4 }}>{value}</div>
-      <div style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>{change}</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+        <span style={{ fontSize:12, color:'var(--b360-text-secondary)', fontWeight:600 }}>{title}</span>
+        <div style={{ fontSize:22, fontWeight:800, color:'var(--b360-text)', letterSpacing:'-0.5px' }}>{value}</div>
+        <div style={{ fontSize:11, color:'var(--b360-green)', fontWeight:600 }}>{change}</div>
+      </div>
     </div>
   )
 }
@@ -29,9 +32,9 @@ export function StatusBadge({ status }: { status: string }) {
     RECONCILED: ['var(--b360-green)',  'var(--b360-green-bg)'],
     MATCHED:    ['var(--b360-green)',  'var(--b360-green-bg)'],
   }
-  const [color, bg] = map[status.toUpperCase()] ?? ['var(--b360-text-secondary)', '#f5f5f5']
+  const [color, bg] = map[status.toUpperCase()] ?? ['var(--b360-text-secondary)', '#f1f5f9']
   return (
-    <span style={{ color, background:bg, borderRadius:20, padding:'3px 10px', fontSize:11, fontWeight:700 }}>
+    <span style={{ color, background:bg, borderRadius:20, padding:'4px 10px', fontSize:10, fontWeight:700, letterSpacing:'0.25px', display:'inline-block' }}>
       {status}
     </span>
   )
@@ -41,7 +44,7 @@ export function StatusBadge({ status }: { status: string }) {
 export function PageHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-      <h1 style={{ fontSize:22, fontWeight:800 }}>{title}</h1>
+      <h1 style={{ fontSize:26, fontWeight:800, letterSpacing:'-0.5px', color:'var(--b360-text)' }}>{title}</h1>
       {action}
     </div>
   )
@@ -50,7 +53,7 @@ export function PageHeader({ title, action }: { title: string; action?: React.Re
 // ── Card ──────────────────────────────────────────────────────────────────────
 export function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ background:'white', borderRadius:12, border:'1px solid var(--b360-border)', boxShadow:'var(--shadow-md)', ...style }}>
+    <div style={{ background:'white', borderRadius:'var(--radius-md)', border:'1px solid var(--b360-border)', boxShadow:'var(--shadow-sm)', ...style }}>
       {children}
     </div>
   )
@@ -70,10 +73,11 @@ export function Btn({ children, variant='primary', onClick, icon, small, disable
     danger:    { background:'var(--b360-red-bg)', color:'var(--b360-red)', border:'1px solid var(--b360-red)' },
   }
   return (
-    <button type={type} onClick={onClick} disabled={disabled} style={{
-      display:'flex', alignItems:'center', gap:6, padding: small ? '6px 12px' : '9px 16px',
-      borderRadius:8, fontSize: small ? 12 : 13, fontWeight:600, cursor: disabled ? 'not-allowed' : 'pointer',
-      transition:'opacity 0.15s', opacity: disabled ? 0.6 : 1,
+    <button className="btn" type={type} onClick={onClick} disabled={disabled} style={{
+      display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6, padding: small ? '6px 14px' : '10px 18px',
+      borderRadius:'var(--radius-sm)', fontSize: small ? 12 : 13, fontWeight:600, cursor: disabled ? 'not-allowed' : 'pointer',
+      opacity: disabled ? 0.6 : 1,
+      boxShadow: variant === 'primary' ? '0 2px 4px rgba(16, 185, 129, 0.1)' : 'none',
       ...styles[variant]
     }}>
       {icon}{children}
@@ -84,12 +88,12 @@ export function Btn({ children, variant='primary', onClick, icon, small, disable
 // ── Table ─────────────────────────────────────────────────────────────────────
 export function DataTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
   return (
-    <div style={{ overflowX:'auto', borderRadius:12 }}>
+    <div style={{ overflowX:'auto', borderRadius:'var(--radius-md)', border:'1px solid var(--b360-border)' }}>
       <table style={{ width:'100%', borderCollapse:'collapse' }}>
         <thead>
-          <tr style={{ background:'#F9FAFB', borderBottom:'2px solid var(--b360-border)' }}>
+          <tr style={{ background:'var(--b360-surface)', borderBottom:'2px solid var(--b360-border)' }}>
             {headers.map((h, i) => (
-              <th key={i} style={{ position:'sticky', top:0, zIndex:1, background:'#F9FAFB', padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--b360-text-secondary)', textTransform:'uppercase', letterSpacing:0.5 }}>
+              <th key={i} style={{ position:'sticky', top:0, zIndex:1, background:'var(--b360-surface)', padding:'12px 18px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--b360-text-secondary)', textTransform:'uppercase', letterSpacing:0.5 }}>
                 {h}
               </th>
             ))}
@@ -98,11 +102,11 @@ export function DataTable({ headers, rows }: { headers: string[]; rows: React.Re
         <tbody>
           {rows.map((row, i) => (
             <tr key={i} style={{ borderBottom:'1px solid var(--b360-border)', transition:'background 0.1s' }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--b360-surface)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               {row.map((cell, j) => (
-                <td key={j} style={{ padding:'12px 16px', fontSize:13 }}>{cell}</td>
+                <td key={j} style={{ padding:'14px 18px', fontSize:13, color:'var(--b360-text)' }}>{cell}</td>
               ))}
             </tr>
           ))}
@@ -115,8 +119,8 @@ export function DataTable({ headers, rows }: { headers: string[]; rows: React.Re
 // ── Alert Banner ──────────────────────────────────────────────────────────────
 export function AlertBanner({ message, icon, color }: { message: string; icon: React.ReactNode; color: string }) {
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:`${color}12`, borderRadius:8, color }}>
-      {icon}<span style={{ fontSize:13, fontWeight:500 }}>{message}</span>
+    <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:`${color}12`, borderRadius:'var(--radius-sm)', color }}>
+      {icon}<span style={{ fontSize:13, fontWeight:600 }}>{message}</span>
     </div>
   )
 }
@@ -124,7 +128,7 @@ export function AlertBanner({ message, icon, color }: { message: string; icon: R
 // ── Progress Bar ──────────────────────────────────────────────────────────────
 export function ProgressBar({ value, color = 'var(--b360-green)' }: { value: number; color?: string }) {
   return (
-    <div style={{ background:'#F0F0F0', borderRadius:4, height:6, overflow:'hidden' }}>
+    <div style={{ background:'#F1F5F9', borderRadius:4, height:6, overflow:'hidden' }}>
       <div style={{ width:`${Math.min(100, value * 100)}%`, background:color, height:'100%', borderRadius:4, transition:'width 0.3s' }} />
     </div>
   )
@@ -135,11 +139,11 @@ export function Input({ label, placeholder, value, onChange, type = 'text' }:
   { label?: string; placeholder?: string; value: string; onChange: (v: string) => void; type?: string }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-      {label && <label style={{ fontSize:12, fontWeight:500, color:'var(--b360-text-secondary)' }}>{label}</label>}
+      {label && <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)' }}>{label}</label>}
       <input
         type={type} placeholder={placeholder} value={value}
         onChange={e => onChange(e.target.value)}
-        style={{ padding:'9px 12px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit' }}
+        style={{ padding:'10px 14px', border:'1px solid var(--b360-border)', borderRadius:'var(--radius-sm)', fontSize:13, outline:'none', fontFamily:'inherit', background:'white', color:'var(--b360-text)' }}
       />
     </div>
   )
@@ -150,11 +154,11 @@ export function Modal({ title, onClose, children, footer, wide }: {
   title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean
 }) {
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
-      <div style={{ background:'white', borderRadius:16, width:'100%', maxWidth: wide ? 680 : 480, maxHeight:'90vh', overflow:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', display:'flex', flexDirection:'column' }}>
+    <div style={{ position:'fixed', inset:0, background:'rgba(15, 23, 42, 0.4)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
+      <div style={{ background:'white', borderRadius:'var(--radius-lg)', width:'100%', maxWidth: wide ? 680 : 480, maxHeight:'90vh', overflow:'auto', boxShadow:'var(--shadow-lg)', display:'flex', flexDirection:'column', border:'1px solid var(--b360-border)' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 24px', borderBottom:'1px solid var(--b360-border)', flexShrink:0 }}>
-          <h2 style={{ fontSize:16, fontWeight:700 }}>{title}</h2>
-          <button type="button" onClick={onClose} style={{ fontSize:22, lineHeight:1, color:'var(--b360-text-secondary)', cursor:'pointer', border:'none', background:'none', padding:'0 4px' }}>×</button>
+          <h2 style={{ fontSize:16, fontWeight:800, letterSpacing:'-0.25px', color:'var(--b360-text)' }}>{title}</h2>
+          <button className="btn" type="button" onClick={onClose} style={{ fontSize:22, lineHeight:1, color:'var(--b360-text-secondary)', cursor:'pointer', border:'none', background:'none', padding:'0 4px' }}>×</button>
         </div>
         <div style={{ padding:'20px 24px', flex:1, overflow:'auto' }}>{children}</div>
         {footer && (
@@ -168,14 +172,15 @@ export function Modal({ title, onClose, children, footer, wide }: {
 }
 
 // ── Select ────────────────────────────────────────────────────────────────────
-export function Select({ label, value, onChange, options }: {
-  label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]
+export function Select({ label, value, onChange, options, placeholder }: {
+  label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; placeholder?: string
 }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-      {label && <label style={{ fontSize:12, fontWeight:500, color:'var(--b360-text-secondary)' }}>{label}</label>}
+      {label && <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)' }}>{label}</label>}
       <select value={value} onChange={e => onChange(e.target.value)}
-        style={{ padding:'9px 12px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit', background:'white' }}>
+        style={{ padding:'10px 14px', border:'1px solid var(--b360-border)', borderRadius:'var(--radius-sm)', fontSize:13, outline:'none', fontFamily:'inherit', background:'white', color:'var(--b360-text)' }}>
+        {placeholder && <option value="" disabled>{placeholder}</option>}
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>

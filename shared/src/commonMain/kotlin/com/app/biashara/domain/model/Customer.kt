@@ -24,9 +24,10 @@ data class CustomerStats(
     val totalOrders: Int,
     val totalSpent: Double,
     val averageOrderValue: Double,
-    val lastOrderDate: Instant?,
+    val lastOrderDate: Instant?
+) {
     val isRepeatCustomer: Boolean get() = totalOrders > 1
-)
+}
 
 @Serializable
 data class CustomerMessage(

@@ -97,7 +97,7 @@ export function ExpensesPage() {
       <PageHeader title="Expenses & Profit"
         action={<Btn icon={<Plus size={14}/>} onClick={() => { setForm(emptyExpense); setError(''); setShowAdd(true) }}>Add Expense</Btn>} />
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+      <div className="responsive-grid responsive-grid-4" style={{ gap:12 }}>
         <KpiCard title="Total This Month"  value={`KES ${total.toLocaleString()}`} change="All categories"    icon={<FileText size={18}/>} color="var(--b360-red)" />
         <KpiCard title="Stock Purchase"    value={`KES ${expenses.filter(e=>e.category==='STOCK_PURCHASE').reduce((s,e)=>s+e.amount,0).toLocaleString()}`} change="Stock purchases" icon={<FileText size={18}/>} color="var(--b360-green)" />
         <KpiCard title="Advertising"       value={`KES ${expenses.filter(e=>e.category==='ADVERTISING').reduce((s,e)=>s+e.amount,0).toLocaleString()}`} change="Marketing spend" icon={<FileText size={18}/>} color="var(--b360-blue)" />
@@ -110,7 +110,7 @@ export function ExpensesPage() {
         <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No expenses yet. Click "Add Expense" to record one.</div>
       ) : (
         <>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+          <div className="responsive-grid responsive-grid-2" style={{ gap:16 }}>
             <Card style={{ padding:20 }}>
               <h3 style={{ fontWeight:700, marginBottom:16 }}>Expense Breakdown</h3>
               {expenses.map(e => (
@@ -233,7 +233,7 @@ export function PaymentsPage() {
 
       <PageHeader title="Payments / Mpesa" />
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+      <div className="responsive-grid responsive-grid-4" style={{ gap:12 }}>
         <KpiCard title="Total Collected"    value={`KES ${total.toLocaleString()}`} change="Reconciled payments" icon={<FileText size={18}/>} color="var(--b360-green)" />
         <KpiCard title="Unreconciled"       value={`${unreconciled.length} txns`}   change="Need matching"      icon={<FileText size={18}/>} color="var(--b360-amber)" />
         <KpiCard title="Mpesa Transactions" value={`${payments.length}`}             change="All time"           icon={<FileText size={18}/>} color="var(--b360-blue)" />
@@ -321,7 +321,7 @@ export function ReportsPage() {
       {loading ? (
         <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
       ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+        <div className="responsive-grid responsive-grid-2" style={{ gap:16 }}>
           {/* P&L */}
           <Card style={{ padding:20 }}>
             <h3 style={{ fontWeight:700, marginBottom:16 }}>Profit & Loss — {monthLabel}</h3>
@@ -576,7 +576,7 @@ export function UserCreationPage() {
         <>
           <PageHeader
             title="Businesses"
-            action={<Btn icon={<Building2 size={14} />} onClick={() => { setShowCreateAdmin(true); setAdminError('') }}>Create Admin</Btn>}
+            action={<Btn icon={<Building2 size={14} />} onClick={() => { setShowCreateAdmin(true); setAdminError('') }}>Add Business & Admin</Btn>}
           />
           <Card style={{ padding: 0 }}>
             {bizLoading ? (
@@ -648,6 +648,12 @@ export function BusinessPage() {
   const [bizLoading, setBizLoading] = useState(false)
   const [bizError, setBizError] = useState('')
 
+  // ── SuperAdmin: create business modal (name + type only) ──
+  const [showCreateBiz, setShowCreateBiz] = useState(false)
+  const [bizForm, setBizForm] = useState({ businessName: '', businessType: 'RETAIL' })
+  const [bizFormError, setBizFormError] = useState('')
+  const [bizFormSaving, setBizFormSaving] = useState(false)
+
   // ── Admin: business profile ──
   const [form, setForm] = useState<BusinessProfileRequest>(emptyProfile)
   const [profileLoading, setProfileLoading] = useState(false)
@@ -660,6 +666,26 @@ export function BusinessPage() {
     if (res.success && res.data) {
       setBusinesses(prev => prev.map(b => (b.id === id ? res.data! : b)))
     }
+  }
+
+  const handleCreateBusiness = async () => {
+    if (!bizForm.businessName.trim() || !bizForm.businessType.trim()) {
+      setBizFormError('Business name and type are required.')
+      return
+    }
+    setBizFormSaving(true); setBizFormError('')
+    try {
+      const res = await superAdminApi.createBusiness(bizForm)
+      if (res.success) {
+        setShowCreateBiz(false)
+        setBizForm({ businessName: '', businessType: 'RETAIL' })
+        superAdminApi.listBusinesses().then(r => { if (r.success && r.data) setBusinesses(r.data) })
+      } else {
+        setBizFormError(res.message || 'Failed to create business.')
+      }
+    } catch (e: any) {
+      setBizFormError(e.response?.data?.message || 'Network error. Please try again.')
+    } finally { setBizFormSaving(false) }
   }
 
   useEffect(() => {
@@ -725,16 +751,59 @@ export function BusinessPage() {
 
   // ── SuperAdmin view: list of all businesses ──
   if (isSuperAdmin) {
+    const BIZ_TYPES = [
+      { value: 'RETAIL', label: 'Retail' },
+      { value: 'SERVICE', label: 'Service' },
+      { value: 'HYBRID', label: 'Hybrid' },
+      { value: 'ONLINE_SELLER', label: 'Online Seller' },
+    ]
     return (
       <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <PageHeader title="Businesses" />
+
+        {/* Create Business Modal — name & type only */}
+        {showCreateBiz && (
+          <Modal
+            title="Add Business"
+            onClose={() => { setShowCreateBiz(false); setBizForm({ businessName: '', businessType: 'RETAIL' }); setBizFormError('') }}
+            footer={
+              <>
+                <Btn variant="secondary" onClick={() => { setShowCreateBiz(false); setBizFormError('') }}>Cancel</Btn>
+                <Btn onClick={handleCreateBusiness} disabled={bizFormSaving}>{bizFormSaving ? 'Creating...' : 'Add Business'}</Btn>
+              </>
+            }
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {bizFormError && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{bizFormError}</div>}
+              <Input
+                label="Business Name *"
+                value={bizForm.businessName}
+                onChange={v => setBizForm(p => ({ ...p, businessName: v }))}
+                placeholder="e.g. Kamau Supplies"
+              />
+              <Select
+                label="Business Type *"
+                value={bizForm.businessType}
+                onChange={v => setBizForm(p => ({ ...p, businessType: v }))}
+                options={BIZ_TYPES}
+              />
+              <p style={{ fontSize: 12, color: 'var(--b360-text-secondary)', margin: 0 }}>
+                💡 You can add admin users to this business from the <strong>Users</strong> menu after creation.
+              </p>
+            </div>
+          </Modal>
+        )}
+
+        <PageHeader
+          title="Businesses"
+          action={<Btn icon={<Building2 size={14} />} onClick={() => { setBizFormError(''); setShowCreateBiz(true) }}>Add Business</Btn>}
+        />
         <Card style={{ padding: 0 }}>
           {bizLoading ? (
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading businesses…</div>
           ) : bizError ? (
             <div style={{ padding: 24, color: 'var(--b360-red)' }}>{bizError}</div>
           ) : businesses.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Go to Users to create one.</div>
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Click "Add Business" to create one.</div>
           ) : (
             <DataTable
               headers={['Business Name', 'Type', 'Owner Email', 'Owner Phone', 'Tier', 'Status', 'Created', 'Action']}

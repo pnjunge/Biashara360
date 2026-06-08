@@ -9,10 +9,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+import com.app.biashara.data.repository.ExpenseRepositoryImpl
+
 data class ExpensesState(
     val isLoading: Boolean = false,
     val expenses: List<Expense> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+    val isSyncing: Boolean = false
 ) {
     val totalAmount: Double get() = expenses.sumOf { it.amount }
 }
@@ -20,10 +23,9 @@ data class ExpensesState(
 class ExpensesViewModel(
     private val getExpensesUseCase: GetExpensesUseCase,
     private val saveExpenseUseCase: SaveExpenseUseCase,
-    private val deleteExpenseUseCase: DeleteExpenseUseCase
-) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
+    private val deleteExpenseUseCase: DeleteExpenseUseCase,
+    private val expenseRepository: ExpenseRepositoryImpl? = null
+) : KmpViewModel() {
     private val _state = MutableStateFlow(ExpensesState(isLoading = true))
     val state: StateFlow<ExpensesState> = _state.asStateFlow()
 
@@ -41,6 +43,17 @@ class ExpensesViewModel(
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
+        }
+        syncExpenses(businessId)
+    }
+
+    fun syncExpenses(businessId: String) {
+        scope.launch {
+            _state.update { it.copy(isSyncing = true) }
+            try {
+                expenseRepository?.syncExpensesFromApi(businessId)
+            } catch (_: Exception) { }
+            _state.update { it.copy(isSyncing = false) }
         }
     }
 

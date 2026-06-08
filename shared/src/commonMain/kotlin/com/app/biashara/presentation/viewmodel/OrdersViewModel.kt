@@ -9,11 +9,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+import com.app.biashara.data.repository.OrderRepositoryImpl
+
 data class OrdersState(
     val isLoading: Boolean = false,
     val orders: List<Order> = emptyList(),
     val selectedTabStatus: PaymentStatus? = null,
-    val error: String? = null
+    val error: String? = null,
+    val isSyncing: Boolean = false
 ) {
     val filteredOrders: List<Order>
         get() = if (selectedTabStatus == null) orders
@@ -21,10 +24,10 @@ data class OrdersState(
 }
 
 class OrdersViewModel(
-    private val getOrdersUseCase: GetOrdersUseCase
-) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
+    private val getOrdersUseCase: GetOrdersUseCase,
+    private val cancelOrderUseCase: CancelOrderUseCase,
+    private val orderRepository: OrderRepositoryImpl? = null
+) : KmpViewModel() {
     private val _state = MutableStateFlow(OrdersState(isLoading = true))
     val state: StateFlow<OrdersState> = _state.asStateFlow()
 
@@ -40,6 +43,17 @@ class OrdersViewModel(
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
         }
+        syncOrders(businessId)
+    }
+
+    fun syncOrders(businessId: String) {
+        scope.launch {
+            _state.update { it.copy(isSyncing = true) }
+            try {
+                orderRepository?.syncOrdersFromApi(businessId)
+            } catch (_: Exception) { }
+            _state.update { it.copy(isSyncing = false) }
+        }
     }
 
     fun selectTab(status: PaymentStatus?) {
@@ -48,5 +62,17 @@ class OrdersViewModel(
 
     fun dismissError() {
         _state.update { it.copy(error = null) }
+    }
+
+    fun cancelOrder(orderId: String) {
+        scope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            val res = cancelOrderUseCase(orderId)
+            if (res.isSuccess) {
+                _state.update { it.copy(isLoading = false) }
+            } else {
+                _state.update { it.copy(isLoading = false, error = res.exceptionOrNull()?.message) }
+            }
+        }
     }
 }

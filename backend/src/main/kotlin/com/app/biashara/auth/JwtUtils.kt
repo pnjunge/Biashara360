@@ -55,7 +55,7 @@ object JwtUtils {
             .withClaim("role", role)
             .withClaim("type", "access")
             .withExpiresAt(Date(System.currentTimeMillis() + accessTokenExpiry * 1000))
-        if (businessId != null) {
+        if (!businessId.isNullOrBlank()) {
             builder.withClaim("businessId", businessId)
         }
         return builder.sign(Algorithm.HMAC256(secret))

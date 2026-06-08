@@ -15,7 +15,7 @@ object DatabaseFactory {
         val dbUrl = try {
             config.property("database.url").getString()
         } catch (e: Exception) {
-            System.getenv("DATABASE_URL") ?: "jdbc:postgresql://postgres:5432/biashara360"
+            System.getenv("DATABASE_URL") ?: "jdbc:postgresql://localhost:5432/biashara360"
         }
         
         val dbUser = try {

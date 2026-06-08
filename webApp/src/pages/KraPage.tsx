@@ -417,11 +417,11 @@ function ReturnsTab() {
 
 // ── Tab: Setup ────────────────────────────────────────────────────────────────
 function SetupTab() {
-  const [pin, setPin]           = useState('P051234567X')
-  const [company, setCompany]   = useState('Biashara360ERP Limited')
+  const [pin, setPin]           = useState('')
+  const [company, setCompany]   = useState('')
   const [vatNo, setVatNo]       = useState('')
-  const [sdcId, setSdcId]       = useState('SDCK2024001')
-  const [serialNo, setSerial]   = useState('VSCU123456')
+  const [sdcId, setSdcId]       = useState('')
+  const [serialNo, setSerial]   = useState('')
   const [env, setEnv]           = useState<'sandbox'|'production'>('sandbox')
   const [saved, setSaved]       = useState(false)
 

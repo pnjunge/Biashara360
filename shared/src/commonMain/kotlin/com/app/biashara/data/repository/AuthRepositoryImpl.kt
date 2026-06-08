@@ -27,13 +27,29 @@ class AuthRepositoryImpl(
 
         // Return a placeholder User with the userId so the OTP screen can use it
         val loginData = response.data
+        if (!loginData.requiresOtp) {
+            tokenStorage.saveTokens(loginData.accessToken ?: "", loginData.refreshToken ?: "")
+            loginData.user?.let { user ->
+                UserSession.setUser(
+                    User(
+                        id = user.id,
+                        email = user.email,
+                        phone = user.phone,
+                        name = user.name,
+                        role = runCatching { UserRole.valueOf(user.role) }.getOrDefault(UserRole.STAFF),
+                        businessId = user.businessId,
+                        createdAt = Clock.System.now()
+                    )
+                )
+            }
+        }
         User(
             id = loginData.userId,
             email = email,
-            phone = "",
-            name = "",
-            role = UserRole.ADMIN,
-            businessId = "",
+            phone = loginData.user?.phone ?: "",
+            name = loginData.user?.name ?: "",
+            role = loginData.user?.let { runCatching { UserRole.valueOf(it.role) }.getOrDefault(UserRole.STAFF) } ?: UserRole.ADMIN,
+            businessId = loginData.user?.businessId,
             createdAt = Clock.System.now(),
             twoFactorEnabled = loginData.requiresOtp
         )
@@ -120,7 +136,7 @@ class AuthRepositoryImpl(
             phone = phone,
             name = name,
             role = UserRole.ADMIN,
-            businessId = "",
+            businessId = null,
             createdAt = Clock.System.now()
         )
     }

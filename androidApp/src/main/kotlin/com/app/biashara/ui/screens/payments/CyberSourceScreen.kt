@@ -34,18 +34,6 @@ data class SavedCardUi(
     val expiry: String, val holder: String, val isDefault: Boolean
 )
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-private val mockTransactions = listOf(
-    CsTransactionUi("t1", "B360-0042", "7285900622826740503954", "CAPTURE",       "4242", "VISA",       "CAPTURED",   "HH8765", 4500.0, "Today 14:32"),
-    CsTransactionUi("t2", "B360-0041", "7285900622826740503955", "AUTHORIZATION", "5555", "MASTERCARD", "AUTHORIZED", "AB1234", 1500.0, "Today 11:05"),
-    CsTransactionUi("t3", "B360-0039", "7285900622826740503956", "REFUND",        "4242", "VISA",       "REFUNDED",   "",       6800.0, "Yesterday"),
-    CsTransactionUi("t4", "B360-0037", "7285900622826740503957", "AUTHORIZATION", "4111", "VISA",       "DECLINED",   "",       2200.0, "Mon"),
-)
-
-private val mockSavedCards = listOf(
-    SavedCardUi("1", "4242", "VISA",       "12/27", "Amina Hassan", true),
-    SavedCardUi("2", "5555", "MASTERCARD", "06/26", "Brian Otieno", false),
-)
 
 // ── CyberSource Screen ────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,7 +140,7 @@ fun ChargeCardTab() {
         // Saved cards
         if (useType == 0) {
             item { Text("Saved Cards", fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
-            items(mockSavedCards) { card -> SavedCardItem(card) }
+            items(emptyList<SavedCardUi>()) { card -> SavedCardItem(card) }
         }
 
         item {
@@ -234,7 +222,7 @@ fun SavedCardItem(card: SavedCardUi) {
 
 // ── Card Payment Dialog ───────────────────────────────────────────────────────
 @Composable
-fun CardPaymentDialog(orderId: String, amount: Double, onDismiss: () -> Void) {
+fun CardPaymentDialog(orderId: String, amount: Double, onDismiss: () -> Unit) {
     var cardNum by remember { mutableStateOf("") }
     var expiry by remember { mutableStateOf("") }
     var cvv by remember { mutableStateOf("") }
@@ -302,7 +290,7 @@ fun CardPaymentDialog(orderId: String, amount: Double, onDismiss: () -> Void) {
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospaced, fontSize = 16.sp)
+                    textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = 16.sp)
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -374,7 +362,7 @@ fun CardPaymentDialog(orderId: String, amount: Double, onDismiss: () -> Void) {
 @Composable
 fun TransactionHistoryTab() {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(mockTransactions) { txn ->
+        items(emptyList<CsTransactionUi>()) { txn ->
             CsTransactionRow(txn)
         }
     }
@@ -435,7 +423,7 @@ fun CsTransactionRow(txn: CsTransactionUi) {
 @Composable
 fun SavedCardsTab() {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(mockSavedCards) { card -> SavedCardItem(card) }
+        items(emptyList<SavedCardUi>()) { card -> SavedCardItem(card) }
         item {
             Surface(
                 shape = RoundedCornerShape(12.dp),

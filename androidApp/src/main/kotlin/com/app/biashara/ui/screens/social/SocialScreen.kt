@@ -1,5 +1,6 @@
 package com.app.biashara.ui.screens.social
 
+import kotlinx.coroutines.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -47,37 +48,6 @@ data class SocialMsg(
     val content: String, val messageType: String, val time: String, val isAiGenerated: Boolean
 )
 
-private val sampleConvs = listOf(
-    SocialConv("c1","WHATSAPP","Amina Wanjiru","+254712345678","OPEN",3,"Hii unga inauzwa bei gani?","14:30",false),
-    SocialConv("c2","INSTAGRAM","Kevin Omondi",null,"PENDING_PAYMENT",0,"Sawa, nitapeleka M-Pesa sasa","13:55",true),
-    SocialConv("c3","FACEBOOK","Grace Muthoni","+254798765432","OPEN",1,"Do you do deliveries to Nakuru?","12:20",false),
-    SocialConv("c4","TIKTOK","TikTok User 902",null,"COMPLETED",0,"Asante sana! Order imefika 🙏","10:00",true),
-    SocialConv("c5","WHATSAPP","Peter Kamau","+254711223344","OPEN",2,"Mnafungua saa ngapi?","09:45",false),
-)
-
-private val sampleMsgs = mapOf(
-    "c1" to listOf(
-        SocialMsg("m1","INBOUND","CUSTOMER","Habari! Mnauza unga wa dhahabu?","TEXT","14:20",false),
-        SocialMsg("m2","OUTBOUND","AI","Habari yako! Ndiyo, tunazo unga wa dhahabu. Bei ni KES 180 kwa kilo 2, KES 320 kwa kilo 5. Ungependa kuagiza kiasi gani? 😊","TEXT","14:21",true),
-        SocialMsg("m3","INBOUND","CUSTOMER","Hii unga inauzwa bei gani kwa debe?","TEXT","14:30",false),
-    ),
-    "c2" to listOf(
-        SocialMsg("m4","INBOUND","CUSTOMER","Ninaomba order ya 3 bottles za cooking oil","TEXT","13:30",false),
-        SocialMsg("m5","OUTBOUND","AI","Asante Kevin! Cooking oil × 3 = KES 585 total. Nitakutumia maelekezo ya kulipa! 🛍️","TEXT","13:31",true),
-        SocialMsg("m6","OUTBOUND","AGENT","Hujambo Kevin! 🛍️\n\nCooking Oil × 3\n💰 Jumla: KES 585\n\n💳 Lipa Mpesa:\nPaybill: 174379\nAccount: ORD-0122\nKiasi: KES 585\n\nAsante! 🙏","PAYMENT_REQUEST","13:32",false),
-        SocialMsg("m7","INBOUND","CUSTOMER","Sawa, nitapeleka M-Pesa sasa","TEXT","13:55",false),
-    ),
-    "c3" to listOf(SocialMsg("m8","INBOUND","CUSTOMER","Do you do deliveries to Nakuru?","TEXT","12:20",false)),
-    "c4" to listOf(
-        SocialMsg("m9","INBOUND","CUSTOMER","Naomba order ya sugar 2kg na rice 5kg","TEXT","08:00",false),
-        SocialMsg("m10","OUTBOUND","AI","Sawa! Sugar 2kg + Rice 5kg = KES 900. Nikusaidie? 😊","TEXT","08:01",true),
-        SocialMsg("m11","INBOUND","CUSTOMER","Asante sana! Order imefika 🙏","TEXT","10:00",false),
-    ),
-    "c5" to listOf(
-        SocialMsg("m12","INBOUND","CUSTOMER","Mnafungua saa ngapi?","TEXT","09:45",false),
-        SocialMsg("m13","INBOUND","CUSTOMER","Na mnafunga saa ngapi jioni?","TEXT","09:46",false),
-    ),
-)
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,7 +55,7 @@ private val sampleMsgs = mapOf(
 fun SocialScreen() {
     var tab by remember { mutableStateOf(0) }
     val tabs = listOf("Inbox", "Channels", "Analytics")
-    val totalUnread = sampleConvs.sumOf { it.unreadCount }
+    val totalUnread = 0
 
     Scaffold(
         topBar = {
@@ -140,8 +110,8 @@ fun SocialScreen() {
 fun SocialInboxTab() {
     var selectedId by remember { mutableStateOf<String?>(null) }
     var filterPlatform by remember { mutableStateOf("ALL") }
-    var conversations by remember { mutableStateOf(sampleConvs) }
-    var messages by remember { mutableStateOf(sampleMsgs.toMutableMap()) }
+    var conversations by remember { mutableStateOf(emptyList<SocialConv>()) }
+    var messages by remember { mutableStateOf(emptyMap<String, List<SocialMsg>>().toMutableMap()) }
 
     if (selectedId != null) {
         val conv = conversations.find { it.id == selectedId }!!
@@ -266,6 +236,7 @@ fun ChatView(
     var payAmt        by remember { mutableStateOf("") }
     var payDesc       by remember { mutableStateOf("") }
     val listState     = rememberLazyListState()
+    val scope         = rememberCoroutineScope()
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
@@ -286,7 +257,7 @@ fun ChatView(
             else ->
                 "Habari ${conv.customerName.split(" ")[0]}! Asante kwa kuwasiliana. Ninawezaje kukusaidia leo? 😊"
         }
-        kotlinx.coroutines.GlobalScope.kotlinx.coroutines.launch {
+        scope.launch {
             kotlinx.coroutines.delay(1200)
             aiSuggestion = reply
             aiLoading    = false
@@ -549,10 +520,10 @@ fun SocialChannelsTab() {
 @Composable
 fun SocialAnalyticsTab() {
     val stats = listOf(
-        Triple("WHATSAPP",  Triple(48, 12, 87600)),
-        Triple("INSTAGRAM", Triple(31,  8, 52400)),
-        Triple("FACEBOOK",  Triple(19,  4, 28800)),
-        Triple("TIKTOK",    Triple(14,  3, 18900)),
+        "WHATSAPP"  to Triple(48, 12, 87600),
+        "INSTAGRAM" to Triple(31,  8, 52400),
+        "FACEBOOK"  to Triple(19,  4, 28800),
+        "TIKTOK"    to Triple(14,  3, 18900)
     )
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -568,7 +539,8 @@ fun SocialAnalyticsTab() {
             }
         }
         item { Text("Platform Breakdown", fontWeight = FontWeight.Bold, fontSize = 15.sp) }
-        items(stats) { (platform, data) ->
+        items(stats) { platformData ->
+            val (platform, data) = platformData
             val (convs, orders, revenue) = data
             val p   = PLATFORMS[platform]!!
             val cvr = (orders.toFloat() / convs * 100).toInt()

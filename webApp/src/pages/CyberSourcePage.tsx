@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { CreditCard, Shield, CheckCircle, XCircle, Clock, RefreshCw, Trash2, Plus, ChevronRight } from 'lucide-react'
+import { CreditCard, Shield, CheckCircle, XCircle, Clock, RefreshCw, Trash2, Plus, ChevronRight, Link, Copy, Mail, MessageSquare, Send } from 'lucide-react'
 import { Card, PageHeader, StatusBadge, DataTable, Btn, KpiCard } from '../components/ui'
 import { cyberSourceApi, CsTransactionRecord, SavedCardResponse } from '../services/api'
 
@@ -267,9 +267,239 @@ function PaymentResult({ result, onClose }: { result: any; onClose: () => void }
   )
 }
 
+// ── Payment Link Generator ────────────────────────────────────────────────────
+function PaymentLinkTab() {
+  const [linkAmount, setLinkAmount] = useState('')
+  const [linkDesc, setLinkDesc] = useState('')
+  const [custName, setCustName] = useState('')
+  const [custEmail, setCustEmail] = useState('')
+  const [custPhone, setCustPhone] = useState('')
+  const [expiry, setExpiry] = useState('24')
+  const [generatedLink, setGeneratedLink] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState('')
+
+  const baseUrl = window.location.origin
+
+  const generateLink = () => {
+    setError('')
+    if (!linkAmount || isNaN(Number(linkAmount)) || Number(linkAmount) <= 0) {
+      setError('Please enter a valid amount.')
+      return
+    }
+    if (!linkDesc.trim()) {
+      setError('Please enter a description for this payment.')
+      return
+    }
+    const params = new URLSearchParams({
+      amount: linkAmount,
+      desc: linkDesc.trim(),
+      ...(custName  && { name: custName.trim() }),
+      ...(custEmail && { email: custEmail.trim() }),
+      ...(custPhone && { phone: custPhone.trim() }),
+      exp: expiry,
+      ref: `PAY-${Date.now().toString(36).toUpperCase()}`,
+      ts:  Date.now().toString(),
+    })
+    setGeneratedLink(`${baseUrl}/pay?${params.toString()}`)
+    setCopied(false)
+  }
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(generatedLink)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2500)
+  }
+
+  const amount  = generatedLink ? new URLSearchParams(new URL(generatedLink).search).get('amount') : ''
+  const ref     = generatedLink ? new URLSearchParams(new URL(generatedLink).search).get('ref')    : ''
+  const message = `Hi${custName ? ' ' + custName : ''},\n\nYou have a pending payment of KES ${amount} for: ${linkDesc}.\n\nClick the secure link below to pay by card:\n${generatedLink}\n\nThis link expires in ${expiry} hours.\n\nRef: ${ref}\nPowered by Biashara360`
+
+  const shareEmail    = () => window.open(`mailto:${custEmail}?subject=${encodeURIComponent(`Payment Request — KES ${amount}`)}&body=${encodeURIComponent(message)}`, '_blank')
+  const shareWhatsApp = () => window.open(`https://wa.me/${(custPhone||'').replace(/[^0-9]/g,'')}?text=${encodeURIComponent(message)}`, '_blank')
+  const shareSMS      = () => window.open(`sms:${custPhone}?body=${encodeURIComponent(`Pay KES ${amount} for ${linkDesc}: ${generatedLink}`)}`, '_blank')
+
+  const InputF = ({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) => (
+    <div>
+      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-text-secondary)', display: 'block', marginBottom: 5 }}>{label}</label>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} type={type}
+        style={{ width: '100%', padding: '9px 12px', border: '1.5px solid var(--b360-border)', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+        onFocus={e => e.target.style.borderColor = 'var(--b360-green)'}
+        onBlur={e  => e.target.style.borderColor = 'var(--b360-border)'} />
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+
+      {/* ── Left: Link Builder ── */}
+      <Card style={{ padding: 24 }}>
+        <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Create Payment Link</h3>
+        <p style={{ fontSize: 12, color: 'var(--b360-text-secondary)', marginBottom: 20 }}>Generate a secure card payment link to share with your customer.</p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <InputF label="Amount (KES) *" value={linkAmount} onChange={setLinkAmount} placeholder="e.g. 5000" type="number" />
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-text-secondary)', display: 'block', marginBottom: 5 }}>Link Expiry</label>
+              <select value={expiry} onChange={e => setExpiry(e.target.value)}
+                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid var(--b360-border)', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
+                <option value="1">1 hour</option>
+                <option value="6">6 hours</option>
+                <option value="24">24 hours</option>
+                <option value="48">48 hours</option>
+                <option value="168">7 days</option>
+              </select>
+            </div>
+          </div>
+
+          <InputF label="Description *" value={linkDesc} onChange={setLinkDesc} placeholder="e.g. Invoice #INV-042 — Web Design Services" />
+
+          <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 14 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>Customer Details (optional)</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <InputF label="Customer Name"  value={custName}  onChange={setCustName}  placeholder="e.g. Amina Hassan" />
+              <InputF label="Email Address"  value={custEmail} onChange={setCustEmail} placeholder="amina@example.com" type="email" />
+              <InputF label="Phone (WhatsApp / SMS)" value={custPhone} onChange={setCustPhone} placeholder="+254 7XX XXX XXX" />
+            </div>
+          </div>
+
+          {error && <p style={{ color: 'var(--b360-red)', fontSize: 12 }}>{error}</p>}
+
+          <button onClick={generateLink} style={{
+            padding: '13px 0', background: 'var(--b360-green)', color: 'white', border: 'none',
+            borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+          }}>
+            <Link size={16} /> Generate Payment Link
+          </button>
+        </div>
+      </Card>
+
+      {/* ── Right: Share Panel ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        {!generatedLink ? (
+          <Card style={{ padding: 32, textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🔗</div>
+            <p style={{ color: 'var(--b360-text-secondary)', fontSize: 13 }}>Fill in the details and click <strong>Generate Payment Link</strong> to create a shareable card payment link.</p>
+          </Card>
+        ) : (
+          <>
+            {/* Link preview */}
+            <Card style={{ padding: 20 }}>
+              <h4 style={{ fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><Link size={15} /> Payment Link</h4>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'var(--b360-surface)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--b360-border)' }}>
+                <span style={{ flex: 1, fontSize: 11, fontFamily: 'monospace', color: 'var(--b360-text-secondary)', wordBreak: 'break-all' }}>{generatedLink}</span>
+                <button onClick={copyLink} style={{
+                  padding: '6px 12px', background: copied ? 'var(--b360-green)' : 'white',
+                  color: copied ? 'white' : 'var(--b360-text-secondary)',
+                  border: '1px solid var(--b360-border)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', transition: 'all 0.2s'
+                }}>
+                  <Copy size={12} />{copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+
+              {/* Summary badges */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <span style={{ padding: '4px 10px', background: 'var(--b360-green-bg)', color: 'var(--b360-green)', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>
+                  KES {Number(linkAmount).toLocaleString()}
+                </span>
+                <span style={{ padding: '4px 10px', background: 'var(--b360-surface)', color: 'var(--b360-text-secondary)', borderRadius: 20, fontSize: 11 }}>
+                  ⏱ Expires in {expiry}h
+                </span>
+                <span style={{ padding: '4px 10px', background: 'var(--b360-surface)', color: 'var(--b360-text-secondary)', borderRadius: 20, fontSize: 11, fontFamily: 'monospace' }}>
+                  {ref}
+                </span>
+              </div>
+            </Card>
+
+            {/* Share options */}
+            <Card style={{ padding: 20 }}>
+              <h4 style={{ fontWeight: 700, marginBottom: 14 }}>Share With Customer</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                {/* WhatsApp */}
+                <button onClick={shareWhatsApp}
+                  disabled={!custPhone}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
+                    background: '#25D366', color: 'white', border: 'none', borderRadius: 10,
+                    cursor: custPhone ? 'pointer' : 'not-allowed', opacity: custPhone ? 1 : 0.4,
+                    transition: 'transform 0.15s', fontFamily: 'inherit'
+                  }}
+                  onMouseEnter={e => { if (custPhone) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'none' }}
+                >
+                  <span style={{ fontSize: 22 }}>💬</span>
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>Share via WhatsApp</div>
+                    <div style={{ fontSize: 11, opacity: 0.85 }}>{custPhone || 'Add phone number to enable'}</div>
+                  </div>
+                  <Send size={16} style={{ marginLeft: 'auto' }} />
+                </button>
+
+                {/* Email */}
+                <button onClick={shareEmail}
+                  disabled={!custEmail}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
+                    background: '#4285F4', color: 'white', border: 'none', borderRadius: 10,
+                    cursor: custEmail ? 'pointer' : 'not-allowed', opacity: custEmail ? 1 : 0.4,
+                    transition: 'transform 0.15s', fontFamily: 'inherit'
+                  }}
+                  onMouseEnter={e => { if (custEmail) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'none' }}
+                >
+                  <Mail size={20} />
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>Send via Email</div>
+                    <div style={{ fontSize: 11, opacity: 0.85 }}>{custEmail || 'Add email address to enable'}</div>
+                  </div>
+                  <Send size={16} style={{ marginLeft: 'auto' }} />
+                </button>
+
+                {/* SMS */}
+                <button onClick={shareSMS}
+                  disabled={!custPhone}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
+                    background: 'var(--b360-blue)', color: 'white', border: 'none', borderRadius: 10,
+                    cursor: custPhone ? 'pointer' : 'not-allowed', opacity: custPhone ? 1 : 0.4,
+                    transition: 'transform 0.15s', fontFamily: 'inherit'
+                  }}
+                  onMouseEnter={e => { if (custPhone) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'none' }}
+                >
+                  <MessageSquare size={20} />
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>Send via SMS</div>
+                    <div style={{ fontSize: 11, opacity: 0.85 }}>{custPhone || 'Add phone number to enable'}</div>
+                  </div>
+                  <Send size={16} style={{ marginLeft: 'auto' }} />
+                </button>
+              </div>
+            </Card>
+
+            {/* Message preview */}
+            <Card style={{ padding: 20 }}>
+              <h4 style={{ fontWeight: 700, marginBottom: 10, fontSize: 13 }}>Message Preview</h4>
+              <pre style={{ fontSize: 12, color: 'var(--b360-text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                background: 'var(--b360-surface)', borderRadius: 8, padding: 12, margin: 0, fontFamily: 'inherit', lineHeight: 1.6 }}>
+                {message}
+              </pre>
+            </Card>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main CyberSource Payments Page ────────────────────────────────────────────
 export default function CyberSourcePage() {
-  const [activeTab, setActiveTab] = useState<'charge' | 'transactions' | 'saved'>('charge')
+  const [activeTab, setActiveTab] = useState<'charge' | 'link' | 'transactions' | 'saved'>('charge')
   const [payMethod, setPayMethod] = useState<'new' | 'saved'>('saved')
   const [selectedCard, setSelectedCard] = useState('')
   const [amount, setAmount] = useState('4500')
@@ -335,14 +565,15 @@ export default function CyberSourcePage() {
       {/* Tabs */}
       <div style={{ display:'flex', gap:6, background:'var(--b360-surface)', padding:4, borderRadius:10, width:'fit-content', border:'1px solid var(--b360-border)' }}>
         <Tab id="charge"       label="💳  Charge a Card"/>
-        <Tab id="transactions" label="📋  Transaction History"/>
+        <Tab id="link"         label="🔗  Payment Link"/>
+        <Tab id="transactions" label="📋  Transactions"/>
         <Tab id="saved"        label="🔐  Saved Cards"/>
       </div>
 
       {/* ── Charge Tab ── */}
       {activeTab === 'charge' && !showWidget && !payResult && (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, alignItems:'start' }}>
-          {/* Left: Order details */}
+        <div style={{ maxWidth: 540, margin: '0 auto', width: '100%' }}>
+          {/* Order details */}
           <Card style={{ padding:24 }}>
             <h3 style={{ fontWeight:700, marginBottom:20 }}>Order Details</h3>
             <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -385,33 +616,6 @@ export default function CyberSourcePage() {
               </button>
             </div>
           </Card>
-
-          {/* Right: How it works */}
-          <Card style={{ padding:24 }}>
-            <h3 style={{ fontWeight:700, marginBottom:16 }}>How CyberSource Works</h3>
-            {[
-              { step:'1', title:'Capture Context', desc:'Backend requests a short-lived JWT from CyberSource (GET /capture-context). This initializes the secure hosted fields.', icon:'🔑' },
-              { step:'2', title:'Unified Checkout Widget', desc:'Customer enters card details in CyberSource-hosted iframe. Card data never touches your server — zero PCI scope.', icon:'💳' },
-              { step:'3', title:'Flex Tokenization', desc:'CyberSource returns a transient token (flexToken). Your frontend sends this token — not raw card data — to your Ktor backend.', icon:'🔐' },
-              { step:'4', title:'Backend Charges', desc:'Ktor backend calls POST /pts/v2/payments with the flexToken. CyberSource authorizes and optionally captures the payment.', icon:'⚡' },
-              { step:'5', title:'Settlement', desc:'Captured funds settle to your merchant account within 1-2 business days. Reconciliation IDs link to your orders.', icon:'✅' },
-            ].map(item => (
-              <div key={item.step} style={{ display:'flex', gap:12, marginBottom:14 }}>
-                <div style={{ width:28, height:28, borderRadius:'50%', background:'var(--b360-green)', color:'white',
-                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:800, flexShrink:0 }}>
-                  {item.step}
-                </div>
-                <div>
-                  <div style={{ fontWeight:600, fontSize:13 }}>{item.icon} {item.title}</div>
-                  <div style={{ fontSize:12, color:'var(--b360-text-secondary)', marginTop:2 }}>{item.desc}</div>
-                </div>
-              </div>
-            ))}
-
-            <div style={{ padding:12, background:'var(--b360-amber-bg)', borderRadius:8, fontSize:12, color:'var(--b360-amber)', marginTop:4 }}>
-              ⚠️ <strong>Sandbox mode.</strong> Get live credentials from your CyberSource Business Center and set <code>CS_MERCHANT_ID</code>, <code>CS_MERCHANT_KEY_ID</code>, <code>CS_MERCHANT_SECRET_KEY</code> in your environment.
-            </div>
-          </Card>
         </div>
       )}
 
@@ -428,6 +632,9 @@ export default function CyberSourcePage() {
           <PaymentResult result={payResult} onClose={() => { setPayResult(null); setShowWidget(false) }} />
         </div>
       )}
+
+      {/* ── Payment Link Tab ── */}
+      {activeTab === 'link' && <PaymentLinkTab />}
 
       {/* ── Transaction History Tab ── */}
       {activeTab === 'transactions' && (

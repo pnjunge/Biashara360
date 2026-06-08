@@ -28,8 +28,8 @@ class AuthViewModel(
     private val verifyOtpUseCase: VerifyOtpUseCase,
     private val registerUseCase: RegisterUseCase,
     private val logoutUseCase: LogoutUseCase
-) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+) : KmpViewModel() {
+
 
     private val _state = MutableStateFlow(AuthState())
     val state: StateFlow<AuthState> = _state.asStateFlow()
@@ -43,11 +43,20 @@ class AuthViewModel(
             _state.update { it.copy(isLoading = true, error = null) }
             loginUseCase(email, password).fold(
                 onSuccess = { user ->
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            step = AuthStep.Otp(userId = user.id)
-                        )
+                    if (user.twoFactorEnabled) {
+                        _state.update {
+                            it.copy(
+                                isLoading = false,
+                                step = AuthStep.Otp(userId = user.id)
+                            )
+                        }
+                    } else {
+                        _state.update {
+                            it.copy(
+                                isLoading = false,
+                                isAuthenticated = true
+                            )
+                        }
                     }
                 },
                 onFailure = { e ->
@@ -113,7 +122,7 @@ class AuthViewModel(
 
     fun resendOtp() {
         if (state.value.otpCooldownSeconds > 0) return
-        val userId = (state.value.step as? AuthStep.Otp)?.userId ?: return
+        if (state.value.step !is AuthStep.Otp) return
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             // Re-trigger login to resend OTP — backend handles this via userId

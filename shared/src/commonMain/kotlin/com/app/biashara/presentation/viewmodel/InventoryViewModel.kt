@@ -1,5 +1,7 @@
 package com.app.biashara.presentation.viewmodel
 
+import com.app.biashara.UserSession
+import com.app.biashara.data.repository.ProductRepositoryImpl
 import com.app.biashara.domain.model.Product
 import com.app.biashara.domain.usecase.*
 import kotlinx.coroutines.CoroutineScope
@@ -10,13 +12,15 @@ import kotlinx.coroutines.launch
 
 data class InventoryState(
     val isLoading: Boolean = false,
+    val isSyncing: Boolean = false,
     val products: List<Product> = emptyList(),
     val filteredProducts: List<Product> = emptyList(),
     val searchQuery: String = "",
     val selectedFilter: InventoryFilter = InventoryFilter.ALL,
     val lowStockCount: Int = 0,
     val totalStockValue: Double = 0.0,
-    val error: String? = null
+    val error: String? = null,
+    val lastSyncTime: Long? = null
 )
 
 enum class InventoryFilter { ALL, LOW_STOCK, OUT_OF_STOCK }
@@ -24,26 +28,63 @@ enum class InventoryFilter { ALL, LOW_STOCK, OUT_OF_STOCK }
 class InventoryViewModel(
     private val getProductsUseCase: GetProductsUseCase,
     private val getLowStockAlertsUseCase: GetLowStockAlertsUseCase,
-    private val saveProductUseCase: SaveProductUseCase
-) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val saveProductUseCase: SaveProductUseCase,
+    private val productRepository: ProductRepositoryImpl? = null
+) : KmpViewModel() {
     private val _state = MutableStateFlow(InventoryState(isLoading = true))
     val state: StateFlow<InventoryState> = _state.asStateFlow()
 
     fun loadProducts(businessId: String) {
         scope.launch {
-            getProductsUseCase(businessId).collect { products ->
-                val lowStockCount = products.count { it.isLowStock }
-                val totalValue = products.sumOf { it.sellingPrice * it.currentStock }
-                _state.update { state ->
-                    state.copy(
-                        isLoading = false,
-                        products = products,
-                        filteredProducts = applyFilter(products, state.searchQuery, state.selectedFilter),
-                        lowStockCount = lowStockCount,
-                        totalStockValue = totalValue
-                    )
+            _state.update { it.copy(isLoading = true, error = null) }
+            try {
+                getProductsUseCase(businessId).collect { products ->
+                    val lowStockCount = products.count { it.isLowStock }
+                    val totalValue = products.sumOf { it.sellingPrice * it.currentStock }
+                    _state.update { state ->
+                        state.copy(
+                            isLoading = false,
+                            products = products,
+                            filteredProducts = applyFilter(products, state.searchQuery, state.selectedFilter),
+                            lowStockCount = lowStockCount,
+                            totalStockValue = totalValue
+                        )
+                    }
                 }
+            } catch (e: Exception) {
+                _state.update { it.copy(isLoading = false, error = e.message) }
+            }
+        }
+        syncProducts(businessId)
+    }
+
+    /** Sync products from API and update local cache **/
+    fun syncProducts(businessId: String) {
+        scope.launch {
+            _state.update { it.copy(isSyncing = true, error = null) }
+            try {
+                if (productRepository != null) {
+                    productRepository.syncProductsFromApi(businessId)
+                        .onSuccess { products ->
+                            val lowStockCount = products.count { it.isLowStock }
+                            val totalValue = products.sumOf { it.sellingPrice * it.currentStock }
+                            _state.update { state ->
+                                state.copy(
+                                    isSyncing = false,
+                                    products = products,
+                                    filteredProducts = applyFilter(products, state.searchQuery, state.selectedFilter),
+                                    lowStockCount = lowStockCount,
+                                    totalStockValue = totalValue,
+                                    lastSyncTime = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+                                )
+                            }
+                        }
+                        .onFailure { e ->
+                            _state.update { it.copy(isSyncing = false, error = e.message) }
+                        }
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(isSyncing = false, error = e.message) }
             }
         }
     }
@@ -68,10 +109,18 @@ class InventoryViewModel(
 
     fun saveProduct(product: Product) {
         scope.launch {
-            saveProductUseCase(product).onFailure { e ->
+            try {
+                saveProductUseCase(product).onFailure { e ->
+                    _state.update { it.copy(error = e.message) }
+                }
+            } catch (e: Exception) {
                 _state.update { it.copy(error = e.message) }
             }
         }
+    }
+
+    fun dismissError() {
+        _state.update { it.copy(error = null) }
     }
 
     private fun applyFilter(products: List<Product>, query: String, filter: InventoryFilter): List<Product> {

@@ -23,6 +23,7 @@ import com.app.biashara.ui.screens.payments.PaymentsScreen
 import com.app.biashara.ui.screens.tax.TaxScreen
 import com.app.biashara.ui.screens.kra.KraScreen
 import com.app.biashara.ui.screens.social.SocialScreen
+import com.app.biashara.ui.screens.pos.PosScreen
 
 @Composable
 fun Biashara360App() {
@@ -96,6 +97,9 @@ fun Biashara360App() {
             // Main screens
             composable(Screen.Dashboard.route) {
                 DashboardScreen(navController = navController)
+            }
+            composable(Screen.Pos.route) {
+                PosScreen()
             }
             composable(Screen.Inventory.route) {
                 InventoryScreen(
@@ -173,7 +177,13 @@ fun Biashara360App() {
                     },
                     onNavigateToPayments = { navController.navigate(Screen.Payments.route) },
                     onNavigateToKra = { navController.navigate(Screen.Kra.route) },
-                    onNavigateToSocial = { navController.navigate(Screen.Social.route) }
+                    onNavigateToSocial = { navController.navigate(Screen.Social.route) },
+                    onNavigateToCyberSourceSettings = { navController.navigate(Screen.CyberSourceSettings.route) }
+                )
+            }
+            composable(Screen.CyberSourceSettings.route) {
+                com.app.biashara.ui.screens.settings.CyberSourceSettingsScreen(
+                    onBack = { navController.popBackStack() }
                 )
             }
         }

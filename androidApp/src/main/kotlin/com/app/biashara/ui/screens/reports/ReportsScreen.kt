@@ -15,11 +15,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.app.biashara.presentation.viewmodel.ReportsViewModel
 import com.app.biashara.ui.theme.*
+import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReportsScreen(viewModel: ReportsViewModel = koinInject()) {
+fun ReportsScreen(viewModel: ReportsViewModel = kmpViewModel()) {
     val state by viewModel.state.collectAsState()
     val periods = listOf("Today", "This Week", "This Month", "This Quarter", "This Year")
     val selectedPeriod = state.selectedPeriodLabel

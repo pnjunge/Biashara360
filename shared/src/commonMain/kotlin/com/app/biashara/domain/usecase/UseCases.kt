@@ -84,6 +84,41 @@ class CreateOrderUseCase(
     }
 }
 
+class CancelOrderUseCase(
+    private val orderRepo: OrderRepository,
+    private val productRepo: ProductRepository,
+    private val customerRepo: CustomerRepository
+) {
+    suspend operator fun invoke(orderId: String): Result<Unit> {
+        val order = orderRepo.getOrder(orderId)
+            ?: return Result.failure(IllegalArgumentException("Order not found"))
+
+        val result = orderRepo.cancelOrder(orderId)
+        if (result.isSuccess) {
+            // Restore stock for each item
+            order.items.forEach { item ->
+                val movement = StockMovement(
+                    id = generateId(),
+                    productId = item.productId,
+                    businessId = order.businessId,
+                    type = StockMovementType.STOCK_IN,
+                    quantity = item.quantity,
+                    orderId = order.id,
+                    note = "Cancelled Order ${order.orderNumber}",
+                    recordedAt = Clock.System.now()
+                )
+                productRepo.updateStock(item.productId, movement)
+            }
+            // Revert loyalty points originally awarded
+            order.customerId?.let { cid ->
+                val points = (order.subtotal / 100).toInt()
+                if (points > 0) customerRepo.addLoyaltyPoints(cid, -points)
+            }
+        }
+        return result
+    }
+}
+
 class InitiatePaymentUseCase(
     private val paymentRepo: PaymentRepository,
     private val orderRepo: OrderRepository
@@ -92,10 +127,10 @@ class InitiatePaymentUseCase(
         val order = orderRepo.getOrder(orderId)
             ?: return Result.failure(IllegalArgumentException("Order not found"))
         val request = MpesaStkPushRequest(
-            businessShortCode = "174379",  // Replaced with actual Daraja shortcode at runtime
+            businessShortCode = "174379",  // Resolved per-business at backend level
             phoneNumber = phoneNumber.normalizePhone(),
             amount = order.subtotal,
-            accountReference = order.orderNumber,
+            accountReference = orderId,  // Pass orderId (UUID) — backend /payments/initiate expects this
             transactionDesc = "Payment for order ${order.orderNumber}"
         )
         return paymentRepo.initiateSTKPush(request)

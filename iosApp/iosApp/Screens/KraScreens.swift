@@ -46,19 +46,6 @@ struct TaxReturnItem: Identifiable {
     }
 }
 
-private let sampleEtims = [
-    EtimsInvoiceItem(id:"1", invoiceNumber:"INV-2026-0147", etimsNumber:"NS00000147", status:"TRANSMITTED", taxableAmount:12500, taxAmount:2000, totalAmount:14500, submittedAt:"Today 14:22"),
-    EtimsInvoiceItem(id:"2", invoiceNumber:"INV-2026-0146", etimsNumber:"NS00000146", status:"TRANSMITTED", taxableAmount:8600,  taxAmount:1376, totalAmount:9976,  submittedAt:"Today 11:05"),
-    EtimsInvoiceItem(id:"3", invoiceNumber:"INV-2026-0145", etimsNumber:nil,           status:"ERROR",       taxableAmount:3200,  taxAmount:512,  totalAmount:3712,  submittedAt:nil),
-    EtimsInvoiceItem(id:"4", invoiceNumber:"INV-2026-0144", etimsNumber:"NS00000144", status:"TRANSMITTED", taxableAmount:21000, taxAmount:3360, totalAmount:24360, submittedAt:"Yesterday"),
-    EtimsInvoiceItem(id:"5", invoiceNumber:"INV-2026-0143", etimsNumber:nil,           status:"PENDING",     taxableAmount:5500,  taxAmount:880,  totalAmount:6380,  submittedAt:nil),
-]
-private let sampleKraReturns = [
-    TaxReturnItem(id:"1", returnType:"VAT3", periodLabel:"Mar 2026", dueDate:"2026-04-20", status:"GENERATED",    taxAmount:71200, ackNo:nil),
-    TaxReturnItem(id:"2", returnType:"VAT3", periodLabel:"Feb 2026", dueDate:"2026-03-20", status:"SUBMITTED",    taxAmount:67200, ackNo:"ACK202602VAT001"),
-    TaxReturnItem(id:"3", returnType:"VAT3", periodLabel:"Jan 2026", dueDate:"2026-02-20", status:"ACKNOWLEDGED", taxAmount:60800, ackNo:"ACK202601VAT001"),
-    TaxReturnItem(id:"4", returnType:"WHT",  periodLabel:"Feb 2026", dueDate:"2026-03-20", status:"SUBMITTED",    taxAmount:1350,  ackNo:"ACK202602WHT001"),
-]
 
 // ── Main KRA View ─────────────────────────────────────────────────────────────
 

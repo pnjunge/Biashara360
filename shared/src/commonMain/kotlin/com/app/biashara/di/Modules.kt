@@ -20,11 +20,11 @@ val coreModule = module {
     single { createHttpClient(get()) }
 
     // Repositories
-    single<ProductRepository> { ProductRepositoryImpl(get()) }
-    single<OrderRepository> { OrderRepositoryImpl(get()) }
-    single<CustomerRepository> { CustomerRepositoryImpl(get()) }
-    single<ExpenseRepository> { ExpenseRepositoryImpl(get()) }
-    single<PaymentRepository> { PaymentRepositoryImpl(get()) }
+    single<ProductRepository> { ProductRepositoryImpl(get(), get()) }
+    single<OrderRepository> { OrderRepositoryImpl(get(), get()) }
+    single<CustomerRepository> { CustomerRepositoryImpl(get(), get()) }
+    single<ExpenseRepository> { ExpenseRepositoryImpl(get(), get()) }
+    single<PaymentRepository> { PaymentRepositoryImpl(get(), get()) }
     single<AuthRepository> { AuthRepositoryImpl(get(), get()) }
 
     // Use Cases — Inventory
@@ -38,6 +38,7 @@ val coreModule = module {
     factory { GetOrderUseCase(get()) }
     factory { GetOrdersByStatusUseCase(get()) }
     factory { CreateOrderUseCase(get(), get(), get()) }
+    factory { CancelOrderUseCase(get(), get(), get()) }
 
     // Use Cases — Customers
     factory { GetCustomersUseCase(get()) }
@@ -68,13 +69,23 @@ val coreModule = module {
     factory { LogoutUseCase(get()) }
 
     // ViewModels
-    factory { DashboardViewModel(get(), get(), get()) }
-    factory { InventoryViewModel(get(), get(), get()) }
-    factory { OrdersViewModel(get()) }
-    factory { CustomersViewModel(get(), get(), get(), get()) }
-    factory { ExpensesViewModel(get(), get(), get()) }
-    factory { PaymentsViewModel(get(), get()) }
-    factory { ReportsViewModel(get()) }
+    factory { DashboardViewModel(get(), get(), get(),
+        get<ProductRepository>() as? ProductRepositoryImpl,
+        get<OrderRepository>() as? OrderRepositoryImpl,
+        get<ExpenseRepository>() as? ExpenseRepositoryImpl,
+        get<CustomerRepository>() as? CustomerRepositoryImpl,
+        get<PaymentRepository>() as? PaymentRepositoryImpl
+    ) }
+    factory { InventoryViewModel(get(), get(), get(), get<ProductRepository>() as? ProductRepositoryImpl) }
+    factory { OrdersViewModel(get(), get(), get<OrderRepository>() as? OrderRepositoryImpl) }
+    factory { CustomersViewModel(get(), get(), get(), get(), get<CustomerRepository>() as? CustomerRepositoryImpl) }
+    factory { ExpensesViewModel(get(), get(), get(), get<ExpenseRepository>() as? ExpenseRepositoryImpl) }
+    factory { PaymentsViewModel(get(), get(), get<PaymentRepository>() as? PaymentRepositoryImpl) }
+    factory { ReportsViewModel(get(),
+        get<OrderRepository>() as? OrderRepositoryImpl,
+        get<ExpenseRepository>() as? ExpenseRepositoryImpl,
+        get<PaymentRepository>() as? PaymentRepositoryImpl
+    ) }
     factory { AuthViewModel(get(), get(), get(), get()) }
 }
 

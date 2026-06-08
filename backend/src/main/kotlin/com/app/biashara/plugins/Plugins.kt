@@ -61,12 +61,20 @@ fun Application.configureCors() {
     install(CORS) {
         // 🔒 SECURITY FIX: Restrict CORS to specific domains instead of anyHost()
         // Update these domains to match your actual frontend domains
-        val allowedDomains = environment.config.propertyOrNull("cors.allowedDomains")
+        val allowedDomains = this@configureCors.environment.config.propertyOrNull("cors.allowedDomains")
             ?.getList()
             ?: listOf(
+                // Vite dev server — tries 3000 → 3001 → 3002 etc. if ports are taken
                 "localhost:3000",
-                "localhost:5173",
-                "localhost:8080"
+                "localhost:3001",
+                "localhost:3002",
+                "localhost:3003",
+                "localhost:3004",
+                "localhost:5173", // Vite default
+                "localhost:8080",
+                // Production
+                "app.biashara360.co.ke",
+                "admin.biashara360.co.ke"
             )
         
         allowedDomains.forEach { domain ->
