@@ -1,0 +1,125 @@
+package com.app.biashara.routes
+
+import com.app.biashara.models.*
+import com.app.biashara.services.SuperAdminService
+import com.app.biashara.services.SystemSettingsService
+import io.ktor.http.*
+import io.ktor.server.application.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import org.koin.ktor.ext.inject
+
+// ─── Super Admin Routes ───────────────────────────────────────────────────────
+// All routes require SUPERADMIN role.
+//
+//   GET  /v1/admin/businesses                   list all businesses
+//   POST /v1/admin/businesses                   create a business WITH its first admin user
+//   POST /v1/admin/businesses/simple            create a business WITHOUT an admin (add user later)
+//   PATCH /v1/admin/businesses/{id}/status      enable/disable a business
+//   PUT  /v1/admin/users/{id}/business          link an existing user to a business
+//   GET  /v1/admin/settings/mpesa-callback      get system-wide Mpesa callback URL
+//   PUT  /v1/admin/settings/mpesa-callback      update system-wide Mpesa callback URL
+
+fun Route.superAdminRoutes() {
+    val superAdminService: SuperAdminService by inject()
+    val systemSettingsService: SystemSettingsService by inject()
+
+    route("/admin") {
+
+        route("/businesses") {
+            get {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@get
+                }
+                val businesses = superAdminService.listBusinesses()
+                call.respond(ApiResponse(true, data = businesses))
+            }
+
+            // Create business WITHOUT an admin user (admin added later via Users menu)
+            post("/simple") {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@post
+                }
+                val req = call.receive<CreateBusinessOnlyRequest>()
+                val result = superAdminService.createBusinessOnly(req)
+                call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
+            }
+
+            // Create business WITH first admin user
+            post {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@post
+                }
+                val req = call.receive<CreateBusinessWithAdminRequest>()
+                val result = superAdminService.createBusinessWithAdmin(req)
+                call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
+            }
+
+            patch("/{id}/status") {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@patch
+                }
+                val businessId = call.parameters["id"]
+                if (businessId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Business id is required"))
+                    return@patch
+                }
+                val req = call.receive<UpdateBusinessStatusRequest>()
+                val result = superAdminService.setBusinessActiveStatus(businessId, req)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
+            }
+        }
+
+        route("/users") {
+            put("/{id}/business") {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@put
+                }
+                val userId = call.parameters["id"]
+                if (userId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "User id is required"))
+                    return@put
+                }
+                val req = call.receive<LinkUserToBusinessRequest>()
+                val result = superAdminService.linkUserToBusiness(userId, req)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+        }
+
+        route("/settings") {
+
+            // ── System-wide Mpesa callback URL ────────────────────────────────
+
+            route("/mpesa-callback") {
+                get {
+                    if (!call.hasRole("SUPERADMIN")) {
+                        call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                        return@get
+                    }
+                    val url = systemSettingsService.getMpesaCallbackUrl()
+                    if (url == null) {
+                        call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(false, message = "Mpesa callback URL not configured"))
+                    } else {
+                        call.respond(ApiResponse(true, data = SystemSettingResponse("mpesa_callback_url", url)))
+                    }
+                }
+
+                put {
+                    if (!call.hasRole("SUPERADMIN")) {
+                        call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                        return@put
+                    }
+                    val req = call.receive<SystemSettingRequest>()
+                    val result = systemSettingsService.saveMpesaCallbackUrl(req.value)
+                    call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+                }
+            }
+        }
+    }
+}
