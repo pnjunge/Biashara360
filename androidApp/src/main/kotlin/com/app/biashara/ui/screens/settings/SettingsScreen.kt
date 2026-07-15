@@ -2,6 +2,8 @@ package com.app.biashara.ui.screens.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.app.biashara.UserSession
 import com.app.biashara.presentation.viewmodel.AuthViewModel
-import com.app.biashara.ui.theme.B360Green
+import com.app.biashara.ui.theme.*
 import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
 
@@ -59,13 +61,13 @@ fun SettingsScreen(
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Sign Out") },
+            title = { Text("Sign Out", fontWeight = FontWeight.Bold) },
             text = { Text("Are you sure you want to sign out?") },
             confirmButton = {
                 TextButton(onClick = {
                     authViewModel.logout()
                     onLogout()
-                }) { Text("Sign Out", color = Color.Red) }
+                }) { Text("Sign Out", color = B360Red, fontWeight = FontWeight.Bold) }
             },
             dismissButton = { TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") } }
         )
@@ -74,26 +76,41 @@ fun SettingsScreen(
     if (showChangePasswordDialog) {
         AlertDialog(
             onDismissRequest = { showChangePasswordDialog = false; passwordError = "" },
-            title = { Text("Change Password") },
+            title = { Text("Change Password", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = currentPassword, onValueChange = { currentPassword = it; passwordError = "" },
                         label = { Text("Current Password") }, modifier = Modifier.fillMaxWidth(),
                         visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true, enabled = !passwordSaving
+                        singleLine = true, enabled = !passwordSaving,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        )
                     )
                     OutlinedTextField(
                         value = newPassword, onValueChange = { newPassword = it; passwordError = "" },
                         label = { Text("New Password") }, modifier = Modifier.fillMaxWidth(),
                         visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true, enabled = !passwordSaving
+                        singleLine = true, enabled = !passwordSaving,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        )
                     )
                     OutlinedTextField(
                         value = confirmPassword, onValueChange = { confirmPassword = it; passwordError = "" },
                         label = { Text("Confirm New Password") }, modifier = Modifier.fillMaxWidth(),
                         visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true, enabled = !passwordSaving
+                        singleLine = true, enabled = !passwordSaving,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        )
                     )
                     if (passwordError.isNotBlank()) {
                         Text(passwordError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
@@ -118,8 +135,9 @@ fun SettingsScreen(
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                    shape = RoundedCornerShape(20.dp),
                     enabled = !passwordSaving
-                ) { Text("Change") }
+                ) { Text("Change", fontWeight = FontWeight.Bold, color = Color.White) }
             },
             dismissButton = {
                 TextButton(onClick = { showChangePasswordDialog = false; passwordError = "" }) { Text("Cancel") }
@@ -128,11 +146,20 @@ fun SettingsScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Settings / Mipangilio", fontWeight = FontWeight.Bold) }) }
+        topBar = {
+            TopAppBar(
+                title = { Text("Settings / Mipangilio", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
+            )
+        }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().background(B360Surface).padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
-                Card(shape = RoundedCornerShape(12.dp)) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Surface(shape = RoundedCornerShape(50), color = B360Green, modifier = Modifier.size(56.dp)) {
                             Box(contentAlignment = Alignment.Center) {
@@ -140,9 +167,9 @@ fun SettingsScreen(
                             }
                         }
                         Column {
-                            Text(userName.ifBlank { "User" }, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            if (userEmail.isNotBlank()) Text(userEmail, fontSize = 13.sp, color = Color.Gray)
-                            currentUser?.role?.let { Text(it.name, fontSize = 12.sp, color = B360Green) }
+                            Text(userName.ifBlank { "User" }, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
+                            if (userEmail.isNotBlank()) Text(userEmail, fontSize = 13.sp, color = Color(0xFF64748B))
+                            currentUser?.role?.let { Text(it.name, fontSize = 12.sp, color = B360Green, fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
@@ -186,15 +213,17 @@ fun SettingsScreen(
                 }
             }
             item {
-                Button(
+                OutlinedButton(
                     onClick = { showLogoutDialog = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFEBEE)),
-                    contentPadding = PaddingValues(16.dp)
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = B360Red),
+                    border = BorderStroke(1.dp, B360Red.copy(0.2f)),
+                    shape = RoundedCornerShape(24.dp),
+                    contentPadding = PaddingValues(14.dp)
                 ) {
-                    Icon(Icons.Filled.Logout, contentDescription = null, tint = Color.Red)
+                    Icon(Icons.Filled.Logout, contentDescription = null, tint = B360Red)
                     Spacer(Modifier.width(8.dp))
-                    Text("Sign Out / Toka", color = Color.Red, fontWeight = FontWeight.Bold)
+                    Text("Sign Out / Toka", color = B360Red, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
             }
         }
@@ -203,10 +232,14 @@ fun SettingsScreen(
 
 @Composable
 fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold,
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
-        Card(shape = RoundedCornerShape(12.dp)) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
             Column(content = content)
         }
     }
@@ -220,12 +253,12 @@ fun SettingsNavItem(label: String, icon: ImageVector, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(icon, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
-            Text(label, modifier = Modifier.weight(1f))
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(20.dp))
+            Text(label, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium, color = Color(0xFF0F172A), fontSize = 14.sp)
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(20.dp))
         }
     }
-    Divider(color = Color(0xFFF5F5F5))
+    HorizontalDivider(color = Color(0xFFF1F5F9))
 }
 
 @Composable
@@ -235,9 +268,9 @@ fun SettingsToggleItem(label: String, icon: ImageVector, value: Boolean, onChang
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
-        Text(label, modifier = Modifier.weight(1f))
+        Icon(icon, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(20.dp))
+        Text(label, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium, color = Color(0xFF0F172A), fontSize = 14.sp)
         Switch(value, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = B360Green))
     }
-    Divider(color = Color(0xFFF5F5F5))
+    HorizontalDivider(color = Color(0xFFF1F5F9))
 }

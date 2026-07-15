@@ -1,6 +1,9 @@
 package com.app.biashara.ui.screens.orders
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,39 +42,57 @@ fun OrdersScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text("Orders / Maagizo", fontWeight = FontWeight.Bold) },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                    title = { Text("Orders / Maagizo", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
                 )
-                TabRow(selectedTabIndex = selectedTabIndex, containerColor = Color.White) {
+                TabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    containerColor = B360Surface,
+                    contentColor = B360Green,
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                            color = B360Green
+                        )
+                    }
+                ) {
                     tabs.forEachIndexed { index, (label, status) ->
+                        val isSelected = selectedTabIndex == index
                         Tab(
-                            selected = selectedTabIndex == index,
+                            selected = isSelected,
                             onClick = { viewModel.selectTab(status) },
-                            text = { Text(label, fontSize = 13.sp) }
+                            text = { Text(label, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            selectedContentColor = B360Green,
+                            unselectedContentColor = Color(0xFF64748B)
                         )
                     }
                 }
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onCreateOrder, containerColor = B360Green, contentColor = Color.White) {
+            FloatingActionButton(
+                onClick = onCreateOrder,
+                containerColor = B360Green,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(24.dp)
+            ) {
                 Icon(Icons.Filled.Add, contentDescription = "New Order")
             }
         }
     ) { padding ->
         if (state.isLoading && state.orders.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().padding(padding).background(B360Surface), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = B360Green)
             }
             return@Scaffold
         }
 
         if (state.filteredOrders.isEmpty() && !state.isLoading) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().padding(padding).background(B360Surface), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Filled.ShoppingCart, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
                     Text("No orders yet", color = Color.Gray)
-                    Button(onClick = onCreateOrder, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
+                    Button(onClick = onCreateOrder, colors = ButtonDefaults.buttonColors(containerColor = B360Green), shape = RoundedCornerShape(20.dp)) {
                         Text("Create First Order")
                     }
                 }
@@ -80,9 +101,9 @@ fun OrdersScreen(
         }
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize().padding(padding).background(B360Surface),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(state.filteredOrders) { order ->
                 OrderCard(order = order, onClick = { onOrderDetail(order.id) })
@@ -97,35 +118,36 @@ fun OrderCard(order: Order, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(order.orderNumber, fontWeight = FontWeight.Bold, color = B360Green)
+                Text(order.orderNumber, fontWeight = FontWeight.Bold, color = B360Green, fontSize = 15.sp)
                 Text(order.createdAt.toString().substring(0, 10), fontSize = 12.sp, color = Color.Gray)
             }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Filled.Person, null, modifier = Modifier.size(16.dp), tint = Color.Gray)
-                Text(order.customerName, fontWeight = FontWeight.Medium)
+                Icon(Icons.Filled.Person, null, modifier = Modifier.size(16.dp), tint = Color(0xFF64748B))
+                Text(order.customerName, fontWeight = FontWeight.Medium, color = Color(0xFF0F172A))
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Filled.Phone, null, modifier = Modifier.size(14.dp), tint = Color.Gray)
-                Text(order.customerPhone, fontSize = 13.sp, color = Color.Gray)
+                Icon(Icons.Filled.Phone, null, modifier = Modifier.size(14.dp), tint = Color(0xFF64748B))
+                Text(order.customerPhone, fontSize = 13.sp, color = Color(0xFF64748B))
             }
             if (!order.mpesaTransactionCode.isNullOrEmpty()) {
+                Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Filled.CheckCircle, null, modifier = Modifier.size(14.dp), tint = B360Green)
-                    Text("Mpesa: ${order.mpesaTransactionCode}", fontSize = 12.sp, color = B360Green)
+                    Text("Mpesa: ${order.mpesaTransactionCode}", fontSize = 12.sp, color = B360Green, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Divider(color = Color(0xFFF0F0F0))
+            HorizontalDivider(color = Color(0xFFF1F5F9))
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("KES ${"%,.0f".format(order.subtotal)}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("KES ${"%,.0f".format(order.subtotal)}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color(0xFF0F172A))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     StatusBadge(order.paymentStatus.displayLabel(), paymentStatusColor(order.paymentStatus.name))
                     StatusBadge(order.deliveryStatus.displayLabel(), Color.Gray)
@@ -139,7 +161,7 @@ fun OrderCard(order: Order, onClick: () -> Unit) {
 fun StatusBadge(label: String, color: Color) {
     Surface(color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(20.dp)) {
         Text(
-            label, color = color, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+            label, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
         )
     }
@@ -162,58 +184,67 @@ fun OrderDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Order ${order?.orderNumber ?: "#${orderId.take(8).uppercase()}"}", fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null) } }
+                title = { Text("Order ${order?.orderNumber ?: "#${orderId.take(8).uppercase()}"}", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null, tint = Color(0xFF0F172A)) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         }
     ) { padding ->
         if (order == null) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().padding(padding).background(B360Surface), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = B360Green)
             }
             return@Scaffold
         }
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            Modifier.fillMaxSize().padding(padding).background(B360Surface).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Card(shape = RoundedCornerShape(12.dp)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Order Details", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Order Details", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Customer"); Text(order.customerName, fontWeight = FontWeight.SemiBold)
+                        Text("Customer", color = Color(0xFF64748B)); Text(order.customerName, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A))
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Phone"); Text(order.customerPhone)
+                        Text("Phone", color = Color(0xFF64748B)); Text(order.customerPhone, color = Color(0xFF0F172A))
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Payment Status")
+                        Text("Payment Status", color = Color(0xFF64748B))
                         Text(order.paymentStatus.displayLabel(), color = paymentStatusColor(order.paymentStatus.name), fontWeight = FontWeight.SemiBold)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Delivery Status"); Text(order.deliveryStatus.displayLabel())
+                        Text("Delivery Status", color = Color(0xFF64748B)); Text(order.deliveryStatus.displayLabel(), color = Color(0xFF0F172A))
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Total"); Text("KES ${"%,.0f".format(order.subtotal)}", fontWeight = FontWeight.Bold)
+                        Text("Total", color = Color(0xFF64748B)); Text("KES ${"%,.0f".format(order.subtotal)}", fontWeight = FontWeight.Bold, color = B360Green)
                     }
                     if (!order.mpesaTransactionCode.isNullOrEmpty()) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("M-Pesa Code"); Text(order.mpesaTransactionCode!!, color = B360Green)
+                            Text("M-Pesa Code", color = Color(0xFF64748B)); Text(order.mpesaTransactionCode!!, color = B360Green, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
             if (order.items.isNotEmpty()) {
-                Card(shape = RoundedCornerShape(12.dp)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Items (${order.totalItems})", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Items (${order.totalItems})", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
                         order.items.forEach { item ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(item.productName, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    Text(item.productName, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF0F172A))
                                     Text("Qty: ${item.quantity} × KES ${"%,.0f".format(item.unitPrice)}", fontSize = 12.sp, color = Color.Gray)
                                 }
-                                Text("KES ${"%,.0f".format(item.lineTotal)}", fontWeight = FontWeight.Bold)
+                                Text("KES ${"%,.0f".format(item.lineTotal)}", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                             }
                         }
                     }
@@ -229,20 +260,26 @@ fun CreateOrderScreen(onBack: () -> Unit, onOrderCreated: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("New Order", fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null) } }
+                title = { Text("New Order", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null, tint = Color(0xFF0F172A)) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onOrderCreated, containerColor = B360Green) {
+            ExtendedFloatingActionButton(
+                onClick = onOrderCreated,
+                containerColor = B360Green,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(24.dp)
+            ) {
                 Icon(Icons.Filled.Check, null, tint = Color.White)
                 Spacer(Modifier.width(8.dp))
-                Text("Create Order", color = Color.White)
+                Text("Create Order", color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            Modifier.fillMaxSize().padding(padding).background(B360Surface).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text("Add items to create an order", color = Color.Gray)

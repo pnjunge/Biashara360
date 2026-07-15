@@ -19,10 +19,10 @@ class SmsService(
     config: ApplicationConfig,
     private val httpClient: HttpClient
 ) {
-    private val username: String = config.property("africastalking.username").getString()
-    private val apiKey: String = config.property("africastalking.apiKey").getString()
+    private val username: String = config.propertyOrNull("africastalking.username")?.getString() ?: "dummyUser"
+    private val apiKey: String = config.propertyOrNull("africastalking.apiKey")?.getString() ?: "dummyKey"
     private val senderId: String = config.propertyOrNull("africastalking.senderId")?.getString() ?: ""
-    private val environment: String = config.property("africastalking.environment").getString()
+    private val environment: String = config.propertyOrNull("africastalking.environment")?.getString() ?: "sandbox"
 
     private val baseUrl: String
         get() = if (environment == "production")

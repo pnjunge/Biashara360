@@ -89,6 +89,7 @@ class CancelOrderUseCaseTest {
         val customerRepo = object : CustomerRepository {
             override fun getCustomers(businessId: String): Flow<List<Customer>> = flowOf(emptyList())
             override fun getTopCustomers(businessId: String, limit: Int): Flow<List<Customer>> = flowOf(emptyList())
+            override fun getTopCustomersWithStats(businessId: String, limit: Int): Flow<List<Pair<Customer, CustomerStats>>> = flowOf(emptyList())
             override fun getRepeatCustomers(businessId: String): Flow<List<Customer>> = flowOf(emptyList())
             override suspend fun getCustomer(id: String): Customer? = null
             override suspend fun getCustomerByPhone(phone: String): Customer? = null

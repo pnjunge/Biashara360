@@ -3,6 +3,12 @@ package com.app.biashara.routes
 import com.app.biashara.models.*
 import com.app.biashara.services.SocialService
 import io.ktor.http.*
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.header
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -180,72 +186,92 @@ fun Route.socialRoutes() {
 
 // ─── Public Webhook Routes (no JWT) ──────────────────────────────────────────
 
+suspend fun proxyWebhook(call: ApplicationCall, httpClient: HttpClient, path: String, svc: SocialService) {
+    val rawBody = call.receiveText()
+    val signatureHeader = call.request.headers["x-hub-signature-256"]
+    val queryParams = call.request.queryParameters
+
+    try {
+        val targetUrl = "http://unified-inbox:3000$path"
+        val response = httpClient.post(targetUrl) {
+            contentType(ContentType.Application.Json)
+            if (signatureHeader != null) {
+                header("x-hub-signature-256", signatureHeader)
+            }
+            url {
+                queryParams.forEach { key, values ->
+                    parameters.appendAll(key, values)
+                }
+            }
+            setBody(rawBody)
+        }
+        
+        // Sync to Postgres in background
+        try {
+            svc.syncFromUnifiedInbox()
+        } catch (_: Exception) {}
+
+        call.respond(response.status, response.bodyAsText())
+    } catch (e: Exception) {
+        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "proxy_error", "message" to e.message))
+    }
+}
+
+suspend fun proxyGetWebhook(call: ApplicationCall, httpClient: HttpClient, path: String) {
+    val queryParams = call.request.queryParameters
+
+    try {
+        val targetUrl = "http://unified-inbox:3000$path"
+        val response = httpClient.get(targetUrl) {
+            url {
+                queryParams.forEach { key, values ->
+                    parameters.appendAll(key, values)
+                }
+            }
+        }
+        call.respondText(response.bodyAsText(), response.contentType() ?: ContentType.Text.Plain, response.status)
+    } catch (e: Exception) {
+        call.respond(HttpStatusCode.InternalServerError, "Proxy error: ${e.message}")
+    }
+}
+
 fun Route.socialWebhookRoutes() {
     val svc: SocialService by inject()
+    val httpClient: HttpClient by inject()
 
     route("/social/webhook") {
 
         // ── WhatsApp ───────────────────────────────────────────────────────
 
         get("/whatsapp") {
-            val mode      = call.request.queryParameters["hub.mode"]
-            val token     = call.request.queryParameters["hub.verify_token"]
-            val challenge = call.request.queryParameters["hub.challenge"]
-            if (mode == "subscribe" && svc.verifyWebhookToken("WHATSAPP", token ?: "")) {
-                call.respondText(challenge ?: "", ContentType.Text.Plain)
-            } else {
-                call.respond(HttpStatusCode.Forbidden, "Invalid verify token")
-            }
+            proxyGetWebhook(call, httpClient, "/webhooks/whatsapp")
         }
         post("/whatsapp") {
-            val payload = call.receive<MetaWebhookPayload>()
-            svc.processMetaWebhook(payload)
-            call.respond(HttpStatusCode.OK, mapOf("status" to "received"))
+            proxyWebhook(call, httpClient, "/webhooks/whatsapp", svc)
         }
 
         // ── Instagram ──────────────────────────────────────────────────────
 
         get("/instagram") {
-            val mode      = call.request.queryParameters["hub.mode"]
-            val token     = call.request.queryParameters["hub.verify_token"]
-            val challenge = call.request.queryParameters["hub.challenge"]
-            if (mode == "subscribe" && svc.verifyWebhookToken("INSTAGRAM", token ?: "")) {
-                call.respondText(challenge ?: "", ContentType.Text.Plain)
-            } else {
-                call.respond(HttpStatusCode.Forbidden, "Invalid verify token")
-            }
+            proxyGetWebhook(call, httpClient, "/webhooks/instagram")
         }
         post("/instagram") {
-            val payload = call.receive<MetaWebhookPayload>()
-            svc.processMetaWebhook(payload)
-            call.respond(HttpStatusCode.OK, mapOf("status" to "received"))
+            proxyWebhook(call, httpClient, "/webhooks/instagram", svc)
         }
 
         // ── Facebook ───────────────────────────────────────────────────────
 
         get("/facebook") {
-            val mode      = call.request.queryParameters["hub.mode"]
-            val token     = call.request.queryParameters["hub.verify_token"]
-            val challenge = call.request.queryParameters["hub.challenge"]
-            if (mode == "subscribe" && svc.verifyWebhookToken("FACEBOOK", token ?: "")) {
-                call.respondText(challenge ?: "", ContentType.Text.Plain)
-            } else {
-                call.respond(HttpStatusCode.Forbidden, "Invalid verify token")
-            }
+            proxyGetWebhook(call, httpClient, "/webhooks/facebook")
         }
         post("/facebook") {
-            val payload = call.receive<MetaWebhookPayload>()
-            svc.processMetaWebhook(payload)
-            call.respond(HttpStatusCode.OK, mapOf("status" to "received"))
+            proxyWebhook(call, httpClient, "/webhooks/facebook", svc)
         }
 
         // ── TikTok ─────────────────────────────────────────────────────────
 
         post("/tiktok/{channelId}") {
-            val channelId = call.parameters["channelId"]!!
-            val payload   = call.receive<TikTokWebhookPayload>()
-            svc.processTikTokWebhook(channelId, payload)
-            call.respond(HttpStatusCode.OK, mapOf("status" to "received"))
+            proxyWebhook(call, httpClient, "/webhooks/tiktok", svc)
         }
     }
 }

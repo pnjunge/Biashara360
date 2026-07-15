@@ -1,5 +1,6 @@
 package com.app.biashara.ui.screens.tax
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import com.app.biashara.ui.theme.*
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -66,8 +68,8 @@ fun TaxScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Tax Management", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
+                title = { Text("Tax Management", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface),
                 actions = {
                     IconButton(onClick = {}) {
                         Icon(Icons.Default.Download, contentDescription = "Export", tint = B360Green)
@@ -75,21 +77,28 @@ fun TaxScreen() {
                 }
             )
         },
-        containerColor = Color(0xFFF4F7F5)
+        containerColor = B360Surface
     ) { paddingValues ->
-        Column(modifier = Modifier.padding(paddingValues)) {
+        Column(modifier = Modifier.padding(paddingValues).fillMaxSize().background(B360Surface)) {
             // Tabs
             ScrollableTabRow(
                 selectedTabIndex = tab,
                 containerColor = Color.White,
                 contentColor = B360Green,
-                edgePadding = 0.dp
+                edgePadding = 0.dp,
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[tab]),
+                        color = B360Green
+                    )
+                }
             ) {
                 tabs.forEachIndexed { i, title ->
+                    val isSelected = tab == i
                     Tab(
-                        selected = tab == i,
+                        selected = isSelected,
                         onClick = { tab = i },
-                        text = { Text(title, fontWeight = if (tab == i) FontWeight.Bold else FontWeight.Normal, fontSize = 13.sp) }
+                        text = { Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = 13.sp, color = if (isSelected) B360Green else Color(0xFF64748B)) }
                     )
                 }
             }
@@ -109,11 +118,11 @@ fun TaxScreen() {
 @Composable
 fun TaxSummaryTab() {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("February 2026 Summary", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(bottom = 4.dp))
+            Text("February 2026 Summary", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A), modifier = Modifier.padding(bottom = 4.dp))
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -132,24 +141,25 @@ fun TaxSummaryTab() {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Effective Tax Rate", fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
-                    Text("KES 69,000 tax on KES 465,000 revenue", fontSize = 12.sp, color = Color(0xFF666666), modifier = Modifier.padding(bottom = 10.dp))
+                    Text("Effective Tax Rate", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A), modifier = Modifier.padding(bottom = 8.dp))
+                    Text("KES 69,000 tax on KES 465,000 revenue", fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 10.dp))
                     LinearProgressIndicator(
                         progress = { 0.148f },
                         modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
                         color = B360Green,
-                        trackColor = Color(0xFFE0E0E0)
+                        trackColor = Color(0xFFF1F5F9)
                     )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(8.dp))
                     Text("14.8% effective rate", fontWeight = FontWeight.Bold, color = B360Green, fontSize = 13.sp)
                 }
             }
         }
         item {
-            Text("KRA Filing Deadlines", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text("KRA Filing Deadlines", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
         }
         items(listOf(
             Triple("VAT",  "20th of following month", Color(0xFF1B8B34)),
@@ -160,7 +170,8 @@ fun TaxSummaryTab() {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(10.dp)
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
             ) {
                 Row(
                     modifier = Modifier.padding(14.dp),
@@ -168,12 +179,12 @@ fun TaxSummaryTab() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(modifier = Modifier.background(color.copy(alpha = 0.15f), RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                        Box(modifier = Modifier.background(color.copy(alpha = 0.12f), RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 4.dp)) {
                             Text(type, color = color, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                         Column {
-                            Text("Monthly Filing", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                            Text(deadline, fontSize = 11.sp, color = Color(0xFF888888))
+                            Text("Monthly Filing", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF0F172A))
+                            Text(deadline, fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                         }
                     }
                     Icon(Icons.Default.CalendarToday, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
@@ -191,30 +202,32 @@ fun TaxRatesTab() {
     var showAdd by remember { mutableStateOf(false) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
             // Kenya defaults seed banner
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
-                shape = RoundedCornerShape(10.dp)
+                colors = CardDefaults.cardColors(containerColor = B360GreenBg),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, B360Green.copy(0.15f))
             ) {
                 Row(
                     modifier = Modifier.padding(14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                         Text("Kenya Tax Defaults", fontWeight = FontWeight.Bold, color = B360Green, fontSize = 13.sp)
-                        Text("VAT 16% · TOT 1.5% · WHT 3% · Excise 20%", fontSize = 11.sp, color = Color(0xFF388E3C))
+                        Text("VAT 16% · TOT 1.5% · WHT 3% · Excise 20%", fontSize = 11.sp, color = B360Green.copy(alpha = 0.8f), fontWeight = FontWeight.Medium)
                     }
                     Button(
                         onClick = {},
                         colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                        shape = RoundedCornerShape(20.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) { Text("Seed Defaults", fontSize = 12.sp) }
+                    ) { Text("Seed Defaults", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White) }
                 }
             }
         }
@@ -224,7 +237,8 @@ fun TaxRatesTab() {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -233,15 +247,15 @@ fun TaxRatesTab() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Box(modifier = Modifier.background(typeColor.copy(alpha = 0.15f), RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                            Box(modifier = Modifier.background(typeColor.copy(alpha = 0.12f), RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 4.dp)) {
                                 Text(rate.taxType, color = typeColor, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
-                            Text(rate.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(rate.name, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
                         }
                         Text("${rate.ratePercent}%", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = typeColor)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text(rate.description, fontSize = 12.sp, color = Color(0xFF666666))
+                    Text(rate.description, fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(10.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -257,7 +271,7 @@ fun TaxRatesTab() {
                             onCheckedChange = { checked ->
                                 rates = rates.map { if (it.id == rate.id) it.copy(isActive = checked) else it }
                             },
-                            colors = SwitchDefaults.colors(checkedThumbColor = B360Green, checkedTrackColor = Color(0xFFB9F6CA))
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = B360Green)
                         )
                     }
                 }
@@ -267,13 +281,14 @@ fun TaxRatesTab() {
         item {
             OutlinedButton(
                 onClick = { showAdd = !showAdd },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = B360Green)
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = B360Green),
+                border = BorderStroke(1.dp, B360Green.copy(0.3f))
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Add Custom Tax Rate")
+                Text("Add Custom Tax Rate", fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -296,27 +311,31 @@ fun TaxCalculatorTab() {
     val grandTotal = numAmount + totalTax
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+            ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Amount (KES)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    Text("Amount (KES)", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF64748B), modifier = Modifier.padding(bottom = 8.dp))
                     OutlinedTextField(
                         value = amount,
                         onValueChange = { amount = it },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = B360Green)
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = B360Green, unfocusedBorderColor = Color(0xFFE2E8F0))
                     )
                 }
             }
         }
 
         item {
-            Text("Select Tax Rates to Apply", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("Select Tax Rates to Apply", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
         }
 
         items(activeRates, key = { it.id }) { rate ->
@@ -329,8 +348,8 @@ fun TaxCalculatorTab() {
                 colors = CardDefaults.cardColors(
                     containerColor = if (isSelected) typeColor.copy(alpha = 0.08f) else Color.White
                 ),
-                shape = RoundedCornerShape(10.dp),
-                border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, typeColor) else null
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) typeColor else Color(0xFFF1F5F9))
             ) {
                 Row(
                     modifier = Modifier.padding(14.dp),
@@ -344,8 +363,8 @@ fun TaxCalculatorTab() {
                             colors = CheckboxDefaults.colors(checkedColor = typeColor)
                         )
                         Column {
-                            Text(rate.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                            Text(rate.taxType, fontSize = 11.sp, color = typeColor)
+                            Text(rate.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF0F172A))
+                            Text(rate.taxType, fontSize = 11.sp, color = typeColor, fontWeight = FontWeight.Bold)
                         }
                     }
                     Text("${rate.ratePercent}%", fontWeight = FontWeight.ExtraBold, color = typeColor, fontSize = 16.sp)
@@ -354,23 +373,27 @@ fun TaxCalculatorTab() {
         }
 
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+            ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Tax Breakdown", fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(bottom = 12.dp))
+                    Text("Tax Breakdown", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A), modifier = Modifier.padding(bottom = 12.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Subtotal", color = Color(0xFF666666))
-                        Text("KES ${"%,.0f".format(numAmount)}", fontWeight = FontWeight.SemiBold)
+                        Text("Subtotal", color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                        Text("KES ${"%,.0f".format(numAmount)}", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                     }
                     lines.forEach { line ->
                         Spacer(Modifier.height(6.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("${line.name} (${line.ratePercent}%)", color = TYPE_COLORS[line.type] ?: Color.Gray, fontSize = 13.sp)
+                            Text("${line.name} (${line.ratePercent}%)", color = TYPE_COLORS[line.type] ?: Color.Gray, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             Text("+ KES ${"%,.0f".format(line.amount)}", color = TYPE_COLORS[line.type] ?: Color.Gray, fontWeight = FontWeight.Bold)
                         }
                     }
-                    Divider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFFE0E0E0))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Total Tax", fontWeight = FontWeight.Bold)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFFF1F5F9))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Total Tax", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                         Text("KES ${"%,.0f".format(totalTax)}", fontWeight = FontWeight.ExtraBold, color = B360Green, fontSize = 16.sp)
                     }
                 }
@@ -378,7 +401,10 @@ fun TaxCalculatorTab() {
         }
 
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = B360Green), shape = RoundedCornerShape(12.dp)) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = B360Green),
+                shape = RoundedCornerShape(16.dp)
+            ) {
                 Row(
                     modifier = Modifier.padding(16.dp).fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -397,25 +423,25 @@ fun TaxCalculatorTab() {
 @Composable
 fun RemittancesTab() {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
             Button(
                 onClick = {},
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                shape = RoundedCornerShape(10.dp)
+                shape = RoundedCornerShape(24.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = null)
+                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
                 Spacer(Modifier.width(8.dp))
-                Text("File New Period")
+                Text("File New Period", fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
 
          items(emptyList<RemittanceUi>(), key = { it.id }) { r ->
             val (statusColor, statusBg) = when (r.status) {
-                "PAID"    -> Pair(Color(0xFF1B8B34), Color(0xFFE8F5E9))
+                "PAID"    -> Pair(B360Green, B360GreenBg)
                 "FILED"   -> Pair(Color(0xFF1565C0), Color(0xFFE3F2FD))
                 else      -> Pair(Color(0xFFFF8F00), Color(0xFFFFF8E1))
             }
@@ -424,7 +450,8 @@ fun RemittancesTab() {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -433,10 +460,10 @@ fun RemittancesTab() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Box(modifier = Modifier.background(typeColor.copy(alpha = 0.15f), RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                            Box(modifier = Modifier.background(typeColor.copy(alpha = 0.12f), RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 4.dp)) {
                                 Text(r.taxType, color = typeColor, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
-                            Text(r.period, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(r.period, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
                         }
                         Box(modifier = Modifier.background(statusBg, RoundedCornerShape(20.dp)).padding(horizontal = 12.dp, vertical = 4.dp)) {
                             Text(r.status, color = statusColor, fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -445,17 +472,17 @@ fun RemittancesTab() {
                     Spacer(Modifier.height(10.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
-                            Text("Taxable Amount", fontSize = 11.sp, color = Color(0xFF999999))
-                            Text("KES ${"%,.0f".format(r.taxableAmount)}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text("Taxable Amount", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                            Text("KES ${"%,.0f".format(r.taxableAmount)}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Tax Due", fontSize = 11.sp, color = Color(0xFF999999))
+                            Text("Tax Due", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                             Text("KES ${"%,.0f".format(r.taxAmount)}", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = B360Green)
                         }
                     }
                     r.receiptNumber?.let { receipt ->
                         Spacer(Modifier.height(8.dp))
-                        Text("KRA Receipt: $receipt", fontSize = 11.sp, color = Color(0xFF888888))
+                        Text("KRA Receipt: $receipt", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                     }
                     if (r.status == "PENDING") {
                         Spacer(Modifier.height(10.dp))
@@ -463,15 +490,16 @@ fun RemittancesTab() {
                             OutlinedButton(
                                 onClick = {},
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1565C0))
-                            ) { Text("Mark Filed", fontSize = 12.sp) }
+                                shape = RoundedCornerShape(20.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1565C0)),
+                                border = BorderStroke(1.dp, Color(0xFF1565C0).copy(0.3f))
+                            ) { Text("Mark Filed", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                             Button(
                                 onClick = {},
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                                shape = RoundedCornerShape(8.dp)
-                            ) { Text("Mark Paid", fontSize = 12.sp) }
+                                shape = RoundedCornerShape(20.dp)
+                            ) { Text("Mark Paid", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White) }
                         }
                     }
                 }
@@ -484,11 +512,16 @@ fun RemittancesTab() {
 
 @Composable
 private fun TaxKpiCard(title: String, value: String, sub: String, color: Color, modifier: Modifier = Modifier) {
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+    ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(title, fontSize = 11.sp, color = Color(0xFF888888), modifier = Modifier.padding(bottom = 6.dp))
+            Text(title, fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 6.dp))
             Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = color)
-            Text(sub, fontSize = 11.sp, color = Color(0xFFAAAAAA))
+            Text(sub, fontSize = 11.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -497,9 +530,9 @@ private fun TaxKpiCard(title: String, value: String, sub: String, color: Color, 
 private fun Chip(label: String) {
     Box(
         modifier = Modifier
-            .background(Color(0xFFF5F5F5), RoundedCornerShape(5.dp))
+            .background(Color(0xFFF1F5F9), RoundedCornerShape(8.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text(label, fontSize = 10.sp, color = Color(0xFF555555))
+        Text(label, fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold)
     }
 }

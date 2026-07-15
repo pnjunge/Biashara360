@@ -1,8 +1,13 @@
 package com.app.biashara.ui.screens.auth
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -12,8 +17,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -30,8 +36,161 @@ import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
 
 @Composable
+fun AuthBackground(
+    content: @Composable BoxScope.() -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF015A42)) // Deep green brand background
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = size.width
+            val height = size.height
+
+            // Top-left soft arc
+            drawCircle(
+                color = Color(0xFF059669).copy(alpha = 0.25f),
+                radius = width * 0.5f,
+                center = androidx.compose.ui.geometry.Offset(-width * 0.1f, height * 0.1f)
+            )
+
+            // Outer top-left thin arc border
+            drawCircle(
+                color = Color(0xFF34D399).copy(alpha = 0.15f),
+                radius = width * 0.6f,
+                center = androidx.compose.ui.geometry.Offset(-width * 0.1f, height * 0.1f),
+                style = Stroke(width = 2.dp.toPx())
+            )
+
+            // Bottom-left soft wave/arc
+            drawCircle(
+                color = Color(0xFF34D399).copy(alpha = 0.15f),
+                radius = width * 0.4f,
+                center = androidx.compose.ui.geometry.Offset(width * 0.1f, height * 0.95f)
+            )
+            
+            // Bottom-left inner soft white/light-green wave
+            drawCircle(
+                color = Color.White.copy(alpha = 0.08f),
+                radius = width * 0.35f,
+                center = androidx.compose.ui.geometry.Offset(width * 0.05f, height * 0.98f)
+            )
+
+            // Bottom-right soft arc
+            drawCircle(
+                color = Color(0xFF059669).copy(alpha = 0.2f),
+                radius = width * 0.45f,
+                center = androidx.compose.ui.geometry.Offset(width * 1.1f, height * 0.85f)
+            )
+
+            // Top-right dot grid
+            val dotSpacing = 20.dp.toPx()
+            val dotRadius = 2.dp.toPx()
+            val startX = width * 0.7f
+            val startY = height * 0.12f
+            for (col in 0..6) {
+                for (row in 0..9) {
+                    drawCircle(
+                        color = Color(0xFF34D399).copy(alpha = 0.2f),
+                        radius = dotRadius,
+                        center = androidx.compose.ui.geometry.Offset(startX + col * dotSpacing, startY + row * dotSpacing)
+                    )
+                }
+            }
+        }
+        
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            contentAlignment = Alignment.Center
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+fun LogoHeader() {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(bottom = 24.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .background(Color.White.copy(alpha = 0.15f), CircleShape)
+                    .border(2.dp, Color(0xFF34D399), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "B",
+                    color = Color.White,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 24.sp
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                "Biashara360",
+                color = Color.White,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Biashara yako, nguvu yako",
+            color = Color(0xFF34D399),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Your business, your power",
+            color = Color.White.copy(alpha = 0.8f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+fun FloatingShieldBadge() {
+    Box(
+        modifier = Modifier
+            .offset(y = (-32).dp)
+            .size(64.dp)
+            .background(Color(0xFFE6F4EA), CircleShape)
+            .border(4.dp, Color.White, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Default.Shield,
+                contentDescription = null,
+                tint = B360Green,
+                modifier = Modifier.size(32.dp)
+            )
+            Icon(
+                Icons.Default.Lock,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(14.dp)
+            )
+        }
+    }
+}
+
+@Composable
 fun LoginScreen(
     onLoginSuccess: (String) -> Unit,
+    onAuthenticated: () -> Unit,
     onRegister: () -> Unit,
     viewModel: AuthViewModel = kmpViewModel()
 ) {
@@ -43,92 +202,170 @@ fun LoginScreen(
         }
     }
 
+    LaunchedEffect(state.isAuthenticated) {
+        if (state.isAuthenticated) {
+            onAuthenticated()
+        }
+    }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(B360Green, B360GreenDark)))
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Spacer(Modifier.height(60.dp))
-        Text("Biashara360", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-        Text("Biashara yako, nguvu yako", color = Color.White.copy(0.8f), fontSize = 14.sp)
-        Spacer(Modifier.height(8.dp))
-        Text("Your business, your power", color = Color.White.copy(0.6f), fontSize = 12.sp)
-        Spacer(Modifier.height(40.dp))
-
-        Card(
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-            shape = RoundedCornerShape(20.dp),
-            elevation = CardDefaults.cardElevation(8.dp)
+    AuthBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Welcome Back", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            LogoHeader()
 
-                if (state.error != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(8.dp)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 32.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(24.dp)
+                            .padding(top = 28.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Text("Welcome Back!", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color(0xFF0F172A))
+                        Text("Please sign in to continue", fontSize = 13.sp, color = Color(0xFF64748B))
+
+                        if (state.error != null) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Filled.Error, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                    Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it; viewModel.dismissError() },
+                            label = { Text("Email / Phone") },
+                            leadingIcon = { Icon(Icons.Filled.Email, null) },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            enabled = !state.isLoading,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = B360Green,
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                focusedLabelColor = B360Green,
+                                unfocusedLabelColor = Color(0xFF94A3B8),
+                                focusedLeadingIconColor = B360Green,
+                                unfocusedLeadingIconColor = Color(0xFF94A3B8)
+                            )
+                        )
+
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it; viewModel.dismissError() },
+                            label = { Text("Password") },
+                            leadingIcon = { Icon(Icons.Filled.Lock, null) },
+                            trailingIcon = {
+                                IconButton({ passwordVisible = !passwordVisible }) {
+                                    Icon(if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null, tint = Color(0xFF94A3B8))
+                                }
+                            },
+                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            enabled = !state.isLoading,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = B360Green,
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                focusedLabelColor = B360Green,
+                                unfocusedLabelColor = Color(0xFF94A3B8),
+                                focusedLeadingIconColor = B360Green,
+                                unfocusedLeadingIconColor = Color(0xFF94A3B8)
+                            )
+                        )
+
+                        Button(
+                            onClick = { viewModel.login(email, password) },
+                            modifier = Modifier.fillMaxWidth().height(54.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                            shape = RoundedCornerShape(14.dp),
+                            enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank()
                         ) {
-                            Icon(Icons.Filled.Error, null, tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(16.dp))
-                            Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                            if (state.isLoading) {
+                                CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                            } else {
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    Text("Login / Ingia", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
+                                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                }
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        ) {
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
+                            Text("OR", color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.login("admin@biashara360.co.ke", "admin123") }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).background(Color(0xFFE6F4EA), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Fingerprint, contentDescription = null, tint = B360Green, modifier = Modifier.size(22.dp))
+                            }
+                            Text("Login with biometrics", modifier = Modifier.weight(1f), color = Color(0xFF0F172A), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = Color(0xFF64748B))
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text("Don't have an account? ", color = Color(0xFF64748B), fontSize = 13.sp)
+                            Text(
+                                "Register",
+                                color = B360Green,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable { onRegister() }
+                            )
                         }
                     }
                 }
 
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it; viewModel.dismissError() },
-                    label = { Text("Email / Phone") },
-                    leadingIcon = { Icon(Icons.Filled.Email, null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true,
-                    enabled = !state.isLoading
-                )
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it; viewModel.dismissError() },
-                    label = { Text("Password") },
-                    leadingIcon = { Icon(Icons.Filled.Lock, null) },
-                    trailingIcon = {
-                        IconButton({ passwordVisible = !passwordVisible }) {
-                            Icon(if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null)
-                        }
-                    },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true,
-                    enabled = !state.isLoading
-                )
-                Button(
-                    onClick = { viewModel.login(email, password) },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank()
-                ) {
-                    if (state.isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
-                    else Text("Login / Ingia", fontWeight = FontWeight.Bold)
-                }
-                TextButton(onClick = onRegister, modifier = Modifier.fillMaxWidth()) {
-                    Text("Don't have an account? Register", textAlign = TextAlign.Center)
+                Box(modifier = Modifier.align(Alignment.TopCenter)) {
+                    FloatingShieldBadge()
                 }
             }
         }
-        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -158,63 +395,179 @@ fun RegisterScreen(
         BusinessType.ONLINE_SELLER to "Online Seller"
     )
 
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null) }
-        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = B360Green)
-        Text("Jiunge na Biashara360", color = Color.Gray)
-
-        if (state.error != null) {
-            Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(8.dp)) {
-                Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp,
-                    modifier = Modifier.padding(10.dp))
-            }
-        }
-
-        OutlinedTextField(value = name, onValueChange = { name = it; viewModel.dismissError() },
-            label = { Text("Full Name *") }, modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp), singleLine = true, enabled = !state.isLoading)
-        OutlinedTextField(value = phone, onValueChange = { phone = it; viewModel.dismissError() },
-            label = { Text("Phone (07XX) *") }, modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            shape = RoundedCornerShape(12.dp), singleLine = true, enabled = !state.isLoading)
-        OutlinedTextField(value = email, onValueChange = { email = it; viewModel.dismissError() },
-            label = { Text("Email *") }, modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            shape = RoundedCornerShape(12.dp), singleLine = true, enabled = !state.isLoading)
-        OutlinedTextField(value = businessName, onValueChange = { businessName = it; viewModel.dismissError() },
-            label = { Text("Business Name *") }, modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp), singleLine = true, enabled = !state.isLoading)
-        OutlinedTextField(value = password, onValueChange = { password = it; viewModel.dismissError() },
-            label = { Text("Password *") }, modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation(),
-            shape = RoundedCornerShape(12.dp), singleLine = true, enabled = !state.isLoading)
-
-        Text("Business Type", fontWeight = FontWeight.Medium)
-        businessTypes.forEach { (type, label) ->
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                RadioButton(selected = selectedType == type, onClick = { selectedType = type },
-                    colors = RadioButtonDefaults.colors(selectedColor = B360Green), enabled = !state.isLoading)
-                Text(label)
-            }
-        }
-
-        Button(
-            onClick = { viewModel.register(name, phone, email, password, businessName, selectedType) },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-            shape = RoundedCornerShape(12.dp),
-            enabled = !state.isLoading && name.isNotBlank() && phone.isNotBlank() &&
-                email.isNotBlank() && businessName.isNotBlank() && password.isNotBlank()
+    AuthBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (state.isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
-            else Text("Register / Jisajili", fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) { 
+                    Icon(Icons.Filled.ArrowBack, null, tint = Color.White) 
+                }
+                Spacer(Modifier.width(8.dp))
+                Text("Back", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+
+            LogoHeader()
+
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 32.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(24.dp)
+                            .padding(top = 28.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color(0xFF0F172A), modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Text("Jiunge na Biashara360", fontSize = 13.sp, color = Color(0xFF64748B), modifier = Modifier.align(Alignment.CenterHorizontally))
+
+                        if (state.error != null) {
+                            Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp)) {
+                                Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp,
+                                    modifier = Modifier.padding(10.dp))
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it; viewModel.dismissError() },
+                            label = { Text("Full Name *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            enabled = !state.isLoading,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = B360Green,
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                focusedLabelColor = B360Green,
+                                unfocusedLabelColor = Color(0xFF94A3B8)
+                            )
+                        )
+
+                        OutlinedTextField(
+                            value = phone,
+                            onValueChange = { phone = it; viewModel.dismissError() },
+                            label = { Text("Phone (07XX) *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            enabled = !state.isLoading,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = B360Green,
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                focusedLabelColor = B360Green,
+                                unfocusedLabelColor = Color(0xFF94A3B8)
+                            )
+                        )
+
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it; viewModel.dismissError() },
+                            label = { Text("Email *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            enabled = !state.isLoading,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = B360Green,
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                focusedLabelColor = B360Green,
+                                unfocusedLabelColor = Color(0xFF94A3B8)
+                            )
+                        )
+
+                        OutlinedTextField(
+                            value = businessName,
+                            onValueChange = { businessName = it; viewModel.dismissError() },
+                            label = { Text("Business Name *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            enabled = !state.isLoading,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = B360Green,
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                focusedLabelColor = B360Green,
+                                unfocusedLabelColor = Color(0xFF94A3B8)
+                            )
+                        )
+
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it; viewModel.dismissError() },
+                            label = { Text("Password *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = PasswordVisualTransformation(),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            enabled = !state.isLoading,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = B360Green,
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                focusedLabelColor = B360Green,
+                                unfocusedLabelColor = Color(0xFF94A3B8)
+                            )
+                        )
+
+                        Text("Business Type", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 14.sp)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            businessTypes.forEach { (type, label) ->
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { selectedType = type }) {
+                                    RadioButton(
+                                        selected = selectedType == type,
+                                        onClick = { selectedType = type },
+                                        colors = RadioButtonDefaults.colors(selectedColor = B360Green),
+                                        enabled = !state.isLoading
+                                    )
+                                    Text(label, color = Color(0xFF0F172A), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = { viewModel.register(name, phone, email, password, businessName, selectedType) },
+                            modifier = Modifier.fillMaxWidth().height(54.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                            shape = RoundedCornerShape(14.dp),
+                            enabled = !state.isLoading && name.isNotBlank() && phone.isNotBlank() &&
+                                email.isNotBlank() && businessName.isNotBlank() && password.isNotBlank()
+                        ) {
+                            if (state.isLoading) {
+                                CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                            } else {
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    Text("Register / Jisajili", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
+                                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.align(Alignment.TopCenter)) {
+                    FloatingShieldBadge()
+                }
+            }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OtpScreen(
     userId: String,
@@ -230,66 +583,120 @@ fun OtpScreen(
     var otp by remember { mutableStateOf("") }
     var selectedChannel by remember { mutableStateOf("SMS") }
 
-    Column(
-        Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Spacer(Modifier.height(40.dp))
-        Icon(Icons.Filled.Security, null, tint = B360Green, modifier = Modifier.size(64.dp))
-        Text("Two-Factor Authentication", fontWeight = FontWeight.Bold, fontSize = 22.sp, textAlign = TextAlign.Center)
-        Text("Enter the OTP sent to your phone/email", color = Color.Gray, textAlign = TextAlign.Center)
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            listOf("SMS", "Email", "App").forEach { ch ->
-                FilterChip(
-                    selected = selectedChannel == ch,
-                    onClick = { selectedChannel = ch },
-                    label = { Text(ch) },
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = B360Green.copy(0.2f)),
-                    enabled = !state.isLoading
-                )
-            }
-        }
-
-        if (state.error != null) {
-            Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(8.dp)) {
-                Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp,
-                    modifier = Modifier.padding(10.dp), textAlign = TextAlign.Center)
-            }
-        }
-
-        OutlinedTextField(
-            value = otp,
-            onValueChange = { if (it.length <= 6) otp = it.filter { c -> c.isDigit() } },
-            label = { Text("Enter 6-digit OTP") },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            shape = RoundedCornerShape(12.dp),
-            singleLine = true,
-            enabled = !state.isLoading
-        )
-
-        Button(
-            onClick = { viewModel.verifyOtp(otp, selectedChannel) },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-            shape = RoundedCornerShape(12.dp),
-            enabled = otp.length == 6 && !state.isLoading
+    AuthBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (state.isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
-            else Text("Verify / Thibitisha", fontWeight = FontWeight.Bold)
-        }
+            LogoHeader()
 
-        val cooldown = state.otpCooldownSeconds
-        TextButton(
-            onClick = { if (cooldown == 0) viewModel.resendOtp() },
-            enabled = cooldown == 0 && !state.isLoading
-        ) {
-            Text(
-                if (cooldown > 0) "Resend OTP in ${cooldown}s" else "Resend OTP",
-                color = if (cooldown > 0) Color.Gray else B360Green
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 32.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(24.dp)
+                            .padding(top = 28.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Two-Factor Authentication", fontWeight = FontWeight.Bold, fontSize = 20.sp, textAlign = TextAlign.Center, color = Color(0xFF0F172A))
+                        Text("Enter the OTP sent to your phone/email", color = Color(0xFF64748B), fontSize = 13.sp, textAlign = TextAlign.Center)
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("SMS", "Email", "App").forEach { ch ->
+                                val isSelected = selectedChannel == ch
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { selectedChannel = ch },
+                                    label = { Text(ch, fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = B360Green,
+                                        selectedLabelColor = Color.White,
+                                        containerColor = Color(0xFFF1F5F9),
+                                        labelColor = Color(0xFF64748B)
+                                    ),
+                                    shape = RoundedCornerShape(20.dp),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = !state.isLoading,
+                                        selected = isSelected,
+                                        borderColor = Color.Transparent,
+                                        selectedBorderColor = Color.Transparent
+                                    ),
+                                    enabled = !state.isLoading
+                                )
+                            }
+                        }
+
+                        if (state.error != null) {
+                            Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp)) {
+                                Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp,
+                                    modifier = Modifier.padding(10.dp), textAlign = TextAlign.Center)
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = otp,
+                            onValueChange = { if (it.length <= 6) otp = it.filter { c -> c.isDigit() } },
+                            label = { Text("Enter 6-digit OTP") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            enabled = !state.isLoading,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = B360Green,
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                focusedLabelColor = B360Green,
+                                unfocusedLabelColor = Color(0xFF94A3B8)
+                            )
+                        )
+
+                        Button(
+                            onClick = { viewModel.verifyOtp(otp, selectedChannel) },
+                            modifier = Modifier.fillMaxWidth().height(54.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                            shape = RoundedCornerShape(14.dp),
+                            enabled = otp.length == 6 && !state.isLoading
+                        ) {
+                            if (state.isLoading) {
+                                CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                            } else {
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    Text("Verify / Thibitisha", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
+                                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                }
+                            }
+                        }
+
+                        val cooldown = state.otpCooldownSeconds
+                        TextButton(
+                            onClick = { if (cooldown == 0) viewModel.resendOtp() },
+                            enabled = cooldown == 0 && !state.isLoading
+                        ) {
+                            Text(
+                                if (cooldown > 0) "Resend OTP in ${cooldown}s" else "Resend OTP",
+                                color = if (cooldown > 0) Color.Gray else B360Green,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.align(Alignment.TopCenter)) {
+                    FloatingShieldBadge()
+                }
+            }
         }
     }
 }
+

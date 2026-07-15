@@ -1,5 +1,6 @@
 package com.app.biashara.ui.screens.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -16,7 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.app.biashara.ui.theme.B360Green
+import com.app.biashara.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,33 +33,37 @@ fun CyberSourceSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("CyberSource Settings", fontWeight = FontWeight.Bold) },
+                title = { Text("CyberSource Settings", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color(0xFF0F172A))
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(B360Surface)
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Card(
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text("API Credentials", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = B360Green)
-                    HorizontalDivider(color = Color(0xFFF5F5F5))
+                    Text("API Credentials", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
+                    HorizontalDivider(color = Color(0xFFF1F5F9))
 
                     // Merchant ID
                     OutlinedTextField(
@@ -67,7 +72,14 @@ fun CyberSourceSettingsScreen(
                         label = { Text("Merchant ID (Organization ID)") },
                         placeholder = { Text("e.g. wanfashion_cs_098") },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White
+                        )
                     )
 
                     // Key ID
@@ -77,7 +89,14 @@ fun CyberSourceSettingsScreen(
                         label = { Text("Active Key ID (JWT/P12 Key ID)") },
                         placeholder = { Text("e.g. 9c7c25eb-xxxx-xxxx-xxxx-xxxxxxx") },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White
+                        )
                     )
 
                     // Secret Key
@@ -88,7 +107,14 @@ fun CyberSourceSettingsScreen(
                         placeholder = { Text("Enter secure shared secret key") },
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White
+                        )
                     )
 
                     // Environment
@@ -98,8 +124,8 @@ fun CyberSourceSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Active Sandbox Environment", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text("Toggle off for production rails", color = Color.Gray, fontSize = 11.sp)
+                            Text("Active Sandbox Environment", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
+                            Text("Toggle off for production rails", color = Color(0xFF64748B), fontSize = 11.sp)
                         }
                         Switch(
                             checked = isSandbox,
@@ -115,10 +141,10 @@ fun CyberSourceSettingsScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(B360Green.copy(0.15f), shape = RoundedCornerShape(8.dp))
+                                .background(B360Green.copy(0.12f), shape = RoundedCornerShape(12.dp))
                                 .padding(12.dp)
                         ) {
-                            Text("✓ Configuration saved and validated successfully!", color = B360Green, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text("✓ Configuration saved and validated successfully!", color = B360Green, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     }
 
@@ -126,10 +152,10 @@ fun CyberSourceSettingsScreen(
                         onClick = { showSuccessMessage = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(24.dp),
                         contentPadding = PaddingValues(14.dp)
                     ) {
-                        Text("Save Configuration", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Save Configuration", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                     }
                 }
             }

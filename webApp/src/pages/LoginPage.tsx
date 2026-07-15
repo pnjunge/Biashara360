@@ -110,6 +110,18 @@ export default function LoginPage() {
                 <p style={{ textAlign:'center', fontSize:12, color:'var(--b360-text-secondary)' }}>
                   2FA required for all accounts
                 </p>
+                <div style={{ textAlign:'center', marginTop:8 }}>
+                  <span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>
+                    Don't have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => navigate('/register')}
+                      style={{ color:'var(--b360-green)', fontWeight:600, border:'none', background:'none', padding:0, cursor:'pointer' }}
+                    >
+                      Register / Jisajili
+                    </button>
+                  </span>
+                </div>
               </form>
             </>
           ) : (

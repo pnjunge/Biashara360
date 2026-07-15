@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building, ShoppingCart, Clock, UserPlus, HelpCircle, Activity, ChevronDown, CheckCircle, Smartphone } from 'lucide-react'
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
-import { productApi, orderApi, customerApi, reportApi, businessApi, ProductResponse, OrderResponse, ProfitSummaryResponse } from '../services/api'
+import { productApi, orderApi, customerApi, reportApi, businessApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse } from '../services/api'
 import { useAuth } from '../App'
 
 function getCurrentMonthRange() {
@@ -242,7 +242,7 @@ export default function DashboardPage() {
                   <div style={{ padding:'20px 0', textAlign:'center', color:'var(--b360-text-secondary)', fontSize:13 }}>No customer data yet</div>
                 ) : (
                   topCustomers.map((c, i, arr) => {
-                    const initials = c.name.split(' ').map(n => n[0]).join('').toUpperCase()
+                    const initials = c.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
                     return (
                       <div key={c.id}>
                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 0' }}>

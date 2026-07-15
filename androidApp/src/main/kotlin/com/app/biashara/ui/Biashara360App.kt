@@ -1,9 +1,20 @@
 package com.app.biashara.ui
 
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.app.biashara.ui.theme.B360Green
+import androidx.navigation.NavController
+import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -38,26 +49,10 @@ fun Biashara360App() {
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
-                    bottomNavItems.forEach { item ->
-                        NavigationBarItem(
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = { Text(item.label) },
-                            selected = currentDestination?.hierarchy?.any {
-                                it.route == item.screen.route
-                            } == true,
-                            onClick = {
-                                navController.navigate(item.screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        )
-                    }
-                }
+                CustomBottomNavigation(
+                    navController = navController,
+                    currentDestination = currentDestination
+                )
             }
         }
     ) { paddingValues ->
@@ -66,12 +61,16 @@ fun Biashara360App() {
             startDestination = Screen.Login.route,
             modifier = Modifier.padding(paddingValues)
         ) {
-            // Auth
             composable(Screen.Login.route) {
                 LoginScreen(
                     onLoginSuccess = { userId ->
                         navController.navigate(Screen.OtpVerify.createRoute(userId)) {
                             popUpTo(Screen.Login.route) { inclusive = true }
+                        }
+                    },
+                    onAuthenticated = {
+                        navController.navigate(Screen.Dashboard.route) {
+                            popUpTo(0) { inclusive = true }
                         }
                     },
                     onRegister = { navController.navigate(Screen.Register.route) }
@@ -185,6 +184,98 @@ fun Biashara360App() {
                 com.app.biashara.ui.screens.settings.CyberSourceSettingsScreen(
                     onBack = { navController.popBackStack() }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun CustomBottomNavigation(
+    navController: NavController,
+    currentDestination: NavDestination?
+) {
+    Surface(
+        color = Color.White,
+        tonalElevation = 8.dp,
+        shadowElevation = 16.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            bottomNavItems.forEach { item ->
+                val isSelected = currentDestination?.hierarchy?.any {
+                    it.route == item.screen.route
+                } == true
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            navController.navigate(item.screen.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    if (isSelected) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = B360Green,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.label,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = item.label,
+                            color = B360Green,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .padding(vertical = 6.dp, horizontal = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Text(
+                            text = item.label,
+                            color = Color(0xFF64748B),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
         }
     }

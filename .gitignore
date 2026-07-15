@@ -17,3 +17,7 @@ build/
 *.iml
 out/
 
+# Android signing secrets
+*.keystore
+*.jks
+keystore.properties

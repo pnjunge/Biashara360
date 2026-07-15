@@ -13,7 +13,7 @@ class Biashara360Application : Application() {
         super.onCreate()
         val isDebug = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         if (isDebug) {
-            com.app.biashara.data.remote.BASE_URL = "https://extension-brake-php-administrator.trycloudflare.com/v1"
+            com.app.biashara.data.remote.BASE_URL = "http://10.0.3.2:8081/v1"
         }
         startKoin {
             androidLogger(Level.ERROR)

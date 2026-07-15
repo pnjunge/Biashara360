@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 
 // Biashara360 brand colors — modernized ultra-premium Emerald and Slate
 val B360Green = Color(0xFF10B981)
+val B360GreenBg = Color(0xFFEBF7EE)
 val B360GreenDark = Color(0xFF047857)
 val B360GreenLight = Color(0xFF34D399)
 val B360Amber = Color(0xFFF59E0B)

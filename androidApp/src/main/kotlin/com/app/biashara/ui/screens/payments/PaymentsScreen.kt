@@ -1,5 +1,7 @@
 package com.app.biashara.ui.screens.payments
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -46,17 +48,22 @@ fun PaymentsScreen(viewModel: PaymentsViewModel = kmpViewModel()) {
     if (matchPayment != null) {
         AlertDialog(
             onDismissRequest = { matchPayment = null; matchError = "" },
-            title = { Text("Match Payment") },
+            title = { Text("Match Payment", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Matching: ${matchPayment!!.transactionCode}", fontWeight = FontWeight.Medium)
-                    Text("Amount: KES ${"%,.0f".format(matchPayment!!.amount)}", color = B360Green)
+                    Text("Matching: ${matchPayment!!.transactionCode}", fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A))
+                    Text("Amount: KES ${"%,.0f".format(matchPayment!!.amount)}", color = B360Green, fontWeight = FontWeight.Bold)
                     OutlinedTextField(
                         value = matchOrderId,
                         onValueChange = { matchOrderId = it; matchError = "" },
                         label = { Text("Order Number / Order ID") },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        )
                     )
                     if (matchError.isNotBlank()) {
                         Text(matchError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
@@ -72,8 +79,9 @@ fun PaymentsScreen(viewModel: PaymentsViewModel = kmpViewModel()) {
                             viewModel.reconcilePayment(matchPayment!!.id, matchOrderId)
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = B360Green)
-                ) { Text("Match") }
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                    shape = RoundedCornerShape(20.dp)
+                ) { Text("Match", fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { matchPayment = null; matchError = "" }) { Text("Cancel") }
@@ -84,20 +92,20 @@ fun PaymentsScreen(viewModel: PaymentsViewModel = kmpViewModel()) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Payments / Malipo", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                title = { Text("Payments / Malipo", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         }
     ) { padding ->
         if (state.isLoading && state.payments.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().padding(padding).background(B360Surface), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = B360Green)
             }
             return@Scaffold
         }
 
         LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
+            Modifier.fillMaxSize().padding(padding).background(B360Surface),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -108,7 +116,7 @@ fun PaymentsScreen(viewModel: PaymentsViewModel = kmpViewModel()) {
                 }
             }
             item {
-                Text("Transaction History", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))
+                Text("Transaction History", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp), color = Color(0xFF0F172A))
             }
 
             if (state.payments.isEmpty() && !state.isLoading) {
@@ -124,9 +132,9 @@ fun PaymentsScreen(viewModel: PaymentsViewModel = kmpViewModel()) {
                 items(state.payments) { payment ->
                     Card(
                         Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = CardDefaults.cardElevation(2.dp),
-                        colors = CardDefaults.cardColors(Color.White)
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                        colors = CardDefaults.cardColors(containerColor = Color.White)
                     ) {
                         Row(
                             Modifier.padding(14.dp),
@@ -143,21 +151,23 @@ fun PaymentsScreen(viewModel: PaymentsViewModel = kmpViewModel()) {
                                         modifier = Modifier.size(14.dp)
                                     )
                                 }
-                                Text(payment.payerName, fontWeight = FontWeight.Medium)
-                                Text("${payment.payerPhone} • ${payment.method.name}", fontSize = 12.sp, color = Color.Gray)
+                                Spacer(Modifier.height(4.dp))
+                                Text(payment.payerName, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 14.sp)
+                                Text("${payment.payerPhone} • ${payment.method.name}", fontSize = 12.sp, color = Color(0xFF64748B))
                                 Text(payment.transactionDate.toString().substring(0, 16).replace("T", " "), fontSize = 11.sp, color = Color.Gray)
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("KES ${"%,.0f".format(payment.amount)}", fontWeight = FontWeight.Bold, color = B360Green)
+                                Text("KES ${"%,.0f".format(payment.amount)}", fontWeight = FontWeight.ExtraBold, color = B360Green, fontSize = 15.sp)
                                 if (!payment.reconciled) {
                                     TextButton(
                                         onClick = { matchPayment = payment },
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                        colors = ButtonDefaults.textButtonColors(contentColor = B360Green)
                                     ) {
-                                        Text("Match Order", fontSize = 11.sp)
+                                        Text("Match Order", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                 } else {
-                                    Text("✓ Matched", fontSize = 11.sp, color = B360Green.copy(0.8f))
+                                    Text("✓ Matched", fontSize = 11.sp, color = B360Green, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -170,10 +180,16 @@ fun PaymentsScreen(viewModel: PaymentsViewModel = kmpViewModel()) {
 
 @Composable
 fun PaymentStat(modifier: Modifier, label: String, value: String, color: Color) {
-    Card(modifier = modifier, shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(color.copy(0.1f))) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.2f)),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
         Column(Modifier.padding(14.dp)) {
-            Text(label, fontSize = 12.sp, color = color.copy(0.8f))
-            Text(value, fontWeight = FontWeight.Bold, color = color, fontSize = 15.sp)
+            Text(label, fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(4.dp))
+            Text(value, fontWeight = FontWeight.ExtraBold, color = color, fontSize = 16.sp)
         }
     }
 }

@@ -13,7 +13,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
-var BASE_URL = "https://extension-brake-php-administrator.trycloudflare.com/v1" // Cloudflare tunnel endpoint
+var BASE_URL = "http://192.168.11.241:8081/v1" // Host machine IP reachable from Genymotion
 
 fun createHttpClient(tokenStorage: TokenStorage): HttpClient {
     return HttpClient {

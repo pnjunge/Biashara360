@@ -1,5 +1,7 @@
 package com.app.biashara.ui.screens.inventory
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,17 +45,18 @@ fun InventoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Inventory / Hifadhi", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                title = { Text("Inventory / Hifadhi", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onAddProduct,
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("Add Product") },
+                text = { Text("Add Product", fontWeight = FontWeight.Bold) },
                 containerColor = B360Green,
-                contentColor = Color.White
+                contentColor = Color.White,
+                shape = RoundedCornerShape(24.dp)
             )
         }
     ) { padding ->
@@ -64,32 +67,52 @@ fun InventoryScreen(
             return@Scaffold
         }
 
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding).background(B360Surface)) {
             OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChange(it) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search products...") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                placeholder = { Text("Search products...", color = Color(0xFF94A3B8)) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color(0xFF64748B)) },
                 trailingIcon = {
                     if (state.searchQuery.isNotEmpty()) {
                         IconButton({ viewModel.onSearchQueryChange("") }) {
-                            Icon(Icons.Filled.Clear, contentDescription = null)
+                            Icon(Icons.Filled.Clear, contentDescription = null, tint = Color(0xFF64748B))
                         }
                     }
                 },
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
+                shape = RoundedCornerShape(14.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = B360Green,
+                    unfocusedBorderColor = Color(0xFFE2E8F0),
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White
+                )
             )
             Row(
                 Modifier.padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 filterLabels.forEach { (filter, label) ->
+                    val isSelected = state.selectedFilter == filter
                     FilterChip(
-                        selected = state.selectedFilter == filter,
+                        selected = isSelected,
                         onClick = { viewModel.onFilterChange(filter) },
-                        label = { Text(label) }
+                        label = { Text(label, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = B360Green,
+                            selectedLabelColor = Color.White,
+                            containerColor = Color.White,
+                            labelColor = Color(0xFF64748B)
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = Color(0xFFE2E8F0),
+                            selectedBorderColor = Color.Transparent
+                        ),
+                        shape = RoundedCornerShape(20.dp)
                     )
                 }
             }
@@ -126,7 +149,7 @@ fun InventoryScreen(
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(state.filteredProducts) { product ->
                         ProductCard(product = product, onEdit = { onEditProduct(product.id) })
@@ -142,12 +165,13 @@ fun InventoryScreen(
 fun SummaryChip(modifier: Modifier, value: String, label: String, color: Color) {
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
-        shape = RoundedCornerShape(10.dp)
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f)),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.2f))
     ) {
-        Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(value, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = color)
-            Text(label, fontSize = 11.sp, color = color.copy(0.8f))
+        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = color)
+            Text(label, fontSize = 12.sp, color = color, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -156,9 +180,9 @@ fun SummaryChip(modifier: Modifier, value: String, label: String, color: Color) 
 fun ProductCard(product: Product, onEdit: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(2.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
     ) {
         Row(
             Modifier.padding(16.dp),
@@ -167,7 +191,7 @@ fun ProductCard(product: Product, onEdit: () -> Unit) {
         ) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(product.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(product.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
                     if (product.isOutOfStock) {
                         Badge(containerColor = B360Red) { Text("Out", color = Color.White, fontSize = 10.sp) }
                     } else if (product.isLowStock) {
@@ -224,46 +248,87 @@ fun AddProductScreen(productId: String? = null, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isEdit) "Edit Product" else "Add Product", fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null) } }
+                title = { Text(if (isEdit) "Edit Product" else "Add Product", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null, tint = Color(0xFF0F172A)) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onBack, containerColor = B360Green) {
+            ExtendedFloatingActionButton(
+                onClick = onBack,
+                containerColor = B360Green,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(24.dp)
+            ) {
                 Icon(Icons.Filled.Check, null, tint = Color.White)
                 Spacer(Modifier.width(8.dp))
-                Text(if (isEdit) "Update" else "Save Product", color = Color.White)
+                Text(if (isEdit) "Update" else "Save Product", color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            Modifier.fillMaxSize().padding(padding).background(B360Surface).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             OutlinedTextField(
                 value = name, onValueChange = { name = it },
-                label = { Text("Product Name *") }, modifier = Modifier.fillMaxWidth()
+                label = { Text("Product Name *") }, modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = B360Green,
+                    unfocusedBorderColor = Color(0xFFE2E8F0),
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White
+                )
             )
             OutlinedTextField(
                 value = sku, onValueChange = { sku = it },
-                label = { Text("SKU / Barcode") }, modifier = Modifier.fillMaxWidth()
+                label = { Text("SKU / Barcode") }, modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = B360Green,
+                    unfocusedBorderColor = Color(0xFFE2E8F0),
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White
+                )
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = buyingPrice, onValueChange = { buyingPrice = it },
                     label = { Text("Cost Price (KES)") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = B360Green,
+                        unfocusedBorderColor = Color(0xFFE2E8F0),
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White
+                    )
                 )
                 OutlinedTextField(
                     value = price, onValueChange = { price = it },
                     label = { Text("Sell Price (KES)") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = B360Green,
+                        unfocusedBorderColor = Color(0xFFE2E8F0),
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White
+                    )
                 )
             }
             OutlinedTextField(
                 value = stock, onValueChange = { stock = it },
                 label = { Text("Stock Qty") }, modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = B360Green,
+                    unfocusedBorderColor = Color(0xFFE2E8F0),
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White
+                )
             )
         }
     }

@@ -16,6 +16,46 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.Instant
 import java.util.UUID
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class NodeConversationsResponse(
+    val data: List<NodeConversation>
+)
+
+@Serializable
+data class NodeConversation(
+    val id: String,
+    val platform: String,
+    val key: String,
+    val status: String,
+    val participantId: String,
+    val participantName: String? = null,
+    val lastMessageAt: String,
+    val lastMessagePreview: String? = null,
+    val messageCount: Int
+)
+
+@Serializable
+data class NodeMessagesResponse(
+    val data: List<NodeMessage>
+)
+
+@Serializable
+data class NodeMessage(
+    val id: String,
+    val conversationId: String,
+    val platform: String,
+    val nativeId: String,
+    val conversationKey: String,
+    val senderId: String,
+    val senderName: String? = null,
+    val recipientId: String? = null,
+    val direction: String,
+    val type: String,
+    val text: String? = null,
+    val receivedAt: String
+)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Social Commerce Service
@@ -77,97 +117,221 @@ class SocialService(
 
     // ── Conversation List ─────────────────────────────────────────────────────
 
-    fun getConversations(
+    suspend fun getConversations(
         businessId: String,
         platform: String? = null,
         status: String? = null,
         page: Int = 1,
         pageSize: Int = 30
-    ): PagedResponse<ConversationResponse> = transaction {
-        var query = SocialConversationsTable.select { SocialConversationsTable.businessId eq businessId }
-        if (!platform.isNullOrBlank()) query = query.andWhere { SocialConversationsTable.platform eq platform.uppercase() }
-        if (!status.isNullOrBlank()) query = query.andWhere { SocialConversationsTable.status eq status.uppercase() }
-        val total = query.count().toInt()
-        val convs = query
-            .orderBy(SocialConversationsTable.lastMessageAt, SortOrder.DESC)
-            .limit(pageSize, ((page - 1) * pageSize).toLong())
-            .map { row ->
-                val lastMsg = SocialMessagesTable.select { SocialMessagesTable.conversationId eq row[SocialConversationsTable.id] }
-                    .orderBy(SocialMessagesTable.createdAt, SortOrder.DESC).firstOrNull()
-                val channelName = SocialChannelsTable.select { SocialChannelsTable.id eq row[SocialConversationsTable.channelId] }
-                    .firstOrNull()?.get(SocialChannelsTable.channelName) ?: ""
-                ConversationResponse(
-                    id                = row[SocialConversationsTable.id],
-                    platform          = row[SocialConversationsTable.platform],
-                    channelName       = channelName,
-                    customerName      = row[SocialConversationsTable.customerName],
-                    customerPhone     = row[SocialConversationsTable.customerPhone],
-                    customerId        = row[SocialConversationsTable.customerId],
-                    status            = row[SocialConversationsTable.status],
-                    lastMessage       = lastMsg?.get(SocialMessagesTable.content)?.take(80) ?: "",
-                    lastMessageAt     = row[SocialConversationsTable.lastMessageAt].toString(),
-                    unreadCount       = row[SocialConversationsTable.unreadCount],
-                    isAiHandled       = row[SocialConversationsTable.isAiHandled],
-                    assignedOrderId   = row[SocialConversationsTable.assignedOrderId],
-                    platformAvatarUrl = null
-                )
-            }
-        PagedResponse(convs, total, page, pageSize, (page * pageSize) < total)
+    ): PagedResponse<ConversationResponse> {
+        try {
+            syncFromUnifiedInbox()
+        } catch (_: Exception) {}
+        return transaction {
+            var query = SocialConversationsTable.select { SocialConversationsTable.businessId eq businessId }
+            if (!platform.isNullOrBlank()) query = query.andWhere { SocialConversationsTable.platform eq platform.uppercase() }
+            if (!status.isNullOrBlank()) query = query.andWhere { SocialConversationsTable.status eq status.uppercase() }
+            val total = query.count().toInt()
+            val convs = query
+                .orderBy(SocialConversationsTable.lastMessageAt, SortOrder.DESC)
+                .limit(pageSize, ((page - 1) * pageSize).toLong())
+                .map { row ->
+                    val lastMsg = SocialMessagesTable.select { SocialMessagesTable.conversationId eq row[SocialConversationsTable.id] }
+                        .orderBy(SocialMessagesTable.createdAt, SortOrder.DESC).firstOrNull()
+                    val channelName = SocialChannelsTable.select { SocialChannelsTable.id eq row[SocialConversationsTable.channelId] }
+                        .firstOrNull()?.get(SocialChannelsTable.channelName) ?: ""
+                    ConversationResponse(
+                        id                = row[SocialConversationsTable.id],
+                        platform          = row[SocialConversationsTable.platform],
+                        channelName       = channelName,
+                        customerName      = row[SocialConversationsTable.customerName],
+                        customerPhone     = row[SocialConversationsTable.customerPhone],
+                        customerId        = row[SocialConversationsTable.customerId],
+                        status            = row[SocialConversationsTable.status],
+                        lastMessage       = lastMsg?.get(SocialMessagesTable.content)?.take(80) ?: "",
+                        lastMessageAt     = row[SocialConversationsTable.lastMessageAt].toString(),
+                        unreadCount       = row[SocialConversationsTable.unreadCount],
+                        isAiHandled       = row[SocialConversationsTable.isAiHandled],
+                        assignedOrderId   = row[SocialConversationsTable.assignedOrderId],
+                        platformAvatarUrl = null
+                    )
+                }
+            PagedResponse(convs, total, page, pageSize, (page * pageSize) < total)
+        }
     }
 
     // ── Conversation Detail ───────────────────────────────────────────────────
 
-    fun getConversationDetail(businessId: String, conversationId: String): ConversationDetailResponse? = transaction {
-        val convRow = SocialConversationsTable.select {
-            (SocialConversationsTable.id eq conversationId) and
-            (SocialConversationsTable.businessId eq businessId)
-        }.firstOrNull() ?: return@transaction null
+    suspend fun getConversationDetail(businessId: String, conversationId: String): ConversationDetailResponse? {
+        try {
+            syncFromUnifiedInbox()
+        } catch (_: Exception) {}
+        return transaction {
+            val convRow = SocialConversationsTable.select {
+                (SocialConversationsTable.id eq conversationId) and
+                (SocialConversationsTable.businessId eq businessId)
+            }.firstOrNull() ?: return@transaction null
 
-        val channelName = SocialChannelsTable.select { SocialChannelsTable.id eq convRow[SocialConversationsTable.channelId] }
-            .firstOrNull()?.get(SocialChannelsTable.channelName) ?: ""
+            val channelName = SocialChannelsTable.select { SocialChannelsTable.id eq convRow[SocialConversationsTable.channelId] }
+                .firstOrNull()?.get(SocialChannelsTable.channelName) ?: ""
 
-        val messages = SocialMessagesTable.select { SocialMessagesTable.conversationId eq conversationId }
-            .orderBy(SocialMessagesTable.createdAt, SortOrder.ASC)
-            .map { MessageResponse(
-                id           = it[SocialMessagesTable.id],
-                direction    = it[SocialMessagesTable.direction],
-                senderType   = it[SocialMessagesTable.senderType],
-                content      = it[SocialMessagesTable.content],
-                messageType  = it[SocialMessagesTable.messageType],
-                mediaUrl     = it[SocialMessagesTable.mediaUrl],
-                status       = it[SocialMessagesTable.status],
-                isAiGenerated = it[SocialMessagesTable.isAiGenerated],
-                createdAt    = it[SocialMessagesTable.createdAt].toString()
-            )}
+            val messages = SocialMessagesTable.select { SocialMessagesTable.conversationId eq conversationId }
+                .orderBy(SocialMessagesTable.createdAt, SortOrder.ASC)
+                .map { MessageResponse(
+                    id           = it[SocialMessagesTable.id],
+                    direction    = it[SocialMessagesTable.direction],
+                    senderType   = it[SocialMessagesTable.senderType],
+                    content      = it[SocialMessagesTable.content],
+                    messageType  = it[SocialMessagesTable.messageType],
+                    mediaUrl     = it[SocialMessagesTable.mediaUrl],
+                    status       = it[SocialMessagesTable.status],
+                    isAiGenerated = it[SocialMessagesTable.isAiGenerated],
+                    createdAt    = it[SocialMessagesTable.createdAt].toString()
+                )}
 
-        // Mark as read
-        SocialConversationsTable.update({ SocialConversationsTable.id eq conversationId }) {
-            it[unreadCount] = 0
+            // Mark as read
+            SocialConversationsTable.update({ SocialConversationsTable.id eq conversationId }) {
+                it[unreadCount] = 0
+            }
+
+            ConversationDetailResponse(
+                conversation     = ConversationResponse(
+                    id            = convRow[SocialConversationsTable.id],
+                    platform      = convRow[SocialConversationsTable.platform],
+                    channelName   = channelName,
+                    customerName  = convRow[SocialConversationsTable.customerName],
+                    customerPhone = convRow[SocialConversationsTable.customerPhone],
+                    customerId    = convRow[SocialConversationsTable.customerId],
+                    status        = convRow[SocialConversationsTable.status],
+                    lastMessage   = messages.lastOrNull()?.content?.take(80) ?: "",
+                    lastMessageAt = convRow[SocialConversationsTable.lastMessageAt].toString(),
+                    unreadCount   = 0,
+                    isAiHandled   = convRow[SocialConversationsTable.isAiHandled],
+                    assignedOrderId = convRow[SocialConversationsTable.assignedOrderId],
+                    platformAvatarUrl = null
+                ),
+                messages         = messages,
+                suggestedReplies = listOf("Asante! Nitapeleka order yako sasa.", "Tafadhali tuma namba yako ya simu.", "Bei ni KES…"),
+                detectedProducts = emptyList()
+            )
         }
-
-        ConversationDetailResponse(
-            conversation     = ConversationResponse(
-                id            = convRow[SocialConversationsTable.id],
-                platform      = convRow[SocialConversationsTable.platform],
-                channelName   = channelName,
-                customerName  = convRow[SocialConversationsTable.customerName],
-                customerPhone = convRow[SocialConversationsTable.customerPhone],
-                customerId    = convRow[SocialConversationsTable.customerId],
-                status        = convRow[SocialConversationsTable.status],
-                lastMessage   = messages.lastOrNull()?.content?.take(80) ?: "",
-                lastMessageAt = convRow[SocialConversationsTable.lastMessageAt].toString(),
-                unreadCount   = 0,
-                isAiHandled   = convRow[SocialConversationsTable.isAiHandled],
-                assignedOrderId = convRow[SocialConversationsTable.assignedOrderId],
-                platformAvatarUrl = null
-            ),
-            messages         = messages,
-            suggestedReplies = listOf("Asante! Nitapeleka order yako sasa.", "Tafadhali tuma namba yako ya simu.", "Bei ni KES…"),
-            detectedProducts = emptyList()
-        )
     }
 
     // ── Send Message ──────────────────────────────────────────────────────────
+
+    suspend fun syncFromUnifiedInbox() {
+        val businessId = transaction {
+            BusinessesTable.selectAll().firstOrNull()?.get(BusinessesTable.id)
+        } ?: return
+
+        try {
+            val response: NodeConversationsResponse = httpClient.get("http://unified-inbox:3000/api/conversations").body()
+            response.data.forEach { nodeConv ->
+                val platformUpper = nodeConv.platform.uppercase()
+                val channel = transaction {
+                    SocialChannelsTable.select {
+                        (SocialChannelsTable.businessId eq businessId) and
+                        (SocialChannelsTable.platform eq platformUpper)
+                    }.firstOrNull()
+                }
+                
+                val channelId = channel?.get(SocialChannelsTable.id) ?: transaction {
+                    val newId = generateId()
+                    SocialChannelsTable.insert {
+                        it[id] = newId
+                        it[SocialChannelsTable.businessId] = businessId
+                        it[platform] = platformUpper
+                        it[channelName] = "${nodeConv.platform.replaceFirstChar { it.uppercase() }} Channel"
+                        it[externalId] = nodeConv.key
+                        it[accessToken] = "temp_sync_token"
+                        it[isActive] = true
+                        it[autoReplyEnabled] = true
+                        it[webhookVerifyToken] = java.util.UUID.randomUUID().toString().replace("-", "")
+                        it[createdAt] = Clock.System.now()
+                        it[updatedAt] = Clock.System.now()
+                    }
+                    newId
+                }
+
+                val existingConv = transaction {
+                    SocialConversationsTable.select {
+                        (SocialConversationsTable.channelId eq channelId) and
+                        (SocialConversationsTable.customerExternalId eq nodeConv.participantId)
+                    }.firstOrNull()
+                }
+
+                val parsedTime = try {
+                    kotlinx.datetime.Instant.parse(nodeConv.lastMessageAt)
+                } catch (_: Exception) {
+                    Clock.System.now()
+                }
+
+                val convDbId = if (existingConv != null) {
+                    transaction {
+                        SocialConversationsTable.update({ SocialConversationsTable.id eq existingConv[SocialConversationsTable.id] }) {
+                            it[customerName] = nodeConv.participantName ?: nodeConv.participantId
+                            it[lastMessageAt] = parsedTime
+                            it[status] = nodeConv.status.uppercase()
+                        }
+                        existingConv[SocialConversationsTable.id]
+                    }
+                } else {
+                    val newConvId = generateId()
+                    transaction {
+                        SocialConversationsTable.insert {
+                            it[id] = newConvId
+                            it[SocialConversationsTable.businessId] = businessId
+                            it[SocialConversationsTable.channelId] = channelId
+                            it[platform] = platformUpper
+                            it[externalConvId] = nodeConv.id
+                            it[customerExternalId] = nodeConv.participantId
+                            it[customerName] = nodeConv.participantName ?: nodeConv.participantId
+                            it[lastMessageAt] = parsedTime
+                            it[unreadCount] = 0
+                            it[createdAt] = Clock.System.now()
+                        }
+                    }
+                    newConvId
+                }
+
+                // Now sync messages for this conversation
+                val msgUrl = "http://unified-inbox:3000/api/messages?conversationId=${nodeConv.id}"
+                val messagesResponse: NodeMessagesResponse = httpClient.get(msgUrl).body()
+                messagesResponse.data.forEach { nodeMsg ->
+                    val existingMsg = transaction {
+                        SocialMessagesTable.select {
+                            (SocialMessagesTable.conversationId eq convDbId) and
+                            (SocialMessagesTable.externalMsgId eq nodeMsg.nativeId)
+                        }.firstOrNull()
+                    }
+                    if (existingMsg == null) {
+                        val parsedMsgTime = try {
+                            kotlinx.datetime.Instant.parse(nodeMsg.receivedAt)
+                        } catch (_: Exception) {
+                            Clock.System.now()
+                        }
+                        transaction {
+                            SocialMessagesTable.insert {
+                                it[id] = generateId()
+                                it[conversationId] = convDbId
+                                it[SocialMessagesTable.businessId] = businessId
+                                it[externalMsgId] = nodeMsg.nativeId
+                                it[direction] = nodeMsg.direction.uppercase()
+                                it[senderType] = if (nodeMsg.direction == "inbound") "CUSTOMER" else "AGENT"
+                                it[content] = nodeMsg.text ?: ""
+                                it[messageType] = nodeMsg.type.uppercase()
+                                it[status] = "SENT"
+                                it[createdAt] = parsedMsgTime
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            println("[SyncError] Failed to sync from unified inbox: ${e.message}")
+            e.printStackTrace()
+        }
+    }
 
     suspend fun sendMessage(businessId: String, req: SendMessageRequest): ApiResponse<MessageResponse> {
         val conv = transaction {
@@ -177,20 +341,46 @@ class SocialService(
             }.firstOrNull()
         } ?: return ApiResponse(false, message = "Conversation not found")
 
-        val channel = transaction {
-            SocialChannelsTable.select { SocialChannelsTable.id eq conv[SocialConversationsTable.channelId] }.firstOrNull()
-        } ?: return ApiResponse(false, message = "Channel not found")
+        val lastMsgId = transaction {
+            SocialMessagesTable.select { SocialMessagesTable.conversationId eq req.conversationId }
+                .orderBy(SocialMessagesTable.createdAt, SortOrder.DESC)
+                .firstOrNull()?.get(SocialMessagesTable.externalMsgId)
+        }
 
-        val platform = conv[SocialConversationsTable.platform]
-        val recipientId = conv[SocialConversationsTable.customerExternalId]
+        val extConvId = conv[SocialConversationsTable.externalConvId]
+        val messageIdToReply = lastMsgId ?: try {
+            val msgUrl = "http://unified-inbox:3000/api/messages?conversationId=$extConvId"
+            val response: NodeMessagesResponse = httpClient.get(msgUrl).body()
+            response.data.lastOrNull()?.nativeId
+        } catch (_: Exception) { null }
 
-        // Send via appropriate platform API
-        val sendResult = when (platform) {
-            "WHATSAPP"  -> sendWhatsAppMessage(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], recipientId, req.content)
-            "INSTAGRAM" -> sendInstagramDm(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], recipientId, req.content)
-            "FACEBOOK"  -> sendFacebookMessage(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], recipientId, req.content)
-            "TIKTOK"    -> sendTikTokDm(channel[SocialChannelsTable.accessToken], conv[SocialConversationsTable.externalConvId], req.content)
-            else        -> false
+        val sendResult = if (messageIdToReply != null) {
+            try {
+                val replyUrl = "http://unified-inbox:3000/api/messages/$messageIdToReply/reply"
+                val response = httpClient.post(replyUrl) {
+                    contentType(ContentType.Application.Json)
+                    setBody(buildJsonObject { put("text", req.content) }.toString())
+                }
+                response.status.isSuccess()
+            } catch (_: Exception) { false }
+        } else {
+            // Fallback: call the direct platform API senders as a backup
+            val channel = transaction {
+                SocialChannelsTable.select { SocialChannelsTable.id eq conv[SocialConversationsTable.channelId] }.firstOrNull()
+            }
+            if (channel != null) {
+                val platform = conv[SocialConversationsTable.platform]
+                val recipientId = conv[SocialConversationsTable.customerExternalId]
+                when (platform) {
+                    "WHATSAPP"  -> sendWhatsAppMessage(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], recipientId, req.content)
+                    "INSTAGRAM" -> sendInstagramDm(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], recipientId, req.content)
+                    "FACEBOOK"  -> sendFacebookMessage(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], recipientId, req.content)
+                    "TIKTOK"    -> sendTikTokDm(channel[SocialChannelsTable.accessToken], conv[SocialConversationsTable.externalConvId], req.content)
+                    else        -> false
+                }
+            } else {
+                false
+            }
         }
 
         val now = Clock.System.now()
@@ -219,9 +409,8 @@ class SocialService(
     // ── AI Reply (Claude API) ─────────────────────────────────────────────────
 
     suspend fun generateAiReply(businessId: String, req: AiReplyRequest): ApiResponse<AiReplyResponse> {
-        val detail = transaction {
-            getConversationDetail(businessId, req.conversationId)
-        } ?: return ApiResponse(false, message = "Conversation not found")
+        val detail = getConversationDetail(businessId, req.conversationId)
+            ?: return ApiResponse(false, message = "Conversation not found")
 
         val channel = transaction {
             val convRow = SocialConversationsTable.select { SocialConversationsTable.id eq req.conversationId }.firstOrNull()

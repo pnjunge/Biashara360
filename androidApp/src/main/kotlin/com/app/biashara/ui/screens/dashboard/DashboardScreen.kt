@@ -26,6 +26,19 @@ import com.app.biashara.presentation.viewmodel.DashboardViewModel
 import com.app.biashara.ui.navigation.Screen
 import com.app.biashara.ui.theme.*
 import com.app.biashara.ui.kmpViewModel
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import com.app.biashara.UserSession
+import com.app.biashara.domain.model.UserRole
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,33 +50,82 @@ fun DashboardScreen(
 
     LaunchedEffect(Unit) { viewModel.loadDashboard() }
 
+    val currentUser by UserSession.currentUser.collectAsState()
     val greeting = if (state.userName.isNotBlank()) "Habari, ${state.userName.split(" ").first()}! 👋"
     else "Habari! 👋"
+    val roleDisplay = when (currentUser?.role) {
+        UserRole.SUPERADMIN -> "Super Administrator"
+        UserRole.ADMIN -> "System Administrator"
+        UserRole.STAFF -> "Staff Member"
+        UserRole.VIEWER -> "Viewer"
+        null -> "System Administrator"
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text(greeting, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        if (state.businessName.isNotBlank()) {
-                            Text(
-                                state.businessName,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
+                        Text(
+                            text = greeting,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
+                        )
+                        Text(
+                            text = roleDisplay,
+                            fontSize = 14.sp,
+                            color = Color(0xFF64748B),
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Screen.Payments.route) }) {
-                        Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White,
+                        shadowElevation = 2.dp,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clickable { navController.navigate(Screen.Payments.route) }
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(
+                                imageVector = Icons.Filled.Notifications,
+                                contentDescription = "Notifications",
+                                tint = Color(0xFF1E293B),
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(B360Green, CircleShape)
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = (-10).dp, y = 10.dp)
+                            )
+                        }
                     }
-                    IconButton(onClick = { navController.navigate(Screen.Settings.route) }) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White,
+                        shadowElevation = 2.dp,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clickable { navController.navigate(Screen.Settings.route) }
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = "Settings",
+                                tint = Color(0xFF1E293B),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
+                    Spacer(modifier = Modifier.width(16.dp))
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         }
     ) { padding ->
@@ -149,13 +211,44 @@ fun DashboardScreen(
             // Quick Actions
             item {
                 Column {
-                    Text("Quick Actions", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        item { QuickActionChip(Icons.Filled.Add, "New Order", B360Green) { navController.navigate(Screen.CreateOrder.route) } }
-                        item { QuickActionChip(Icons.Filled.Inventory, "Add Stock", B360Blue) { navController.navigate(Screen.Inventory.route) } }
-                        item { QuickActionChip(Icons.Filled.Receipt, "Add Expense", B360Amber) { navController.navigate(Screen.AddExpense.route) } }
-                        item { QuickActionChip(Icons.Filled.People, "New Customer", Color(0xFF7B1FA2)) { navController.navigate(Screen.Customers.route) } }
+                    Text("Quick Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        QuickActionCard(
+                            icon = Icons.Filled.Add,
+                            label = "New Order",
+                            iconColor = B360Green,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            navController.navigate(Screen.CreateOrder.route)
+                        }
+                        QuickActionCard(
+                            icon = Icons.Filled.LocalOffer,
+                            label = "Add Product",
+                            iconColor = B360Blue,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            navController.navigate(Screen.AddProduct.createRoute())
+                        }
+                        QuickActionCard(
+                            icon = Icons.Filled.MoveToInbox,
+                            label = "Stock In",
+                            iconColor = B360Amber,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            navController.navigate(Screen.Inventory.route)
+                        }
+                        QuickActionCard(
+                            icon = Icons.Filled.BarChart,
+                            label = "Sales Report",
+                            iconColor = Color(0xFF7B1FA2),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            navController.navigate(Screen.Reports.route)
+                        }
                     }
                 }
             }
@@ -191,6 +284,74 @@ fun DashboardScreen(
 }
 
 @Composable
+fun WavyLineChart(
+    color: Color,
+    points: List<Float>,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        if (width == 0f || height == 0f || points.size < 2) return@Canvas
+
+        val path = Path()
+        val fillPath = Path()
+
+        val stepX = width / (points.size - 1)
+        
+        val startX = 0f
+        val startY = height - (points[0] * height)
+        path.moveTo(startX, startY)
+        fillPath.moveTo(startX, height)
+        fillPath.lineTo(startX, startY)
+
+        for (i in 1 until points.size) {
+            val prevX = (i - 1) * stepX
+            val prevY = height - (points[i - 1] * height)
+            val currentX = i * stepX
+            val currentY = height - (points[i] * height)
+
+            val controlX1 = prevX + stepX / 2f
+            val controlY1 = prevY
+            val controlX2 = prevX + stepX / 2f
+            val controlY2 = currentY
+
+            path.cubicTo(
+                controlX1, controlY1,
+                controlX2, controlY2,
+                currentX, currentY
+            )
+            fillPath.cubicTo(
+                controlX1, controlY1,
+                controlX2, controlY2,
+                currentX, currentY
+            )
+        }
+
+        fillPath.lineTo(width, height)
+        fillPath.close()
+
+        drawPath(
+            path = fillPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(color.copy(alpha = 0.25f), color.copy(alpha = 0.0f)),
+                startY = 0f,
+                endY = height
+            )
+        )
+
+        drawPath(
+            path = path,
+            color = color,
+            style = Stroke(
+                width = 2.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+        )
+    }
+}
+
+@Composable
 fun KpiCard(
     modifier: Modifier = Modifier,
     title: String,
@@ -200,33 +361,91 @@ fun KpiCard(
     color: Color,
     bgColor: Color
 ) {
+    val points = when (title) {
+        "Monthly Revenue" -> listOf(0.15f, 0.35f, 0.2f, 0.45f, 0.3f, 0.5f, 0.4f, 0.65f)
+        "Net Profit" -> listOf(0.25f, 0.15f, 0.4f, 0.3f, 0.55f, 0.35f, 0.45f, 0.6f)
+        "Orders Today" -> listOf(0.35f, 0.25f, 0.5f, 0.4f, 0.3f, 0.45f, 0.35f, 0.4f)
+        "Pending Payments" -> listOf(0.2f, 0.3f, 0.15f, 0.25f, 0.2f, 0.35f, 0.25f, 0.2f)
+        else -> listOf(0.2f, 0.4f, 0.3f, 0.5f, 0.4f, 0.6f)
+    }
+
     Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.clip(RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Box(modifier = Modifier.fillMaxWidth().height(160.dp)) {
+            WavyLineChart(
+                color = color,
+                points = points,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .height(48.dp)
+            )
+
+            Column(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(bgColor, CircleShape),
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(bgColor, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
+                    }
+                    IconButton(
+                        onClick = { /* menu action */ },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.MoreHoriz,
+                            contentDescription = "Options",
+                            tint = color.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
-                Text(title, fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Text(change, fontSize = 10.sp, color = B360Green, fontWeight = FontWeight.SemiBold)
+                
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(title, fontSize = 13.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                    Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                    
+                    val annotatedChange = buildAnnotatedString {
+                        val parts = change.split(" ")
+                        if (parts.isNotEmpty()) {
+                            val firstPart = parts[0]
+                            if (firstPart.startsWith("↑") || firstPart.startsWith("↓") || firstPart.any { it.isDigit() }) {
+                                val percentPart = if (parts.size > 1 && parts[1].contains("%")) "${parts[0]} ${parts[1]}" else parts[0]
+                                withStyle(SpanStyle(color = B360Green, fontWeight = FontWeight.Bold)) {
+                                    append(percentPart)
+                                }
+                                append(" ")
+                                val rest = parts.drop(if (parts.size > 1 && parts[1].contains("%")) 2 else 1).joinToString(" ")
+                                withStyle(SpanStyle(color = Color(0xFF64748B))) {
+                                    append(rest)
+                                }
+                            } else if (change == "orders pending") {
+                                withStyle(SpanStyle(color = B360Green, fontWeight = FontWeight.Bold)) {
+                                    append("orders pending")
+                                }
+                            } else {
+                                withStyle(SpanStyle(color = B360Green, fontWeight = FontWeight.Bold)) {
+                                    append(change)
+                                }
+                            }
+                        }
+                    }
+                    Text(annotatedChange, fontSize = 11.sp)
+                }
             }
         }
     }
@@ -236,7 +455,7 @@ fun KpiCard(
 fun RevenueBarChart(modifier: Modifier = Modifier) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -246,9 +465,20 @@ fun RevenueBarChart(modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text("Revenue Trend", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text("Last 7 days", fontSize = 12.sp, color = Color.Gray)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.TrendingUp,
+                        contentDescription = null,
+                        tint = B360Green,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column {
+                        Text("Revenue Trend", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
+                        Text("Last 7 days", fontSize = 12.sp, color = Color.Gray)
+                    }
                 }
                 Surface(
                     color = Color.White,
@@ -268,48 +498,97 @@ fun RevenueBarChart(modifier: Modifier = Modifier) {
             
             Spacer(modifier = Modifier.height(20.dp))
             
-            Row(
-                modifier = Modifier.fillMaxWidth().height(160.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Bottom
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
             ) {
-                // Y Axis
-                Column(
-                    modifier = Modifier.fillMaxHeight().padding(bottom = 20.dp),
-                    verticalArrangement = Arrangement.SpaceBetween,
-                    horizontalAlignment = Alignment.End
+                // Background grid lines Canvas
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 40.dp, bottom = 20.dp)
                 ) {
-                    listOf("400K", "300K", "200K", "100K", "0").forEach { label ->
-                        Text(label, fontSize = 9.sp, color = Color.Gray)
+                    val height = size.height
+                    val width = size.width
+                    val lineCount = 6
+                    val stepY = height / (lineCount - 1)
+                    
+                    for (i in 0 until lineCount) {
+                        val y = i * stepY
+                        drawLine(
+                            color = Color(0xFFE2E8F0),
+                            start = androidx.compose.ui.geometry.Offset(0f, y),
+                            end = androidx.compose.ui.geometry.Offset(width, y),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                        )
                     }
                 }
-                
-                // Bars
-                val data = listOf(
-                    Pair("Mon", 0.45f),
-                    Pair("Tue", 0.65f),
-                    Pair("Wed", 0.5f),
-                    Pair("Thu", 0.85f),
-                    Pair("Fri", 0.7f),
-                    Pair("Sat", 0.6f),
-                    Pair("Sun", 0.95f)
-                )
-                
-                data.forEach { (day, fraction) ->
+
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    // Y Axis
                     Column(
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                        verticalArrangement = Arrangement.Bottom,
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        modifier = Modifier
+                            .width(40.dp)
+                            .fillMaxHeight()
+                            .padding(bottom = 20.dp),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.End
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f, fill = false)
-                                .fillMaxWidth(0.5f)
-                                .fillMaxHeight(fraction)
-                                .background(B360Green, RoundedCornerShape(4.dp, 4.dp, 0.dp, 0.dp))
+                        listOf("500K", "400K", "300K", "200K", "100K", "0").forEach { label ->
+                            Text(
+                                text = label,
+                                fontSize = 9.sp,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
+                    }
+
+                    // Bars & Labels
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        val data = listOf(
+                            Pair("Mon", 0.45f),
+                            Pair("Tue", 0.65f),
+                            Pair("Wed", 0.5f),
+                            Pair("Thu", 0.85f),
+                            Pair("Fri", 0.7f),
+                            Pair("Sat", 0.6f),
+                            Pair("Sun", 0.95f)
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(day, fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
+                        
+                        data.forEach { (day, fraction) ->
+                            Column(
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                                verticalArrangement = Arrangement.Bottom,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f, fill = false)
+                                        .fillMaxWidth(0.4f)
+                                        .fillMaxHeight(fraction * 0.9f)
+                                        .background(
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(B360Green, B360Green.copy(alpha = 0.2f))
+                                            ),
+                                            shape = RoundedCornerShape(8.dp, 8.dp, 0.dp, 0.dp)
+                                        )
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(day, fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
+                            }
+                        }
                     }
                 }
             }
@@ -392,16 +671,59 @@ fun QuickAlertsSection(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QuickActionChip(icon: ImageVector, label: String, color: Color, onClick: () -> Unit) {
-    Surface(onClick = onClick, color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(12.dp)) {
-        Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+fun QuickActionCard(
+    icon: ImageVector,
+    label: String,
+    iconColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
-            Text(label, color = color, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            if (label == "New Order") {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(iconColor, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF1E293B)
+            )
         }
     }
 }

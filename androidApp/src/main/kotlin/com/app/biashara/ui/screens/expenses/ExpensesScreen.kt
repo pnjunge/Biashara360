@@ -1,5 +1,7 @@
 package com.app.biashara.ui.screens.expenses
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -52,39 +54,46 @@ fun ExpensesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Expenses / Gharama", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                title = { Text("Expenses / Gharama", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddExpense, containerColor = B360Green, contentColor = Color.White) {
+            FloatingActionButton(
+                onClick = onAddExpense,
+                containerColor = B360Green,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(24.dp)
+            ) {
                 Icon(Icons.Filled.Add, contentDescription = "Add Expense")
             }
         }
     ) { padding ->
         if (state.isLoading && state.expenses.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().padding(padding).background(B360Surface), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = B360Green)
             }
             return@Scaffold
         }
 
         LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
+            Modifier.fillMaxSize().padding(padding).background(B360Surface),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
                 Card(
                     Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(B360Red.copy(0.08f))
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, B360Red.copy(0.2f)),
+                    colors = CardDefaults.cardColors(Color.White)
                 ) {
                     Column(Modifier.padding(16.dp)) {
-                        Text("Total Expenses – This Month", fontSize = 13.sp, color = Color.Gray)
+                        Text("Total Expenses – This Month", fontSize = 13.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(4.dp))
                         Text(
                             "KES ${"%,.0f".format(state.totalAmount)}",
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             fontSize = 24.sp,
                             color = B360Red
                         )
@@ -98,8 +107,12 @@ fun ExpensesScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Filled.Receipt, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
                             Text("No expenses recorded", color = Color.Gray)
-                            Button(onClick = onAddExpense, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
-                                Text("Add First Expense")
+                            Button(
+                                onClick = onAddExpense,
+                                colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Add First Expense", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -109,8 +122,8 @@ fun ExpensesScreen(
                     val color = categoryColors[expense.category] ?: Color.Gray
                     Card(
                         Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = CardDefaults.cardElevation(2.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
                         colors = CardDefaults.cardColors(Color.White)
                     ) {
                         Row(
@@ -125,24 +138,28 @@ fun ExpensesScreen(
                                     }
                                 }
                                 Column {
-                                    Text(expense.description, fontWeight = FontWeight.Medium)
-                                    Surface(color = color.copy(0.1f), shape = RoundedCornerShape(20.dp)) {
-                                        Text(
-                                            expense.category.displayName(),
-                                            color = color, fontSize = 11.sp,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                        )
+                                    Text(expense.description, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 15.sp)
+                                    Spacer(Modifier.height(4.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Surface(color = color.copy(0.1f), shape = RoundedCornerShape(20.dp)) {
+                                            Text(
+                                                expense.category.displayName(),
+                                                color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Text(expense.expenseDate.toString(), fontSize = 11.sp, color = Color.Gray)
                                     }
-                                    Text(expense.expenseDate.toString(), fontSize = 11.sp, color = Color.Gray)
                                 }
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("KES ${"%,.0f".format(expense.amount)}", fontWeight = FontWeight.Bold, color = B360Red)
+                                Text("KES ${"%,.0f".format(expense.amount)}", fontWeight = FontWeight.ExtraBold, color = B360Red, fontSize = 15.sp)
+                                Spacer(Modifier.height(4.dp))
                                 IconButton(
                                     onClick = { viewModel.deleteExpense(expense.id) },
                                     modifier = Modifier.size(28.dp)
                                 ) {
-                                    Icon(Icons.Filled.Delete, null, tint = B360Red.copy(0.7f), modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Filled.Delete, null, tint = B360Red.copy(0.6f), modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -181,8 +198,9 @@ fun AddExpenseScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add Expense", fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null) } }
+                title = { Text("Add Expense", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null, tint = Color(0xFF0F172A)) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         },
         floatingActionButton = {
@@ -213,23 +231,25 @@ fun AddExpenseScreen(
                     )
                 },
                 containerColor = B360Green,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(24.dp),
                 expanded = !saving,
                 icon = {
                     if (saving) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
                     else Icon(Icons.Filled.Check, null, tint = Color.White)
                 },
                 text = {
-                    Text("Save Expense", color = Color.White)
+                    Text("Save Expense", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             )
         }
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            Modifier.fillMaxSize().padding(padding).background(B360Surface).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             if (error.isNotBlank()) {
-                Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(8.dp)) {
+                Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp)) {
                     Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp,
                         modifier = Modifier.padding(10.dp))
                 }
@@ -237,27 +257,53 @@ fun AddExpenseScreen(
             OutlinedTextField(
                 value = description, onValueChange = { description = it; error = "" },
                 label = { Text("Description *") }, modifier = Modifier.fillMaxWidth(),
-                enabled = !saving
+                enabled = !saving,
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = B360Green,
+                    unfocusedBorderColor = Color(0xFFE2E8F0),
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White
+                )
             )
             OutlinedTextField(
                 value = amount, onValueChange = { amount = it; error = "" },
                 label = { Text("Amount (KES) *") }, modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                enabled = !saving
+                enabled = !saving,
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = B360Green,
+                    unfocusedBorderColor = Color(0xFFE2E8F0),
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White
+                )
             )
-            Text("Category", fontWeight = FontWeight.Medium)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Category", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 categories.chunked(2).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         row.forEach { cat ->
+                            val isSelected = selectedCategory == cat
+                            val catColor = categoryColors[cat] ?: Color.Gray
                             FilterChip(
-                                selected = selectedCategory == cat,
+                                selected = isSelected,
                                 onClick = { selectedCategory = cat },
-                                label = { Text(cat.displayName(), fontSize = 12.sp) },
+                                label = { Text(cat.displayName(), fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                                 modifier = Modifier.weight(1f),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = (categoryColors[cat] ?: Color.Gray).copy(0.2f)
+                                    selectedContainerColor = catColor,
+                                    selectedLabelColor = Color.White,
+                                    containerColor = Color.White,
+                                    labelColor = Color(0xFF64748B)
                                 ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = !saving,
+                                    selected = isSelected,
+                                    borderColor = Color(0xFFE2E8F0),
+                                    selectedBorderColor = Color.Transparent
+                                ),
+                                shape = RoundedCornerShape(20.dp),
                                 enabled = !saving
                             )
                         }

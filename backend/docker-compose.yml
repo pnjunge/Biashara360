@@ -19,7 +19,7 @@ services:
 
   api:
     build:
-      context: ..
+      context: ..admin@biashara360.co.ke
       dockerfile: Dockerfile
     container_name: biashara360-api
     ports:

@@ -45,16 +45,16 @@ fun CyberSourceScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Card Payments", fontWeight = FontWeight.ExtraBold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                title = { Text("Card Payments", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         },
         containerColor = B360Surface
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+        Column(modifier = Modifier.padding(padding).fillMaxSize().background(B360Surface)) {
             // KPI Row
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 CsKpiChip("Captured", "KES 4,500", B360Green, modifier = Modifier.weight(1f))
@@ -73,7 +73,7 @@ fun CyberSourceScreen() {
                     Tab(
                         selected = selectedTab == i,
                         onClick = { selectedTab = i },
-                        text = { Text(tab, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                        text = { Text(tab, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     )
                 }
             }
@@ -96,41 +96,64 @@ fun ChargeCardTab() {
     var useType by remember { mutableStateOf(0) } // 0=saved, 1=new
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().background(B360Surface),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(14.dp),
-                elevation = CardDefaults.cardElevation(2.dp)
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
             ) {
                 Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("Order Details", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Order Details", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
 
-                    OutlinedTextField(value = orderId, onValueChange = { orderId = it },
-                        label = { Text("Order ID") }, modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp), singleLine = true)
+                    OutlinedTextField(
+                        value = orderId,
+                        onValueChange = { orderId = it },
+                        label = { Text("Order ID") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White
+                        )
+                    )
 
-                    OutlinedTextField(value = amount, onValueChange = { amount = it },
-                        label = { Text("Amount (KES)") }, modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp), singleLine = true,
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = { amount = it },
+                        label = { Text("Amount (KES)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        textStyle = LocalTextStyle.current.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold))
+                        textStyle = LocalTextStyle.current.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = B360Green),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White
+                        )
+                    )
 
                     // Payment method picker
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("🔐 Saved Card", "💳 New Card").forEachIndexed { i, label ->
+                            val isSelected = useType == i
                             OutlinedButton(
                                 onClick = { useType = i },
                                 modifier = Modifier.weight(1f),
-                                border = BorderStroke(2.dp, if (useType == i) B360Green else B360Border),
+                                border = BorderStroke(1.dp, if (isSelected) B360Green else Color(0xFFE2E8F0)),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (useType == i) B360GreenBg else Color.White
+                                    containerColor = if (isSelected) B360GreenBg else Color.White
                                 ),
-                                shape = RoundedCornerShape(8.dp)
-                            ) { Text(label, fontSize = 12.sp, color = if (useType == i) B360Green else B360TextSecondary) }
+                                shape = RoundedCornerShape(20.dp)
+                            ) { Text(label, fontSize = 12.sp, color = if (isSelected) B360Green else Color(0xFF64748B), fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
@@ -139,7 +162,7 @@ fun ChargeCardTab() {
 
         // Saved cards
         if (useType == 0) {
-            item { Text("Saved Cards", fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+            item { Text("Saved Cards", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A)) }
             items(emptyList<SavedCardUi>()) { card -> SavedCardItem(card) }
         }
 
@@ -148,11 +171,11 @@ fun ChargeCardTab() {
                 onClick = { showCheckout = true },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(24.dp)
             ) {
                 Text(
                     if (useType == 0) "Charge Saved Card" else "Open Secure Checkout",
-                    fontWeight = FontWeight.ExtraBold, fontSize = 15.sp
+                    fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White
                 )
             }
         }
@@ -164,7 +187,7 @@ fun ChargeCardTab() {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("🔐 PCI DSS Level 1 · CyberSource Unified Checkout",
-                    fontSize = 11.sp, color = B360TextSecondary)
+                    fontSize = 11.sp, color = B360TextSecondary, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -183,8 +206,8 @@ fun SavedCardItem(card: SavedCardUi) {
     val brandColor = if (card.type == "VISA") B360Blue else B360Red
     Card(
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(1.dp)
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -206,7 +229,7 @@ fun SavedCardItem(card: SavedCardUi) {
                         Text(card.type, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = brandColor,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
                     }
-                    Text("•••• ${card.last4}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("•••• ${card.last4}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
                     if (card.isDefault) {
                         Surface(shape = RoundedCornerShape(8.dp), color = B360GreenBg) {
                             Text("DEFAULT", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = B360Green,
@@ -238,8 +261,9 @@ fun CardPaymentDialog(orderId: String, amount: Double, onDismiss: () -> Unit) {
 
     Dialog(onDismissRequest = { if (!processing) onDismiss() }) {
         Card(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
             modifier = Modifier.fillMaxWidth()
         ) {
             if (result != null) {
@@ -255,9 +279,13 @@ fun CardPaymentDialog(orderId: String, amount: Double, onDismiss: () -> Unit) {
                         fontWeight = FontWeight.ExtraBold, fontSize = 18.sp,
                         color = if (result == "success") B360Green else B360Red
                     )
-                    Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                        shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        Text("Done", fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
                 return@Card
@@ -273,9 +301,9 @@ fun CardPaymentDialog(orderId: String, amount: Double, onDismiss: () -> Unit) {
                         Box(contentAlignment = Alignment.Center) { Text("🔐", fontSize = 18.sp) }
                     }
                     Column {
-                        Text("Secure Payment", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                        Text("Secure Payment", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
                         Text("$orderId · KES ${amount.toLong().toString().reversed().chunked(3).joinToString(",").reversed()}",
-                            fontSize = 12.sp, color = B360TextSecondary)
+                            fontSize = 12.sp, color = B360TextSecondary, fontWeight = FontWeight.Medium)
                     }
                 }
 
@@ -288,28 +316,61 @@ fun CardPaymentDialog(orderId: String, amount: Double, onDismiss: () -> Unit) {
                     label = { Text("Card Number") },
                     placeholder = { Text("1234 5678 9012 3456", color = B360TextSecondary) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(14.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = 16.sp)
+                    textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = 16.sp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = B360Green,
+                        unfocusedBorderColor = Color(0xFFE2E8F0)
+                    )
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = expiry, onValueChange = { expiry = it.filter { c -> c.isDigit() || c == '/' }.take(5) },
-                        label = { Text("MM/YY") }, modifier = Modifier.weight(1f), singleLine = true,
-                        shape = RoundedCornerShape(10.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    OutlinedTextField(value = cvv, onValueChange = { cvv = it.filter { c -> c.isDigit() }.take(4) },
-                        label = { Text("CVV") }, modifier = Modifier.weight(1f), singleLine = true,
-                        shape = RoundedCornerShape(10.dp), visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    OutlinedTextField(
+                        value = expiry,
+                        onValueChange = { expiry = it.filter { c -> c.isDigit() || c == '/' }.take(5) },
+                        label = { Text("MM/YY") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        )
+                    )
+                    OutlinedTextField(
+                        value = cvv,
+                        onValueChange = { cvv = it.filter { c -> c.isDigit() }.take(4) },
+                        label = { Text("CVV") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        )
+                    )
                 }
 
-                OutlinedTextField(value = name, onValueChange = { name = it.uppercase() },
-                    label = { Text("Cardholder Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    shape = RoundedCornerShape(10.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it.uppercase() },
+                    label = { Text("Cardholder Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = B360Green,
+                        unfocusedBorderColor = Color(0xFFE2E8F0)
+                    )
+                )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = saveCard, onCheckedChange = { saveCard = it }, colors = CheckboxDefaults.colors(checkedColor = B360Green))
-                    Text("Save card for future payments", fontSize = 13.sp)
+                    Text("Save card for future payments", fontSize = 13.sp, color = Color(0xFF0F172A))
                 }
 
                 if (processing) {
@@ -319,19 +380,24 @@ fun CardPaymentDialog(orderId: String, amount: Double, onDismiss: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().background(B360GreenBg, RoundedCornerShape(8.dp)).padding(12.dp)
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), color = B360Green, strokeWidth = 2.dp)
-                        Text("Processing with CyberSource...", fontSize = 12.sp, color = B360Green)
+                        Text("Processing with CyberSource...", fontSize = 12.sp, color = B360Green, fontWeight = FontWeight.Bold)
                     }
                 }
 
                 // Test hint
                 Surface(shape = RoundedCornerShape(8.dp), color = B360AmberBg, modifier = Modifier.fillMaxWidth()) {
                     Text("🧪 Sandbox: 4111 1111 1111 1111 = decline. Any other number = approve.",
-                        fontSize = 11.sp, color = B360Amber, modifier = Modifier.padding(10.dp))
+                        fontSize = 11.sp, color = B360Amber, fontWeight = FontWeight.Bold, modifier = Modifier.padding(10.dp))
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)) {
-                        Text("Cancel")
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                    ) {
+                        Text("Cancel", color = Color(0xFF64748B), fontWeight = FontWeight.Bold)
                     }
                     Button(
                         onClick = {
@@ -345,9 +411,9 @@ fun CardPaymentDialog(orderId: String, amount: Double, onDismiss: () -> Unit) {
                         },
                         modifier = Modifier.weight(2f), enabled = !processing && cardNum.length >= 19 && expiry.isNotBlank() && cvv.isNotBlank() && name.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(20.dp)
                     ) {
-                        Text("Pay KES ${amount.toLong()}", fontWeight = FontWeight.Bold)
+                        Text("Pay KES ${amount.toLong()}", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
 
@@ -361,7 +427,11 @@ fun CardPaymentDialog(orderId: String, amount: Double, onDismiss: () -> Unit) {
 // ── Transaction History Tab ───────────────────────────────────────────────────
 @Composable
 fun TransactionHistoryTab() {
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(B360Surface),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         items(emptyList<CsTransactionUi>()) { txn ->
             CsTransactionRow(txn)
         }
@@ -380,8 +450,8 @@ fun CsTransactionRow(txn: CsTransactionUi) {
 
     Card(
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(1.dp)
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -422,11 +492,15 @@ fun CsTransactionRow(txn: CsTransactionUi) {
 // ── Saved Cards Tab ───────────────────────────────────────────────────────────
 @Composable
 fun SavedCardsTab() {
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(B360Surface),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         items(emptyList<SavedCardUi>()) { card -> SavedCardItem(card) }
         item {
             Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = B360GreenBg,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -442,7 +516,12 @@ fun SavedCardsTab() {
 // ── Mini KPI chip ─────────────────────────────────────────────────────────────
 @Composable
 fun CsKpiChip(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(10.dp), elevation = CardDefaults.cardElevation(1.dp), modifier = modifier) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+        modifier = modifier
+    ) {
         Column(modifier = Modifier.padding(10.dp)) {
             Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = color)
             Text(label, fontSize = 10.sp, color = B360TextSecondary)

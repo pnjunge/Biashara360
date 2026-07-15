@@ -1,5 +1,7 @@
 package com.app.biashara.ui.screens.customers
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -53,21 +55,41 @@ fun CustomersScreen(
     if (showAddSheet) {
         AlertDialog(
             onDismissRequest = { showAddSheet = false },
-            title = { Text("Add Customer / Ongeza Mteja") },
+            title = { Text("Add Customer / Ongeza Mteja", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(value = newName, onValueChange = { newName = it },
                         label = { Text("Full Name *") }, modifier = Modifier.fillMaxWidth(),
-                        singleLine = true, enabled = !saving)
+                        singleLine = true, enabled = !saving,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        ))
                     OutlinedTextField(value = newPhone, onValueChange = { newPhone = it },
                         label = { Text("Phone (07XX) *") }, modifier = Modifier.fillMaxWidth(),
-                        singleLine = true, enabled = !saving)
+                        singleLine = true, enabled = !saving,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        ))
                     OutlinedTextField(value = newEmail, onValueChange = { newEmail = it },
                         label = { Text("Email (optional)") }, modifier = Modifier.fillMaxWidth(),
-                        singleLine = true, enabled = !saving)
+                        singleLine = true, enabled = !saving,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        ))
                     OutlinedTextField(value = newLocation, onValueChange = { newLocation = it },
                         label = { Text("Location (optional)") }, modifier = Modifier.fillMaxWidth(),
-                        singleLine = true, enabled = !saving)
+                        singleLine = true, enabled = !saving,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = B360Green,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        ))
                     if (state.error != null) {
                         Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                     }
@@ -94,10 +116,11 @@ fun CustomersScreen(
                         }
                     },
                     enabled = !saving && newName.isNotBlank() && newPhone.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = B360Green)
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                    shape = RoundedCornerShape(20.dp)
                 ) {
                     if (saving) CircularProgressIndicator(Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
-                    else Text("Save")
+                    else Text("Save", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -109,43 +132,50 @@ fun CustomersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Customers / Wateja", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                title = { Text("Customers / Wateja", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddSheet = true; viewModel.dismissError() },
                 containerColor = B360Green,
-                contentColor = Color.White
+                contentColor = Color.White,
+                shape = RoundedCornerShape(24.dp)
             ) {
                 Icon(Icons.Filled.PersonAdd, contentDescription = "Add Customer")
             }
         }
     ) { padding ->
         if (state.isLoading && state.customers.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().padding(padding).background(B360Surface), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = B360Green)
             }
             return@Scaffold
         }
 
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding).background(B360Surface)) {
             OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChange(it) },
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                placeholder = { Text("Search customers...") },
-                leadingIcon = { Icon(Icons.Filled.Search, null) },
+                placeholder = { Text("Search customers...", color = Color(0xFF94A3B8)) },
+                leadingIcon = { Icon(Icons.Filled.Search, null, tint = Color(0xFF64748B)) },
                 trailingIcon = {
                     if (state.searchQuery.isNotEmpty()) {
                         IconButton({ viewModel.onSearchQueryChange("") }) {
-                            Icon(Icons.Filled.Clear, null)
+                            Icon(Icons.Filled.Clear, null, tint = Color(0xFF64748B))
                         }
                     }
                 },
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
+                shape = RoundedCornerShape(14.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = B360Green,
+                    unfocusedBorderColor = Color(0xFFE2E8F0),
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White
+                )
             )
 
             if (state.filteredCustomers.isEmpty() && !state.isLoading) {
@@ -153,7 +183,7 @@ fun CustomersScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Filled.People, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
                         Text("No customers yet", color = Color.Gray)
-                        Button(onClick = { showAddSheet = true }, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
+                        Button(onClick = { showAddSheet = true }, colors = ButtonDefaults.buttonColors(containerColor = B360Green), shape = RoundedCornerShape(20.dp)) {
                             Text("Add first customer")
                         }
                     }
@@ -161,7 +191,7 @@ fun CustomersScreen(
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(state.filteredCustomers) { customer ->
                         CustomerCard(customer = customer, onClick = { onCustomerDetail(customer.id) })
@@ -178,8 +208,8 @@ fun CustomerCard(customer: Customer, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Row(
@@ -187,16 +217,16 @@ fun CustomerCard(customer: Customer, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Surface(color = B360Green.copy(0.1f), shape = RoundedCornerShape(50), modifier = Modifier.size(48.dp)) {
+            Surface(color = B360Green.copy(0.12f), shape = RoundedCornerShape(50), modifier = Modifier.size(48.dp)) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(customer.name.first().uppercase(), fontWeight = FontWeight.Bold, color = B360Green, fontSize = 20.sp)
                 }
             }
             Column(Modifier.weight(1f)) {
-                Text(customer.name, fontWeight = FontWeight.SemiBold)
-                Text(customer.phone, color = Color.Gray, fontSize = 12.sp)
+                Text(customer.name, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 15.sp)
+                Text(customer.phone, color = Color(0xFF64748B), fontSize = 12.sp)
                 if (customer.location.isNotBlank()) {
-                    Text(customer.location, color = Color.Gray, fontSize = 12.sp)
+                    Text(customer.location, color = Color(0xFF64748B), fontSize = 12.sp)
                 }
             }
             if (customer.loyaltyPoints > 0) {
@@ -223,13 +253,14 @@ fun CustomerDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(detailState.customer?.name ?: "Customer Profile", fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null) } }
+                title = { Text(detailState.customer?.name ?: "Customer Profile", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null, tint = Color(0xFF0F172A)) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         }
     ) { padding ->
         if (detailState.isLoading) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().padding(padding).background(B360Surface), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = B360Green)
             }
             return@Scaffold
@@ -239,46 +270,51 @@ fun CustomerDetailScreen(
         val stats = detailState.stats
 
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            Modifier.fillMaxSize().padding(padding).background(B360Surface).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Card(shape = RoundedCornerShape(12.dp)) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
                 Row(
                     Modifier.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Surface(color = B360Green.copy(0.1f), shape = RoundedCornerShape(50), modifier = Modifier.size(64.dp)) {
+                    Surface(color = B360Green.copy(0.12f), shape = RoundedCornerShape(50), modifier = Modifier.size(64.dp)) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(customer.name.first().uppercase(), fontWeight = FontWeight.Bold, color = B360Green, fontSize = 28.sp)
                         }
                     }
                     Column {
-                        Text(customer.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text(customer.phone, color = Color.Gray)
-                        if (!customer.email.isNullOrBlank()) Text(customer.email!!, color = Color.Gray, fontSize = 13.sp)
+                        Text(customer.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0F172A))
+                        Text(customer.phone, color = Color(0xFF64748B))
+                        if (!customer.email.isNullOrBlank()) Text(customer.email!!, color = Color(0xFF64748B), fontSize = 13.sp)
                         if (customer.loyaltyPoints > 0) {
-                            Text("⭐ ${customer.loyaltyPoints} pts", color = B360Amber, fontWeight = FontWeight.Medium)
+                            Text("⭐ ${customer.loyaltyPoints} pts", color = B360Amber, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
             if (stats != null) {
-                Card(shape = RoundedCornerShape(12.dp)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Purchase History", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Purchase History", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Total Orders")
-                            Text("${stats.totalOrders}", fontWeight = FontWeight.Bold)
+                            Text("Total Orders", color = Color(0xFF64748B)); Text("${stats.totalOrders}", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Total Spent")
-                            Text("KES ${"%,.0f".format(stats.totalSpent)}", color = B360Green, fontWeight = FontWeight.Bold)
+                            Text("Total Spent", color = Color(0xFF64748B)); Text("KES ${"%,.0f".format(stats.totalSpent)}", color = B360Green, fontWeight = FontWeight.Bold)
                         }
                         if (stats.averageOrderValue > 0) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Avg Order Value")
-                                Text("KES ${"%,.0f".format(stats.averageOrderValue)}")
+                                Text("Avg Order Value", color = Color(0xFF64748B)); Text("KES ${"%,.0f".format(stats.averageOrderValue)}", color = Color(0xFF0F172A))
                             }
                         }
                     }

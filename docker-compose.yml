@@ -56,6 +56,29 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  unified-inbox:
+    build:
+      context: ./unified-inbox
+      dockerfile: Dockerfile
+    container_name: biashara360-unified-inbox
+    ports:
+      - "${INBOX_PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      INBOX_DATA_FILE: /app/data/inbox.json
+      WEBHOOK_VERIFY_TOKEN: ${WEBHOOK_VERIFY_TOKEN:-dev_verify_token}
+      META_APP_SECRET: ${META_APP_SECRET:-your_meta_app_secret}
+      FACEBOOK_PAGE_ACCESS_TOKEN: ${FACEBOOK_PAGE_ACCESS_TOKEN:-your_fb_access_token}
+      INSTAGRAM_PAGE_ACCESS_TOKEN: ${INSTAGRAM_PAGE_ACCESS_TOKEN:-your_ig_access_token}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-your_wa_access_token}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-your_wa_phone_number_id}
+      TIKTOK_CLIENT_KEY: ${TIKTOK_CLIENT_KEY:-your_tiktok_client_key}
+      TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET:-your_tiktok_client_secret}
+    volumes:
+      - unified_inbox_data:/app/data
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  unified_inbox_data:
 

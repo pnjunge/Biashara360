@@ -50,7 +50,7 @@ data class BottomNavItem(
 val bottomNavItems = listOf(
     BottomNavItem(Screen.Dashboard, "Dashboard", Icons.Filled.Home, "Nyumbani"),
     BottomNavItem(Screen.Pos, "POS", Icons.Filled.Storefront, "Mauzo"),
-    BottomNavItem(Screen.Orders, "Orders", Icons.Filled.ShoppingCart, "Maagizo"),
-    BottomNavItem(Screen.Inventory, "Stock", Icons.Filled.Inventory, "Hifadhi"),
+    BottomNavItem(Screen.Orders, "Orders", Icons.Filled.Assignment, "Maagizo"),
+    BottomNavItem(Screen.Inventory, "Stock", Icons.Filled.Archive, "Hifadhi"),
     BottomNavItem(Screen.Customers, "Customers", Icons.Filled.People, "Wateja")
 )
