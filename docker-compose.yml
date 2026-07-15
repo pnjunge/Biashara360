@@ -4,7 +4,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: biashara360-db
+    container_name: biashara360-db-${COMPOSE_PROJECT_NAME:-malipo}
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -21,7 +21,7 @@ services:
 
   api:
     build: .
-    container_name: biashara360-api
+    container_name: biashara360-api-${COMPOSE_PROJECT_NAME:-malipo}
     ports:
       - "${API_PORT:-8081}:8080"
     env_file:
@@ -60,7 +60,7 @@ services:
     build:
       context: ./unified-inbox
       dockerfile: Dockerfile
-    container_name: biashara360-unified-inbox
+    container_name: biashara360-unified-inbox-${COMPOSE_PROJECT_NAME:-malipo}
     ports:
       - "${INBOX_PORT:-3000}:3000"
     environment:
