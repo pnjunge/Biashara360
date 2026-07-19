@@ -437,6 +437,22 @@ data class CsChargeRequest(
 )
 
 @kotlinx.serialization.Serializable
+data class CsGuestChargeRequest(
+    val businessId: String,
+    val orderId: String,
+    val amount: Double,
+    val currency: String = "KES",
+    val transientToken: String? = null,
+    val cardNumber: String? = null,
+    val cardExpiryMonth: String? = null,
+    val cardExpiryYear: String? = null,
+    val cardCvv: String? = null,
+    val cardholderName: String? = null,
+    val billingEmail: String? = null,
+    val billingPhone: String? = null
+)
+
+@kotlinx.serialization.Serializable
 data class CsChargeResponse(
     val transactionId: String = "",
     val csTransactionId: String? = null,

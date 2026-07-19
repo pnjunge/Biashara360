@@ -28,6 +28,10 @@ fun seedSuperuser() {
             return@transaction
         }
 
+        val seedPassword = System.getenv("SUPERUSER_PASSWORD")
+            ?: error("[Seeder] SUPERUSER_PASSWORD environment variable is required but not set. " +
+                     "Set it before starting the application.")
+
         val now = Clock.System.now()
         val userId = generateId()
 
@@ -38,7 +42,7 @@ fun seedSuperuser() {
             it[name]             = "System Administrator"
             it[email]            = superuserEmail
             it[phone]            = superuserPhone
-            it[passwordHash]     = PasswordUtils.hash("admin123")
+            it[passwordHash]     = PasswordUtils.hash(seedPassword)
             it[role]             = "SUPERADMIN"
             it[twoFactorEnabled] = false
             it[preferredLanguage] = "ENGLISH"

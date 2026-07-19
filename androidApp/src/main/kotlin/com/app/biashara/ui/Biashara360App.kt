@@ -217,6 +217,7 @@ fun CustomBottomNavigation(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                     modifier = Modifier
+                        .weight(1f)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -229,7 +230,7 @@ fun CustomBottomNavigation(
                                 restoreState = true
                             }
                         }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .padding(vertical = 4.dp)
                 ) {
                     if (isSelected) {
                         Surface(
@@ -238,7 +239,7 @@ fun CustomBottomNavigation(
                             modifier = Modifier.padding(bottom = 6.dp)
                         ) {
                             Box(
-                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -258,7 +259,7 @@ fun CustomBottomNavigation(
                     } else {
                         Box(
                             modifier = Modifier
-                                .padding(vertical = 6.dp, horizontal = 24.dp),
+                                .padding(vertical = 6.dp, horizontal = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(

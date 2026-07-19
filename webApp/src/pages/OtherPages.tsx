@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, Download, Share2, FileText, Table, Building2 } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
@@ -618,8 +619,8 @@ export function UserCreationPage() {
               u.name,
               u.email,
               u.phone,
-              <StatusBadge key="role" status={roleColor(u.role)} />,
-              <StatusBadge key="status" status={u.isActive === false ? 'FAILED' : 'PAID'} />,
+              <StatusBadge key="role" status={u.role} />,
+              <StatusBadge key="status" status={u.isActive === false ? 'INACTIVE' : 'ACTIVE'} />,
               <Btn key="del" variant={u.isActive === false ? 'secondary' : 'danger'} small onClick={() => handleToggleUserStatus(u.id, u.isActive === false)}>
                 {u.isActive === false ? 'Enable' : 'Disable'}
               </Btn>,
@@ -638,6 +639,24 @@ const emptyProfile: BusinessProfileRequest = {
   type: '', county: '', address: '',
   kraPin: '', paybillNumber: '', accountNumber: '',
 }
+
+const BizSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <Card style={{ padding: 20, marginBottom: 16 }}>
+    <h3 style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>{title}</h3>
+    <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
+  </Card>
+)
+
+const BizField = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <span style={{ fontSize: 13, color: 'var(--b360-text-secondary)', width: 160 }}>{label}</span>
+    <input
+      value={value || ''}
+      onChange={e => onChange(e.target.value)}
+      style={{ flex: 1, maxWidth: 320, padding: '8px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+    />
+  </div>
+)
 
 export function BusinessPage() {
   const { user: currentUser } = useAuth()
@@ -730,24 +749,6 @@ export function BusinessPage() {
       setSaving(false)
     }
   }
-
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <Card style={{ padding: 20, marginBottom: 16 }}>
-      <h3 style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>{title}</h3>
-      <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
-    </Card>
-  )
-
-  const Field = ({ label, field }: { label: string; field: keyof BusinessProfileRequest }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ fontSize: 13, color: 'var(--b360-text-secondary)', width: 160 }}>{label}</span>
-      <input
-        value={form[field]}
-        onChange={e => f(field)(e.target.value)}
-        style={{ flex: 1, maxWidth: 320, padding: '8px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
-      />
-    </div>
-  )
 
   // ── SuperAdmin view: list of all businesses ──
   if (isSuperAdmin) {
@@ -847,28 +848,29 @@ export function BusinessPage() {
           <Btn onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</Btn>
         </div>
       } />
-      <Section title="General Information">
-        <Field label="Business Name" field="name" />
-        <Field label="Owner Name"    field="owner" />
-        <Field label="Phone Number"  field="phone" />
-        <Field label="Email Address" field="email" />
-        <Field label="Business Type" field="type" />
-        <Field label="County"        field="county" />
-        <Field label="Address"       field="address" />
-      </Section>
-      <Section title="Tax & Compliance">
-        <Field label="KRA PIN" field="kraPin" />
-      </Section>
-      <Section title="Mpesa Integration">
-        <Field label="Paybill Number"  field="paybillNumber" />
-        <Field label="Account Number"  field="accountNumber" />
-      </Section>
+      <BizSection title="General Information">
+        <BizField label="Business Name" value={form.name} onChange={f('name')} />
+        <BizField label="Owner Name"    value={form.owner} onChange={f('owner')} />
+        <BizField label="Phone Number"  value={form.phone} onChange={f('phone')} />
+        <BizField label="Email Address" value={form.email} onChange={f('email')} />
+        <BizField label="Business Type" value={form.type} onChange={f('type')} />
+        <BizField label="County"        value={form.county} onChange={f('county')} />
+        <BizField label="Address"       value={form.address} onChange={f('address')} />
+      </BizSection>
+      <BizSection title="Tax & Compliance">
+        <BizField label="KRA PIN" value={form.kraPin} onChange={f('kraPin')} />
+      </BizSection>
+      <BizSection title="Mpesa Integration">
+        <BizField label="Paybill Number"  value={form.paybillNumber} onChange={f('paybillNumber')} />
+        <BizField label="Account Number"  value={form.accountNumber} onChange={f('accountNumber')} />
+      </BizSection>
     </div>
   )
 }
 
 export function SettingsPage() {
   const { user: currentUser } = useAuth()
+  const navigate = useNavigate()
   const isSuperAdmin = currentUser?.role === 'SUPERADMIN'
 
   const [twoFA, setTwoFA] = useState(true)
@@ -914,13 +916,6 @@ export function SettingsPage() {
       <h3 style={{ fontWeight:700, marginBottom:16, fontSize:15 }}>{title}</h3>
       <div style={{ borderTop:'1px solid var(--b360-border)', paddingTop:16, display:'flex', flexDirection:'column', gap:14 }}>{children}</div>
     </Card>
-  )
-
-  const Field = ({ label, value }: { label: string; value: string }) => (
-    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-      <span style={{ fontSize:13, color:'var(--b360-text-secondary)', width:160 }}>{label}</span>
-      <input defaultValue={value} style={{ flex:1, maxWidth:300, padding:'8px 12px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, fontFamily:'inherit', outline:'none' }} />
-    </div>
   )
 
   const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v:boolean) => void }) => (
@@ -976,11 +971,49 @@ export function SettingsPage() {
         </Section>
       )}
 
-      <Section title="Business Profile">
-        <Field label="Business Name"  value="Wanjiru's Fashion" />
-        <Field label="Owner Phone"    value="+254 712 345 678" />
-        <Field label="Business Type"  value="Retail" />
-        <Field label="Mpesa Paybill"  value="174379" />
+      <Section title="Store Configurations">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>Business Profile</span>
+              <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Manage store details, contact info, and tax settings</span>
+            </div>
+            <Btn onClick={() => navigate('/business')} variant="secondary" small>Manage</Btn>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--b360-border)', paddingTop: 12 }}>
+            <div>
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>Receipt Template</span>
+              <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Customize customer thermal receipt headers and footers</span>
+            </div>
+            <Btn onClick={() => navigate('/receipt-template')} variant="secondary" small>Manage</Btn>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Integrations & Gateways">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>M-Pesa Setup (Daraja)</span>
+              <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Configure consumer keys and shortcode values for instant checkout push</span>
+            </div>
+            <Btn onClick={() => navigate('/mpesa-settings')} variant="secondary" small>Configure</Btn>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--b360-border)', paddingTop: 12 }}>
+            <div>
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>CyberSource API Gateways</span>
+              <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Configure card payment checkout and merchant keys</span>
+            </div>
+            <Btn onClick={() => navigate('/cybersource-settings')} variant="secondary" small>Configure</Btn>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--b360-border)', paddingTop: 12 }}>
+            <div>
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>Social Media Commerce Suite</span>
+              <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Launch onboarding wizard to integrate WhatsApp, Instagram, Facebook, and TikTok</span>
+            </div>
+            <Btn onClick={() => navigate('/social-onboarding')} variant="secondary" small>Launch Wizard</Btn>
+          </div>
+        </div>
       </Section>
       <Section title="Security">
         <Toggle label="Two-Factor Authentication (2FA)" checked={twoFA} onChange={setTwoFA} />

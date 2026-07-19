@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -34,6 +36,10 @@ import com.app.biashara.ui.theme.B360Green
 import com.app.biashara.ui.theme.B360GreenDark
 import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
+import androidx.compose.ui.platform.LocalContext
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 
 @Composable
 fun AuthBackground(
@@ -188,6 +194,96 @@ fun FloatingShieldBadge() {
 }
 
 @Composable
+fun AndroidCustomLoginTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    isPassword: Boolean = false,
+    passwordVisible: Boolean = false,
+    onPasswordToggle: (() -> Unit)? = null,
+    enabled: Boolean = true
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val borderColor = if (isFocused) B360Green else Color(0xFFE2E8F0)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Icon Box
+        Box(
+            modifier = Modifier
+                .width(56.dp)
+                .fillMaxHeight()
+                .background(Color(0xFFF0FDF4)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = leadingIcon,
+                contentDescription = null,
+                tint = B360Green,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        // Vertical Divider
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(Color(0xFFE2E8F0))
+        )
+
+        // Text Input
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { isFocused = it.isFocused },
+                singleLine = true,
+                enabled = enabled,
+                visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 15.sp),
+                decorationBox = { innerTextField: @Composable () -> Unit ->
+                    if (value.isEmpty()) {
+                        Text(placeholder, color = Color(0xFF94A3B8), fontSize = 15.sp)
+                    }
+                    innerTextField()
+                }
+            )
+        }
+
+        if (isPassword && onPasswordToggle != null) {
+            IconButton(
+                onClick = onPasswordToggle,
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                Icon(
+                    imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = null,
+                    tint = Color(0xFF64748B),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun LoginScreen(
     onLoginSuccess: (String) -> Unit,
     onAuthenticated: () -> Unit,
@@ -195,6 +291,7 @@ fun LoginScreen(
     viewModel: AuthViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
 
     LaunchedEffect(state.step) {
         if (state.step is AuthStep.Otp) {
@@ -255,49 +352,23 @@ fun LoginScreen(
                             }
                         }
 
-                        OutlinedTextField(
+                        AndroidCustomLoginTextField(
                             value = email,
                             onValueChange = { email = it; viewModel.dismissError() },
-                            label = { Text("Email / Phone") },
-                            leadingIcon = { Icon(Icons.Filled.Email, null) },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            shape = RoundedCornerShape(14.dp),
-                            singleLine = true,
-                            enabled = !state.isLoading,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = B360Green,
-                                unfocusedBorderColor = Color(0xFFE2E8F0),
-                                focusedLabelColor = B360Green,
-                                unfocusedLabelColor = Color(0xFF94A3B8),
-                                focusedLeadingIconColor = B360Green,
-                                unfocusedLeadingIconColor = Color(0xFF94A3B8)
-                            )
+                            placeholder = "Email / Phone",
+                            leadingIcon = Icons.Filled.Person,
+                            enabled = !state.isLoading
                         )
 
-                        OutlinedTextField(
+                        AndroidCustomLoginTextField(
                             value = password,
                             onValueChange = { password = it; viewModel.dismissError() },
-                            label = { Text("Password") },
-                            leadingIcon = { Icon(Icons.Filled.Lock, null) },
-                            trailingIcon = {
-                                IconButton({ passwordVisible = !passwordVisible }) {
-                                    Icon(if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null, tint = Color(0xFF94A3B8))
-                                }
-                            },
-                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            singleLine = true,
-                            enabled = !state.isLoading,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = B360Green,
-                                unfocusedBorderColor = Color(0xFFE2E8F0),
-                                focusedLabelColor = B360Green,
-                                unfocusedLabelColor = Color(0xFF94A3B8),
-                                focusedLeadingIconColor = B360Green,
-                                unfocusedLeadingIconColor = Color(0xFF94A3B8)
-                            )
+                            placeholder = "Password",
+                            leadingIcon = Icons.Filled.Lock,
+                            isPassword = true,
+                            passwordVisible = passwordVisible,
+                            onPasswordToggle = { passwordVisible = !passwordVisible },
+                            enabled = !state.isLoading
                         )
 
                         Button(
@@ -330,7 +401,21 @@ fun LoginScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { viewModel.login("admin@biashara360.co.ke", "admin123") }
+                                .clickable {
+                                    val biometricManager = BiometricManager.from(context)
+                                    val canAuthenticate = biometricManager.canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
+                                    if (canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS) {
+                                        viewModel.login("admin@biashara360.co.ke", "admin123")
+                                    } else {
+                                        val errorMsg = when (canAuthenticate) {
+                                            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "No biometric hardware found on this device."
+                                            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "Biometric hardware is currently unavailable."
+                                            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "No biometrics enrolled. Please go to settings to configure fingerprint."
+                                            else -> "Biometric authentication is not available."
+                                        }
+                                        viewModel.setError(errorMsg)
+                                    }
+                                }
                                 .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)

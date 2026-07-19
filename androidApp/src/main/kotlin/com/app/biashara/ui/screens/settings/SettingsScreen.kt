@@ -17,6 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -24,9 +28,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.app.biashara.UserSession
 import com.app.biashara.presentation.viewmodel.AuthViewModel
+import com.app.biashara.presentation.viewmodel.BusinessViewModel
 import com.app.biashara.ui.theme.*
 import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,16 +43,28 @@ fun SettingsScreen(
     onNavigateToKra: (() -> Unit)? = null,
     onNavigateToSocial: (() -> Unit)? = null,
     onNavigateToCyberSourceSettings: (() -> Unit)? = null,
-    authViewModel: AuthViewModel = kmpViewModel()
+    authViewModel: AuthViewModel = kmpViewModel(),
+    businessViewModel: BusinessViewModel = kmpViewModel()
 ) {
     val context = LocalContext.current
     val currentUser by UserSession.currentUser.collectAsState()
+    val businessProfileState by businessViewModel.profileState.collectAsState()
+    val usersState by businessViewModel.usersState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        businessViewModel.loadProfile()
+        businessViewModel.loadUsers()
+    }
+
     var notificationsEnabled by remember { mutableStateOf(true) }
     var darkMode by remember { mutableStateOf(false) }
     var biometricEnabled by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showBusinessProfileDialog by remember { mutableStateOf(false) }
+    var showReceiptTemplateDialog by remember { mutableStateOf(false) }
+    var showUsersDialog by remember { mutableStateOf(false) }
+    var showAddUserDialog by remember { mutableStateOf(false) }
 
     // Change Password dialog state
     var currentPassword by remember { mutableStateOf("") }
@@ -145,6 +164,221 @@ fun SettingsScreen(
         )
     }
 
+    if (showBusinessProfileDialog) {
+        val profile = businessProfileState.profile
+        var name by remember(profile) { mutableStateOf(profile?.name ?: "") }
+        var owner by remember(profile) { mutableStateOf(profile?.owner ?: "") }
+        var phone by remember(profile) { mutableStateOf(profile?.phone ?: "") }
+        var email by remember(profile) { mutableStateOf(profile?.email ?: "") }
+        var type by remember(profile) { mutableStateOf(profile?.type ?: "") }
+        var county by remember(profile) { mutableStateOf(profile?.county ?: "") }
+        var address by remember(profile) { mutableStateOf(profile?.address ?: "") }
+        var kraPin by remember(profile) { mutableStateOf(profile?.kraPin ?: "") }
+
+        AlertDialog(
+            onDismissRequest = { showBusinessProfileDialog = false },
+            title = { Text("Business Profile", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Business Name") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = owner, onValueChange = { owner = it }, label = { Text("Owner Name") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone Number") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = type, onValueChange = { type = it }, label = { Text("Type") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = county, onValueChange = { county = it }, label = { Text("County") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = address, onValueChange = { address = it }, label = { Text("Address") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = kraPin, onValueChange = { kraPin = it }, label = { Text("KRA PIN") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (profile != null) {
+                            businessViewModel.updateProfile(
+                                profile.copy(
+                                    name = name, owner = owner, phone = phone, email = email,
+                                    type = type, county = county, address = address, kraPin = kraPin
+                                )
+                            )
+                        }
+                        showBusinessProfileDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green)
+                ) { Text("Save", color = Color.White) }
+            },
+            dismissButton = { TextButton(onClick = { showBusinessProfileDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showReceiptTemplateDialog) {
+        val profile = businessProfileState.profile
+        var header by remember(profile) { mutableStateOf(profile?.receiptHeader ?: "Welcome to our store!") }
+        var footer by remember(profile) { mutableStateOf(profile?.receiptFooter ?: "Thank you for shopping with us!") }
+        var showTaxVal by remember(profile) { mutableStateOf(profile?.receiptShowTax ?: true) }
+        var showCustVal by remember(profile) { mutableStateOf(profile?.receiptShowCustomer ?: true) }
+
+        AlertDialog(
+            onDismissRequest = { showReceiptTemplateDialog = false },
+            title = { Text("Receipt Template", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = header, onValueChange = { header = it }, label = { Text("Receipt Header") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = footer, onValueChange = { footer = it }, label = { Text("Receipt Footer") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Show KRA Tax Breakdown", fontSize = 14.sp)
+                        Switch(checked = showTaxVal, onCheckedChange = { showTaxVal = it }, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = B360Green))
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Show Customer Details", fontSize = 14.sp)
+                        Switch(checked = showCustVal, onCheckedChange = { showCustVal = it }, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = B360Green))
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (profile != null) {
+                            businessViewModel.updateProfile(
+                                profile.copy(
+                                    receiptHeader = header, receiptFooter = footer,
+                                    receiptShowTax = showTaxVal, receiptShowCustomer = showCustVal
+                                )
+                            )
+                        }
+                        showReceiptTemplateDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green)
+                ) { Text("Save", color = Color.White) }
+            },
+            dismissButton = { TextButton(onClick = { showReceiptTemplateDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showUsersDialog) {
+        val users = usersState.users
+        AlertDialog(
+            onDismissRequest = { showUsersDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Users & Permissions", fontWeight = FontWeight.Bold)
+                    IconButton(onClick = { showAddUserDialog = true }) {
+                        Icon(Icons.Filled.Add, contentDescription = "Add User", tint = B360Green)
+                    }
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (usersState.isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                    } else if (users.isEmpty()) {
+                        Text("No users found.", modifier = Modifier.align(Alignment.CenterHorizontally))
+                    } else {
+                        users.forEach { u ->
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(u.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("${u.role} • ${if (u.isActive != false) "Active" else "Inactive"}", fontSize = 12.sp, color = Color(0xFF64748B))
+                                    }
+                                    Switch(
+                                        checked = u.isActive != false,
+                                        onCheckedChange = { isActive ->
+                                            businessViewModel.toggleUserStatus(u.id, isActive)
+                                        },
+                                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = B360Green)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showUsersDialog = false }) { Text("Close") }
+            }
+        )
+    }
+
+    if (showAddUserDialog) {
+        var newName by remember { mutableStateOf("") }
+        var newEmail by remember { mutableStateOf("") }
+        var newPhone by remember { mutableStateOf("") }
+        var newRole by remember { mutableStateOf("STAFF") }
+        var roleDropdownExpanded by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showAddUserDialog = false },
+            title = { Text("Invite New User", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text("Full Name") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = newEmail, onValueChange = { newEmail = it }, label = { Text("Email Address") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = newPhone, onValueChange = { newPhone = it }, label = { Text("Phone Number") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = newRole,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Role") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            trailingIcon = {
+                                IconButton(onClick = { roleDropdownExpanded = true }) {
+                                    Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+                                }
+                            }
+                        )
+                        DropdownMenu(expanded = roleDropdownExpanded, onDismissRequest = { roleDropdownExpanded = false }) {
+                            DropdownMenuItem(text = { Text("ADMIN") }, onClick = { newRole = "ADMIN"; roleDropdownExpanded = false })
+                            DropdownMenuItem(text = { Text("MANAGER") }, onClick = { newRole = "MANAGER"; roleDropdownExpanded = false })
+                            DropdownMenuItem(text = { Text("STAFF") }, onClick = { newRole = "STAFF"; roleDropdownExpanded = false })
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        businessViewModel.inviteUser(newName, newEmail, newPhone, newRole)
+                        showAddUserDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green)
+                ) { Text("Invite", color = Color.White) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddUserDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -178,18 +412,33 @@ fun SettingsScreen(
                 SettingsSection("Preferences") {
                     SettingsToggleItem("Push Notifications", Icons.Filled.Notifications, notificationsEnabled) { notificationsEnabled = it }
                     SettingsToggleItem("Dark Mode", Icons.Filled.DarkMode, darkMode) { darkMode = it }
-                    SettingsToggleItem("Biometric Login", Icons.Filled.Fingerprint, biometricEnabled) { biometricEnabled = it }
+                    SettingsToggleItem("Biometric Login", Icons.Filled.Fingerprint, biometricEnabled) { enabled ->
+                        if (enabled) {
+                            val biometricManager = BiometricManager.from(context)
+                            val canAuthenticate = biometricManager.canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
+                            if (canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS) {
+                                biometricEnabled = true
+                            } else {
+                                val errorMsg = when (canAuthenticate) {
+                                    BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "No biometric hardware found."
+                                    BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "Biometric hardware is currently unavailable."
+                                    BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "No biometrics enrolled. Go to settings to set up fingerprint/face."
+                                    else -> "Biometrics not available on this device."
+                                }
+                                Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
+                                biometricEnabled = false
+                            }
+                        } else {
+                            biometricEnabled = false
+                        }
+                    }
                 }
             }
             item {
                 SettingsSection("Business") {
                     SettingsNavItem("Business Profile", Icons.Filled.Business) { showBusinessProfileDialog = true }
-                    SettingsNavItem("Users & Permissions", Icons.Filled.ManageAccounts) {
-                        // Navigate to users management screen — future screen
-                    }
-                    SettingsNavItem("Receipt Template", Icons.Filled.Receipt) {
-                        // Navigate to receipt customization — future screen
-                    }
+                    SettingsNavItem("Users & Permissions", Icons.Filled.ManageAccounts) { showUsersDialog = true }
+                    SettingsNavItem("Receipt Template", Icons.Filled.Receipt) { showReceiptTemplateDialog = true }
                 }
             }
             item {

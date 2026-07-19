@@ -14,6 +14,9 @@ import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.plugins.defaultheaders.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
+import io.ktor.server.plugins.*
+import io.ktor.server.plugins.ratelimit.*
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.serialization.json.Json
 
 fun Application.configureSerialization() {
@@ -74,7 +77,8 @@ fun Application.configureCors() {
                 "localhost:8080",
                 // Production
                 "app.biashara360.co.ke",
-                "admin.biashara360.co.ke"
+                "admin.biashara360.co.ke",
+                "enw9p7mvty.us-east-1.awsapprunner.com"
             )
         
         allowedDomains.forEach { domain ->
@@ -141,3 +145,13 @@ fun Application.configureDefaultHeaders() {
         header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
     }
 }
+
+fun Application.configureRateLimiting() {
+    install(RateLimit) {
+        register(RateLimitName("auth-limiter")) {
+            rateLimiter(limit = 10, refillPeriod = 60.seconds)
+            requestKey { call -> call.request.origin.remoteHost }
+        }
+    }
+}
+

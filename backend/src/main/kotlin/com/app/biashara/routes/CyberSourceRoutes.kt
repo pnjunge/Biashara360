@@ -44,6 +44,50 @@ fun Route.cyberSourcePublicRoutes() {
                 )
             }
         }
+
+        /**
+         * POST /v1/payments/card/guest-charge
+         *
+         * Guest charge for shared payment links. Accepts businessId in the request.
+         */
+        post("/guest-charge") {
+            val req = call.receive<CsGuestChargeRequest>()
+            if (req.businessId.isBlank()) {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    ApiResponse<Unit>(false, message = "businessId is required")
+                )
+                return@post
+            }
+            if (req.transientToken == null && req.cardNumber == null) {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    ApiResponse<Unit>(false, message = "Provide flexToken or card details")
+                )
+                return@post
+            }
+
+            val chargeReq = CsChargeRequest(
+                orderId = req.orderId,
+                amount = req.amount,
+                currency = req.currency,
+                transientToken = req.transientToken,
+                cardNumber = req.cardNumber,
+                cardExpiryMonth = req.cardExpiryMonth,
+                cardExpiryYear = req.cardExpiryYear,
+                cardCvv = req.cardCvv,
+                cardholderName = req.cardholderName,
+                billingEmail = req.billingEmail,
+                billingPhone = req.billingPhone,
+                saveCard = false,
+                savedCardId = null,
+                captureImmediately = true
+            )
+            val result = csService.charge(req.businessId, chargeReq)
+            val success = result.status in listOf("AUTHORIZED", "CAPTURED")
+            val status = if (success) HttpStatusCode.OK else HttpStatusCode.PaymentRequired
+            call.respond(status, ApiResponse(success, data = result, message = result.errorMessage ?: ""))
+        }
     }
 }
 

@@ -112,7 +112,7 @@ class AuthRepositoryImpl(
         businessName: String,
         businessType: BusinessType
     ): Result<User> = runCatching {
-        val response: ApiResponse<LoginResponse> = client.post("$BASE_URL/auth/register") {
+        val response: ApiResponse<UserDto> = client.post("$BASE_URL/auth/register") {
             contentType(ContentType.Application.Json)
             setBody(
                 mapOf(
@@ -131,12 +131,12 @@ class AuthRepositoryImpl(
         }
 
         User(
-            id = response.data.userId,
+            id = response.data.id,
             email = email,
             phone = phone,
             name = name,
             role = UserRole.ADMIN,
-            businessId = null,
+            businessId = response.data.businessId,
             createdAt = Clock.System.now()
         )
     }

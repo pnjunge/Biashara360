@@ -26,6 +26,8 @@ val coreModule = module {
     single<ExpenseRepository> { ExpenseRepositoryImpl(get(), get()) }
     single<PaymentRepository> { PaymentRepositoryImpl(get(), get()) }
     single<AuthRepository> { AuthRepositoryImpl(get(), get()) }
+    single<BusinessRepository> { BusinessRepositoryImpl(get()) }
+    single<SocialRepository> { SocialRepositoryImpl(get()) }
 
     // Use Cases — Inventory
     factory { GetProductsUseCase(get()) }
@@ -87,6 +89,8 @@ val coreModule = module {
         get<PaymentRepository>() as? PaymentRepositoryImpl
     ) }
     factory { AuthViewModel(get(), get(), get(), get()) }
+    factory { BusinessViewModel(get()) }
+    factory { SocialViewModel(get()) }
 }
 
 expect val platformModule: Module

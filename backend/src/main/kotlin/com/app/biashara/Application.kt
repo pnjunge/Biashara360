@@ -39,9 +39,10 @@ fun Application.module() {
     configureCors()
     configureStatusPages()
     configureDefaultHeaders()
-        install(CallLogging) {
-            level = org.slf4j.event.Level.INFO
-        }
+    configureRateLimiting()
+    install(CallLogging) {
+        level = org.slf4j.event.Level.INFO
+    }
 
     // Routes
     routing {
@@ -53,11 +54,13 @@ fun Application.module() {
             authRoutes()
             // Mpesa Daraja callback — called by Safaricom, no JWT required
             mpesaCallbackRoute()
+            publicBusinessRoutes()
         }
 
         // Protected routes (JWT required)
         authenticate("jwt-auth") {
             route("/v1") {
+                accountRoutes()      // set-otp, and other authenticated account actions
                 dashboardRoute()
                 productRoutes()
                 orderRoutes()

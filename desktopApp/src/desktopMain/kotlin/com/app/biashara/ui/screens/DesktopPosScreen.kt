@@ -31,7 +31,7 @@ import kotlinx.datetime.Clock
 
 data class DesktopCartItem(
     val product: Product,
-    var qty: Int
+    val qty: Int
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,7 +63,17 @@ fun DesktopPosScreen(
     val filteredProducts = remember(inventoryState.products, searchQuery, selectedCategory) {
         inventoryState.products.filter { p ->
             val matchesSearch = p.name.contains(searchQuery, ignoreCase = true) || p.sku.contains(searchQuery, ignoreCase = true)
-            val matchesCategory = selectedCategory == "All" || p.category == selectedCategory
+            val matchesCategory = when {
+                selectedCategory == "All" -> true
+                selectedCategory == "Favorites" -> true
+                selectedCategory == "Recent" -> true
+                selectedCategory == "Categories" -> true
+                selectedCategory.startsWith("Category:") -> {
+                    val catName = selectedCategory.substringAfter("Category:")
+                    p.category == catName
+                }
+                else -> true
+            }
             matchesSearch && matchesCategory && p.isActive
         }
     }
@@ -92,45 +102,124 @@ fun DesktopPosScreen(
             modifier = Modifier.weight(1.3f).fillMaxHeight().padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header / Search Bar Row
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+            // Row 1: Search and Filter Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Search product name or SKU...") },
+                    leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = B360Green,
+                        unfocusedBorderColor = Color(0xFFCBD5E1),
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White
+                    )
+                )
+
+                // Filter Button
+                OutlinedIconButton(
+                    onClick = { searchQuery = ""; selectedCategory = "All" },
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.List,
+                        contentDescription = "Filter",
+                        tint = B360Green
+                    )
+                }
+
+                // Green All button
+                Button(
+                    onClick = { searchQuery = ""; selectedCategory = "All" },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.height(56.dp)
+                ) {
+                    Text("All", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+
+            // Row 2: Tabs/Chips
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val tabs = listOf(
+                    Triple("All", "All", Icons.Default.Home),
+                    Triple("Favorites", "Favorites", Icons.Default.Star),
+                    Triple("Categories", "Categories", Icons.Default.Menu),
+                    Triple("Recent", "Recent", Icons.Default.Refresh)
+                )
+
+                tabs.forEach { (tabId, label, icon) ->
+                    val isSelected = selectedCategory == tabId || (tabId == "Categories" && selectedCategory.startsWith("Category:"))
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            if (tabId == "Categories") {
+                                selectedCategory = if (categories.size > 1) "Category:${categories[1]}" else "Categories"
+                            } else {
+                                selectedCategory = tabId
+                            }
+                        },
+                        label = { Text(label, fontWeight = FontWeight.SemiBold, fontSize = 12.sp) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (isSelected) Color.White else Color.Gray
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = B360Green,
+                            selectedLabelColor = Color.White,
+                            containerColor = Color.White,
+                            labelColor = Color(0xFF334155)
+                        ),
+                        border = BorderStroke(1.dp, if (isSelected) B360Green else Color(0xFFE2E8F0)),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                }
+            }
+
+            // Sub-row for Categories if Categories is selected
+            if (selectedCategory == "Categories" || selectedCategory.startsWith("Category:")) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Search product name or SKU...") },
-                        leadingIcon = { Icon(Icons.Filled.Search, null) },
-                        singleLine = true,
-                        colors = TextFieldDefaults.outlinedTextFieldColors(
-                            focusedBorderColor = B360Green,
-                            unfocusedBorderColor = Color(0xFFCBD5E1)
-                        )
-                    )
-
-                    // Categories Scrollable List
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        categories.forEach { cat ->
-                            val isSelected = selectedCategory == cat
+                    val actualCategories = categories.filter { it != "All" }
+                    if (actualCategories.isEmpty()) {
+                        Text("No categories found", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(horizontal = 8.dp))
+                    } else {
+                        actualCategories.forEach { cat ->
+                            val catValue = "Category:$cat"
+                            val isSelected = selectedCategory == catValue
                             FilterChip(
                                 selected = isSelected,
-                                onClick = { selectedCategory = cat },
-                                label = { Text(cat, fontWeight = FontWeight.SemiBold) },
+                                onClick = { selectedCategory = catValue },
+                                label = { Text(cat, fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = B360Green,
-                                    selectedLabelColor = Color.White
-                                )
+                                    selectedContainerColor = B360Green.copy(alpha = 0.85f),
+                                    selectedLabelColor = Color.White,
+                                    containerColor = Color(0xFFF1F5F9),
+                                    labelColor = Color(0xFF475569)
+                                ),
+                                border = BorderStroke(1.dp, if (isSelected) B360Green else Color(0xFFE2E8F0)),
+                                shape = RoundedCornerShape(6.dp)
                             )
                         }
                     }
@@ -143,8 +232,68 @@ fun DesktopPosScreen(
                     CircularProgressIndicator(color = B360Green)
                 }
             } else if (filteredProducts.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No products match filters.", color = Color.Gray, fontSize = 14.sp)
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(120.dp)
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(Color(0xFFE6F7F0)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingCart,
+                                contentDescription = null,
+                                tint = B360Green,
+                                modifier = Modifier.size(56.dp)
+                            )
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "No products match filters.",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color(0xFF1E293B)
+                            )
+                            Text(
+                                text = "Try adjusting your search or filters to find what you're looking for.",
+                                color = Color(0xFF64748B),
+                                fontSize = 13.sp
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                searchQuery = ""
+                                selectedCategory = "All"
+                            },
+                            border = BorderStroke(1.dp, B360Green),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = B360Green)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text("Clear filters", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             } else {
                 LazyVerticalGrid(
@@ -163,10 +312,8 @@ fun DesktopPosScreen(
                                     val existing = cart.find { it.product.id == p.id }
                                     if (existing != null) {
                                         if (existing.qty < p.currentStock) {
-                                            existing.qty += 1
-                                            // Force list trigger recomposition
                                             val idx = cart.indexOf(existing)
-                                            cart[idx] = existing.copy()
+                                            cart[idx] = existing.copy(qty = existing.qty + 1)
                                         } else {
                                             errorMessage = "Cannot add more. Only ${p.currentStock} items in stock."
                                         }
@@ -251,8 +398,12 @@ fun DesktopPosScreen(
             colors = CardDefaults.cardColors(containerColor = Color.White),
             border = BorderStroke(1.dp, Color(0xFFE2E8F0))
         ) {
+            val cartScrollState = rememberScrollState()
             Column(
-                modifier = Modifier.fillMaxSize().padding(20.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(cartScrollState)
+                    .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Cart Title Row
@@ -265,13 +416,30 @@ fun DesktopPosScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Filled.ShoppingCart, null, tint = B360Green)
-                        Text("POS Cart", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Icon(
+                            imageVector = Icons.Default.ShoppingCart,
+                            contentDescription = null,
+                            tint = B360Green,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = "POS Cart",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF1E293B)
+                        )
                     }
 
-                    if (cart.isNotEmpty()) {
-                        TextButton(onClick = { cart.clear(); errorMessage = null }) {
-                            Text("Clear All", color = B360Red)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (cart.isNotEmpty()) {
+                            TextButton(onClick = { cart.clear(); errorMessage = null }) {
+                                Text("Clear All", color = B360Red, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        IconButton(onClick = {}) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = Color.Gray)
                         }
                     }
                 }
@@ -314,30 +482,37 @@ fun DesktopPosScreen(
 
                 if (successOrderNumber == null) {
                     // Cart Line Items List
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
+                    Column(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         if (cart.isEmpty()) {
-                            item {
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().height(160.dp),
-                                    contentAlignment = Alignment.Center
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(64.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color(0xFFF1F5F9)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
                                         Icon(
-                                            Icons.Filled.Storefront,
-                                            null,
+                                            imageVector = Icons.Default.Storefront,
+                                            contentDescription = null,
                                             tint = Color.Gray,
-                                            modifier = Modifier.size(48.dp)
+                                            modifier = Modifier.size(32.dp)
                                         )
-                                        Spacer(Modifier.height(8.dp))
-                                        Text("Shopping cart is empty.", color = Color.Gray, fontSize = 13.sp)
                                     }
+                                    Text("Shopping cart is empty", color = Color(0xFF64748B), fontSize = 14.sp)
                                 }
                             }
                         } else {
-                            items(cart) { item ->
+                            cart.forEach { item ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -360,10 +535,9 @@ fun DesktopPosScreen(
                                         IconButton(
                                             onClick = {
                                                 errorMessage = null
+                                                val idx = cart.indexOf(item)
                                                 if (item.qty > 1) {
-                                                    item.qty -= 1
-                                                    val idx = cart.indexOf(item)
-                                                    cart[idx] = item.copy()
+                                                    cart[idx] = item.copy(qty = item.qty - 1)
                                                 } else {
                                                     cart.remove(item)
                                                 }
@@ -384,10 +558,9 @@ fun DesktopPosScreen(
                                         IconButton(
                                             onClick = {
                                                 errorMessage = null
+                                                val idx = cart.indexOf(item)
                                                 if (item.qty < item.product.currentStock) {
-                                                    item.qty += 1
-                                                    val idx = cart.indexOf(item)
-                                                    cart[idx] = item.copy()
+                                                    cart[idx] = item.copy(qty = item.qty + 1)
                                                 } else {
                                                     errorMessage = "Insufficient stock for ${item.product.name}."
                                                 }
@@ -476,39 +649,58 @@ fun DesktopPosScreen(
                                     value = walkInName,
                                     onValueChange = { walkInName = it },
                                     label = { Text("Name") },
+                                    leadingIcon = { Icon(Icons.Default.Person, null, tint = Color.Gray, modifier = Modifier.size(18.dp)) },
                                     modifier = Modifier.weight(1f),
-                                    singleLine = true
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(8.dp)
                                 )
                                 OutlinedTextField(
                                     value = walkInPhone,
                                     onValueChange = { walkInPhone = it },
                                     label = { Text("Phone") },
+                                    leadingIcon = { Icon(Icons.Default.Phone, null, tint = Color.Gray, modifier = Modifier.size(18.dp)) },
                                     modifier = Modifier.weight(1f),
-                                    singleLine = true
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(8.dp)
                                 )
                             }
                         }
 
                         // Payment Methods Custom Chips
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text("Payment Method", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                listOf(PaymentMethod.CASH, PaymentMethod.MPESA, PaymentMethod.CARD).forEach { pm ->
+                                listOf(
+                                    Triple(PaymentMethod.CASH, "CASH", Icons.Default.ShoppingCart),
+                                    Triple(PaymentMethod.MPESA, "MPESA", Icons.Default.Phone),
+                                    Triple(PaymentMethod.CARD, "CARD", Icons.Default.CheckCircle)
+                                ).forEach { (pm, label, icon) ->
                                     val isSelected = paymentMethod == pm
                                     Button(
                                         onClick = { paymentMethod = pm },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = if (isSelected) B360Green else Color(0xFFF1F5F9),
-                                            contentColor = if (isSelected) Color.White else Color(0xFF334155)
+                                            contentColor = if (isSelected) Color.White else Color(0xFF475569)
                                         ),
                                         shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(vertical = 12.dp)
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
                                     ) {
-                                        Text(pm.name, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = icon,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp),
+                                                tint = if (isSelected) Color.White else Color(0xFF64748B)
+                                            )
+                                            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
@@ -518,9 +710,11 @@ fun DesktopPosScreen(
                         OutlinedTextField(
                             value = notes,
                             onValueChange = { notes = it },
-                            label = { Text("Sale Notes") },
+                            placeholder = { Text("Add sale notes (optional)") },
+                            leadingIcon = { Icon(Icons.Default.Edit, null, tint = Color.Gray, modifier = Modifier.size(18.dp)) },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp)
                         )
 
                         Spacer(Modifier.height(4.dp))
@@ -609,7 +803,13 @@ fun DesktopPosScreen(
                             if (isCheckingOut) {
                                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                             } else {
-                                Text("Complete Sale", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Text("Complete Sale", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                }
                             }
                         }
                     }

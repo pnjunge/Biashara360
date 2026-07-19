@@ -167,31 +167,6 @@ class MpesaService(
         return missing
     }
 
-    // ── Process Callback ──────────────────────────────────────────────────────
-
-    fun processCallback(callback: com.app.biashara.models.MpesaCallbackRequest): MpesaCallbackResult {
-        val stkCallback = callback.Body.stkCallback
-        return if (stkCallback.ResultCode == 0) {
-            val metadata = stkCallback.CallbackMetadata?.Item ?: emptyList()
-            val amount = metadata.find { it.Name == "Amount" }?.Value?.toDoubleOrNull() ?: 0.0
-            val txCode = metadata.find { it.Name == "MpesaReceiptNumber" }?.Value ?: ""
-            val phone = metadata.find { it.Name == "PhoneNumber" }?.Value ?: ""
-            val name = metadata.find { it.Name == "TransactionDate" }?.Value ?: ""
-
-            MpesaCallbackResult.Success(
-                transactionCode = txCode,
-                amount = amount,
-                phoneNumber = phone,
-                checkoutRequestId = stkCallback.CheckoutRequestID
-            )
-        } else {
-            MpesaCallbackResult.Failed(
-                resultCode = stkCallback.ResultCode,
-                resultDesc = stkCallback.ResultDesc,
-                checkoutRequestId = stkCallback.CheckoutRequestID
-            )
-        }
-    }
 }
 
 // ── Daraja DTOs ───────────────────────────────────────────────────────────────
@@ -239,18 +214,4 @@ sealed class StkPushResult {
         val customerMessage: String
     ) : StkPushResult()
     data class Error(val message: String) : StkPushResult()
-}
-
-sealed class MpesaCallbackResult {
-    data class Success(
-        val transactionCode: String,
-        val amount: Double,
-        val phoneNumber: String,
-        val checkoutRequestId: String
-    ) : MpesaCallbackResult()
-    data class Failed(
-        val resultCode: Int,
-        val resultDesc: String,
-        val checkoutRequestId: String
-    ) : MpesaCallbackResult()
 }

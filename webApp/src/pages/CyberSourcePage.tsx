@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { CreditCard, Shield, CheckCircle, XCircle, Clock, RefreshCw, Trash2, Plus, ChevronRight, Link, Copy, Mail, MessageSquare, Send } from 'lucide-react'
 import { Card, PageHeader, StatusBadge, DataTable, Btn, KpiCard } from '../components/ui'
 import { cyberSourceApi, CsTransactionRecord, SavedCardResponse } from '../services/api'
+import { useAuth } from '../App'
 
 // ── Card brand logo ───────────────────────────────────────────────────────────
 function CardBrand({ type }: { type: string }) {
@@ -269,6 +270,7 @@ function PaymentResult({ result, onClose }: { result: any; onClose: () => void }
 
 // ── Payment Link Generator ────────────────────────────────────────────────────
 function PaymentLinkTab() {
+  const { user } = useAuth()
   const [linkAmount, setLinkAmount] = useState('')
   const [linkDesc, setLinkDesc] = useState('')
   const [custName, setCustName] = useState('')
@@ -294,6 +296,7 @@ function PaymentLinkTab() {
     const params = new URLSearchParams({
       amount: linkAmount,
       desc: linkDesc.trim(),
+      ...(user?.businessId && { businessId: user.businessId }),
       ...(custName  && { name: custName.trim() }),
       ...(custEmail && { email: custEmail.trim() }),
       ...(custPhone && { phone: custPhone.trim() }),

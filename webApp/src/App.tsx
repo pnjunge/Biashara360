@@ -14,9 +14,12 @@ import ReportsPage from './pages/ReportsPage'
 import SettingsPage from './pages/SettingsPage'
 import CyberSourcePage from './pages/CyberSourcePage'
 import CyberSourceSettingsPage from './pages/CyberSourceSettingsPage'
+import MpesaSettingsPage from './pages/MpesaSettingsPage'
+import ReceiptTemplatePage from './pages/ReceiptTemplatePage'
 import TaxPage from './pages/TaxPage'
 import KraPage from './pages/KraPage'
 import SocialPage from './pages/SocialPage'
+import SocialOnboardingPage from './pages/SocialOnboardingPage'
 import UserCreationPage from './pages/UserCreationPage'
 import BusinessPage from './pages/BusinessPage'
 
@@ -89,8 +92,11 @@ export default function App() {
             <Route path="tax"           element={<TaxPage />} />
             <Route path="kra"           element={<KraPage />} />
             <Route path="social"        element={<SocialPage />} />
+            <Route path="social-onboarding" element={<SocialOnboardingPage />} />
             <Route path="users"         element={<RoleProtectedRoute blockedRoles={["STAFF"]}><UserCreationPage /></RoleProtectedRoute>} />
             <Route path="business"      element={<RoleProtectedRoute blockedRoles={["STAFF"]}><BusinessPage /></RoleProtectedRoute>} />
+            <Route path="mpesa-settings" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><MpesaSettingsPage /></RoleProtectedRoute>} />
+            <Route path="receipt-template" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><ReceiptTemplatePage /></RoleProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

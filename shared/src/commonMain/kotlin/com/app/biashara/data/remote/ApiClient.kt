@@ -13,7 +13,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
-var BASE_URL = "http://192.168.11.241:8081/v1" // Host machine IP reachable from Genymotion
+var BASE_URL = "https://api.biashara360.co.ke/v1"
 
 fun createHttpClient(tokenStorage: TokenStorage): HttpClient {
     return HttpClient {
@@ -116,7 +116,8 @@ data class UserDto(
     val role: String,
     val businessId: String?,
     val preferredLanguage: String? = null,
-    val businessName: String? = null
+    val businessName: String? = null,
+    val isActive: Boolean? = true
 )
 
 // Mpesa Daraja DTOs

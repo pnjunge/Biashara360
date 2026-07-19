@@ -20,7 +20,7 @@ fun main() {
     }.getOrNull()
     com.app.biashara.data.remote.BASE_URL = savedUrl
         ?: System.getenv("BASE_URL")
-        ?: "http://localhost:8081/v1"
+        ?: "https://sddgmezqj2.us-east-1.awsapprunner.com/v1"
 
     // Guard against double-initialization (e.g. on hot-restart in dev)
     if (GlobalContext.getOrNull() == null) {
@@ -39,6 +39,9 @@ fun main() {
             title = "Biashara360 — Business Management",
             state = windowState
         ) {
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                window.minimumSize = java.awt.Dimension(1024, 680)
+            }
             Biashara360DesktopApp()
         }
     }

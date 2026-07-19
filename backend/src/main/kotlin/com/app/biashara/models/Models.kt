@@ -364,7 +364,11 @@ data class BusinessProfileRequest(
     val address: String = "",
     val kraPin: String = "",
     val paybillNumber: String = "",
-    val accountNumber: String = ""
+    val accountNumber: String = "",
+    val receiptHeader: String = "Welcome to our store!",
+    val receiptFooter: String = "Thank you for shopping with us!",
+    val receiptShowTax: Boolean = true,
+    val receiptShowCustomer: Boolean = true
 )
 
 @Serializable
@@ -380,7 +384,11 @@ data class BusinessProfileResponse(
     val kraPin: String,
     val paybillNumber: String,
     val accountNumber: String,
-    val subscriptionTier: String
+    val subscriptionTier: String,
+    val receiptHeader: String = "Welcome to our store!",
+    val receiptFooter: String = "Thank you for shopping with us!",
+    val receiptShowTax: Boolean = true,
+    val receiptShowCustomer: Boolean = true
 )
 
 // ─── Super Admin — Business Management ───────────────────────────────────────

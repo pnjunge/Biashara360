@@ -228,6 +228,36 @@ export interface SavedCardResponse {
   id: string; last4: string; type: string; expiry: string; holder: string; isDefault: boolean
 }
 
+export interface CsGuestChargeRequest {
+  businessId: string
+  orderId: string
+  amount: number
+  currency: string
+  transientToken?: string
+  cardNumber?: string
+  cardExpiryMonth?: string
+  cardExpiryYear?: string
+  cardCvv?: string
+  cardholderName?: string
+  billingEmail?: string
+  billingPhone?: string
+}
+
+export interface CsChargeResponse {
+  transactionId: string
+  csTransactionId: string | null
+  status: string
+  approvalCode: string | null
+  amount: number
+  currency: string
+  cardLast4: string | null
+  cardType: string | null
+  reconciliationId: string | null
+  savedCardId: string | null
+  errorMessage: string | null
+  errorReason: string | null
+}
+
 export interface StkPushResponse {
   checkoutRequestId: string; merchantRequestId: string
   responseCode: string; responseDescription: string
@@ -562,6 +592,16 @@ export const cyberSourceApi = {
     const res = await client.delete<ApiResponse<null>>(`/payments/card/saved-cards/${id}`)
     return res.data
   },
+  getGuestCaptureContext: async (origin: string, businessId?: string) => {
+    const res = await client.get<ApiResponse<{ captureContextJwt: string }>>('/payments/card/capture-context', {
+      params: { origin, businessId }
+    })
+    return res.data
+  },
+  guestCharge: async (req: CsGuestChargeRequest) => {
+    const res = await client.post<ApiResponse<CsChargeResponse>>('/payments/card/guest-charge', req)
+    return res.data
+  },
 }
 
 export const authApi = {
@@ -640,6 +680,10 @@ export interface BusinessProfileRequest {
   kraPin: string
   paybillNumber: string
   accountNumber: string
+  receiptHeader?: string
+  receiptFooter?: string
+  receiptShowTax?: boolean
+  receiptShowCustomer?: boolean
 }
 
 export interface BusinessProfileResponse {
@@ -655,6 +699,45 @@ export interface BusinessProfileResponse {
   paybillNumber: string
   accountNumber: string
   subscriptionTier: string
+  receiptHeader?: string
+  receiptFooter?: string
+  receiptShowTax?: boolean
+  receiptShowCustomer?: boolean
+}
+
+export interface MpesaConfigResponse {
+  businessId: string
+  consumerKey: string
+  shortCode: string
+  callbackUrl: string
+  environment: string
+  accountType: string
+  updatedAt: string
+}
+
+export interface MpesaConfigRequest {
+  consumerKey: string
+  consumerSecret: string
+  shortCode: string
+  passKey: string
+  callbackUrl: string
+  environment: string
+  accountType: string
+}
+
+export interface CyberSourceConfigResponse {
+  businessId: string
+  merchantId: string
+  merchantKeyId: string
+  environment: string
+  updatedAt: string
+}
+
+export interface CyberSourceConfigRequest {
+  merchantId: string
+  merchantKeyId: string
+  merchantSecretKey: string
+  environment: string
 }
 
 export const businessApi = {
@@ -664,6 +747,25 @@ export const businessApi = {
   },
   updateProfile: async (data: BusinessProfileRequest) => {
     const res = await client.put<ApiResponse<BusinessProfileResponse>>('/business/profile', data)
+    return res.data
+  },
+}
+
+export const settingsApi = {
+  getMpesa: async () => {
+    const res = await client.get<ApiResponse<MpesaConfigResponse>>('/settings/mpesa')
+    return res.data
+  },
+  updateMpesa: async (data: MpesaConfigRequest) => {
+    const res = await client.put<ApiResponse<MpesaConfigResponse>>('/settings/mpesa', data)
+    return res.data
+  },
+  getCyberSource: async () => {
+    const res = await client.get<ApiResponse<CyberSourceConfigResponse>>('/settings/cybersource')
+    return res.data
+  },
+  updateCyberSource: async (data: CyberSourceConfigRequest) => {
+    const res = await client.put<ApiResponse<CyberSourceConfigResponse>>('/settings/cybersource', data)
     return res.data
   },
 }

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building, ShoppingCart, Clock, UserPlus, HelpCircle, Activity, ChevronDown, CheckCircle, Smartphone } from 'lucide-react'
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
-import { productApi, orderApi, customerApi, reportApi, businessApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse } from '../services/api'
+import { productApi, orderApi, customerApi, reportApi, businessApi, socialApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse } from '../services/api'
 import { useAuth } from '../App'
 
 function getCurrentMonthRange() {
@@ -14,12 +15,14 @@ function getCurrentMonthRange() {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const [profitSummary, setProfitSummary] = useState<ProfitSummaryResponse | null>(null)
   const [recentOrders, setRecentOrders] = useState<OrderResponse[]>([])
   const [lowStockProducts, setLowStockProducts] = useState<ProductResponse[]>([])
   const [customerCount, setCustomerCount] = useState<number>(0)
   const [topCustomers, setTopCustomers] = useState<CustomerResponse[]>([])
+  const [socialChannels, setSocialChannels] = useState<any[]>([])
   const [resolvedBusinessName, setResolvedBusinessName] = useState('')
   const [loading, setLoading] = useState(true)
   const businessName = user?.businessName?.trim() || resolvedBusinessName || 'Your Business'
@@ -43,12 +46,14 @@ export default function DashboardPage() {
       productApi.list(undefined, true),
       customerApi.list(),
       customerApi.top(4),
-    ]).then(([ps, ord, prods, custs, topCusts]) => {
+      socialApi.getChannels().catch(() => ({ success: false, data: [] }))
+    ]).then(([ps, ord, prods, custs, topCusts, soc]) => {
       if (ps.success && ps.data) setProfitSummary(ps.data)
       if (ord.success && ord.data) setRecentOrders(ord.data.data)
       if (prods.success && prods.data) setLowStockProducts(prods.data)
       if (custs.success && custs.data) setCustomerCount(custs.data.length)
       if (topCusts.success && topCusts.data) setTopCustomers(topCusts.data)
+      if (soc && soc.success && soc.data) setSocialChannels(soc.data)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
@@ -80,6 +85,53 @@ export default function DashboardPage() {
         </>
       ) : (
         <>
+          {socialChannels.length === 0 && (
+            <div style={{
+              background: 'linear-gradient(135deg, #1B8B34 0%, #10B981 100%)',
+              color: 'white',
+              borderRadius: 'var(--radius-md)',
+              padding: '20px 24px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 16,
+              boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.3)',
+              marginBottom: 8
+            }}>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                <div style={{ background: 'rgba(255, 255, 255, 0.2)', width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+                  🚀
+                </div>
+                <div>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: 15, fontWeight: 800 }}>Unlock Social Commerce Automation</h4>
+                  <p style={{ margin: 0, fontSize: 12, opacity: 0.9 }}>
+                    Connect your WhatsApp, Instagram, or Facebook channels to handle messages and collect payments automatically with our AI Assistant.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/social-onboarding')}
+                style={{
+                  background: 'white',
+                  color: 'var(--b360-green)',
+                  border: 'none',
+                  padding: '10px 18px',
+                  borderRadius: 6,
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                  transition: 'transform 0.1s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                Launch Onboarding Wizard
+              </button>
+            </div>
+          )}
+
           {/* KPI Cards */}
           <div className="responsive-grid responsive-grid-4">
             <KpiCard

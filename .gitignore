@@ -21,3 +21,8 @@ out/
 *.keystore
 *.jks
 keystore.properties
+
+# Build / IDE outputs
+bin/
+*.zip
+

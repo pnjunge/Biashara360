@@ -16,10 +16,37 @@ class OrderService {
             query = query.andWhere { OrdersTable.paymentStatus eq paymentStatus }
         }
         val total = query.count().toInt()
-        val orders = query
+        val orderRows = query
             .orderBy(OrdersTable.createdAt, SortOrder.DESC)
             .limit(pageSize, ((page - 1) * pageSize).toLong())
-            .map { it.toResponse() }
+            .toList()
+
+        // Batch-fetch items for all orders in one query (avoids N+1)
+        val orderIds = orderRows.map { it[OrdersTable.id] }
+        val itemsByOrderId: Map<String, List<OrderItemResponse>> = if (orderIds.isEmpty()) emptyMap() else {
+            OrderItemsTable
+                .select { OrderItemsTable.orderId inList orderIds }
+                .groupBy { it[OrderItemsTable.orderId] }
+                .mapValues { (_, rows) ->
+                    rows.map { item ->
+                        val qty   = item[OrderItemsTable.quantity]
+                        val price = item[OrderItemsTable.unitPrice]
+                        val buy   = item[OrderItemsTable.buyingPrice]
+                        OrderItemResponse(
+                            id          = item[OrderItemsTable.id],
+                            productId   = item[OrderItemsTable.productId],
+                            productName = item[OrderItemsTable.productName],
+                            quantity    = qty,
+                            unitPrice   = price,
+                            buyingPrice = buy,
+                            lineTotal   = qty * price,
+                            lineProfit  = qty * (price - buy)
+                        )
+                    }
+                }
+        }
+
+        val orders = orderRows.map { it.toResponse(itemsByOrderId[it[OrdersTable.id]] ?: emptyList()) }
         PagedResponse(orders, total, page, pageSize, (page * pageSize) < total)
     }
 
@@ -45,7 +72,7 @@ class OrderService {
         }
 
         val orderId = generateId()
-        val orderNumber = generateOrderNumber(businessId)
+        val orderNumber = generateOrderNumber()
         val now = Clock.System.now()
         val subtotal = req.items.sumOf { it.quantity * it.unitPrice }
 
@@ -96,13 +123,14 @@ class OrderService {
             }
         }
 
-        // Award loyalty points (1 point per 100 KES)
+        // Award loyalty points (1 point per 100 KES) — SQL increment avoids lost-update race
         req.customerId?.let { cid ->
             val points = (subtotal / 100).toInt()
             if (points > 0) {
                 CustomersTable.update({ CustomersTable.id eq cid }) {
-                    val currentPoints = CustomersTable.select { CustomersTable.id eq cid }.first()[CustomersTable.loyaltyPoints]
-                    it[loyaltyPoints] = currentPoints + points
+                    with(SqlExpressionBuilder) {
+                        it.update(loyaltyPoints, loyaltyPoints + points)
+                    }
                     it[updatedAt] = now
                 }
             }
@@ -146,6 +174,9 @@ class OrderService {
         if (currentPaymentStatus == "CANCELLED") {
             return@transaction ApiResponse(false, message = "Order is already cancelled")
         }
+        if (currentPaymentStatus == "PAID") {
+            return@transaction ApiResponse(false, message = "Cannot cancel a paid order. Please initiate a refund instead.")
+        }
 
         // Revert stock for all items
         val items = OrderItemsTable.select { OrderItemsTable.orderId eq id }
@@ -156,8 +187,9 @@ class OrderService {
             
             val product = ProductsTable.select { ProductsTable.id eq productId }.firstOrNull()
             if (product != null) {
+                // SQL increment to avoid read-modify-write race on stock
                 ProductsTable.update({ ProductsTable.id eq productId }) {
-                    it[currentStock] = product[ProductsTable.currentStock] + quantity
+                    with(SqlExpressionBuilder) { it.update(currentStock, currentStock + quantity) }
                     it[updatedAt] = now
                 }
                 
@@ -175,17 +207,19 @@ class OrderService {
             }
         }
 
-        // Revert loyalty points if customerId is present
+        // Revert loyalty points — SQL expression prevents lost-update under concurrency
         order[OrdersTable.customerId]?.let { cid ->
             val subtotal = order[OrdersTable.subtotal]
             val points = (subtotal / 100).toInt()
             if (points > 0) {
-                val customer = CustomersTable.select { CustomersTable.id eq cid }.firstOrNull()
-                if (customer != null) {
-                    CustomersTable.update({ CustomersTable.id eq cid }) {
-                        it[loyaltyPoints] = Math.max(0, customer[CustomersTable.loyaltyPoints] - points)
-                        it[updatedAt] = now
+                CustomersTable.update({ CustomersTable.id eq cid }) {
+                    // GREATEST(0, current - points) in SQL via Exposed
+                    with(SqlExpressionBuilder) {
+                        it.update(loyaltyPoints, case()
+                            .When(loyaltyPoints greater points, loyaltyPoints - points)
+                            .Else(intLiteral(0)))
                     }
+                    it[updatedAt] = now
                 }
             }
         }
@@ -201,14 +235,15 @@ class OrderService {
         ApiResponse(true, data = updatedOrder, message = "Order ${order[OrdersTable.orderNumber]} cancelled successfully")
     }
 
-    private fun generateOrderNumber(businessId: String): String {
-        val count = OrdersTable.select { OrdersTable.businessId eq businessId }.count()
-        return "B360-%04d".format(count + 1)
+    private fun generateOrderNumber(): String {
+        // UUID-based suffix is collision-free even under concurrent requests
+        val suffix = java.util.UUID.randomUUID().toString().replace("-", "").take(8).uppercase()
+        return "B360-$suffix"
     }
 
-    private fun ResultRow.toResponse(): OrderResponse {
+    private fun ResultRow.toResponse(preloadedItems: List<OrderItemResponse>? = null): OrderResponse {
         val orderId = this[OrdersTable.id]
-        val items = OrderItemsTable.select { OrderItemsTable.orderId eq orderId }.map { item ->
+        val items = preloadedItems ?: OrderItemsTable.select { OrderItemsTable.orderId eq orderId }.map { item ->
             val qty = item[OrderItemsTable.quantity]
             val price = item[OrderItemsTable.unitPrice]
             val buying = item[OrderItemsTable.buyingPrice]

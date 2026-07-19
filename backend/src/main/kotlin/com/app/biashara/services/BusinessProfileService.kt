@@ -27,7 +27,11 @@ class BusinessProfileService {
                     kraPin          = it[BusinessesTable.kraPin] ?: "",
                     paybillNumber   = it[BusinessesTable.paybillNumber] ?: "",
                     accountNumber   = it[BusinessesTable.accountNumber] ?: "",
-                    subscriptionTier = it[BusinessesTable.subscriptionTier]
+                    subscriptionTier = it[BusinessesTable.subscriptionTier],
+                    receiptHeader   = it[BusinessesTable.receiptHeader],
+                    receiptFooter   = it[BusinessesTable.receiptFooter],
+                    receiptShowTax  = it[BusinessesTable.receiptShowTax],
+                    receiptShowCustomer = it[BusinessesTable.receiptShowCustomer]
                 )
             }
     }
@@ -52,6 +56,10 @@ class BusinessProfileService {
             it[kraPin]        = req.kraPin.takeIf { v -> v.isNotBlank() }
             it[paybillNumber] = req.paybillNumber.takeIf { v -> v.isNotBlank() }
             it[accountNumber] = req.accountNumber.takeIf { v -> v.isNotBlank() }
+            it[receiptHeader] = req.receiptHeader
+            it[receiptFooter] = req.receiptFooter
+            it[receiptShowTax] = req.receiptShowTax
+            it[receiptShowCustomer] = req.receiptShowCustomer
             it[updatedAt]     = now
         }
 

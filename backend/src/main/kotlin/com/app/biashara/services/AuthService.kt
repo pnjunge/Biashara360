@@ -26,11 +26,11 @@ class AuthService(
         }
         val userRow = UsersTable.select { UsersTable.id eq req.userId }.firstOrNull()
             ?: return@transaction ApiResponse(false, message = "User not found")
+        // Single JOIN to get business name — avoids nested transaction
         val businessName = userRow[UsersTable.businessId]?.let { bizId ->
-            transaction {
-                BusinessesTable.slice(BusinessesTable.name).select { BusinessesTable.id eq bizId }
-                    .firstOrNull()?.get(BusinessesTable.name)
-            }
+            BusinessesTable.slice(BusinessesTable.name)
+                .select { BusinessesTable.id eq bizId }
+                .firstOrNull()?.get(BusinessesTable.name)
         }
         val userResp = UserResponse(
             userRow[UsersTable.id],
@@ -86,6 +86,7 @@ class AuthService(
             it[phone] = req.phone
             it[passwordHash] = PasswordUtils.hash(req.password)
             it[role] = "ADMIN"
+            it[twoFactorEnabled] = false
             it[createdAt] = now
             it[updatedAt] = now
         }
@@ -191,7 +192,7 @@ class AuthService(
     }
 
     private fun dispatchOtp(phone: String, email: String, name: String, otp: String) {
-        println("[AuthService] OTP for debugging: $otp")
+        // Do NOT log OTP values — keep auth codes out of log aggregators
         if (phone.isNotBlank()) {
             try {
                 runBlocking { smsService.sendOtp(phone, otp) }

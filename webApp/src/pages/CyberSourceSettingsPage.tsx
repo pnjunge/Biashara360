@@ -1,21 +1,54 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { PageHeader, Card, Btn, Input } from '../components/ui'
+import { settingsApi } from '../services/api'
 
 export default function CyberSourceSettingsPage() {
-  const [merchantId, setMerchantId] = useState('WanFashion_CS_098')
-  const [merchantKeyId, setMerchantKeyId] = useState('9c7c25eb-42f8-4a52-b8bb-69d2d0c2e39b')
-  const [merchantSecretKey, setMerchantSecretKey] = useState('••••••••••••••••••••••••••••••••')
+  const [merchantId, setMerchantId] = useState('')
+  const [merchantKeyId, setMerchantKeyId] = useState('')
+  const [merchantSecretKey, setMerchantSecretKey] = useState('')
   const [isSandbox, setIsSandbox] = useState(true)
+  const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
 
-  const handleSave = () => {
+  useEffect(() => {
+    settingsApi.getCyberSource()
+      .then(res => {
+        if (res.success && res.data) {
+          setMerchantId(res.data.merchantId)
+          setMerchantKeyId(res.data.merchantKeyId)
+          setMerchantSecretKey('••••••••••••••••••••••••••••••••')
+          setIsSandbox(res.data.environment === 'sandbox')
+        }
+      })
+      .catch(() => {
+        // If not found, it is fine, just leave blank
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleSave = async () => {
     setSaving(true)
-    setTimeout(() => {
+    setErrorMsg('')
+    try {
+      const res = await settingsApi.updateCyberSource({
+        merchantId,
+        merchantKeyId,
+        merchantSecretKey,
+        environment: isSandbox ? 'sandbox' : 'production'
+      })
+      if (res.success) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 3000)
+      } else {
+        setErrorMsg(res.message || 'Failed to save configuration')
+      }
+    } catch (e: any) {
+      setErrorMsg(e.response?.data?.message || 'Network error')
+    } finally {
       setSaving(false)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    }, 800)
+    }
   }
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -24,6 +57,10 @@ export default function CyberSourceSettingsPage() {
       <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
     </Card>
   )
+
+  if (loading) {
+    return <div style={{ padding: 32, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading settings…</div>
+  }
 
   return (
     <div className="fade-in" style={{ maxWidth: 640 }}>
@@ -36,6 +73,12 @@ export default function CyberSourceSettingsPage() {
           </div>
         }
       />
+
+      {errorMsg && (
+        <div style={{ padding: 12, background: 'var(--b360-red-bg)', color: 'var(--b360-red)', borderRadius: 8, fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
+          {errorMsg}
+        </div>
+      )}
 
       <Section title="API Configuration">
         <Input

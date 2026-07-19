@@ -36,6 +36,12 @@ import com.app.biashara.presentation.viewmodel.AuthViewModel
 import com.app.biashara.presentation.viewmodel.AuthStep
 import com.app.biashara.ui.screens.*
 import com.app.biashara.ui.theme.*
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.key.*
 
 // --- ViewModel-driven Navigation State ---
 class DesktopNavigationViewModel : com.app.biashara.presentation.viewmodel.KmpViewModel() {
@@ -60,6 +66,8 @@ sealed class AppScreen(
     object Expenses : AppScreen("expenses", "Expenses", Icons.Default.Receipt)
     object Payments : AppScreen("payments", "Payments", Icons.Default.Payments)
     object CyberSource : AppScreen("cybersource", "CyberSource Settings", Icons.Default.CreditCard)
+    object Mpesa : AppScreen("mpesa", "M-Pesa Settings", Icons.Default.Phone)
+    object ReceiptTemplate : AppScreen("receipt_template", "Receipt Customization", Icons.Default.ReceiptLong)
     object Reports : AppScreen("reports", "Reports", Icons.Default.BarChart)
     object Tax : AppScreen("tax", "Tax", Icons.Default.AccountBalance)
     object KRA : AppScreen("kra", "KRA", Icons.Default.Gavel)
@@ -75,7 +83,6 @@ private val appScreens = listOf(
     AppScreen.Customers,
     AppScreen.Expenses,
     AppScreen.Payments,
-    AppScreen.CyberSource,
     AppScreen.Reports,
     AppScreen.Tax,
     AppScreen.KRA,
@@ -83,10 +90,41 @@ private val appScreens = listOf(
     AppScreen.Settings
 )
 
+private fun isDesktopFingerprintAvailable(): Boolean {
+    val osName = System.getProperty("os.name").lowercase()
+    return try {
+        if (osName.contains("linux")) {
+            val whichProcess = Runtime.getRuntime().exec(arrayOf("which", "fprintd-verify"))
+            if (whichProcess.waitFor() == 0) return true
+
+            val lsusbProcess = Runtime.getRuntime().exec("lsusb")
+            val output = lsusbProcess.inputStream.bufferedReader().use { it.readText() }.lowercase()
+            output.contains("fingerprint") || output.contains("biometric") || output.contains("fprint")
+        } else if (osName.contains("windows")) {
+            val process = Runtime.getRuntime().exec(arrayOf("powershell", "-Command", "Get-PnpDevice -Class Biometric"))
+            if (process.waitFor() == 0) {
+                val output = process.inputStream.bufferedReader().use { it.readText() }
+                output.isNotBlank() && !output.contains("No PnP devices")
+            } else {
+                false
+            }
+        } else if (osName.contains("mac")) {
+            val process = Runtime.getRuntime().exec(arrayOf("bioutil", "-read"))
+            process.waitFor() == 0
+        } else {
+            false
+        }
+    } catch (e: Exception) {
+        false
+    }
+}
+
 @Composable
 fun Biashara360DesktopApp() {
     val authViewModel: AuthViewModel = remember { inject() }
     val userSessionState by UserSession.currentUser.collectAsState()
+
+
 
     Biashara360DesktopTheme {
         if (userSessionState == null) {
@@ -100,12 +138,54 @@ fun Biashara360DesktopApp() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Biashara360DesktopAppContent(
-    navigationViewModel: DesktopNavigationViewModel = remember { inject() }
+    navigationViewModel: DesktopNavigationViewModel = remember { inject() },
+    dashboardViewModel: com.app.biashara.presentation.viewmodel.DashboardViewModel = remember { inject() }
 ) {
     val currentScreen by navigationViewModel.currentScreen.collectAsState()
+    val dashboardState by dashboardViewModel.state.collectAsState()
+    LaunchedEffect(Unit) {
+        dashboardViewModel.loadDashboard()
+    }
     var isExpanded by remember { mutableStateOf(true) }
+    var searchQuery by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    val rootFocusRequester = remember { FocusRequester() }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    LaunchedEffect(Unit) {
+        rootFocusRequester.requestFocus()
+    }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .focusRequester(rootFocusRequester)
+            .focusable()
+            .onPreviewKeyEvent { keyEvent ->
+                if (keyEvent.type == KeyEventType.KeyDown) {
+                    if (keyEvent.isCtrlPressed) {
+                        when (keyEvent.key) {
+                            Key.K -> {
+                                focusRequester.requestFocus()
+                                true
+                            }
+                            Key.One -> { navigationViewModel.navigateTo(AppScreen.Dashboard); true }
+                            Key.Two -> { navigationViewModel.navigateTo(AppScreen.Pos); true }
+                            Key.Three -> { navigationViewModel.navigateTo(AppScreen.Inventory); true }
+                            Key.Four -> { navigationViewModel.navigateTo(AppScreen.Orders); true }
+                            Key.Five -> { navigationViewModel.navigateTo(AppScreen.Customers); true }
+                            Key.Six -> { navigationViewModel.navigateTo(AppScreen.Expenses); true }
+                            Key.Seven -> { navigationViewModel.navigateTo(AppScreen.Reports); true }
+                            Key.Eight -> { navigationViewModel.navigateTo(AppScreen.Settings); true }
+                            else -> false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+    ) {
         val isWideScreen = maxWidth >= 1024.dp
 
         Row(modifier = Modifier.fillMaxSize()) {
@@ -115,7 +195,7 @@ fun Biashara360DesktopAppContent(
                     modifier = Modifier
                         .width(sidebarWidth)
                         .fillMaxHeight()
-                        .background(Color.White)
+                        .background(B360SidebarBg)
                         .padding(horizontal = 12.dp, vertical = 16.dp)
                 ) {
                     // Header logo
@@ -128,7 +208,7 @@ fun Biashara360DesktopAppContent(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFE6F7F0)),
+                                .background(Color(0xFF1E293B)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -143,7 +223,7 @@ fun Biashara360DesktopAppContent(
                             Text(
                                 text = "Biashara360",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = Color(0xFF1E293B)
+                                color = Color.White
                             )
                         }
                     }
@@ -159,36 +239,50 @@ fun Biashara360DesktopAppContent(
                         ) {
                             appScreens.forEach { screen ->
                                 val isSelected = currentScreen == screen
-                                val bg = if (isSelected) Color(0xFFE6F7F0) else Color.Transparent
-                                val iconColor = if (isSelected) B360Green else Color(0xFF64748B)
-                                val textColor = if (isSelected) B360Green else Color(0xFF1E293B)
+                                val bg = if (isSelected) B360SidebarSelected else Color.Transparent
+                                val iconColor = if (isSelected) B360Green else Color(0xFF94A3B8)
+                                val textColor = if (isSelected) Color.White else Color(0xFF94A3B8)
 
-                                Row(
+                                Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(44.dp)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(bg)
                                         .clickable { navigationViewModel.navigateTo(screen) }
-                                        .padding(horizontal = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
                                 ) {
-                                    Icon(
-                                        imageVector = screen.icon,
-                                        contentDescription = screen.title,
-                                        tint = iconColor,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    if (isExpanded) {
-                                        Spacer(Modifier.width(12.dp))
-                                        Text(
-                                            text = screen.title,
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
-                                            ),
-                                            color = textColor
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(3.dp)
+                                                .fillMaxHeight()
+                                                .background(B360Green)
+                                                .align(Alignment.CenterStart)
                                         )
+                                    }
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(start = if (isSelected) 16.dp else 12.dp, end = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = screen.icon,
+                                            contentDescription = screen.title,
+                                            tint = iconColor,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        if (isExpanded) {
+                                            Spacer(Modifier.width(12.dp))
+                                            Text(
+                                                text = screen.title,
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                                                ),
+                                                color = textColor
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -207,7 +301,7 @@ fun Biashara360DesktopAppContent(
                             Icon(
                                 imageVector = if (isExpanded) Icons.Default.KeyboardDoubleArrowLeft else Icons.Default.KeyboardDoubleArrowRight,
                                 contentDescription = "Collapse/Expand Sidebar",
-                                tint = Color(0xFF64748B)
+                                tint = Color(0xFF94A3B8)
                             )
                         }
                     }
@@ -215,6 +309,7 @@ fun Biashara360DesktopAppContent(
             }
 
             Scaffold(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 topBar = {
                     val user by UserSession.currentUser.collectAsState()
                     var showMenu by remember { mutableStateOf(false) }
@@ -233,32 +328,57 @@ fun Biashara360DesktopAppContent(
 
                         Spacer(Modifier.width(16.dp))
 
-                        Box(
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
                             modifier = Modifier
                                 .width(360.dp)
                                 .height(40.dp)
+                                .focusRequester(focusRequester)
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(Color(0xFFF1F5F9))
                                 .padding(horizontal = 16.dp),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Search, contentDescription = "Search", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Search anything...", color = Color(0xFF94A3B8), style = MaterialTheme.typography.bodyMedium)
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF1E293B)),
+                            decorationBox = { innerTextField ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxHeight()
+                                ) {
+                                    Icon(Icons.Default.Search, contentDescription = "Search", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                                        if (searchQuery.isEmpty()) {
+                                            Text("Search anything...", color = Color(0xFF94A3B8), style = MaterialTheme.typography.bodyMedium)
+                                        }
+                                        innerTextField()
+                                    }
+                                    if (searchQuery.isNotEmpty()) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Clear",
+                                            tint = Color(0xFF94A3B8),
+                                            modifier = Modifier
+                                                .size(18.dp)
+                                                .clickable { searchQuery = "" }
+                                        )
+                                    }
+                                }
                             }
-                        }
+                        )
 
                         Spacer(Modifier.weight(1f))
 
-                        IconButton(onClick = {}) {
+                        IconButton(onClick = { navigationViewModel.navigateTo(AppScreen.Inventory) }) {
                             BadgedBox(
                                 badge = {
-                                    Badge(
-                                        containerColor = B360Red,
-                                        contentColor = Color.White
-                                    ) {
-                                        Text("3", fontSize = 9.sp)
+                                    if (dashboardState.lowStockCount > 0) {
+                                        Badge(
+                                            containerColor = B360Red,
+                                            contentColor = Color.White
+                                        ) {
+                                            Text(dashboardState.lowStockCount.toString(), fontSize = 9.sp)
+                                        }
                                     }
                                 }
                             ) {
@@ -347,12 +467,14 @@ fun Biashara360DesktopAppContent(
                     when (currentScreen) {
                         AppScreen.Dashboard -> DesktopDashboardScreen()
                         AppScreen.Pos -> DesktopPosScreen()
-                        AppScreen.Inventory -> DesktopInventoryScreen()
-                        AppScreen.Orders -> DesktopOrdersScreen()
-                        AppScreen.Customers -> DesktopCustomersScreen()
+                        AppScreen.Inventory -> DesktopInventoryScreen(searchQuery = searchQuery)
+                        AppScreen.Orders -> DesktopOrdersScreen(searchQuery = searchQuery)
+                        AppScreen.Customers -> DesktopCustomersScreen(searchQuery = searchQuery)
                         AppScreen.Expenses -> DesktopExpensesScreen()
                         AppScreen.Payments -> DesktopPaymentsScreen()
                         AppScreen.CyberSource -> DesktopCyberSourceSettingsScreen()
+                        AppScreen.Mpesa -> DesktopMpesaScreen()
+                        AppScreen.ReceiptTemplate -> DesktopReceiptTemplateScreen()
                         AppScreen.Reports -> DesktopReportsScreen()
                         AppScreen.Tax -> DesktopTaxScreen()
                         AppScreen.KRA -> DesktopKraScreen()
@@ -366,15 +488,191 @@ fun Biashara360DesktopAppContent(
 }
 
 @Composable
-fun DesktopAuthFlow(viewModel: AuthViewModel) {
-    val state by viewModel.state.collectAsState()
-
+fun DesktopAuthBackground(
+    content: @Composable BoxScope.() -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(B360Surface),
-        contentAlignment = Alignment.Center
+            .background(Color(0xFFF4FBF7)) // Soft light green brand background
     ) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = size.width
+            val height = size.height
+
+            // Top-left soft arc
+            drawCircle(
+                color = Color(0xFF10B981).copy(alpha = 0.06f),
+                radius = width * 0.35f,
+                center = androidx.compose.ui.geometry.Offset(-width * 0.05f, height * 0.1f)
+            )
+
+            // Outer top-left thin arc border
+            drawCircle(
+                color = Color(0xFF34D399).copy(alpha = 0.04f),
+                radius = width * 0.42f,
+                center = androidx.compose.ui.geometry.Offset(-width * 0.05f, height * 0.1f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+            )
+
+            // Bottom-right soft arc
+            drawCircle(
+                color = Color(0xFF10B981).copy(alpha = 0.05f),
+                radius = width * 0.3f,
+                center = androidx.compose.ui.geometry.Offset(width * 1.05f, height * 0.85f)
+            )
+
+            // Bottom-right outer border
+            drawCircle(
+                color = Color(0xFF34D399).copy(alpha = 0.03f),
+                radius = width * 0.38f,
+                center = androidx.compose.ui.geometry.Offset(width * 1.05f, height * 0.85f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+            )
+
+            // Top-right dot grid
+            val dotSpacing = 24.dp.toPx()
+            val dotRadius = 2.dp.toPx()
+            val startX = width * 0.82f
+            val startY = height * 0.15f
+            for (col in 0..5) {
+                for (row in 0..8) {
+                    drawCircle(
+                        color = Color(0xFF10B981).copy(alpha = 0.12f),
+                        radius = dotRadius,
+                        center = androidx.compose.ui.geometry.Offset(startX + col * dotSpacing, startY + row * dotSpacing)
+                    )
+                }
+            }
+
+            // Bottom-left dot grid
+            val startX2 = width * 0.05f
+            val startY2 = height * 0.6f
+            for (col in 0..5) {
+                for (row in 0..8) {
+                    drawCircle(
+                        color = Color(0xFF10B981).copy(alpha = 0.12f),
+                        radius = dotRadius,
+                        center = androidx.compose.ui.geometry.Offset(startX2 + col * dotSpacing, startY2 + row * dotSpacing)
+                    )
+                }
+            }
+        }
+        
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+            content = content
+        )
+    }
+}
+
+@Composable
+fun CustomLoginTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    leadingIcon: ImageVector,
+    isPassword: Boolean = false,
+    passwordVisible: Boolean = false,
+    onPasswordToggle: (() -> Unit)? = null,
+    enabled: Boolean = true
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val borderColor = if (isFocused) B360Green else Color(0xFFE2E8F0)
+    val focusRequester = remember { FocusRequester() }
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null
+            ) {
+                if (enabled) {
+                    focusRequester.requestFocus()
+                }
+            },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Icon Box
+        Box(
+            modifier = Modifier
+                .width(56.dp)
+                .fillMaxHeight()
+                .background(Color(0xFFF0FDF4)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = leadingIcon,
+                contentDescription = null,
+                tint = B360Green,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        // Vertical Divider
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(Color(0xFFE2E8F0))
+        )
+
+        // Text Input
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
+                    .onFocusChanged { isFocused = it.isFocused },
+                singleLine = true,
+                enabled = enabled,
+                visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 15.sp),
+                decorationBox = { innerTextField: @Composable () -> Unit ->
+                    if (value.isEmpty()) {
+                        Text(placeholder, color = Color(0xFF94A3B8), fontSize = 15.sp)
+                    }
+                    innerTextField()
+                }
+            )
+        }
+
+        if (isPassword && onPasswordToggle != null) {
+            IconButton(
+                onClick = onPasswordToggle,
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                Icon(
+                    imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = null,
+                    tint = Color(0xFF64748B),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DesktopAuthFlow(viewModel: AuthViewModel) {
+    val state by viewModel.state.collectAsState()
+
+    DesktopAuthBackground {
         when (val step = state.step) {
             is AuthStep.Login -> {
                 DesktopLoginCard(viewModel, state)
@@ -391,6 +689,8 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var rememberMe by remember { mutableStateOf(true) }
+    var showForgotPassword by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
@@ -445,35 +745,46 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                 }
             }
 
-            OutlinedTextField(
+            CustomLoginTextField(
                 value = email,
                 onValueChange = { email = it; viewModel.dismissError() },
-                label = { Text("Email / Username") },
-                leadingIcon = { Icon(Icons.Filled.Email, null, tint = B360Green, modifier = Modifier.size(18.dp)) },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp),
-                singleLine = true,
+                placeholder = "Email / Username",
+                leadingIcon = Icons.Filled.Person,
                 enabled = !state.isLoading
             )
 
-            OutlinedTextField(
+            CustomLoginTextField(
                 value = password,
                 onValueChange = { password = it; viewModel.dismissError() },
-                label = { Text("Password") },
-                leadingIcon = { Icon(Icons.Filled.Lock, null, tint = B360Green, modifier = Modifier.size(18.dp)) },
-                trailingIcon = {
-                    IconButton({ passwordVisible = !passwordVisible }) {
-                        Icon(if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null, modifier = Modifier.size(18.dp))
-                    }
-                },
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp),
-                singleLine = true,
+                placeholder = "Password",
+                leadingIcon = Icons.Filled.Lock,
+                isPassword = true,
+                passwordVisible = passwordVisible,
+                onPasswordToggle = { passwordVisible = !passwordVisible },
                 enabled = !state.isLoading
             )
 
-            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = rememberMe,
+                        onCheckedChange = { rememberMe = it },
+                        colors = CheckboxDefaults.colors(checkedColor = B360Green)
+                    )
+                    Text("Remember me", fontSize = 14.sp, color = Color(0xFF475569))
+                }
+                Text(
+                    text = "Forgot password?",
+                    fontSize = 14.sp,
+                    color = B360Green,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { showForgotPassword = true }
+                )
+            }
 
             Button(
                 onClick = { viewModel.login(email, password) },
@@ -485,11 +796,69 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                 if (state.isLoading) {
                     CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
                 } else {
-                    Text("Sign In", fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Sign In", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
 
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
+                Text(
+                    text = "OR",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
+            }
+
+            OutlinedButton(
+                onClick = {
+                    if (isDesktopFingerprintAvailable()) {
+                        viewModel.setError("Fingerprint login requires prior enrollment. Please ask your administrator to enroll your fingerprint via the admin portal.")
+                    } else {
+                        viewModel.setError("No fingerprint reader or biometric hardware detected on this system.")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF475569))
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    Icon(Icons.Default.Fingerprint, null, tint = B360Green, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sign in with Fingerprint", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                }
+            }
         }
+    }
+
+    if (showForgotPassword) {
+        AlertDialog(
+            onDismissRequest = { showForgotPassword = false },
+            title = { Text("Reset Password", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("To reset your password, contact your system administrator or visit your account portal to initiate a password reset via email.")
+                    Text("Your administrator can access the user management section in the backend admin panel.", color = Color(0xFF64748B), fontSize = 13.sp)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showForgotPassword = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                    shape = RoundedCornerShape(8.dp)
+                ) { Text("Got it", color = Color.White) }
+            }
+        )
     }
 }
 

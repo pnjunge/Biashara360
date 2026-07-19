@@ -31,6 +31,13 @@ export function StatusBadge({ status }: { status: string }) {
     OUT:        ['var(--b360-red)',    'var(--b360-red-bg)'],
     RECONCILED: ['var(--b360-green)',  'var(--b360-green-bg)'],
     MATCHED:    ['var(--b360-green)',  'var(--b360-green-bg)'],
+    ADMIN:      ['var(--b360-green)',  'var(--b360-green-bg)'],
+    MANAGER:    ['var(--b360-blue)',   'var(--b360-blue-bg)'],
+    STAFF:      ['var(--b360-text-secondary)', '#f1f5f9'],
+    ACTIVE:     ['var(--b360-green)',  'var(--b360-green-bg)'],
+    INACTIVE:   ['var(--b360-red)',    'var(--b360-red-bg)'],
+    FREEMIUM:   ['var(--b360-blue)',   'var(--b360-blue-bg)'],
+    PREMIUM:    ['var(--b360-green)',  'var(--b360-green-bg)'],
   }
   const [color, bg] = map[status.toUpperCase()] ?? ['var(--b360-text-secondary)', '#f1f5f9']
   return (

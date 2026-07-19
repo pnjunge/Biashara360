@@ -19,6 +19,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.geometry.Offset
 import com.app.biashara.UserSession
 import com.app.biashara.domain.model.*
 import com.app.biashara.domain.usecase.CreateOrderUseCase
@@ -39,6 +45,163 @@ private enum class PosFilter(val label: String, val icon: ImageVector) {
     FAVORITES("Favorites", Icons.Filled.StarBorder),
     CATEGORIES("Categories", Icons.Filled.LocalOffer),
     RECENT("Recent", Icons.Filled.AccessTime)
+}
+
+@Composable
+fun PaperAirplaneBoxIllustration(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        val cx = width / 2f
+        val cy = height * 0.58f
+
+        // Draw the background circle
+        drawCircle(
+            color = Color(0xFFE8F5EE),
+            radius = width / 2f,
+            center = Offset(cx, cy - height * 0.08f)
+        )
+
+        // Box size parameters
+        val w = width * 0.22f
+        val h = height * 0.12f
+
+        // Box Coordinates
+        val bottomCenter = Offset(cx, cy + h)
+        val bottomLeft = Offset(cx - w, cy + h * 0.4f)
+        val bottomRight = Offset(cx + w, cy + h * 0.4f)
+        val topCenter = Offset(cx, cy)
+        val topLeft = Offset(cx - w, cy - h * 0.6f)
+        val topRight = Offset(cx + w, cy - h * 0.6f)
+        val backCenter = Offset(cx, cy - h * 1.2f)
+
+        // 1. Inside Back shadow
+        val innerPath = Path().apply {
+            moveTo(topLeft.x, topLeft.y)
+            lineTo(backCenter.x, backCenter.y)
+            lineTo(topRight.x, topRight.y)
+            lineTo(topCenter.x, topCenter.y)
+            close()
+        }
+        drawPath(innerPath, color = Color(0xFF047857).copy(alpha = 0.25f))
+
+        // 2. Left side/flap (folded out)
+        val leftFlap = Path().apply {
+            moveTo(topLeft.x, topLeft.y)
+            lineTo(backCenter.x, backCenter.y)
+            lineTo(backCenter.x - w * 0.7f, backCenter.y - h * 0.2f)
+            lineTo(topLeft.x - w * 0.7f, topLeft.y - h * 0.2f)
+            close()
+        }
+        drawPath(leftFlap, color = Color(0xFFD1FAE5))
+
+        // 3. Right side/flap (folded out)
+        val rightFlap = Path().apply {
+            moveTo(topRight.x, topRight.y)
+            lineTo(backCenter.x, backCenter.y)
+            lineTo(backCenter.x + w * 0.7f, backCenter.y - h * 0.2f)
+            lineTo(topRight.x + w * 0.7f, topRight.y - h * 0.2f)
+            close()
+        }
+        drawPath(rightFlap, color = Color(0xFFD1FAE5))
+
+        // 4. Front Left wall
+        val frontLeftPath = Path().apply {
+            moveTo(bottomCenter.x, bottomCenter.y)
+            lineTo(bottomLeft.x, bottomLeft.y)
+            lineTo(topLeft.x, topLeft.y)
+            lineTo(topCenter.x, topCenter.y)
+            close()
+        }
+        drawPath(frontLeftPath, color = Color(0xFFA7F3D0))
+
+        // 5. Front Right wall
+        val frontRightPath = Path().apply {
+            moveTo(bottomCenter.x, bottomCenter.y)
+            lineTo(bottomRight.x, bottomRight.y)
+            lineTo(topRight.x, topRight.y)
+            lineTo(topCenter.x, topCenter.y)
+            close()
+        }
+        drawPath(frontRightPath, color = Color(0xFF6EE7B7))
+
+        // 6. Front Left flap (folded down)
+        val frontLeftFlap = Path().apply {
+            moveTo(topLeft.x, topLeft.y)
+            lineTo(topCenter.x, topCenter.y)
+            lineTo(topCenter.x - w * 0.2f, topCenter.y + h * 0.8f)
+            lineTo(topLeft.x - w * 0.2f, topLeft.y + h * 0.8f)
+            close()
+        }
+        drawPath(frontLeftFlap, color = Color(0xFFA7F3D0))
+
+        // 7. Front Right flap (folded down)
+        val frontRightFlap = Path().apply {
+            moveTo(topRight.x, topRight.y)
+            lineTo(topCenter.x, topCenter.y)
+            lineTo(topCenter.x + w * 0.2f, topCenter.y + h * 0.8f)
+            lineTo(topRight.x + w * 0.2f, topRight.y + h * 0.8f)
+            close()
+        }
+        drawPath(frontRightFlap, color = Color(0xFF6EE7B7))
+
+        // 8. Paper Airplane Coordinates (top right)
+        val ax = cx + width * 0.22f
+        val ay = cy - height * 0.32f
+
+        // Airplane Wings/Body
+        val nose = Offset(ax + width * 0.12f, ay - height * 0.12f)
+        val leftWing = Offset(ax - width * 0.1f, ay + height * 0.04f)
+        val rightWing = Offset(ax + width * 0.02f, ay + height * 0.08f)
+        val bottomFold = Offset(ax - width * 0.02f, ay + height * 0.03f)
+
+        // Dotted Trail path (curved bezier)
+        val trailPath = Path().apply {
+            moveTo(cx, cy - h * 0.4f)
+            cubicTo(
+                cx - width * 0.22f, cy - height * 0.15f,
+                cx - width * 0.1f, cy - height * 0.35f,
+                leftWing.x, leftWing.y
+            )
+        }
+        drawPath(
+            path = trailPath,
+            color = Color(0xFF10B981).copy(alpha = 0.5f),
+            style = Stroke(
+                width = 2.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f),
+                cap = StrokeCap.Round
+            )
+        )
+
+        // Draw Paper Airplane parts
+        // Left underwing (darker)
+        val planeUnder = Path().apply {
+            moveTo(nose.x, nose.y)
+            lineTo(leftWing.x, leftWing.y)
+            lineTo(bottomFold.x, bottomFold.y)
+            close()
+        }
+        drawPath(planeUnder, color = Color(0xFF047857))
+
+        // Main wing/body (medium green)
+        val planeMain = Path().apply {
+            moveTo(nose.x, nose.y)
+            lineTo(rightWing.x, rightWing.y)
+            lineTo(bottomFold.x, bottomFold.y)
+            close()
+        }
+        drawPath(planeMain, color = Color(0xFF34D399))
+
+        // Outer flap (lighter green)
+        val planeOuter = Path().apply {
+            moveTo(nose.x, nose.y)
+            lineTo(rightWing.x, rightWing.y)
+            lineTo(bottomFold.x + width * 0.03f, bottomFold.y + height * 0.02f)
+            close()
+        }
+        drawPath(planeOuter, color = Color(0xFF6EE7B7))
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,17 +225,29 @@ fun PosScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(PosFilter.ALL) }
     var selectedCategory by remember { mutableStateOf("All") }
+    val favoriteProductIds = remember { mutableStateListOf<String>() }
+
+    val recentProductIds = remember(inventoryState.products) {
+        inventoryState.products.sortedByDescending { it.createdAt }.take(5).map { it.id }.toSet()
+    }
 
     val categories = remember(inventoryState.products) {
         listOf("All") + inventoryState.products.map { it.category }.filter { it.isNotBlank() }.distinct()
     }
 
-    val filteredProducts = remember(inventoryState.products, searchQuery, selectedFilter) {
+    val filteredProducts = remember(inventoryState.products, searchQuery, selectedFilter, selectedCategory, favoriteProductIds) {
         inventoryState.products.filter { p ->
             val matchesSearch = searchQuery.isBlank() ||
                 p.name.contains(searchQuery, ignoreCase = true) ||
                 p.sku.contains(searchQuery, ignoreCase = true)
-            matchesSearch && p.isActive
+            
+            val matchesFilter = when (selectedFilter) {
+                PosFilter.ALL -> true
+                PosFilter.FAVORITES -> p.id in favoriteProductIds
+                PosFilter.CATEGORIES -> selectedCategory == "All" || p.category == selectedCategory
+                PosFilter.RECENT -> p.id in recentProductIds
+            }
+            matchesSearch && matchesFilter && p.isActive
         }
     }
 
@@ -103,13 +278,13 @@ fun PosScreen(
                     ) {
                         Column {
                             Text("Point of Sale", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = Color(0xFF0F172A))
-                            Text("Search and select products to start a sale", fontSize = 13.sp, color = Color(0xFF64748B))
+                            Text("Find and select products to start a sale", fontSize = 13.sp, color = Color(0xFF64748B))
                         }
                         Box(
                             modifier = Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFE8F5EE)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = B360Green, modifier = Modifier.size(22.dp))
+                            Icon(Icons.Filled.FilterAlt, contentDescription = "Filter", tint = B360Green, modifier = Modifier.size(22.dp))
                         }
                     }
                     Spacer(Modifier.height(14.dp))
@@ -168,6 +343,33 @@ fun PosScreen(
                             }
                         }
                     }
+
+                    // Secondary Category Chips
+                    if (selectedFilter == PosFilter.CATEGORIES && categories.size > 1) {
+                        Spacer(Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            categories.forEach { cat ->
+                                val isCatSelected = selectedCategory == cat
+                                Surface(
+                                    onClick = { selectedCategory = cat },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = if (isCatSelected) B360Green.copy(alpha = 0.12f) else Color.White,
+                                    border = BorderStroke(1.dp, if (isCatSelected) B360Green else Color(0xFFE2E8F0))
+                                ) {
+                                    Text(
+                                        text = cat,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isCatSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isCatSelected) B360Green else Color(0xFF64748B),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(4.dp))
                 }
             }
@@ -201,27 +403,10 @@ fun PosScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        // Illustration circle
-                        Box(
-                            modifier = Modifier.size(160.dp).clip(CircleShape).background(Color(0xFFE8F5EE)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Filled.Inventory2,
-                                contentDescription = null,
-                                tint = B360Green.copy(alpha = 0.55f),
-                                modifier = Modifier.size(80.dp)
-                            )
-                            // Magnifier overlay (top-right)
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomEnd) {
-                                Box(
-                                    modifier = Modifier.padding(12.dp).size(36.dp).clip(CircleShape).background(Color.White),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Filled.Search, null, tint = B360Green, modifier = Modifier.size(20.dp))
-                                }
-                            }
-                        }
+                        // Paper Airplane and Open Box illustration
+                        PaperAirplaneBoxIllustration(
+                            modifier = Modifier.size(160.dp)
+                        )
 
                         Spacer(Modifier.height(24.dp))
                         Text("No products match filter", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0F172A))
@@ -235,12 +420,12 @@ fun PosScreen(
                         )
                         Spacer(Modifier.height(28.dp))
                         OutlinedButton(
-                            onClick = { searchQuery = ""; selectedFilter = PosFilter.ALL },
+                            onClick = { searchQuery = ""; selectedFilter = PosFilter.ALL; selectedCategory = "All" },
                             shape = RoundedCornerShape(24.dp),
                             border = BorderStroke(1.5.dp, B360Green),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = B360Green)
                         ) {
-                            Icon(Icons.Filled.FilterListOff, null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.Search, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text("Clear filters", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         }
@@ -285,7 +470,29 @@ fun PosScreen(
                                         Text(p.name.take(2).uppercase(), fontWeight = FontWeight.ExtraBold, color = B360Green, fontSize = 16.sp)
                                     }
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(p.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                p.name,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = Color(0xFF0F172A),
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            val isFav = favoriteProductIds.contains(p.id)
+                                            Icon(
+                                                imageVector = if (isFav) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                                contentDescription = "Favorite",
+                                                tint = if (isFav) B360Amber else Color(0xFF94A3B8),
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .clickable {
+                                                        if (isFav) favoriteProductIds.remove(p.id) else favoriteProductIds.add(p.id)
+                                                    }
+                                            )
+                                        }
                                         Text("SKU: ${p.sku}", fontSize = 12.sp, color = Color(0xFF94A3B8))
                                         Spacer(Modifier.height(4.dp))
                                         Text("KES ${"%,.0f".format(p.sellingPrice)}", fontWeight = FontWeight.ExtraBold, color = B360Green, fontSize = 14.sp)

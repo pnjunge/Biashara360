@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   MessageCircle, Send, Zap, ShoppingCart, CreditCard, X, Check,
   RefreshCw, ChevronDown, Search, Settings, Circle, ArrowRight,
@@ -433,6 +434,7 @@ function InboxTab() {
 
 // ── Tab: Channels ─────────────────────────────────────────────────────────────
 function ChannelsTab() {
+  const navigate = useNavigate()
   const [channels, setChannels] = useState<SocialChannel[]>([])
   const [showAdd, setShowAdd]   = useState(false)
   const [newPlatform, setNP]    = useState('WHATSAPP')
@@ -610,7 +612,7 @@ function ChannelsTab() {
       </div>
 
       {/* Add channel button */}
-      <button onClick={() => setShowAdd(true)} style={{ padding:'14px', borderRadius:12, border:`2px dashed ${G}`, background:'white', color:G, fontSize:14, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+      <button onClick={() => navigate('/social-onboarding')} style={{ padding:'14px', borderRadius:12, border:`2px dashed ${G}`, background:'white', color:G, fontSize:14, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
         + Connect New Channel
       </button>
 
@@ -775,13 +777,22 @@ function AnalyticsTab() {
 
 // ── Main Social Page ──────────────────────────────────────────────────────────
 export default function SocialPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<'inbox'|'channels'|'analytics'>('inbox')
   const [totalUnread, setTotalUnread] = useState<number | null>(null)
+  const [channels, setChannels] = useState<SocialChannel[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     socialApi.getInboxStats().then(res => {
       if (res.success && res.data) setTotalUnread(res.data.totalUnread)
     }).catch(() => {})
+
+    socialApi.getChannels().then(res => {
+      if (res.success && res.data) {
+        setChannels(res.data.filter(c => c.isActive))
+      }
+    }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   const tabs = [
@@ -809,30 +820,105 @@ export default function SocialPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display:'flex', gap:2, borderBottom:'2px solid #E0E0E0' }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key as any)} style={{
-            display:'flex', alignItems:'center', gap:6, padding:'10px 20px',
-            border:'none', background:'none', cursor:'pointer',
-            fontWeight: tab===t.key ? 800 : 500, fontSize:13,
-            color: tab===t.key ? G : '#666',
-            borderBottom: tab===t.key ? `2.5px solid ${G}` : '2.5px solid transparent',
-            marginBottom:'-2px', position:'relative'
+      {/* Tabs / Empty State Switch */}
+      {loading ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#999', fontSize: 14 }}>Loading configurations...</div>
+      ) : channels.length === 0 ? (
+        <div style={{
+          background: 'white',
+          borderRadius: 16,
+          border: '1px solid #E8EDE9',
+          padding: '48px 32px',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 20,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+          marginTop: 8
+        }}>
+          <div style={{
+            background: '#E8F5E9',
+            color: G,
+            width: 80,
+            height: 80,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 40,
+            marginBottom: 8,
+            boxShadow: '0 8px 20px -6px rgba(27, 139, 52, 0.2)'
           }}>
-            {t.label}
-            {t.badge != null && (
-              <span style={{ background:G, color:'white', borderRadius:'50%', width:18, height:18, fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                {t.badge > 9 ? '9+' : t.badge}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+            💬
+          </div>
+          <div style={{ maxWidth: 500 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1A1A1A', margin: '0 0 10px 0' }}>
+              Connect Social Commerce Channels
+            </h2>
+            <p style={{ fontSize: 13, color: '#666', lineHeight: 1.6, margin: 0 }}>
+              To start receiving customer messages, sending automated catalog replies, and initiating M-Pesa push prompts directly in chat, you need to connect your social media business accounts.
+            </p>
+          </div>
+          
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+            {Object.entries(PLATFORM).map(([key, p]) => (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F0F4F1', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, color: '#333' }}>
+                <span>{p.icon}</span>
+                <span>{p.label}</span>
+              </div>
+            ))}
+          </div>
 
-      {tab === 'inbox'     && <InboxTab />}
-      {tab === 'channels'  && <ChannelsTab />}
-      {tab === 'analytics' && <AnalyticsTab />}
+          <button
+            onClick={() => navigate('/social-onboarding')}
+            style={{
+              background: G,
+              color: 'white',
+              border: 'none',
+              padding: '12px 24px',
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              marginTop: 16,
+              boxShadow: '0 4px 10px rgba(27, 139, 52, 0.2)',
+              transition: 'transform 0.1s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            Launch Onboarding Wizard
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Tabs */}
+          <div style={{ display:'flex', gap:2, borderBottom:'2px solid #E0E0E0' }}>
+            {tabs.map(t => (
+              <button key={t.key} onClick={() => setTab(t.key as any)} style={{
+                display:'flex', alignItems:'center', gap:6, padding:'10px 20px',
+                border:'none', background:'none', cursor:'pointer',
+                fontWeight: tab===t.key ? 800 : 500, fontSize:13,
+                color: tab===t.key ? G : '#666',
+                borderBottom: tab===t.key ? `2.5px solid ${G}` : '2.5px solid transparent',
+                marginBottom:'-2px', position:'relative'
+              }}>
+                {t.label}
+                {t.badge != null && (
+                  <span style={{ background:G, color:'white', borderRadius:'50%', width:18, height:18, fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    {t.badge > 9 ? '9+' : t.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'inbox'     && <InboxTab />}
+          {tab === 'channels'  && <ChannelsTab />}
+          {tab === 'analytics' && <AnalyticsTab />}
+        </>
+      )}
     </div>
   )
 }

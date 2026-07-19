@@ -16,6 +16,8 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.koin.ktor.ext.inject
 import kotlinx.serialization.json.Json
+import io.ktor.server.plugins.ratelimit.rateLimit
+import io.ktor.server.plugins.ratelimit.RateLimitName
 
 // ─── Auth Routes ──────────────────────────────────────────────────────────────
 
@@ -33,16 +35,18 @@ fun Route.authRoutes() {
             call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
         }
 
-        post("/login") {
-            val req = call.receive<LoginRequest>()
-            val result = authService.login(req)
-            call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.Unauthorized, result)
-        }
+        rateLimit(RateLimitName("auth-limiter")) {
+            post("/login") {
+                val req = call.receive<LoginRequest>()
+                val result = authService.login(req)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.Unauthorized, result)
+            }
 
-        post("/verify-otp") {
-            val req = call.receive<OtpVerifyRequest>()
-            val result = authService.verifyOtp(req)
-            call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.Unauthorized, result)
+            post("/verify-otp") {
+                val req = call.receive<OtpVerifyRequest>()
+                val result = authService.verifyOtp(req)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.Unauthorized, result)
+            }
         }
 
         post("/refresh") {
@@ -51,14 +55,38 @@ fun Route.authRoutes() {
             call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.Unauthorized, result)
         }
 
-        post("/set-otp") {
-            val req = call.receive<EnableOtpRequest>()
-            val result = authService.setOtpEnabled(req)
-            call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
-        }
+        // set-otp is intentionally omitted here — it lives in accountRoutes() inside jwt-auth
         post("/resend-otp") {
             val req = call.receive<ResendOtpRequest>()
             val result = authService.resendOtp(req)
+            call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+        }
+    }
+}
+
+/**
+ * Authenticated account management routes (require a valid JWT).
+ * Placed inside the jwt-auth block in Application.kt.
+ */
+fun Route.accountRoutes() {
+    val authService: AuthService by inject()
+
+    route("/auth") {
+        post("/set-otp") {
+            val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject
+                ?: return@post call.respond(
+                    HttpStatusCode.Unauthorized,
+                    ApiResponse<Unit>(false, message = "Authentication required")
+                )
+            val req = call.receive<EnableOtpRequest>()
+            // Only the account owner or an admin may change OTP settings
+            if (req.userId != callerUserId && !call.hasRole("ADMIN", "SUPERADMIN")) {
+                return@post call.respond(
+                    HttpStatusCode.Forbidden,
+                    ApiResponse<Unit>(false, message = "You can only change your own OTP settings")
+                )
+            }
+            val result = authService.setOtpEnabled(req)
             call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
         }
     }
@@ -571,7 +599,7 @@ fun ApplicationCall.businessId(): String {
     val tokenBusinessId = principal.payload.getClaim("businessId")?.asString()?.takeIf { it.isNotBlank() }
     if (tokenBusinessId != null) return tokenBusinessId
 
-    // 1. Try query parameter
+    // 1. Try query parameter (used by SUPERADMIN when managing a specific tenant)
     val queryBusinessId = request.queryParameters["businessId"]?.takeIf { it.isNotBlank() }
     if (queryBusinessId != null) return queryBusinessId
 
@@ -579,17 +607,11 @@ fun ApplicationCall.businessId(): String {
     val headerBusinessId = request.headers["X-Tenant-ID"]?.takeIf { it.isNotBlank() }
     if (headerBusinessId != null) return headerBusinessId
 
-    // 3. Fallback for SUPERADMIN or malformed session: query the first business ID in the database to ensure seamless operations
-    val fallbackBusinessId = transaction {
-        BusinessesTable
-            .slice(BusinessesTable.id)
-            .selectAll()
-            .firstOrNull()
-            ?.get(BusinessesTable.id)
-    }
-    if (fallbackBusinessId != null) return fallbackBusinessId
-
-    throw IllegalArgumentException("No businessId associated with this token")
+    // Do NOT fall back to the first DB row — that could silently operate on the wrong tenant.
+    // SUPERADMIN callers must always supply businessId via query param or X-Tenant-ID header.
+    throw IllegalArgumentException(
+        "No businessId associated with this token. SUPERADMIN users must supply businessId as a query param or X-Tenant-ID header."
+    )
 }
 
 fun ApplicationCall.userRole(): String =
@@ -606,7 +628,17 @@ fun ApplicationCall.hasRole(vararg roles: String): Boolean =
  * hit on every guarded request. The cache is process-scoped; a restart or a
  * 60-second wait is required to pick up module changes.
  */
-private val moduleCache = java.util.concurrent.ConcurrentHashMap<Pair<String, String>, Pair<Long, Boolean>>()
+/**
+ * Size-capped LRU cache for module-enabled checks.
+ * Caps at 1000 entries (max ~6 modules × 167 businesses) to prevent unbounded growth.
+ */
+private val moduleCache: MutableMap<Pair<String, String>, Pair<Long, Boolean>> =
+    object : java.util.LinkedHashMap<Pair<String, String>, Pair<Long, Boolean>>(256, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<String, String>, Pair<Long, Boolean>>?) =
+            size > 1000
+    }.also { java.util.Collections.synchronizedMap(it) }.let {
+        java.util.Collections.synchronizedMap(it)
+    }
 private const val MODULE_CACHE_TTL_MS = 60_000L
 private const val DEFAULT_ENABLED_MODULES = "INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS"
 
@@ -666,4 +698,26 @@ fun String.normalizePhone(): String = when {
     startsWith("01") -> "254${substring(1)}"
     startsWith("+254") -> substring(1)
     else -> this
+}
+
+fun Route.publicBusinessRoutes() {
+    val businessProfileService: BusinessProfileService by inject()
+
+    route("/public/business/{id}") {
+        get {
+            val id = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "id is required"))
+            val profile = businessProfileService.getProfile(id)
+            if (profile == null) {
+                call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(false, message = "Business not found"))
+            } else {
+                call.respond(ApiResponse(true, data = mapOf(
+                    "id" to profile.id,
+                    "name" to profile.name,
+                    "type" to profile.type,
+                    "county" to profile.county,
+                    "address" to profile.address
+                )))
+            }
+        }
+    }
 }
