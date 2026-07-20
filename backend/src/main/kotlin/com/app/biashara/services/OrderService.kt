@@ -93,8 +93,8 @@ class OrderService {
             it[updatedAt] = now
         }
 
-        // Insert items + deduct stock
-        req.items.forEach { item ->
+        // Insert items + deduct stock atomically (conditional UPDATE prevents TOCTOU race)
+        for (item in req.items) {
             val product = ProductsTable.select { ProductsTable.id eq item.productId }.first()
             OrderItemsTable.insert {
                 it[id] = generateId()
@@ -105,10 +105,20 @@ class OrderService {
                 it[unitPrice] = item.unitPrice
                 it[buyingPrice] = product[ProductsTable.buyingPrice]
             }
-            // Deduct stock
-            ProductsTable.update({ ProductsTable.id eq item.productId }) {
-                it[currentStock] = product[ProductsTable.currentStock] - item.quantity
+            // Atomic conditional deduction: only succeeds if stock is still sufficient
+            val deducted = ProductsTable.update({
+                (ProductsTable.id eq item.productId) and
+                (ProductsTable.currentStock greaterEq item.quantity)
+            }) {
+                with(SqlExpressionBuilder) { it.update(currentStock, currentStock - item.quantity) }
                 it[updatedAt] = now
+            }
+            if (deducted == 0) {
+                // Stock was concurrently depleted — roll back the transaction
+                return@transaction ApiResponse(
+                    false,
+                    message = "Insufficient stock for ${product[ProductsTable.name]}: concurrent order may have consumed remaining units"
+                )
             }
             // Stock movement record
             StockMovementsTable.insert {
@@ -122,6 +132,7 @@ class OrderService {
                 it[StockMovementsTable.recordedAt] = now
             }
         }
+
 
         // Award loyalty points (1 point per 100 KES) — SQL increment avoids lost-update race
         req.customerId?.let { cid ->

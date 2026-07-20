@@ -235,15 +235,39 @@ fun LabeledValue(label: String, value: String, color: Color) {
     }
 }
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddProductScreen(productId: String? = null, onBack: () -> Unit) {
+fun AddProductScreen(
+    productId: String? = null,
+    onBack: () -> Unit,
+    viewModel: InventoryViewModel = kmpViewModel()
+) {
+    val state by viewModel.state.collectAsState()
     val isEdit = productId != null
-    var name by remember { mutableStateOf("") }
-    var price by remember { mutableStateOf("") }
-    var buyingPrice by remember { mutableStateOf("") }
-    var stock by remember { mutableStateOf("") }
-    var sku by remember { mutableStateOf("") }
+
+    // Pre-populate from existing product when editing
+    val existingProduct = remember(productId, state.products) {
+        productId?.let { id -> state.products.find { it.id == id } }
+    }
+
+    var name by remember(existingProduct) { mutableStateOf(existingProduct?.name ?: "") }
+    var sku by remember(existingProduct) { mutableStateOf(existingProduct?.sku ?: "") }
+    var description by remember(existingProduct) { mutableStateOf(existingProduct?.description ?: "") }
+    var category by remember(existingProduct) { mutableStateOf(existingProduct?.category ?: "") }
+    var price by remember(existingProduct) { mutableStateOf(existingProduct?.sellingPrice?.toString() ?: "") }
+    var buyingPrice by remember(existingProduct) { mutableStateOf(existingProduct?.buyingPrice?.toString() ?: "") }
+    var stock by remember(existingProduct) { mutableStateOf(existingProduct?.currentStock?.toString() ?: "") }
+    var lowStockThreshold by remember(existingProduct) { mutableStateOf(existingProduct?.lowStockThreshold?.toString() ?: "5") }
+    var isActive by remember(existingProduct) { mutableStateOf(existingProduct?.isActive ?: true) }
+    var formError by remember { mutableStateOf<String?>(null) }
+
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = B360Green,
+        unfocusedBorderColor = Color(0xFFE2E8F0),
+        focusedContainerColor = Color.White,
+        unfocusedContainerColor = Color.White
+    )
 
     Scaffold(
         topBar = {
@@ -255,7 +279,34 @@ fun AddProductScreen(productId: String? = null, onBack: () -> Unit) {
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = onBack,
+                onClick = {
+                    when {
+                        name.isBlank() -> formError = "Product name is required"
+                        price.toDoubleOrNull() == null -> formError = "Enter a valid selling price"
+                        else -> {
+                            formError = null
+                            val businessId = com.app.biashara.UserSession.getBusinessId()
+                            val now = kotlinx.datetime.Clock.System.now()
+                            val product = com.app.biashara.domain.model.Product(
+                                id = existingProduct?.id ?: com.app.biashara.domain.usecase.generateId(),
+                                businessId = businessId,
+                                name = name.trim(),
+                                sku = sku.trim(),
+                                description = description.trim(),
+                                category = category.trim(),
+                                sellingPrice = price.toDoubleOrNull() ?: 0.0,
+                                buyingPrice = buyingPrice.toDoubleOrNull() ?: 0.0,
+                                currentStock = stock.toIntOrNull() ?: 0,
+                                lowStockThreshold = lowStockThreshold.toIntOrNull() ?: 5,
+                                isActive = isActive,
+                                createdAt = existingProduct?.createdAt ?: now,
+                                updatedAt = now
+                            )
+                            viewModel.saveProduct(product)
+                            onBack()
+                        }
+                    }
+                },
                 containerColor = B360Green,
                 contentColor = Color.White,
                 shape = RoundedCornerShape(24.dp)
@@ -266,70 +317,94 @@ fun AddProductScreen(productId: String? = null, onBack: () -> Unit) {
             }
         }
     ) { padding ->
-        Column(
+        LazyColumn(
             Modifier.fillMaxSize().padding(padding).background(B360Surface).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedTextField(
-                value = name, onValueChange = { name = it },
-                label = { Text("Product Name *") }, modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = B360Green,
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White
-                )
-            )
-            OutlinedTextField(
-                value = sku, onValueChange = { sku = it },
-                label = { Text("SKU / Barcode") }, modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = B360Green,
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White
-                )
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            item {
                 OutlinedTextField(
-                    value = buyingPrice, onValueChange = { buyingPrice = it },
-                    label = { Text("Cost Price (KES)") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = B360Green,
-                        unfocusedBorderColor = Color(0xFFE2E8F0),
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
-                    )
-                )
-                OutlinedTextField(
-                    value = price, onValueChange = { price = it },
-                    label = { Text("Sell Price (KES)") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = B360Green,
-                        unfocusedBorderColor = Color(0xFFE2E8F0),
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
-                    )
+                    value = name, onValueChange = { name = it; formError = null },
+                    label = { Text("Product Name *") }, modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp), colors = fieldColors
                 )
             }
-            OutlinedTextField(
-                value = stock, onValueChange = { stock = it },
-                label = { Text("Stock Qty") }, modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = B360Green,
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White
+            item {
+                OutlinedTextField(
+                    value = sku, onValueChange = { sku = it },
+                    label = { Text("SKU / Barcode") }, modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp), colors = fieldColors
                 )
-            )
+            }
+            item {
+                OutlinedTextField(
+                    value = description, onValueChange = { description = it },
+                    label = { Text("Description") }, modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp), colors = fieldColors, maxLines = 3
+                )
+            }
+            item {
+                OutlinedTextField(
+                    value = category, onValueChange = { category = it },
+                    label = { Text("Category") }, modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp), colors = fieldColors
+                )
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = buyingPrice, onValueChange = { buyingPrice = it },
+                        label = { Text("Cost Price (KES)") }, modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(14.dp), colors = fieldColors
+                    )
+                    OutlinedTextField(
+                        value = price, onValueChange = { price = it; formError = null },
+                        label = { Text("Sell Price (KES) *") }, modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(14.dp), colors = fieldColors
+                    )
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = stock, onValueChange = { stock = it },
+                        label = { Text("Stock Qty") }, modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(14.dp), colors = fieldColors
+                    )
+                    OutlinedTextField(
+                        value = lowStockThreshold, onValueChange = { lowStockThreshold = it },
+                        label = { Text("Low Stock Alert") }, modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(14.dp), colors = fieldColors
+                    )
+                }
+            }
+            item {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Active / Listed for Sale", fontWeight = FontWeight.Medium, color = Color(0xFF0F172A))
+                    Switch(
+                        checked = isActive, onCheckedChange = { isActive = it },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = B360Green)
+                    )
+                }
+            }
+            if (formError != null) {
+                item {
+                    Text(formError!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                }
+            }
+            if (state.error != null) {
+                item {
+                    Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                }
+            }
+            item { Spacer(Modifier.height(80.dp)) }
         }
     }
 }

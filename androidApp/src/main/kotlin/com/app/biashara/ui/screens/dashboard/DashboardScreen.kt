@@ -87,7 +87,7 @@ fun DashboardScreen(
                         shadowElevation = 2.dp,
                         modifier = Modifier
                             .size(44.dp)
-                            .clickable { navController.navigate(Screen.Payments.route) }
+                            .clickable { navController.navigate(Screen.Orders.route) }
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
@@ -205,7 +205,7 @@ fun DashboardScreen(
 
             // Revenue Trend Bar Chart
             item {
-                RevenueBarChart()
+                RevenueBarChart(weeklyRevenue = state.weeklyRevenue)
             }
 
             // Quick Actions
@@ -221,6 +221,7 @@ fun DashboardScreen(
                             icon = Icons.Filled.Add,
                             label = "New Order",
                             iconColor = B360Green,
+                            style = QuickActionStyle.FILLED,
                             modifier = Modifier.weight(1f)
                         ) {
                             navController.navigate(Screen.CreateOrder.route)
@@ -452,7 +453,18 @@ fun KpiCard(
 }
 
 @Composable
-fun RevenueBarChart(modifier: Modifier = Modifier) {
+fun RevenueBarChart(
+    modifier: Modifier = Modifier,
+    weeklyRevenue: List<Pair<String, Double>> = emptyList()
+) {
+    // Normalise data to [0,1] fractions for bar heights
+    val maxRevenue = weeklyRevenue.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1.0
+    val barData = if (weeklyRevenue.isEmpty()) {
+        // Fallback pattern when no data yet — shows subtle empty state
+        listOf("Mon" to 0f, "Tue" to 0f, "Wed" to 0f, "Thu" to 0f, "Fri" to 0f, "Sat" to 0f, "Sun" to 0f)
+    } else {
+        weeklyRevenue.map { (day, rev) -> day to (rev / maxRevenue).toFloat().coerceIn(0.02f, 1f) }
+    }
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -557,17 +569,7 @@ fun RevenueBarChart(modifier: Modifier = Modifier) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.Bottom
                     ) {
-                        val data = listOf(
-                            Pair("Mon", 0.45f),
-                            Pair("Tue", 0.65f),
-                            Pair("Wed", 0.5f),
-                            Pair("Thu", 0.85f),
-                            Pair("Fri", 0.7f),
-                            Pair("Sat", 0.6f),
-                            Pair("Sun", 0.95f)
-                        )
-                        
-                        data.forEach { (day, fraction) ->
+                        barData.forEach { (day, fraction) ->
                             Column(
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                                 verticalArrangement = Arrangement.Bottom,
@@ -671,6 +673,8 @@ fun QuickAlertsSection(
     }
 }
 
+enum class QuickActionStyle { PLAIN, FILLED }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuickActionCard(
@@ -678,6 +682,7 @@ fun QuickActionCard(
     label: String,
     iconColor: Color,
     modifier: Modifier = Modifier,
+    style: QuickActionStyle = QuickActionStyle.PLAIN,
     onClick: () -> Unit
 ) {
     Card(
@@ -695,7 +700,7 @@ fun QuickActionCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (label == "New Order") {
+            if (style == QuickActionStyle.FILLED) {
                 Box(
                     modifier = Modifier
                         .size(32.dp)

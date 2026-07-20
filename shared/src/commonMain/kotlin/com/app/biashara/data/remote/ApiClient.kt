@@ -39,7 +39,7 @@ fun createHttpClient(tokenStorage: TokenStorage): HttpClient {
                     try {
                         val response: RefreshTokenResponse = client.post("$BASE_URL/auth/refresh") {
                             contentType(ContentType.Application.Json)
-                            setBody(mapOf("refresh_token" to refreshToken))
+                            setBody(mapOf("refreshToken" to refreshToken))  // matches backend RefreshTokenRequest DTO
                             markAsRefreshTokenRequest()
                         }.body()
                         tokenStorage.saveTokens(response.accessToken, response.refreshToken)

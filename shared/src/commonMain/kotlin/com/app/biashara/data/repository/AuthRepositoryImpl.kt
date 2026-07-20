@@ -142,4 +142,44 @@ class AuthRepositoryImpl(
     }
 
     override fun isLoggedIn(): Boolean = UserSession.isLoggedIn()
+
+    override suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> = runCatching {
+        val response: ApiResponse<Unit> = client.post("$BASE_URL/auth/change-password") {
+            contentType(ContentType.Application.Json)
+            setBody(mapOf("currentPassword" to currentPassword, "newPassword" to newPassword))
+        }.body()
+        if (!response.success) throw Exception(response.message.ifBlank { "Failed to change password" })
+    }
+
+    override suspend fun loginWithBiometric(): Result<Unit> = runCatching {
+        // Option A: If a valid access token already exists, restore the session without
+        // re-authenticating. This avoids sending any credentials over the network.
+        val token = tokenStorage.getAccessToken()
+            ?: throw Exception("No saved session. Please sign in with your password first.")
+        // If a user is already set in session (in-memory), we're good
+        if (UserSession.isLoggedIn()) return@runCatching
+        // Otherwise try to refresh the token to rehydrate the session
+        val response: ApiResponse<LoginResponse> = client.post("$BASE_URL/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(mapOf("refresh_token" to (tokenStorage.getRefreshToken() ?: "")))
+        }.body()
+        if (!response.success || response.data == null) {
+            throw Exception("Session expired. Please sign in with your password.")
+        }
+        val loginData = response.data
+        tokenStorage.saveTokens(loginData.accessToken ?: token, loginData.refreshToken ?: "")
+        loginData.user?.let { user ->
+            UserSession.setUser(
+                User(
+                    id = user.id,
+                    email = user.email,
+                    phone = user.phone,
+                    name = user.name,
+                    role = runCatching { UserRole.valueOf(user.role) }.getOrDefault(UserRole.STAFF),
+                    businessId = user.businessId,
+                    createdAt = Clock.System.now()
+                )
+            )
+        }
+    }
 }

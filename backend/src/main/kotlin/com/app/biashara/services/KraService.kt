@@ -65,7 +65,6 @@ class KraService {
     // ── VAT3 Return Generation ────────────────────────────────────────────────
 
     fun generateVat3Return(businessId: String, req: Vat3ReturnRequest): ApiResponse<Vat3ReturnResponse> = transaction {
-        val zId    = kotlinx.datetime.TimeZone.of("Africa/Nairobi")
         val start  = kotlinx.datetime.LocalDate(req.periodYear, req.periodMonth, 1).atStartOfDayIn(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
         val end    = kotlinx.datetime.LocalDate(req.periodYear, req.periodMonth, 1).plus(1, kotlinx.datetime.DateTimeUnit.MONTH).atStartOfDayIn(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
 
@@ -165,7 +164,6 @@ class KraService {
     // ── TOT Return Generation ─────────────────────────────────────────────────
 
     fun generateTotReturn(businessId: String, req: TotReturnRequest): ApiResponse<TotReturnResponse> = transaction {
-        val zId   = kotlinx.datetime.TimeZone.of("Africa/Nairobi")
         val start = kotlinx.datetime.LocalDate(req.periodYear, req.periodMonth, 1).atStartOfDayIn(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
         val end   = kotlinx.datetime.LocalDate(req.periodYear, req.periodMonth, 1).plus(1, kotlinx.datetime.DateTimeUnit.MONTH).atStartOfDayIn(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
 
@@ -209,7 +207,6 @@ class KraService {
     // ── WHT Return Generation ─────────────────────────────────────────────────
 
     fun generateWhtReturn(businessId: String, req: WhtReturnRequest): ApiResponse<WhtReturnResponse> = transaction {
-        val zId   = kotlinx.datetime.TimeZone.of("Africa/Nairobi")
         val start = kotlinx.datetime.LocalDate(req.periodYear, req.periodMonth, 1).atStartOfDayIn(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
         val end   = kotlinx.datetime.LocalDate(req.periodYear, req.periodMonth, 1).plus(1, kotlinx.datetime.DateTimeUnit.MONTH).atStartOfDayIn(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
 
@@ -257,7 +254,6 @@ class KraService {
     // ── CSV Export (KRA iTax format) ──────────────────────────────────────────
 
     fun generateCsv(businessId: String, req: CsvExportRequest): ApiResponse<CsvExportResponse> = transaction {
-        val zId   = kotlinx.datetime.TimeZone.of("Africa/Nairobi")
         val start = kotlinx.datetime.LocalDate(req.periodYear, req.periodMonth, 1).atStartOfDayIn(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
         val end   = kotlinx.datetime.LocalDate(req.periodYear, req.periodMonth, 1).plus(1, kotlinx.datetime.DateTimeUnit.MONTH).atStartOfDayIn(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
         val period = listOf("","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")[req.periodMonth] + "_" + req.periodYear

@@ -28,6 +28,7 @@ data class DashboardState(
     val lowStockProducts: List<Product> = emptyList(),
     val recentOrders: List<Order> = emptyList(),
     val topCustomers: List<Pair<Customer, CustomerStats>> = emptyList(),
+    val weeklyRevenue: List<Pair<String, Double>> = emptyList(),
     val error: String? = null,
     val isSyncing: Boolean = false
 )
@@ -101,12 +102,40 @@ class DashboardViewModel(
                 getOrdersUseCase(businessId).collect { orders ->
                     val pendingCount = orders.count { it.paymentStatus == PaymentStatus.PENDING }
                     val recent = orders.take(5)
+
+                    // Build last-7-days revenue series from real order data
+                    val today = Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+                    val dayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                    val weeklyRevenue = (6 downTo 0).map { daysAgo ->
+                        val targetDate = today.minus(daysAgo, DateTimeUnit.DAY)
+                        val dayRevenue = orders
+                            .filter { order ->
+                                order.createdAt.toLocalDateTime(
+                                    TimeZone.of("Africa/Nairobi")
+                                ).date == targetDate && order.paymentStatus == PaymentStatus.PAID
+                            }
+                            .sumOf { it.subtotal }
+                        val label = dayLabels[targetDate.dayOfWeek.ordinal]
+                        label to dayRevenue
+                    }
+
+                    // Today's revenue
+                    val todayRevenue = orders
+                        .filter { order ->
+                            order.createdAt.toLocalDateTime(
+                                TimeZone.of("Africa/Nairobi")
+                            ).date == today && order.paymentStatus == PaymentStatus.PAID
+                        }
+                        .sumOf { it.subtotal }
+
                     _state.update {
                         it.copy(
                             isLoading = false,
                             totalOrders = orders.size,
                             pendingOrders = pendingCount,
-                            recentOrders = recent
+                            recentOrders = recent,
+                            weeklyRevenue = weeklyRevenue,
+                            todayRevenue = todayRevenue
                         )
                     }
                 }

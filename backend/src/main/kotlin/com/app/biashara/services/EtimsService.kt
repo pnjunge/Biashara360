@@ -98,7 +98,6 @@ class EtimsService(private val httpClient: HttpClient) {
 
         return try {
             val url = "${baseUrl(env)}/saveTrnsSalesSvcReq"
-            val nairobi = kotlinx.datetime.TimeZone.of("Africa/Nairobi")
             val nowNairobi = Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
             val dtTm = "%04d%02d%02d%02d%02d%02d".format(nowNairobi.year, nowNairobi.monthNumber, nowNairobi.dayOfMonth, nowNairobi.hour, nowNairobi.minute, nowNairobi.second)
 

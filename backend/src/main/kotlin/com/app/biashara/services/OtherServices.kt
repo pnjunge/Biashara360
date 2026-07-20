@@ -92,6 +92,7 @@ class CustomerService {
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun ResultRow.toResponse(businessId: String): CustomerResponse {
         val customerId = this[CustomersTable.id]
         val orderStats = OrdersTable
@@ -126,11 +127,19 @@ class ExpenseService {
         var stmt = ExpensesTable.select { ExpensesTable.businessId eq businessId }
         if (!category.isNullOrBlank()) stmt = stmt.andWhere { ExpensesTable.category eq category }
         if (!startDate.isNullOrBlank()) {
-            val start = kotlinx.datetime.LocalDate.parse(startDate)
+            val start = try {
+                kotlinx.datetime.LocalDate.parse(startDate)
+            } catch (_: Exception) {
+                throw IllegalArgumentException("Invalid startDate format. Expected ISO-8601: YYYY-MM-DD")
+            }
             stmt = stmt.andWhere { ExpensesTable.expenseDate greaterEq start }
         }
         if (!endDate.isNullOrBlank()) {
-            val end = kotlinx.datetime.LocalDate.parse(endDate)
+            val end = try {
+                kotlinx.datetime.LocalDate.parse(endDate)
+            } catch (_: Exception) {
+                throw IllegalArgumentException("Invalid endDate format. Expected ISO-8601: YYYY-MM-DD")
+            }
             stmt = stmt.andWhere { ExpensesTable.expenseDate lessEq end }
         }
         stmt.orderBy(ExpensesTable.expenseDate, SortOrder.DESC).map { it.toResponse() }
@@ -238,6 +247,7 @@ class PaymentService {
         stmt.orderBy(PaymentsTable.transactionDate, SortOrder.DESC).map { it.toResponse() }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun save(businessId: String, payment: PaymentsTable.() -> Unit): String = transaction {
         val id = generateId()
         PaymentsTable.insert {

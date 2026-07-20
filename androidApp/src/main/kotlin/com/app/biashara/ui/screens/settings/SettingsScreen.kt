@@ -56,8 +56,10 @@ fun SettingsScreen(
         businessViewModel.loadUsers()
     }
 
+    val authState by authViewModel.state.collectAsState()
     var notificationsEnabled by remember { mutableStateOf(true) }
-    var darkMode by remember { mutableStateOf(false) }
+    // Dark mode reads/writes from the process-scoped ThemeState
+    val darkMode by ThemeState.isDarkMode.collectAsState()
     var biometricEnabled by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
@@ -71,7 +73,6 @@ fun SettingsScreen(
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf("") }
-    var passwordSaving by remember { mutableStateOf(false) }
 
     val userName = currentUser?.name ?: ""
     val userEmail = currentUser?.email ?: ""
@@ -92,6 +93,20 @@ fun SettingsScreen(
         )
     }
 
+    // Observe password change result from VM and show toast
+    LaunchedEffect(authState.passwordChangeSuccess, authState.passwordChangeError) {
+        if (authState.passwordChangeSuccess) {
+            Toast.makeText(context, "Password changed successfully", Toast.LENGTH_SHORT).show()
+            showChangePasswordDialog = false
+            currentPassword = ""; newPassword = ""; confirmPassword = ""
+            authViewModel.dismissPasswordChangeResult()
+        }
+        authState.passwordChangeError?.let { err ->
+            passwordError = err
+            authViewModel.dismissPasswordChangeResult()
+        }
+    }
+
     if (showChangePasswordDialog) {
         AlertDialog(
             onDismissRequest = { showChangePasswordDialog = false; passwordError = "" },
@@ -102,7 +117,7 @@ fun SettingsScreen(
                         value = currentPassword, onValueChange = { currentPassword = it; passwordError = "" },
                         label = { Text("Current Password") }, modifier = Modifier.fillMaxWidth(),
                         visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true, enabled = !passwordSaving,
+                        singleLine = true, enabled = !authState.isChangingPassword,
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = B360Green,
@@ -113,7 +128,7 @@ fun SettingsScreen(
                         value = newPassword, onValueChange = { newPassword = it; passwordError = "" },
                         label = { Text("New Password") }, modifier = Modifier.fillMaxWidth(),
                         visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true, enabled = !passwordSaving,
+                        singleLine = true, enabled = !authState.isChangingPassword,
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = B360Green,
@@ -124,7 +139,7 @@ fun SettingsScreen(
                         value = confirmPassword, onValueChange = { confirmPassword = it; passwordError = "" },
                         label = { Text("Confirm New Password") }, modifier = Modifier.fillMaxWidth(),
                         visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true, enabled = !passwordSaving,
+                        singleLine = true, enabled = !authState.isChangingPassword,
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = B360Green,
@@ -133,6 +148,9 @@ fun SettingsScreen(
                     )
                     if (passwordError.isNotBlank()) {
                         Text(passwordError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                    if (authState.isChangingPassword) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = B360Green)
                     }
                 }
             },
@@ -146,16 +164,12 @@ fun SettingsScreen(
                                 passwordError = "Passwords do not match"
                             newPassword.length < 8 ->
                                 passwordError = "Password must be at least 8 characters"
-                            else -> {
-                                // In a full implementation, call changePassword use case
-                                showChangePasswordDialog = false
-                                currentPassword = ""; newPassword = ""; confirmPassword = ""
-                            }
+                            else -> authViewModel.changePassword(currentPassword, newPassword)
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                     shape = RoundedCornerShape(20.dp),
-                    enabled = !passwordSaving
+                    enabled = !authState.isChangingPassword
                 ) { Text("Change", fontWeight = FontWeight.Bold, color = Color.White) }
             },
             dismissButton = {
@@ -411,7 +425,7 @@ fun SettingsScreen(
             item {
                 SettingsSection("Preferences") {
                     SettingsToggleItem("Push Notifications", Icons.Filled.Notifications, notificationsEnabled) { notificationsEnabled = it }
-                    SettingsToggleItem("Dark Mode", Icons.Filled.DarkMode, darkMode) { darkMode = it }
+                    SettingsToggleItem("Dark Mode", Icons.Filled.DarkMode, darkMode) { ThemeState.setDarkMode(it) }
                     SettingsToggleItem("Biometric Login", Icons.Filled.Fingerprint, biometricEnabled) { enabled ->
                         if (enabled) {
                             val biometricManager = BiometricManager.from(context)
@@ -453,7 +467,11 @@ fun SettingsScreen(
                 SettingsSection("Account") {
                     SettingsNavItem("Change Password", Icons.Filled.Lock) { showChangePasswordDialog = true }
                     SettingsNavItem("Export Data", Icons.Filled.Download) {
-                        // Trigger export API call — placeholder toast
+                        Toast.makeText(
+                            context,
+                            "Export coming soon — your data will be emailed to $userEmail",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                     SettingsNavItem("Help & Support", Icons.Filled.Help) {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://biashara360.co.ke/support"))

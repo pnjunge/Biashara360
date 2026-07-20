@@ -145,6 +145,8 @@ object OrdersTable : Table("orders") {
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
+    // Composite index for the most common query pattern: list by business, ordered by date
+    val businessCreatedAtIdx = index("idx_orders_business_created", false, businessId, createdAt)
 }
 
 object OrderItemsTable : Table("order_items") {

@@ -7,9 +7,9 @@ import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.datetime.toKotlinInstant
 
 class TaxService {
 
@@ -186,8 +186,8 @@ class TaxService {
         val zoneId = java.time.ZoneId.of("Africa/Nairobi")
         val startJavaDate = java.time.LocalDate.parse(req.periodStart)
         val endJavaDate = java.time.LocalDate.parse(req.periodEnd)
-        val startInstant = startJavaDate.atStartOfDay(zoneId).toInstant()
-        val endInstant = endJavaDate.plusDays(1).atStartOfDay(zoneId).toInstant()
+        val startInstant = startJavaDate.atStartOfDay(zoneId).toInstant().toKotlinInstant()
+        val endInstant = endJavaDate.plusDays(1).atStartOfDay(zoneId).toInstant().toKotlinInstant()
 
         // Sum all order tax lines for this period and type
         val join = (OrderTaxLinesTable innerJoin OrdersTable)
@@ -211,7 +211,7 @@ class TaxService {
 
         val id  = generateId()
         val now = Clock.System.now()
-        val record = TaxRemittancesTable.insert {
+        TaxRemittancesTable.insert {
             it[TaxRemittancesTable.id] = id
             it[TaxRemittancesTable.businessId] = businessId
             it[TaxRemittancesTable.taxType] = req.taxType.uppercase()
@@ -246,11 +246,13 @@ class TaxService {
     // ── Tax Summary Report ────────────────────────────────────────────────────
 
     fun getTaxSummary(businessId: String, periodStart: String, periodEnd: String): ApiResponse<TaxSummaryResponse> = transaction {
+        val startKt = kotlinx.datetime.LocalDate.parse(periodStart)
+        val endKt   = kotlinx.datetime.LocalDate.parse(periodEnd)
         val start = java.time.LocalDate.parse(periodStart)
         val end   = java.time.LocalDate.parse(periodEnd)
         val zoneId = java.time.ZoneId.of("Africa/Nairobi")
-        val startI = start.atStartOfDay(zoneId).toInstant()
-        val endI   = end.plusDays(1).atStartOfDay(zoneId).toInstant()
+        val startI = start.atStartOfDay(zoneId).toInstant().toKotlinInstant()
+        val endI   = end.plusDays(1).atStartOfDay(zoneId).toInstant().toKotlinInstant()
 
         fun sumTaxType(type: String, col: Column<Double>): Double =
             (OrderTaxLinesTable innerJoin OrdersTable)
@@ -285,15 +287,15 @@ class TaxService {
         val filed   = TaxRemittancesTable.select {
             (TaxRemittancesTable.businessId eq businessId) and
             (TaxRemittancesTable.status inList listOf("FILED","PAID")) and
-            (TaxRemittancesTable.periodStart greaterEq start) and
-            (TaxRemittancesTable.periodEnd lessEq end)
+            (TaxRemittancesTable.periodStart greaterEq startKt) and
+            (TaxRemittancesTable.periodEnd lessEq endKt)
         }.count().toInt()
 
         val pending = TaxRemittancesTable.select {
             (TaxRemittancesTable.businessId eq businessId) and
             (TaxRemittancesTable.status eq "PENDING") and
-            (TaxRemittancesTable.periodStart greaterEq start) and
-            (TaxRemittancesTable.periodEnd lessEq end)
+            (TaxRemittancesTable.periodStart greaterEq startKt) and
+            (TaxRemittancesTable.periodEnd lessEq endKt)
         }.count().toInt()
 
         ApiResponse(true, data = TaxSummaryResponse(

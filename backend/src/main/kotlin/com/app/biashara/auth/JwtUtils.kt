@@ -89,10 +89,9 @@ object PasswordUtils {
 }
 
 object OtpUtils {
-    fun generate(length: Int = 6): String {
-        val digits = "0123456789"
-        return (1..length).map { digits.random() }.joinToString("")
-    }
+    private val secureRandom = java.security.SecureRandom()
+    fun generate(length: Int = 6): String =
+        (1..length).map { secureRandom.nextInt(10) }.joinToString("")
 }
 
 fun generateId(): String = UUID.randomUUID().toString()

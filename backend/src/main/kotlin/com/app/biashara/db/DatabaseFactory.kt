@@ -25,10 +25,10 @@ object DatabaseFactory {
         }
         
         val dbPassword = try {
-            config.property("database.password").getString()
-        } catch (e: Exception) {
-            System.getenv("DB_PASSWORD") ?: "password"
-        }
+            config.property("database.password").getString().takeIf { it.isNotBlank() }
+        } catch (_: Exception) { null }
+            ?: System.getenv("DB_PASSWORD")?.takeIf { it.isNotBlank() }
+            ?: error("[DatabaseFactory] DB_PASSWORD is required but not set. Set the environment variable before starting.")
         
         val maxPoolSize = try {
             config.property("database.maxPoolSize").getString().toInt()
@@ -44,7 +44,7 @@ object DatabaseFactory {
             maximumPoolSize = maxPoolSize
             minimumIdle = 2
             idleTimeout = 300_000
-            connectionTimeout = 60_000
+            connectionTimeout = 15_000  // 15s — avoids long Netty thread stalls on DB outage
             maxLifetime = 1_800_000
             isAutoCommit = false
             transactionIsolation = "TRANSACTION_REPEATABLE_READ"

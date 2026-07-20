@@ -140,7 +140,7 @@ fun Application.configureDefaultHeaders() {
         header("X-Frame-Options", "DENY")
         header("X-XSS-Protection", "1; mode=block")
         header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
-        header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
+        header("Content-Security-Policy", "default-src 'self'")
         header("Referrer-Policy", "strict-origin-when-cross-origin")
         header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
     }
@@ -150,7 +150,11 @@ fun Application.configureRateLimiting() {
     install(RateLimit) {
         register(RateLimitName("auth-limiter")) {
             rateLimiter(limit = 10, refillPeriod = 60.seconds)
-            requestKey { call -> call.request.origin.remoteHost }
+            // Use X-Forwarded-For so per-client limiting works behind AWS/Nginx proxies
+            requestKey { call ->
+                call.request.headers["X-Forwarded-For"]?.split(",")?.firstOrNull()?.trim()
+                    ?: call.request.origin.remoteHost
+            }
         }
     }
 }

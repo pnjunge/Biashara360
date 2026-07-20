@@ -89,6 +89,17 @@ fun Route.accountRoutes() {
             val result = authService.setOtpEnabled(req)
             call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
         }
+
+        post("/change-password") {
+            val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject
+                ?: return@post call.respond(
+                    HttpStatusCode.Unauthorized,
+                    ApiResponse<Unit>(false, message = "Authentication required")
+                )
+            val req = call.receive<ChangePasswordRequest>()
+            val result = authService.changePassword(callerUserId, req)
+            call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+        }
     }
 }
 
@@ -163,8 +174,8 @@ fun Route.orderRoutes() {
         get {
             val businessId = call.businessId()
             val status = call.request.queryParameters["status"]
-            val page = call.request.queryParameters["page"]?.toInt() ?: 1
-            val pageSize = call.request.queryParameters["pageSize"]?.toInt() ?: 20
+            val page = call.request.queryParameters["page"]?.toIntOrNull() ?: 1
+            val pageSize = call.request.queryParameters["pageSize"]?.toIntOrNull() ?: 20
             val result = orderService.getAll(businessId, status, page, pageSize)
             call.respond(ApiResponse(true, data = result))
         }
@@ -553,7 +564,7 @@ fun Route.businessProfileRoutes() {
 
     route("/business/profile") {
         get {
-            if (!call.hasRole("ADMIN")) {
+            if (!call.hasRole("ADMIN", "SUPERADMIN")) {
                 call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                 return@get
             }
@@ -567,7 +578,7 @@ fun Route.businessProfileRoutes() {
         }
 
         put {
-            if (!call.hasRole("ADMIN")) {
+            if (!call.hasRole("ADMIN", "SUPERADMIN")) {
                 call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                 return@put
             }
@@ -633,12 +644,12 @@ fun ApplicationCall.hasRole(vararg roles: String): Boolean =
  * Caps at 1000 entries (max ~6 modules × 167 businesses) to prevent unbounded growth.
  */
 private val moduleCache: MutableMap<Pair<String, String>, Pair<Long, Boolean>> =
-    object : java.util.LinkedHashMap<Pair<String, String>, Pair<Long, Boolean>>(256, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<String, String>, Pair<Long, Boolean>>?) =
-            size > 1000
-    }.also { java.util.Collections.synchronizedMap(it) }.let {
-        java.util.Collections.synchronizedMap(it)
-    }
+    java.util.Collections.synchronizedMap(
+        object : java.util.LinkedHashMap<Pair<String, String>, Pair<Long, Boolean>>(256, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<String, String>, Pair<Long, Boolean>>?) =
+                size > 1000
+        }
+    )
 private const val MODULE_CACHE_TTL_MS = 60_000L
 private const val DEFAULT_ENABLED_MODULES = "INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS"
 

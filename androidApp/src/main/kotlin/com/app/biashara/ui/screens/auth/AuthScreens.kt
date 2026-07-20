@@ -405,7 +405,8 @@ fun LoginScreen(
                                     val biometricManager = BiometricManager.from(context)
                                     val canAuthenticate = biometricManager.canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
                                     if (canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS) {
-                                        viewModel.login("admin@biashara360.co.ke", "admin123")
+                                        // Restore session from saved token — no hardcoded credentials
+                                        viewModel.loginWithBiometric(onSuccess = {})
                                     } else {
                                         val errorMsg = when (canAuthenticate) {
                                             BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "No biometric hardware found on this device."
@@ -471,6 +472,7 @@ fun RegisterScreen(
     var email by remember { mutableStateOf("") }
     var businessName by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var registerPasswordVisible by remember { mutableStateOf(false) }
     var selectedType by remember { mutableStateOf(BusinessType.RETAIL) }
 
     val businessTypes = listOf(
@@ -597,7 +599,16 @@ fun RegisterScreen(
                             onValueChange = { password = it; viewModel.dismissError() },
                             label = { Text("Password *") },
                             modifier = Modifier.fillMaxWidth(),
-                            visualTransformation = PasswordVisualTransformation(),
+                            visualTransformation = if (registerPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { registerPasswordVisible = !registerPasswordVisible }) {
+                                    Icon(
+                                        imageVector = if (registerPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                        contentDescription = if (registerPasswordVisible) "Hide password" else "Show password",
+                                        tint = Color(0xFF64748B)
+                                    )
+                                }
+                            },
                             shape = RoundedCornerShape(14.dp),
                             singleLine = true,
                             enabled = !state.isLoading,

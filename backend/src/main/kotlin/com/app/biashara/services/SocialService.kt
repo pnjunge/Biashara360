@@ -797,7 +797,7 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private suspend fun autoReplyIfNeeded(channel: ResultRow, convId: String, inboundText: String) {
+    private suspend fun autoReplyIfNeeded(channel: ResultRow, convId: String, @Suppress("UNUSED_PARAMETER") inboundText: String) {
         val businessId = channel[SocialChannelsTable.businessId]
         val aiResult   = generateAiReply(businessId, AiReplyRequest(convId))
         if (aiResult.success && aiResult.data != null) {
@@ -845,7 +845,6 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
     private fun upsertConversation(channel: ResultRow, platform: String, senderId: String, externalMsgId: String, senderName: String, phone: String?): String = transaction {
         val channelId  = channel[SocialChannelsTable.id]
         val businessId = channel[SocialChannelsTable.businessId]
-        val convKey    = "$channelId:$senderId"
         val existing   = SocialConversationsTable.select {
             (SocialConversationsTable.channelId eq channelId) and
             (SocialConversationsTable.customerExternalId eq senderId)

@@ -269,6 +269,15 @@ class LogoutUseCase(private val repo: AuthRepository) {
     suspend operator fun invoke() = repo.logout()
 }
 
+class ChangePasswordUseCase(private val repo: AuthRepository) {
+    suspend operator fun invoke(currentPassword: String, newPassword: String) =
+        repo.changePassword(currentPassword, newPassword)
+}
+
+class LoginWithBiometricUseCase(private val repo: AuthRepository) {
+    suspend operator fun invoke() = repo.loginWithBiometric()
+}
+
 // --- Helpers ---
 
 fun generateId(): String {

@@ -3,9 +3,6 @@ package com.app.biashara.presentation.viewmodel
 import com.app.biashara.UserSession
 import com.app.biashara.domain.model.BusinessType
 import com.app.biashara.domain.usecase.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -19,17 +16,20 @@ data class AuthState(
     val step: AuthStep = AuthStep.Login,
     val error: String? = null,
     val isAuthenticated: Boolean = false,
-    // Registration form fields
-    val otpCooldownSeconds: Int = 0
+    val otpCooldownSeconds: Int = 0,
+    val passwordChangeSuccess: Boolean = false,
+    val passwordChangeError: String? = null,
+    val isChangingPassword: Boolean = false
 )
 
 class AuthViewModel(
     private val loginUseCase: LoginUseCase,
     private val verifyOtpUseCase: VerifyOtpUseCase,
     private val registerUseCase: RegisterUseCase,
-    private val logoutUseCase: LogoutUseCase
+    private val logoutUseCase: LogoutUseCase,
+    private val changePasswordUseCase: ChangePasswordUseCase,
+    private val loginWithBiometricUseCase: LoginWithBiometricUseCase
 ) : KmpViewModel() {
-
 
     private val _state = MutableStateFlow(AuthState())
     val state: StateFlow<AuthState> = _state.asStateFlow()
@@ -45,19 +45,26 @@ class AuthViewModel(
                 onSuccess = { user ->
                     if (user.twoFactorEnabled) {
                         _state.update {
-                            it.copy(
-                                isLoading = false,
-                                step = AuthStep.Otp(userId = user.id)
-                            )
+                            it.copy(isLoading = false, step = AuthStep.Otp(userId = user.id))
                         }
                     } else {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                isAuthenticated = true
-                            )
-                        }
+                        _state.update { it.copy(isLoading = false, isAuthenticated = true) }
                     }
+                },
+                onFailure = { e ->
+                    _state.update { it.copy(isLoading = false, error = e.message) }
+                }
+            )
+        }
+    }
+
+    fun loginWithBiometric(onSuccess: () -> Unit) {
+        scope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            loginWithBiometricUseCase().fold(
+                onSuccess = {
+                    _state.update { it.copy(isLoading = false, isAuthenticated = true) }
+                    onSuccess()
                 },
                 onFailure = { e ->
                     _state.update { it.copy(isLoading = false, error = e.message) }
@@ -98,10 +105,7 @@ class AuthViewModel(
             registerUseCase(name, phone, email, password, businessName, businessType).fold(
                 onSuccess = { user ->
                     _state.update {
-                        it.copy(
-                            isLoading = false,
-                            step = AuthStep.Otp(userId = user.id)
-                        )
+                        it.copy(isLoading = false, step = AuthStep.Otp(userId = user.id))
                     }
                 },
                 onFailure = { e ->
@@ -109,6 +113,24 @@ class AuthViewModel(
                 }
             )
         }
+    }
+
+    fun changePassword(currentPassword: String, newPassword: String) {
+        scope.launch {
+            _state.update { it.copy(isChangingPassword = true, passwordChangeError = null, passwordChangeSuccess = false) }
+            changePasswordUseCase(currentPassword, newPassword).fold(
+                onSuccess = {
+                    _state.update { it.copy(isChangingPassword = false, passwordChangeSuccess = true) }
+                },
+                onFailure = { e ->
+                    _state.update { it.copy(isChangingPassword = false, passwordChangeError = e.message) }
+                }
+            )
+        }
+    }
+
+    fun dismissPasswordChangeResult() {
+        _state.update { it.copy(passwordChangeSuccess = false, passwordChangeError = null) }
     }
 
     fun startOtpCooldown() {
@@ -125,7 +147,6 @@ class AuthViewModel(
         if (state.value.step !is AuthStep.Otp) return
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            // Re-trigger login to resend OTP — backend handles this via userId
             _state.update { it.copy(isLoading = false) }
             startOtpCooldown()
         }

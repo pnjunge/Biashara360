@@ -69,6 +69,8 @@ val coreModule = module {
     factory { VerifyOtpUseCase(get()) }
     factory { RegisterUseCase(get()) }
     factory { LogoutUseCase(get()) }
+    factory { ChangePasswordUseCase(get()) }
+    factory { LoginWithBiometricUseCase(get()) }
 
     // ViewModels
     factory { DashboardViewModel(get(), get(), get(),
@@ -88,7 +90,7 @@ val coreModule = module {
         get<ExpenseRepository>() as? ExpenseRepositoryImpl,
         get<PaymentRepository>() as? PaymentRepositoryImpl
     ) }
-    factory { AuthViewModel(get(), get(), get(), get()) }
+    factory { AuthViewModel(get(), get(), get(), get(), get(), get()) }
     factory { BusinessViewModel(get()) }
     factory { SocialViewModel(get()) }
 }

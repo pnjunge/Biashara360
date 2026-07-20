@@ -164,6 +164,7 @@ class CyberSourceService(
     private val config: CyberSourceConfig,
     val httpClient: HttpClient
 ) {
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = false
@@ -353,6 +354,7 @@ class CyberSourceService(
         /**
          * Build a standard B360 payment request from order data.
          */
+        @Suppress("UNUSED_PARAMETER")
         fun buildPaymentRequest(
             orderId: String,
             amountKes: Double,
@@ -362,7 +364,7 @@ class CyberSourceService(
             billingName: String = "",
             email: String = "",
             phone: String = "",
-            lineItems: List<Triple<String, Int, Double>>? = null,  // name, qty, unitPrice
+            lineItems: List<Triple<String, Int, Double>>? = null,  // name, qty, unitPrice — reserved for future use
             capture: Boolean = true
         ): CsPaymentRequest {
             val nameParts = billingName.trim().split(" ")

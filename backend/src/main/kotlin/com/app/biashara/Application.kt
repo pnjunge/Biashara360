@@ -22,10 +22,7 @@ fun main() {
 }
 
 fun Application.module() {
-    // Load HOCON config using default loading (includes env vars)
     val appConfig = HoconApplicationConfig(ConfigFactory.load())
-    // Debug: print AfricasTalking username to verify config loading
-
 
     DatabaseFactory.init(appConfig)
     seedSuperuser()
@@ -37,7 +34,7 @@ fun Application.module() {
     configureSerialization()
     configureSecurity()
     configureCors()
-    configureStatusPages()
+    configureExceptionHandling()  // Global exception handler (single StatusPages installation)
     configureDefaultHeaders()
     configureRateLimiting()
     install(CallLogging) {
@@ -48,9 +45,7 @@ fun Application.module() {
     routing {
         // Public routes (no auth)
         route("/v1") {
-            get("/health") {
-                call.respond(HealthResponse())
-            }
+            healthRoutes()  // Comprehensive health checks
             authRoutes()
             // Mpesa Daraja callback — called by Safaricom, no JWT required
             mpesaCallbackRoute()

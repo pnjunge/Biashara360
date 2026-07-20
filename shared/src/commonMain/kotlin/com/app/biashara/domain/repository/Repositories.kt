@@ -69,5 +69,7 @@ interface AuthRepository {
     suspend fun getCurrentUser(): User?
     suspend fun refreshToken(): Result<String>
     suspend fun register(name: String, phone: String, email: String, password: String, businessName: String, businessType: BusinessType): Result<User>
+    suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit>
+    suspend fun loginWithBiometric(): Result<Unit>
     fun isLoggedIn(): Boolean
 }

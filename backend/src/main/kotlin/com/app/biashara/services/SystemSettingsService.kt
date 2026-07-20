@@ -47,7 +47,7 @@ class SystemSettingsService {
             return ApiResponse(false, message = "Callback URL must start with https://")
         }
         try {
-            val parsed = java.net.URL(url)
+            val parsed = java.net.URI(url).toURL()
             if (parsed.host.isNullOrBlank()) {
                 return ApiResponse(false, message = "Callback URL must contain a valid host")
             }

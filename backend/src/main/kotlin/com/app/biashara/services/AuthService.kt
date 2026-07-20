@@ -10,7 +10,11 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Duration.Companion.days
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.less
 import org.jetbrains.exposed.sql.transactions.transaction
+
+@kotlinx.serialization.Serializable
+data class ChangePasswordRequest(val currentPassword: String, val newPassword: String)
 
 class AuthService(
     private val smsService: SmsService,
@@ -52,11 +56,17 @@ class AuthService(
             (RefreshTokensTable.expiresAt greaterEq now)
         }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Invalid or expired refresh token")
         val userId = stored[RefreshTokensTable.userId]
+        // Opportunistic cleanup: delete all expired tokens for this user
+        RefreshTokensTable.deleteWhere {
+            (RefreshTokensTable.userId eq userId) and
+            RefreshTokensTable.expiresAt.less(now)
+        }
         val user = UsersTable.select { UsersTable.id eq userId }.firstOrNull()
             ?: return@transaction ApiResponse(false, message = "User not found")
         val auth = issueTokens(userId, user[UsersTable.businessId], user[UsersTable.role])
         ApiResponse(success = true, data = auth, message = "Token refreshed")
     }
+
     fun register(req: RegisterRequest): ApiResponse<UserResponse> = transaction {
         val emailExists = UsersTable.select { UsersTable.email eq req.email }.count() > 0
         if (emailExists) return@transaction ApiResponse(false, message = "Email already registered")
@@ -157,38 +167,59 @@ class AuthService(
         ApiResponse(success = true, data = auth, message = "Login successful")
     }
 
-    fun resendOtp(req: ResendOtpRequest): ApiResponse<Unit> = transaction {
-        val user = UsersTable.select { UsersTable.id eq req.userId }.firstOrNull()
-            ?: return@transaction ApiResponse(false, message = "User not found")
-        val otp = OtpUtils.generate()
-        val now = Clock.System.now()
-        OtpTable.deleteWhere { OtpTable.userId eq req.userId }
-        OtpTable.insert {
-            it[id] = generateId()
-            it[OtpTable.userId] = req.userId
-            it[code] = otp
-            it[channel] = req.channel.uppercase()
-            it[used] = false
-            it[expiresAt] = now + 600.seconds
-            it[createdAt] = now
-        }
-        val phone = user[UsersTable.phone]
-        val email = user[UsersTable.email]
-        val name = user[UsersTable.name]
+    fun resendOtp(req: ResendOtpRequest): ApiResponse<Unit> {
+        data class OtpDispatch(val phone: String, val email: String, val name: String, val otp: String)
+
+        val dispatch: OtpDispatch = transaction {
+            val user = UsersTable.select { UsersTable.id eq req.userId }.firstOrNull()
+                ?: return@transaction null
+            val otp = OtpUtils.generate()
+            val now = Clock.System.now()
+            OtpTable.deleteWhere { OtpTable.userId eq req.userId }
+            OtpTable.insert {
+                it[id] = generateId()
+                it[OtpTable.userId] = req.userId
+                it[code] = otp
+                it[channel] = req.channel.uppercase()
+                it[used] = false
+                it[expiresAt] = now + 600.seconds
+                it[createdAt] = now
+            }
+            OtpDispatch(user[UsersTable.phone], user[UsersTable.email], user[UsersTable.name], otp)
+        } ?: return ApiResponse(false, message = "User not found")
+
+        // Dispatch OTP outside the transaction — avoids runBlocking on a DB thread
         when (req.channel.uppercase()) {
             "SMS" -> {
-                runBlocking { smsService.sendOtp(phone, otp) }
-                println("[AuthService] OTP resent via SMS to $phone")
+                runBlocking { smsService.sendOtp(dispatch.phone, dispatch.otp) }
+                println("[AuthService] OTP resent via SMS to ${dispatch.phone}")
             }
             "EMAIL" -> {
-                emailService.sendOtpEmail(email, otp, name)
-                println("[AuthService] OTP resent via EMAIL to $email")
+                emailService.sendOtpEmail(dispatch.email, dispatch.otp, dispatch.name)
+                println("[AuthService] OTP resent via EMAIL to ${dispatch.email}")
             }
-            else -> {
-                dispatchOtp(phone, email, name, otp)
-            }
+            else -> dispatchOtp(dispatch.phone, dispatch.email, dispatch.name, dispatch.otp)
         }
-        ApiResponse(success = true, message = "OTP resent via ${req.channel}")
+        return ApiResponse(success = true, message = "OTP resent via ${req.channel}")
+    }
+
+    fun changePassword(userId: String, req: ChangePasswordRequest): ApiResponse<Unit> = transaction {
+        if (req.newPassword.length < 8) {
+            return@transaction ApiResponse(false, message = "New password must be at least 8 characters")
+        }
+        val user = UsersTable.select { UsersTable.id eq userId }.firstOrNull()
+            ?: return@transaction ApiResponse(false, message = "User not found")
+        if (!PasswordUtils.verify(req.currentPassword, user[UsersTable.passwordHash])) {
+            return@transaction ApiResponse(false, message = "Current password is incorrect")
+        }
+        if (PasswordUtils.verify(req.newPassword, user[UsersTable.passwordHash])) {
+            return@transaction ApiResponse(false, message = "New password must be different from the current password")
+        }
+        UsersTable.update({ UsersTable.id eq userId }) {
+            it[passwordHash] = PasswordUtils.hash(req.newPassword)
+            it[updatedAt] = Clock.System.now()
+        }
+        ApiResponse(success = true, message = "Password changed successfully")
     }
 
     private fun dispatchOtp(phone: String, email: String, name: String, otp: String) {

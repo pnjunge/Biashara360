@@ -37,6 +37,9 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import org.koin.compose.koinInject
 
+/** Kenya standard VAT rate. TODO: Source from business profile KRA config. */
+private const val VAT_RATE = 0.16
+
 data class MobileCartItem(val product: Product, var qty: Int)
 
 // ─── Filter Tab Model ─────────────────────────────────────────────────────────
@@ -263,7 +266,7 @@ fun PosScreen(
     var showCartSheet by remember { mutableStateOf(false) }
 
     val subtotal = cart.sumOf { it.product.sellingPrice * it.qty }
-    val tax = subtotal * 0.16
+    val tax = subtotal * VAT_RATE  // 16% Kenya standard VAT
     val grandTotal = subtotal + tax
 
     Scaffold(
