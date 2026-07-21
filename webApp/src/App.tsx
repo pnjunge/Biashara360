@@ -50,11 +50,14 @@ function RoleProtectedRoute({ children, blockedRoles }: { children: React.ReactN
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('isAuthenticated') === 'true')
+  const [isAuthenticated, setIsAuthenticated] = useState(() =>
+    Boolean(localStorage.getItem('accessToken') && localStorage.getItem('refreshToken'))
+  )
   const [user, setUser] = useState<AuthUser | null>(() => {
     try { return JSON.parse(localStorage.getItem('user') || 'null') } catch { return null }
   })
   const login = () => {
+    if (!localStorage.getItem('accessToken') || !localStorage.getItem('refreshToken')) return
     localStorage.setItem('isAuthenticated', 'true')
     setIsAuthenticated(true)
     try { setUser(JSON.parse(localStorage.getItem('user') || 'null')) } catch { /* ignore */ }

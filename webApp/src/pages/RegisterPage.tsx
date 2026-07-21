@@ -64,13 +64,15 @@ export default function RegisterPage() {
             setStep('otp')
           } else {
             // Backup in case 2FA is somehow disabled
-            if (loginRes.data.accessToken) {
+            if (loginRes.data.accessToken && loginRes.data.refreshToken && loginRes.data.user) {
               localStorage.setItem('accessToken', loginRes.data.accessToken)
-              localStorage.setItem('refreshToken', loginRes.data.refreshToken!)
+              localStorage.setItem('refreshToken', loginRes.data.refreshToken)
               localStorage.setItem('user', JSON.stringify(loginRes.data.user))
+              login()
+              navigate('/dashboard')
+            } else {
+              setError('Registration login did not return a valid session. Please sign in manually.')
             }
-            login()
-            navigate('/dashboard')
           }
         } else {
           setError(loginRes.message || 'Registration succeeded, but login initialization failed. Please sign in manually.')

@@ -61,23 +61,23 @@ function UnifiedCheckoutWidget({ orderId, amount, onSuccess, onCancel }:
 
   const cardType = detectType(cardNum.replace(/\s/g, ''))
 
-  const handlePay = async () => {
-    if (!cardNum || !expiry || !cvv || !name) { setError('All fields are required'); return }
-    setProcessing(true); setError('')
-    // Simulate CyberSource API call (in production: get capture context, tokenize via Flex, POST /charge)
-    await new Promise(r => setTimeout(r, 1800))
-    const raw = cardNum.replace(/\s/g, '')
-    // Sandbox: 4111...1111 = decline, everything else = approve
-    if (raw === '4111111111111111') {
-      setProcessing(false); setError('Card declined. Please use a different card.')
-      return
-    }
-    setProcessing(false)
-    onSuccess({
-      status: 'CAPTURED', approvalCode: 'HH' + Math.floor(Math.random()*9000+1000),
-      cardLast4: raw.slice(-4), cardType, reconciliationId: Date.now().toString()
-    })
+  const handlePay = () => {
+    setError('Hosted CyberSource checkout is not configured. No card details were submitted.')
   }
+
+  return (
+    <div style={{ background:'white', borderRadius:16, padding:24, boxShadow:'var(--shadow-md)', maxWidth:480, margin:'0 auto' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, color:'var(--b360-green)', marginBottom:12 }}>
+        <Shield size={18}/> <strong>CyberSource Hosted Checkout</strong>
+      </div>
+      <p style={{ fontSize:13, lineHeight:1.6, color:'var(--b360-text-secondary)' }}>
+        Hosted checkout is not configured for this environment. Card details cannot be entered or processed here.
+      </p>
+      <button onClick={onCancel} style={{ marginTop:16, width:'100%', padding:12, border:'1px solid var(--b360-border)', borderRadius:8, background:'white', fontWeight:600 }}>
+        Close
+      </button>
+    </div>
+  )
 
   return (
     <div style={{ background:'white', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-md)', maxWidth:480, margin:'0 auto' }}>
@@ -270,7 +270,6 @@ function PaymentResult({ result, onClose }: { result: any; onClose: () => void }
 
 // ── Payment Link Generator ────────────────────────────────────────────────────
 function PaymentLinkTab() {
-  const { user } = useAuth()
   const [linkAmount, setLinkAmount] = useState('')
   const [linkDesc, setLinkDesc] = useState('')
   const [custName, setCustName] = useState('')
@@ -281,31 +280,8 @@ function PaymentLinkTab() {
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
 
-  const baseUrl = window.location.origin
-
   const generateLink = () => {
-    setError('')
-    if (!linkAmount || isNaN(Number(linkAmount)) || Number(linkAmount) <= 0) {
-      setError('Please enter a valid amount.')
-      return
-    }
-    if (!linkDesc.trim()) {
-      setError('Please enter a description for this payment.')
-      return
-    }
-    const params = new URLSearchParams({
-      amount: linkAmount,
-      desc: linkDesc.trim(),
-      ...(user?.businessId && { businessId: user.businessId }),
-      ...(custName  && { name: custName.trim() }),
-      ...(custEmail && { email: custEmail.trim() }),
-      ...(custPhone && { phone: custPhone.trim() }),
-      exp: expiry,
-      ref: `PAY-${Date.now().toString(36).toUpperCase()}`,
-      ts:  Date.now().toString(),
-    })
-    setGeneratedLink(`${baseUrl}/pay?${params.toString()}`)
-    setCopied(false)
+    setError('Payment links are temporarily unavailable until the backend can issue a signed, expiring checkout token.')
   }
 
   const copyLink = () => {

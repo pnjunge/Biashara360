@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/v1'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.biashara360.co.ke/v1'
 
 const client: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -23,7 +23,7 @@ client.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       const storedRefreshToken = localStorage.getItem('refreshToken')
       if (storedRefreshToken) {
         originalRequest._retry = true
@@ -802,4 +802,3 @@ export const superAdminApi = {
 }
 
 export default client
-

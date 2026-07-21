@@ -127,58 +127,15 @@ export default function LoginPage() {
         if (result.data.requiresOtp) {
           setStep('otp')
         } else {
-          if (result.data.accessToken) {
+          if (result.data.accessToken && result.data.refreshToken && result.data.user) {
             localStorage.setItem('accessToken', result.data.accessToken)
-            localStorage.setItem('refreshToken', result.data.refreshToken!)
+            localStorage.setItem('refreshToken', result.data.refreshToken)
             localStorage.setItem('user', JSON.stringify(result.data.user))
+            login()
+            navigate('/dashboard')
+          } else {
+            setError('Login did not return a valid session. Please try again.')
           }
-          login()
-          navigate('/dashboard')
-        }
-      } else {
-        setError(result.message || 'Login failed')
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Network error. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleFingerprintLogin = async () => {
-    setError('')
-    if (!window.PublicKeyCredential) {
-      setError('Fingerprint reader / platform authenticator is not supported by this browser.')
-      return
-    }
-    try {
-      const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-      if (!isAvailable) {
-        setError('No fingerprint reader or platform authenticator detected on this device.')
-        return
-      }
-    } catch (err) {
-      setError('Error checking fingerprint reader availability.')
-      return
-    }
-
-    setEmail('admin@biashara360.co.ke')
-    setPassword('admin123')
-    setLoading(true)
-    try {
-      const result = await authApi.login({ email: 'admin@biashara360.co.ke', password: 'admin123' })
-      if (result.success && result.data) {
-        setUserId(result.data.userId)
-        if (result.data.requiresOtp) {
-          setStep('otp')
-        } else {
-          if (result.data.accessToken) {
-            localStorage.setItem('accessToken', result.data.accessToken)
-            localStorage.setItem('refreshToken', result.data.refreshToken!)
-            localStorage.setItem('user', JSON.stringify(result.data.user))
-          }
-          login()
-          navigate('/dashboard')
         }
       } else {
         setError(result.message || 'Login failed')
@@ -390,7 +347,7 @@ export default function LoginPage() {
 
                 <button
                   type="button"
-                  onClick={handleFingerprintLogin}
+                  onClick={() => setError('Fingerprint sign-in is not configured for this account.')}
                   disabled={loading}
                   style={{
                     display: 'flex',
@@ -409,7 +366,7 @@ export default function LoginPage() {
                   }}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--b360-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22v-3M12 17v-1.5M12 12c-2.21 0-4 1.79-4 4v3.5M12 8c-4.42 0-8 3.58-8 8v3.5M16 16c0-2.21-1.79-4-4-4M20 16c0-4.42-3.58-8-8-8M8 12c0-2.21 1.79-4 4-4M12 4c-6.63 0-12 5.37-12 12M12 2c7.73 0 14 6.27 14 14"/></svg>
-                  <span>Sign in with Fingerprint</span>
+                  <span>Fingerprint sign-in (unavailable)</span>
                 </button>
               </form>
             </>
