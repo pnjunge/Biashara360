@@ -30,7 +30,6 @@ class MpesaService(
     private val defaultConsumerKey get() = config.propertyOrNull("mpesa.consumerKey")?.getString() ?: ""
     private val defaultConsumerSecret get() = config.propertyOrNull("mpesa.consumerSecret")?.getString() ?: ""
     private val defaultShortCode get() = config.propertyOrNull("mpesa.shortCode")?.getString() ?: ""
-    private val defaultPassKey get() = config.propertyOrNull("mpesa.passKey")?.getString() ?: ""
     private val merchantPasskeysJson get() = config.propertyOrNull("mpesa.passkeysByBusiness")?.getString() ?: ""
     private val defaultCallbackUrl get() =
         systemSettingsService?.getMpesaCallbackUrl()
@@ -77,11 +76,11 @@ class MpesaService(
     /** Resolves the passkey only inside the backend. The JSON map is injected
      * through a secret environment variable and keyed by business ID. */
     private fun passKeyForBusiness(businessId: String?): String {
-        if (businessId.isNullOrBlank() || merchantPasskeysJson.isBlank()) return defaultPassKey
+        if (businessId.isNullOrBlank() || merchantPasskeysJson.isBlank()) return ""
         return try {
             val element = lenientJson.parseToJsonElement(merchantPasskeysJson)
-            (element as? JsonObject)?.get(businessId)?.jsonPrimitive?.contentOrNull ?: defaultPassKey
-        } catch (_: Exception) { defaultPassKey }
+            (element as? JsonObject)?.get(businessId)?.jsonPrimitive?.contentOrNull ?: ""
+        } catch (_: Exception) { "" }
     }
 
     private fun baseUrl(isSandbox: Boolean) = if (isSandbox)
@@ -192,7 +191,7 @@ class MpesaService(
         val missing = mutableListOf<String>()
         if (cfg.consumerKey.isBlank() || cfg.consumerKey.contains("your_")) missing += "MPESA_CONSUMER_KEY"
         if (cfg.consumerSecret.isBlank() || cfg.consumerSecret.contains("your_")) missing += "MPESA_CONSUMER_SECRET"
-        if (cfg.passKey.isBlank() || cfg.passKey.contains("your_")) missing += "MPESA_PASS_KEY"
+        if (cfg.passKey.isBlank() || cfg.passKey.contains("your_")) missing += "MPESA_PASSKEYS_JSON[merchant]"
         if (cfg.shortCode.isBlank() || cfg.shortCode.contains("your_")) missing += "MPESA_SHORT_CODE"
         if (cfg.callbackUrl.isBlank() || cfg.callbackUrl.contains("your-domain")) missing += "MPESA_CALLBACK_URL"
         return missing
@@ -203,6 +202,7 @@ class MpesaService(
             val cfg = resolveConfig(businessId)
             val missing = mutableListOf<String>()
             if (cfg.shortCode.isBlank()) missing += "MPESA_SHORT_CODE"
+            if (cfg.passKey.isBlank()) missing += "MPESA_PASSKEYS_JSON[merchant]"
             if (cfg.initiatorName.isBlank()) missing += "MPESA_INITIATOR_NAME"
             if (cfg.initiatorPassword.isBlank()) missing += "MPESA_INITIATOR_PASSWORD"
             if (cfg.certificateBase64.isBlank()) missing += "MPESA_CERTIFICATE_BASE64"
