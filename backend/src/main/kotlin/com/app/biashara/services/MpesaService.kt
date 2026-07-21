@@ -31,6 +31,7 @@ class MpesaService(
     private val defaultConsumerSecret get() = config.propertyOrNull("mpesa.consumerSecret")?.getString() ?: ""
     private val defaultShortCode get() = config.propertyOrNull("mpesa.shortCode")?.getString() ?: ""
     private val defaultPassKey get() = config.propertyOrNull("mpesa.passKey")?.getString() ?: ""
+    private val merchantPasskeysJson get() = config.propertyOrNull("mpesa.passkeysByBusiness")?.getString() ?: ""
     private val defaultCallbackUrl get() =
         systemSettingsService?.getMpesaCallbackUrl()
             ?: config.propertyOrNull("mpesa.callbackUrl")?.getString()
@@ -49,7 +50,7 @@ class MpesaService(
             if (dbConfig != null) return dbConfig.copy(
                 consumerKey = defaultConsumerKey,
                 consumerSecret = defaultConsumerSecret,
-                passKey = defaultPassKey,
+                passKey = passKeyForBusiness(businessId),
                 initiatorName = defaultInitiatorName,
                 initiatorPassword = defaultInitiatorPassword,
                 certificateBase64 = defaultCertificateBase64,
@@ -61,7 +62,7 @@ class MpesaService(
             consumerKey    = defaultConsumerKey,
             consumerSecret = defaultConsumerSecret,
             shortCode      = defaultShortCode,
-            passKey        = defaultPassKey,
+            passKey        = passKeyForBusiness(businessId),
             callbackUrl    = defaultCallbackUrl,
             isSandbox      = defaultIsSandbox,
             accountType    = defaultAccountType,
@@ -71,6 +72,16 @@ class MpesaService(
             resultUrl = defaultResultUrl,
             timeoutUrl = defaultTimeoutUrl
         )
+    }
+
+    /** Resolves the passkey only inside the backend. The JSON map is injected
+     * through a secret environment variable and keyed by business ID. */
+    private fun passKeyForBusiness(businessId: String?): String {
+        if (businessId.isNullOrBlank() || merchantPasskeysJson.isBlank()) return defaultPassKey
+        return try {
+            val element = lenientJson.parseToJsonElement(merchantPasskeysJson)
+            (element as? JsonObject)?.get(businessId)?.jsonPrimitive?.contentOrNull ?: defaultPassKey
+        } catch (_: Exception) { defaultPassKey }
     }
 
     private fun baseUrl(isSandbox: Boolean) = if (isSandbox)
