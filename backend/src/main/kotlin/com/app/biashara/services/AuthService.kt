@@ -18,7 +18,8 @@ data class ChangePasswordRequest(val currentPassword: String, val newPassword: S
 
 class AuthService(
     private val smsService: SmsService,
-    private val emailService: EmailService
+    private val emailService: EmailService,
+    private val whatsappOtpService: WhatsAppOtpService
 ) {
     /**
      * Enable or disable OTP (two‑factor) for a user.
@@ -149,7 +150,10 @@ class AuthService(
             dispatchOtp(phone, email, name, otp)
             ApiResponse(
                 success = true,
-                data = LoginResponse(userId, requiresOtp = true, otpChannels = listOf("SMS", "EMAIL")),
+                data = LoginResponse(userId, requiresOtp = true, otpChannels = buildList {
+                    if (whatsappOtpService.isConfigured()) add("WHATSAPP")
+                    add("SMS"); add("EMAIL")
+                }),
                 message = "OTP sent"
             )
         } else {
@@ -207,6 +211,10 @@ class AuthService(
 
         // Dispatch OTP outside the transaction — avoids runBlocking on a DB thread
         when (req.channel.uppercase()) {
+            "WHATSAPP" -> {
+                runBlocking { whatsappOtpService.sendOtp(dispatch.phone, dispatch.otp) }
+                println("[AuthService] OTP resent via WhatsApp")
+            }
             "SMS" -> {
                 runBlocking { smsService.sendOtp(dispatch.phone, dispatch.otp) }
                 println("[AuthService] OTP resent via SMS to ${dispatch.phone}")
@@ -243,6 +251,13 @@ class AuthService(
 
     private fun dispatchOtp(phone: String, email: String, name: String, otp: String) {
         // Do NOT log OTP values — keep auth codes out of log aggregators
+        if (phone.isNotBlank()) {
+            try {
+                runBlocking { whatsappOtpService.sendOtp(phone, otp) }
+            } catch (e: Exception) {
+                println("[AuthService] WhatsApp OTP dispatch failed: ${e.message}")
+            }
+        }
         if (phone.isNotBlank()) {
             try {
                 runBlocking { smsService.sendOtp(phone, otp) }
