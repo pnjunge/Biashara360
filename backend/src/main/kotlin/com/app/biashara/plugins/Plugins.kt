@@ -156,6 +156,9 @@ fun Application.configureRateLimiting() {
                     ?: call.request.origin.remoteHost
             }
         }
+        register(RateLimitName("public-payment-limiter")) {
+            rateLimiter(limit = 10, refillPeriod = 60.seconds)
+            requestKey { call -> call.request.origin.remoteHost }
+        }
     }
 }
-

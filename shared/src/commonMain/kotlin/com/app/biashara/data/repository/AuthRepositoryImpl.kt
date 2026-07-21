@@ -100,8 +100,18 @@ class AuthRepositoryImpl(
     override suspend fun getCurrentUser(): User? = UserSession.currentUser.value
 
     override suspend fun refreshToken(): Result<String> = runCatching {
-        val token = tokenStorage.getAccessToken() ?: throw Exception("No token")
-        token
+        val refreshToken = tokenStorage.getRefreshToken()
+            ?: throw Exception("No saved session. Please sign in again.")
+        val response: ApiResponse<AuthResponse> = client.post("$BASE_URL/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(mapOf("refreshToken" to refreshToken))
+        }.body()
+        val authData = response.data
+            ?: throw Exception(response.message.ifBlank { "Session expired. Please sign in again." })
+        if (!response.success) throw Exception(response.message.ifBlank { "Session expired. Please sign in again." })
+        tokenStorage.saveTokens(authData.accessToken, authData.refreshToken)
+        setSessionUser(authData.user)
+        authData.accessToken
     }
 
     override suspend fun register(
@@ -154,32 +164,23 @@ class AuthRepositoryImpl(
     override suspend fun loginWithBiometric(): Result<Unit> = runCatching {
         // Option A: If a valid access token already exists, restore the session without
         // re-authenticating. This avoids sending any credentials over the network.
-        val token = tokenStorage.getAccessToken()
+        tokenStorage.getAccessToken()
             ?: throw Exception("No saved session. Please sign in with your password first.")
-        // If a user is already set in session (in-memory), we're good
         if (UserSession.isLoggedIn()) return@runCatching
-        // Otherwise try to refresh the token to rehydrate the session
-        val response: ApiResponse<LoginResponse> = client.post("$BASE_URL/auth/refresh") {
-            contentType(ContentType.Application.Json)
-            setBody(mapOf("refresh_token" to (tokenStorage.getRefreshToken() ?: "")))
-        }.body()
-        if (!response.success || response.data == null) {
-            throw Exception("Session expired. Please sign in with your password.")
-        }
-        val loginData = response.data
-        tokenStorage.saveTokens(loginData.accessToken ?: token, loginData.refreshToken ?: "")
-        loginData.user?.let { user ->
-            UserSession.setUser(
-                User(
-                    id = user.id,
-                    email = user.email,
-                    phone = user.phone,
-                    name = user.name,
-                    role = runCatching { UserRole.valueOf(user.role) }.getOrDefault(UserRole.STAFF),
-                    businessId = user.businessId,
-                    createdAt = Clock.System.now()
-                )
+        refreshToken().getOrThrow()
+    }
+
+    private fun setSessionUser(user: UserDto) {
+        UserSession.setUser(
+            User(
+                id = user.id,
+                email = user.email,
+                phone = user.phone,
+                name = user.name,
+                role = runCatching { UserRole.valueOf(user.role) }.getOrDefault(UserRole.STAFF),
+                businessId = user.businessId,
+                createdAt = Clock.System.now()
             )
-        }
+        )
     }
 }

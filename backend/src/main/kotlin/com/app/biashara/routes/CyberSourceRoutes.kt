@@ -8,6 +8,8 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.application.*
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import org.koin.ktor.ext.inject
 
 // ─── CyberSource Public Routes (no JWT required) ──────────────────────────────
@@ -15,6 +17,7 @@ import org.koin.ktor.ext.inject
 
 fun Route.cyberSourcePublicRoutes() {
     val csService: CyberSourcePaymentService by inject()
+    val orderService: OrderService by inject()
 
     route("/payments/card") {
         /**
@@ -25,6 +28,7 @@ fun Route.cyberSourcePublicRoutes() {
          * initialize the PCI-compliant hosted card entry fields.
          * No auth required — called before the customer logs in.
          */
+        rateLimit(RateLimitName("public-payment-limiter")) {
         get("/capture-context") {
             val origin = call.request.queryParameters["origin"]
                 ?: call.request.headers["Origin"]
@@ -34,6 +38,13 @@ fun Route.cyberSourcePublicRoutes() {
             // but well-formed ID will simply fall back to the global config in the service.
             val uuidRegex = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
             val businessId = rawBusinessId?.takeIf { uuidRegex.matches(it) }
+            val allowedOrigins = call.application.environment.config.propertyOrNull("payments.allowedOrigins")
+                ?.getList()
+                ?: listOf("https://app.biashara360.co.ke", "https://biashara360.co.ke")
+            if (origin !in allowedOrigins || businessId == null || !csService.hasTenantConfiguration(businessId)) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Invalid checkout origin or business"))
+                return@get
+            }
             val jwt = csService.getCaptureContext(origin, businessId)
             if (jwt != null) {
                 call.respond(ApiResponse(true, data = mapOf("captureContextJwt" to jwt)))
@@ -59,11 +70,16 @@ fun Route.cyberSourcePublicRoutes() {
                 )
                 return@post
             }
-            if (req.transientToken == null && req.cardNumber == null) {
+            if (req.transientToken.isNullOrBlank()) {
                 call.respond(
                     HttpStatusCode.BadRequest,
-                    ApiResponse<Unit>(false, message = "Provide flexToken or card details")
+                    ApiResponse<Unit>(false, message = "A CyberSource transient token is required")
                 )
+                return@post
+            }
+            val order = orderService.getById(req.orderId, req.businessId)
+            if (order == null || order.paymentStatus != "PENDING" || kotlin.math.abs(order.subtotal - req.amount) > 0.001) {
+                call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Invalid payment order or amount"))
                 return@post
             }
 
@@ -72,11 +88,11 @@ fun Route.cyberSourcePublicRoutes() {
                 amount = req.amount,
                 currency = req.currency,
                 transientToken = req.transientToken,
-                cardNumber = req.cardNumber,
-                cardExpiryMonth = req.cardExpiryMonth,
-                cardExpiryYear = req.cardExpiryYear,
-                cardCvv = req.cardCvv,
-                cardholderName = req.cardholderName,
+                cardNumber = null,
+                cardExpiryMonth = null,
+                cardExpiryYear = null,
+                cardCvv = null,
+                cardholderName = null,
                 billingEmail = req.billingEmail,
                 billingPhone = req.billingPhone,
                 saveCard = false,
@@ -87,6 +103,7 @@ fun Route.cyberSourcePublicRoutes() {
             val success = result.status in listOf("AUTHORIZED", "CAPTURED")
             val status = if (success) HttpStatusCode.OK else HttpStatusCode.PaymentRequired
             call.respond(status, ApiResponse(success, data = result, message = result.errorMessage ?: ""))
+        }
         }
     }
 }

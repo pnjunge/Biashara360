@@ -15,6 +15,9 @@ class CyberSourcePaymentService(
     private val settingsService: BusinessSettingsService? = null
 ) {
 
+    fun hasTenantConfiguration(businessId: String): Boolean =
+        settingsService?.loadCyberSourceConfigForBusiness(businessId) != null
+
     // ── Resolve per-business CyberSource service ──────────────────────────────
     private fun csFor(businessId: String): CyberSourceService {
         if (settingsService != null) {

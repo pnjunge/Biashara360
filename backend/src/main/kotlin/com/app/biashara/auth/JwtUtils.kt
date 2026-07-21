@@ -5,6 +5,7 @@ import com.auth0.jwt.algorithms.Algorithm
 import io.ktor.server.application.*
 import io.ktor.server.config.*
 import org.mindrot.jbcrypt.BCrypt
+import java.security.MessageDigest
 import java.util.*
 
 object JwtUtils {
@@ -95,3 +96,9 @@ object OtpUtils {
 }
 
 fun generateId(): String = UUID.randomUUID().toString()
+
+/** A database breach must not expose replayable refresh tokens. */
+fun hashRefreshToken(token: String): String = MessageDigest
+    .getInstance("SHA-256")
+    .digest(token.toByteArray(Charsets.UTF_8))
+    .joinToString("") { "%02x".format(it) }

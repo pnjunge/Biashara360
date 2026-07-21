@@ -51,11 +51,22 @@ class AuthService(
 
     fun refreshToken(req: RefreshTokenRequest): ApiResponse<AuthResponse> = transaction {
         val now = Clock.System.now()
+        val decoded = try {
+            JwtUtils.verifyToken(req.refreshToken)
+        } catch (_: Exception) {
+            return@transaction ApiResponse(false, message = "Invalid or expired refresh token")
+        }
+        if (decoded.getClaim("type").asString() != "refresh" || decoded.subject.isNullOrBlank()) {
+            return@transaction ApiResponse(false, message = "Invalid or expired refresh token")
+        }
         val stored = RefreshTokensTable.select {
-            (RefreshTokensTable.token eq req.refreshToken) and
+            (RefreshTokensTable.token eq hashRefreshToken(req.refreshToken)) and
             (RefreshTokensTable.expiresAt greaterEq now)
         }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Invalid or expired refresh token")
         val userId = stored[RefreshTokensTable.userId]
+        if (decoded.subject != userId) {
+            return@transaction ApiResponse(false, message = "Invalid or expired refresh token")
+        }
         // Opportunistic cleanup: delete all expired tokens for this user
         RefreshTokensTable.deleteWhere {
             (RefreshTokensTable.userId eq userId) and
@@ -63,6 +74,12 @@ class AuthService(
         }
         val user = UsersTable.select { UsersTable.id eq userId }.firstOrNull()
             ?: return@transaction ApiResponse(false, message = "User not found")
+        if (!user[UsersTable.isActive]) {
+            RefreshTokensTable.deleteWhere { RefreshTokensTable.id eq stored[RefreshTokensTable.id] }
+            return@transaction ApiResponse(false, message = "Account is deactivated")
+        }
+        // Rotate atomically: a refresh token is single-use.
+        RefreshTokensTable.deleteWhere { RefreshTokensTable.id eq stored[RefreshTokensTable.id] }
         val auth = issueTokens(userId, user[UsersTable.businessId], user[UsersTable.role])
         ApiResponse(success = true, data = auth, message = "Token refreshed")
     }
@@ -219,6 +236,8 @@ class AuthService(
             it[passwordHash] = PasswordUtils.hash(req.newPassword)
             it[updatedAt] = Clock.System.now()
         }
+        // Password changes invalidate every remembered device/session.
+        RefreshTokensTable.deleteWhere { RefreshTokensTable.userId eq userId }
         ApiResponse(success = true, message = "Password changed successfully")
     }
 
@@ -241,7 +260,6 @@ class AuthService(
     }
 
     private fun issueTokens(userId: String, businessId: String?, role: String): AuthResponse {
-        println("[AuthService] Issuing tokens for userId=$userId, businessId=$businessId, role=$role")
         val accessToken = JwtUtils.generateAccessToken(userId, businessId, role)
         val refreshToken = JwtUtils.generateRefreshToken(userId)
         val now = Clock.System.now()
@@ -249,7 +267,7 @@ class AuthService(
             RefreshTokensTable.insert {
                 it[id] = generateId()
                 it[RefreshTokensTable.userId] = userId
-                it[token] = refreshToken
+                it[token] = hashRefreshToken(refreshToken)
                 it[expiresAt] = now + 30.days
                 it[createdAt] = now
             }

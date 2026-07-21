@@ -131,8 +131,9 @@ fun Route.authRoutesValidated() {
          * Refresh access token
          * POST /auth/refresh
          */
-        post("/refresh") {
-            val req = call.receive<RefreshTokenRequest>()
+        rateLimit(RateLimitName("auth-limiter")) {
+            post("/refresh") {
+                val req = call.receive<RefreshTokenRequest>()
             
             // Validate refresh token
             Validator.validate {
@@ -142,19 +143,21 @@ fun Route.authRoutesValidated() {
                 }
             }
             
-            val result = authService.refreshToken(req)
-            call.respond(
-                if (result.success) HttpStatusCode.OK else HttpStatusCode.Unauthorized,
-                result
-            )
+                val result = authService.refreshToken(req)
+                call.respond(
+                    if (result.success) HttpStatusCode.OK else HttpStatusCode.Unauthorized,
+                    result
+                )
+            }
         }
 
         /**
          * Resend OTP
          * POST /auth/resend-otp
          */
-        post("/resend-otp") {
-            val req = call.receive<ResendOtpRequest>()
+        rateLimit(RateLimitName("auth-limiter")) {
+            post("/resend-otp") {
+                val req = call.receive<ResendOtpRequest>()
             
             // Validate resend OTP request
             Validator.validate {
@@ -167,11 +170,12 @@ fun Route.authRoutesValidated() {
                 }
             }
             
-            val result = authService.resendOtp(req)
-            call.respond(
-                if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest,
-                result
-            )
+                val result = authService.resendOtp(req)
+                call.respond(
+                    if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest,
+                    result
+                )
+            }
         }
     }
 }
@@ -194,7 +198,7 @@ fun Route.accountRoutesValidated() {
             
             val req = call.receive<EnableOtpRequest>()
             
-            if (req.userId != callerUserId) {
+            if (req.userId != callerUserId && !call.hasRole("SUPERADMIN")) {
                 throw UnauthorizedException("Cannot modify OTP for another user")
             }
             

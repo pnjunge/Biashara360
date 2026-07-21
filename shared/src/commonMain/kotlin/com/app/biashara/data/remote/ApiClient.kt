@@ -24,9 +24,10 @@ fun createHttpClient(tokenStorage: TokenStorage): HttpClient {
                 ignoreUnknownKeys = true
             })
         }
+        // Do not log request headers: they can contain bearer tokens.
         install(Logging) {
             logger = Logger.DEFAULT
-            level = LogLevel.HEADERS
+            level = LogLevel.INFO
         }
         install(Auth) {
             bearer {
@@ -37,13 +38,16 @@ fun createHttpClient(tokenStorage: TokenStorage): HttpClient {
                 refreshTokens {
                     val refreshToken = tokenStorage.getRefreshToken() ?: return@refreshTokens null
                     try {
-                        val response: RefreshTokenResponse = client.post("$BASE_URL/auth/refresh") {
+                        val response: ApiResponse<AuthResponse> = client.post("$BASE_URL/auth/refresh") {
                             contentType(ContentType.Application.Json)
                             setBody(mapOf("refreshToken" to refreshToken))  // matches backend RefreshTokenRequest DTO
                             markAsRefreshTokenRequest()
                         }.body()
-                        tokenStorage.saveTokens(response.accessToken, response.refreshToken)
-                        BearerTokens(response.accessToken, response.refreshToken)
+                        val auth = response.data
+                            ?: return@refreshTokens null
+                        if (!response.success) return@refreshTokens null
+                        tokenStorage.saveTokens(auth.accessToken, auth.refreshToken)
+                        BearerTokens(auth.accessToken, auth.refreshToken)
                     } catch (e: Exception) {
                         null
                     }
@@ -67,12 +71,6 @@ interface TokenStorage {
     suspend fun saveTokens(accessToken: String, refreshToken: String)
     suspend fun clearTokens()
 }
-
-@kotlinx.serialization.Serializable
-data class RefreshTokenResponse(
-    val accessToken: String,
-    val refreshToken: String
-)
 
 // API Response wrapper
 @kotlinx.serialization.Serializable

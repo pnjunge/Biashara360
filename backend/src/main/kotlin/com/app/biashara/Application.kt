@@ -46,7 +46,7 @@ fun Application.module() {
         // Public routes (no auth)
         route("/v1") {
             healthRoutes()  // Comprehensive health checks
-            authRoutes()
+            authRoutesValidated()
             // Mpesa Daraja callback — called by Safaricom, no JWT required
             mpesaCallbackRoute()
             publicBusinessRoutes()
@@ -55,7 +55,7 @@ fun Application.module() {
         // Protected routes (JWT required)
         authenticate("jwt-auth") {
             route("/v1") {
-                accountRoutes()      // set-otp, and other authenticated account actions
+                accountRoutesValidated()
                 dashboardRoute()
                 productRoutes()
                 orderRoutes()

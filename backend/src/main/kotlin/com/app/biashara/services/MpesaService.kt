@@ -109,14 +109,12 @@ class MpesaService(
             val httpResponse = httpClient.post("${baseUrl(cfg.isSandbox)}/mpesa/stkpush/v1/processrequest") {
                 headers { append(HttpHeaders.Authorization, "Bearer $token") }
                 contentType(ContentType.Application.Json)
-                val jsonPayload = lenientJson.encodeToString(StkPushPayload.serializer(), payload)
-                println("[MpesaSTK] Sending Request to ${baseUrl(cfg.isSandbox)}/mpesa/stkpush/v1/processrequest:")
-                println("[MpesaSTK] Payload: $jsonPayload")
+                println("[MpesaSTK] Sending STK request")
                 setBody(payload)
             }
 
             val rawBody = httpResponse.bodyAsText()
-            println("[MpesaSTK] Response ${httpResponse.status.value}: $rawBody")
+            println("[MpesaSTK] Response status ${httpResponse.status.value}")
 
             if (!httpResponse.status.isSuccess()) {
                 // Parse Daraja error shape: {"requestId":"...","errorCode":"...","errorMessage":"..."}
