@@ -1,6 +1,9 @@
 import axios, { AxiosInstance } from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.biashara360.co.ke/v1'
+// The custom API hostname is not provisioned in every environment. Keep the
+// deployed App Runner endpoint as the working fallback; production builds can
+// still override it with VITE_API_BASE_URL when DNS is configured.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://sddgmezqj2.us-east-1.awsapprunner.com/v1'
 
 const client: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -399,6 +402,10 @@ export const paymentApi = {
     const res = await client.post<ApiResponse<StkPushResponse>>('/payments/initiate', data)
     return res.data
   },
+  transactionQuery: async (transactionId: string) => {
+    const res = await client.post<ApiResponse<string>>('/payments/mpesa/transaction-query', { transactionId })
+    return res.data
+  },
   reconcile: async (id: string, data: { orderId: string }) => {
     const res = await client.post<ApiResponse<null>>(`/payments/${id}/reconcile`, data)
     return res.data
@@ -707,7 +714,6 @@ export interface BusinessProfileResponse {
 
 export interface MpesaConfigResponse {
   businessId: string
-  consumerKey: string
   shortCode: string
   callbackUrl: string
   environment: string
@@ -716,10 +722,7 @@ export interface MpesaConfigResponse {
 }
 
 export interface MpesaConfigRequest {
-  consumerKey: string
-  consumerSecret: string
   shortCode: string
-  passKey: string
   callbackUrl: string
   environment: string
   accountType: string

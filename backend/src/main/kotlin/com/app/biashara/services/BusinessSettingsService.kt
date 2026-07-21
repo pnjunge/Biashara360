@@ -20,7 +20,6 @@ class BusinessSettingsService {
             ?.let {
                 MpesaConfigResponse(
                     businessId   = businessId,
-                    consumerKey  = it[MpesaConfigsTable.consumerKey],
                     shortCode    = it[MpesaConfigsTable.shortCode],
                     callbackUrl  = it[MpesaConfigsTable.callbackUrl],
                     environment  = it[MpesaConfigsTable.environment],
@@ -31,8 +30,8 @@ class BusinessSettingsService {
     }
 
     fun saveMpesaConfig(businessId: String, req: MpesaConfigRequest): ApiResponse<MpesaConfigResponse> = transaction {
-        if (req.consumerKey.isBlank() || req.consumerSecret.isBlank() || req.shortCode.isBlank() || req.passKey.isBlank() || req.callbackUrl.isBlank()) {
-            return@transaction ApiResponse(false, message = "All Mpesa fields are required")
+        if (req.shortCode.isBlank() || req.callbackUrl.isBlank()) {
+            return@transaction ApiResponse(false, message = "Shortcode and callback URL are required")
         }
         val env = req.environment.lowercase()
         if (env !in listOf("sandbox", "production")) {
@@ -48,10 +47,7 @@ class BusinessSettingsService {
 
         if (exists) {
             MpesaConfigsTable.update({ MpesaConfigsTable.businessId eq businessId }) {
-                it[consumerKey]    = req.consumerKey
-                it[consumerSecret] = req.consumerSecret
                 it[shortCode]      = req.shortCode
-                it[passKey]        = req.passKey
                 it[callbackUrl]    = req.callbackUrl
                 it[environment]    = env
                 it[accountType]    = acctType
@@ -61,10 +57,7 @@ class BusinessSettingsService {
             MpesaConfigsTable.insert {
                 it[id]             = generateId()
                 it[MpesaConfigsTable.businessId] = businessId
-                it[consumerKey]    = req.consumerKey
-                it[consumerSecret] = req.consumerSecret
                 it[shortCode]      = req.shortCode
-                it[passKey]        = req.passKey
                 it[callbackUrl]    = req.callbackUrl
                 it[environment]    = env
                 it[accountType]    = acctType
@@ -75,7 +68,6 @@ class BusinessSettingsService {
 
         val resp = MpesaConfigResponse(
             businessId  = businessId,
-            consumerKey = req.consumerKey,
             shortCode   = req.shortCode,
             callbackUrl = req.callbackUrl,
             environment = env,
@@ -188,5 +180,10 @@ data class MpesaRuntimeConfig(
     val passKey: String,
     val callbackUrl: String,
     val isSandbox: Boolean,
-    val accountType: String = "paybill"   // paybill | till
+    val accountType: String = "paybill",   // paybill | till
+    val initiatorName: String = "",
+    val initiatorPassword: String = "",
+    val certificateBase64: String = "",
+    val resultUrl: String = "",
+    val timeoutUrl: String = ""
 )

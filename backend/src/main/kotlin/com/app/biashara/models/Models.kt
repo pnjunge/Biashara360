@@ -225,6 +225,9 @@ data class InitiatePaymentRequest(
 )
 
 @Serializable
+data class MpesaTransactionQueryRequest(val transactionId: String)
+
+@Serializable
 data class StkPushResponse(
     val merchantRequestId: String,
     val checkoutRequestId: String,
@@ -449,10 +452,7 @@ data class SystemSettingResponse(val key: String, val value: String)
 
 @Serializable
 data class MpesaConfigRequest(
-    val consumerKey: String,
-    val consumerSecret: String,
     val shortCode: String,
-    val passKey: String,
     val callbackUrl: String,
     val environment: String = "sandbox",
     val accountType: String = "paybill"   // paybill | till
@@ -461,7 +461,6 @@ data class MpesaConfigRequest(
 @Serializable
 data class MpesaConfigResponse(
     val businessId: String,
-    val consumerKey: String,
     val shortCode: String,
     val callbackUrl: String,
     val environment: String,
@@ -507,4 +506,3 @@ data class CsTransactionRecord(
     val errorReason: String?,
     val createdAt: String
 )
-

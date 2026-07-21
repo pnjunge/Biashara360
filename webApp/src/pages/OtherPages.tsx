@@ -173,6 +173,8 @@ export function PaymentsPage() {
   const [selectedOrderId, setSelectedOrderId] = useState('')
   const [matching, setMatching] = useState(false)
   const [matchError, setMatchError] = useState('')
+  const [queryingId, setQueryingId] = useState<string | null>(null)
+  const [queryMessage, setQueryMessage] = useState('')
 
   const loadPayments = () => {
     setLoading(true)
@@ -200,6 +202,16 @@ export function PaymentsPage() {
     } catch (e: any) {
       setMatchError(e.response?.data?.message || 'Network error. Please try again.')
     } finally { setMatching(false) }
+  }
+
+  const queryTransaction = async (transactionId: string) => {
+    setQueryingId(transactionId); setQueryMessage('')
+    try {
+      const res = await paymentApi.transactionQuery(transactionId)
+      setQueryMessage(res.success ? 'Transaction status query submitted.' : (res.message || 'Transaction query failed.'))
+    } catch (e: any) {
+      setQueryMessage(e.response?.data?.message || 'Transaction query failed.')
+    } finally { setQueryingId(null) }
   }
 
   const unreconciled = payments.filter(p => !p.isReconciled)
@@ -233,6 +245,7 @@ export function PaymentsPage() {
       )}
 
       <PageHeader title="Payments / Mpesa" />
+      {queryMessage && <div style={{ padding:12, background:'var(--b360-surface)', borderRadius:8, fontSize:13 }}>{queryMessage}</div>}
 
       <div className="responsive-grid responsive-grid-4" style={{ gap:12 }}>
         <KpiCard title="Total Collected"    value={`KES ${total.toLocaleString()}`} change="Reconciled payments" icon={<FileText size={18}/>} color="var(--b360-green)" />
@@ -272,14 +285,18 @@ export function PaymentsPage() {
 
           <Card>
             <DataTable
-              headers={['Mpesa Code', 'Customer', 'Phone', 'Amount', 'Status', 'Date']}
+              headers={['Mpesa Code', 'Customer', 'Phone', 'Amount', 'Status', 'Date', 'Action']}
               rows={payments.map(p => [
                 <span style={{ fontFamily:'monospace', fontWeight:700, color:'var(--b360-green)', fontSize:12 }}>{p.mpesaTransactionCode}</span>,
                 <span style={{ fontWeight:600 }}>{p.payerName}</span>,
                 p.phoneNumber,
                 <span style={{ fontWeight:700 }}>KES {p.amount.toLocaleString()}</span>,
                 <StatusBadge status={p.isReconciled ? 'MATCHED' : 'PENDING'} />,
-                new Date(p.createdAt).toLocaleDateString('en-KE')
+                new Date(p.createdAt).toLocaleDateString('en-KE'),
+                <Btn variant="secondary" small disabled={!p.mpesaTransactionCode || queryingId === p.mpesaTransactionCode}
+                  onClick={() => p.mpesaTransactionCode && queryTransaction(p.mpesaTransactionCode)}>
+                  {queryingId === p.mpesaTransactionCode ? 'Querying…' : 'Query status'}
+                </Btn>
               ])}
             />
           </Card>

@@ -144,6 +144,17 @@ fun Route.paymentRoutesValidated() {
                 )
             )
         }
+
+        post("/mpesa/transaction-query") {
+            val businessId = call.businessId()
+            val req = call.receive<MpesaTransactionQueryRequest>()
+            Validator.validate { field("transactionId", req.transactionId) { required() } }
+            val result = mpesaService.queryTransaction(req.transactionId, businessId)
+            call.respond(
+                if (result.success) HttpStatusCode.OK else HttpStatusCode.BadGateway,
+                ApiResponse(result.success, message = result.message, data = result.response)
+            )
+        }
     }
 }
 
@@ -245,5 +256,17 @@ fun Route.mpesaCallbackRouteValidated() {
         
         // Always acknowledge to Safaricom
         call.respond(HttpStatusCode.OK, DarajaAck())
+    }
+
+    // Daraja transaction-status callbacks are asynchronous. Keep the
+    // endpoints public (Safaricom cannot present our JWT) and acknowledge
+    // promptly; detailed reconciliation remains an explicit business action.
+    post("/payments/mpesa/transaction-query/result") {
+        call.receiveText()
+        call.respond(HttpStatusCode.OK, DarajaAck())
+    }
+    post("/payments/mpesa/transaction-query/timeout") {
+        call.receiveText()
+        call.respond(HttpStatusCode.OK, DarajaAck(ResultCode = 1, ResultDesc = "Timed out"))
     }
 }

@@ -15,6 +15,9 @@ import kotlinx.serialization.json.contentOrNull
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Base64
+import java.security.cert.CertificateFactory
+import java.io.ByteArrayInputStream
+import javax.crypto.Cipher
 
 class MpesaService(
     private val httpClient: HttpClient,
@@ -34,11 +37,25 @@ class MpesaService(
             ?: ""
     private val defaultIsSandbox get() = config.propertyOrNull("mpesa.environment")?.getString() != "production"
     private val defaultAccountType get() = config.propertyOrNull("mpesa.accountType")?.getString() ?: "paybill"
+    private val defaultInitiatorName get() = config.propertyOrNull("mpesa.initiatorName")?.getString() ?: ""
+    private val defaultInitiatorPassword get() = config.propertyOrNull("mpesa.initiatorPassword")?.getString() ?: ""
+    private val defaultCertificateBase64 get() = config.propertyOrNull("mpesa.certificateBase64")?.getString() ?: ""
+    private val defaultResultUrl get() = config.propertyOrNull("mpesa.resultUrl")?.getString() ?: ""
+    private val defaultTimeoutUrl get() = config.propertyOrNull("mpesa.timeoutUrl")?.getString() ?: ""
 
     private fun resolveConfig(businessId: String?): MpesaRuntimeConfig {
         if (businessId != null && settingsService != null) {
             val dbConfig = settingsService.loadMpesaConfigForBusiness(businessId)
-            if (dbConfig != null) return dbConfig
+            if (dbConfig != null) return dbConfig.copy(
+                consumerKey = defaultConsumerKey,
+                consumerSecret = defaultConsumerSecret,
+                passKey = defaultPassKey,
+                initiatorName = defaultInitiatorName,
+                initiatorPassword = defaultInitiatorPassword,
+                certificateBase64 = defaultCertificateBase64,
+                resultUrl = defaultResultUrl,
+                timeoutUrl = defaultTimeoutUrl
+            )
         }
         return MpesaRuntimeConfig(
             consumerKey    = defaultConsumerKey,
@@ -47,7 +64,12 @@ class MpesaService(
             passKey        = defaultPassKey,
             callbackUrl    = defaultCallbackUrl,
             isSandbox      = defaultIsSandbox,
-            accountType    = defaultAccountType
+            accountType    = defaultAccountType,
+            initiatorName = defaultInitiatorName,
+            initiatorPassword = defaultInitiatorPassword,
+            certificateBase64 = defaultCertificateBase64,
+            resultUrl = defaultResultUrl,
+            timeoutUrl = defaultTimeoutUrl
         )
     }
 
@@ -165,7 +187,55 @@ class MpesaService(
         return missing
     }
 
+    suspend fun queryTransaction(transactionId: String, businessId: String? = null): TransactionQueryResult {
+        return try {
+            val cfg = resolveConfig(businessId)
+            val missing = mutableListOf<String>()
+            if (cfg.shortCode.isBlank()) missing += "MPESA_SHORT_CODE"
+            if (cfg.initiatorName.isBlank()) missing += "MPESA_INITIATOR_NAME"
+            if (cfg.initiatorPassword.isBlank()) missing += "MPESA_INITIATOR_PASSWORD"
+            if (cfg.certificateBase64.isBlank()) missing += "MPESA_CERTIFICATE_BASE64"
+            if (cfg.resultUrl.isBlank()) missing += "MPESA_RESULT_URL"
+            if (cfg.timeoutUrl.isBlank()) missing += "MPESA_TIMEOUT_URL"
+            if (missing.isNotEmpty()) return TransactionQueryResult(false, "M-Pesa transaction query is not configured. Update: ${missing.joinToString(", ")}")
+
+            val token = getAccessToken(cfg)
+            val certBytes = Base64.getDecoder().decode(cfg.certificateBase64)
+            val cert = CertificateFactory.getInstance("X.509").generateCertificate(ByteArrayInputStream(certBytes))
+            val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+            cipher.init(Cipher.ENCRYPT_MODE, cert.publicKey)
+            val credential = Base64.getEncoder().encodeToString(cipher.doFinal(cfg.initiatorPassword.toByteArray(Charsets.UTF_8)))
+            val payload = TransactionQueryPayload(cfg.initiatorName, credential, "TransactionStatusQuery", transactionId, cfg.shortCode, "4", cfg.resultUrl, cfg.timeoutUrl, "Biashara360 transaction status query", transactionId)
+            val response = httpClient.post("${baseUrl(cfg.isSandbox)}/mpesa/transactionstatus/v1/query") {
+                headers { append(HttpHeaders.Authorization, "Bearer $token") }
+                contentType(ContentType.Application.Json)
+                setBody(payload)
+            }
+            val body = response.bodyAsText()
+            if (response.status.isSuccess()) TransactionQueryResult(true, "Transaction status query submitted", body)
+            else TransactionQueryResult(false, "M-Pesa query failed (${response.status.value})")
+        } catch (e: Exception) {
+            TransactionQueryResult(false, e.message ?: "M-Pesa transaction query failed")
+        }
+    }
+
 }
+
+data class TransactionQueryResult(val success: Boolean, val message: String, val response: String? = null)
+
+@Serializable
+private data class TransactionQueryPayload(
+    val Initiator: String,
+    val SecurityCredential: String,
+    val CommandID: String,
+    val TransactionID: String,
+    val PartyA: String,
+    val IdentifierType: String,
+    val ResultURL: String,
+    val QueueTimeOutURL: String,
+    val Remarks: String,
+    val Occasion: String
+)
 
 // ── Daraja DTOs ───────────────────────────────────────────────────────────────
 
