@@ -877,10 +877,6 @@ export function BusinessPage() {
       <BizSection title="Tax & Compliance">
         <BizField label="KRA PIN" value={form.kraPin} onChange={f('kraPin')} />
       </BizSection>
-      <BizSection title="Mpesa Integration">
-        <BizField label="Paybill Number"  value={form.paybillNumber} onChange={f('paybillNumber')} />
-        <BizField label="Account Number"  value={form.accountNumber} onChange={f('accountNumber')} />
-      </BizSection>
     </div>
   )
 }
@@ -1012,7 +1008,7 @@ export function SettingsPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <span style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>M-Pesa Setup (Daraja)</span>
-              <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Configure consumer keys and shortcode values for instant checkout push</span>
+              <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Configure shortcode, merchant passkey, callback, and checkout settings</span>
             </div>
             <Btn onClick={() => navigate('/mpesa-settings')} variant="secondary" small>Configure</Btn>
           </div>
