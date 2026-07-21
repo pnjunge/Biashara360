@@ -38,7 +38,6 @@ services:
       MPESA_CONSUMER_KEY: ${MPESA_CONSUMER_KEY:-your_consumer_key}
       MPESA_CONSUMER_SECRET: ${MPESA_CONSUMER_SECRET:-your_consumer_secret}
       MPESA_SHORT_CODE: ${MPESA_SHORT_CODE:-174379}
-      MPESA_PASS_KEY: ${MPESA_PASS_KEY:-your_pass_key}
       MPESA_ENV: ${MPESA_ENV:-sandbox}
       CS_MERCHANT_ID: ${CS_MERCHANT_ID:-your_merchant_id}
       CS_MERCHANT_KEY_ID: ${CS_MERCHANT_KEY_ID:-your_key_id}
@@ -81,4 +80,3 @@ services:
 volumes:
   postgres_data:
   unified_inbox_data:
-

@@ -57,7 +57,6 @@ JWT_SECRET=change-this-to-a-long-random-secret-in-production
 MPESA_CONSUMER_KEY=your_consumer_key
 MPESA_CONSUMER_SECRET=your_consumer_secret
 MPESA_SHORT_CODE=174379
-MPESA_PASS_KEY=your_pass_key
 MPESA_CALLBACK_URL=https://your-domain.com/v1/payments/mpesa/callback
 MPESA_ENV=sandbox
 
