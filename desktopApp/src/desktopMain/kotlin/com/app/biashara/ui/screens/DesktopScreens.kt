@@ -2414,10 +2414,7 @@ fun DesktopSettingsScreen(
                             }
                             "shortCode" -> {
                                 val configReq = MpesaConfigRequest(
-                                    consumerKey = mpesaConfig?.consumerKey ?: "",
-                                    consumerSecret = "",
                                     shortCode = value,
-                                    passKey = "",
                                     callbackUrl = mpesaConfig?.callbackUrl ?: ""
                                 )
                                 viewModel.saveMpesaConfig(configReq)
@@ -3034,9 +3031,6 @@ fun DesktopMpesaScreen(
         viewModel.loadMpesaConfig()
     }
 
-    var consumerKey by remember { mutableStateOf("") }
-    var consumerSecret by remember { mutableStateOf("") }
-    var passKey by remember { mutableStateOf("") }
     var shortCode by remember { mutableStateOf("") }
     var callbackUrl by remember { mutableStateOf("") }
     var environment by remember { mutableStateOf("sandbox") }
@@ -3044,9 +3038,6 @@ fun DesktopMpesaScreen(
 
     LaunchedEffect(state.config) {
         state.config?.let { cfg ->
-            consumerKey = cfg.consumerKey
-            consumerSecret = "••••••••••••••••••••••••••••••••"
-            passKey = "••••••••••••••••••••••••••••••••"
             shortCode = cfg.shortCode
             callbackUrl = cfg.callbackUrl
             environment = cfg.environment
@@ -3132,58 +3123,7 @@ fun DesktopMpesaScreen(
                     )
                     HorizontalDivider(color = Color(0xFFE2E8F0))
 
-                    // Consumer Key
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Consumer Key *", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color(0xFF64748B))
-                        OutlinedTextField(
-                            value = consumerKey,
-                            onValueChange = { consumerKey = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            singleLine = true,
-                            placeholder = { Text("Enter Consumer Key") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = B360Green,
-                                unfocusedBorderColor = Color(0xFFE2E8F0)
-                            )
-                        )
-                    }
-
-                    // Consumer Secret
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Consumer Secret *", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color(0xFF64748B))
-                        OutlinedTextField(
-                            value = consumerSecret,
-                            onValueChange = { consumerSecret = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            placeholder = { Text("Enter Consumer Secret") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = B360Green,
-                                unfocusedBorderColor = Color(0xFFE2E8F0)
-                            )
-                        )
-                    }
-
-                    // Passkey
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Passkey *", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color(0xFF64748B))
-                        OutlinedTextField(
-                            value = passKey,
-                            onValueChange = { passKey = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            placeholder = { Text("Enter LNM Passkey") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = B360Green,
-                                unfocusedBorderColor = Color(0xFFE2E8F0)
-                            )
-                        )
-                    }
+                    Text("Consumer credentials and the Lipa na M-Pesa passkey are managed globally by the backend.", color = Color(0xFF64748B), fontSize = 12.sp)
 
                     // Shortcode
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -3305,9 +3245,6 @@ fun DesktopMpesaScreen(
                             onClick = {
                                 viewModel.saveMpesaConfig(
                                     MpesaConfigRequest(
-                                        consumerKey = consumerKey,
-                                        consumerSecret = consumerSecret,
-                                        passKey = passKey,
                                         shortCode = shortCode,
                                         callbackUrl = callbackUrl,
                                         environment = environment,
@@ -3922,4 +3859,3 @@ fun DesktopReceiptTemplateScreen(
         }
     }
 }
-
