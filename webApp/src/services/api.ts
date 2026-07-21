@@ -715,7 +715,7 @@ export interface BusinessProfileResponse {
 export interface MpesaConfigResponse {
   businessId: string
   shortCode: string
-  callbackUrl: string
+  callbackUrl?: string
   environment: string
   accountType: string
   passkeyConfigured: boolean
@@ -724,7 +724,7 @@ export interface MpesaConfigResponse {
 
 export interface MpesaConfigRequest {
   shortCode: string
-  callbackUrl: string
+  callbackUrl?: string
   passKey?: string
   environment: string
   accountType: string

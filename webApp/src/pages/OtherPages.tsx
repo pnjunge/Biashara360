@@ -882,42 +882,13 @@ export function BusinessPage() {
 }
 
 export function SettingsPage() {
-  const { user: currentUser } = useAuth()
   const navigate = useNavigate()
-  const isSuperAdmin = currentUser?.role === 'SUPERADMIN'
 
   const [twoFA, setTwoFA] = useState(true)
   const [sms, setSms] = useState(true)
   const [email, setEmail] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  // ── System MPesa callback URL (SUPERADMIN only) ──
-  const [callbackUrl, setCallbackUrl] = useState('')
-  const [callbackLoading, setCallbackLoading] = useState(false)
-  const [callbackSaving, setCallbackSaving] = useState(false)
-  const [callbackMsg, setCallbackMsg] = useState<{ ok: boolean; text: string } | null>(null)
-
-  useEffect(() => {
-    if (!isSuperAdmin) return
-    setCallbackLoading(true)
-    superAdminApi.getMpesaCallbackUrl()
-      .then(res => { if (res.success && res.data) setCallbackUrl(res.data.value) })
-      .catch(() => {})
-      .finally(() => setCallbackLoading(false))
-  }, [isSuperAdmin])
-
-  const handleSaveCallbackUrl = async () => {
-    setCallbackSaving(true)
-    setCallbackMsg(null)
-    try {
-      const res = await superAdminApi.saveMpesaCallbackUrl(callbackUrl)
-      setCallbackMsg({ ok: res.success, text: res.message || (res.success ? 'Saved' : 'Failed') })
-    } catch (e: any) {
-      setCallbackMsg({ ok: false, text: e.response?.data?.message || 'Network error. Please try again.' })
-    } finally {
-      setCallbackSaving(false)
-    }
-  }
 
   const handleSave = () => {
     setSaved(true)
@@ -952,38 +923,6 @@ export function SettingsPage() {
         </div>
       } />
 
-      {/* ── System Settings (SUPERADMIN only) ── */}
-      {isSuperAdmin && (
-        <Section title="System Settings">
-          <div style={{ fontSize:12, color:'var(--b360-text-secondary)', marginBottom:4 }}>
-            This callback URL is used as the system-wide default for all businesses that have not configured their own Mpesa settings.
-          </div>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
-            <span style={{ fontSize:13, color:'var(--b360-text-secondary)', width:160, flexShrink:0 }}>Mpesa Callback URL</span>
-            {callbackLoading ? (
-              <span style={{ fontSize:13, color:'var(--b360-text-secondary)' }}>Loading…</span>
-            ) : (
-              <input
-                value={callbackUrl}
-                onChange={e => setCallbackUrl(e.target.value)}
-                placeholder="https://api.yourdomain.com/v1/payments/mpesa/callback"
-                style={{ flex:1, padding:'8px 12px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, fontFamily:'inherit', outline:'none' }}
-              />
-            )}
-          </div>
-          {callbackMsg && (
-            <div style={{ fontSize:12, color: callbackMsg.ok ? 'var(--b360-green)' : 'var(--b360-red)' }}>
-              {callbackMsg.ok ? '✓ ' : '✗ '}{callbackMsg.text}
-            </div>
-          )}
-          <div style={{ display:'flex', justifyContent:'flex-end' }}>
-            <Btn onClick={handleSaveCallbackUrl} disabled={callbackSaving || callbackLoading}>
-              {callbackSaving ? 'Saving…' : 'Save Callback URL'}
-            </Btn>
-          </div>
-        </Section>
-      )}
-
       <Section title="Store Configurations">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1008,7 +947,7 @@ export function SettingsPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <span style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>M-Pesa Setup (Daraja)</span>
-              <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Configure shortcode, merchant passkey, callback, and checkout settings</span>
+              <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Configure shortcode, merchant passkey, and checkout settings</span>
             </div>
             <Btn onClick={() => navigate('/mpesa-settings')} variant="secondary" small>Configure</Btn>
           </div>

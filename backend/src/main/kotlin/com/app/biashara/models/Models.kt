@@ -453,7 +453,7 @@ data class SystemSettingResponse(val key: String, val value: String)
 @Serializable
 data class MpesaConfigRequest(
     val shortCode: String,
-    val callbackUrl: String,
+    val callbackUrl: String = "",
     val passKey: String? = null,
     val environment: String = "sandbox",
     val accountType: String = "paybill"   // paybill | till

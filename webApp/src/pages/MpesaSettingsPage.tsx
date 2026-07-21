@@ -6,7 +6,6 @@ export default function MpesaSettingsPage() {
   const [shortCode, setShortCode] = useState('')
   const [passKey, setPassKey] = useState('')
   const [passkeyConfigured, setPasskeyConfigured] = useState(false)
-  const [callbackUrl, setCallbackUrl] = useState('')
   const [environment, setEnvironment] = useState('sandbox')
   const [accountType, setAccountType] = useState('paybill')
   const [loading, setLoading] = useState(true)
@@ -20,7 +19,6 @@ export default function MpesaSettingsPage() {
         if (res.success && res.data) {
           setShortCode(res.data.shortCode)
           setPasskeyConfigured(res.data.passkeyConfigured)
-          setCallbackUrl(res.data.callbackUrl)
           setEnvironment(res.data.environment)
           setAccountType(res.data.accountType)
         }
@@ -38,7 +36,6 @@ export default function MpesaSettingsPage() {
       const res = await settingsApi.updateMpesa({
         shortCode,
         ...(passKey.trim() ? { passKey: passKey.trim() } : {}),
-        callbackUrl,
         environment,
         accountType
       })
@@ -95,10 +92,6 @@ export default function MpesaSettingsPage() {
           onChange={setShortCode}
           placeholder="e.g. 174379"
         />
-        <div style={{ padding: 12, background: 'var(--b360-surface)', borderRadius: 8, fontSize: 12, color: 'var(--b360-text-secondary)' }}>
-          Callback URL is managed globally by the platform and cannot be changed per merchant.
-          {callbackUrl && <div style={{ marginTop: 6, fontFamily: 'monospace', color: 'var(--b360-text-primary)' }}>{callbackUrl}</div>}
-        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1f 1f', gap: 16 }}>
           <Select
