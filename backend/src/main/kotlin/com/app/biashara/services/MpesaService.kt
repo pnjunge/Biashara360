@@ -50,6 +50,7 @@ class MpesaService(
                 consumerKey = defaultConsumerKey,
                 consumerSecret = defaultConsumerSecret,
                 passKey = dbConfig.passKey.ifBlank { passKeyForBusiness(businessId) },
+                callbackUrl = defaultCallbackUrl,
                 initiatorName = defaultInitiatorName,
                 initiatorPassword = defaultInitiatorPassword,
                 certificateBase64 = defaultCertificateBase64,

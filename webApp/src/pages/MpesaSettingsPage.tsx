@@ -95,12 +95,10 @@ export default function MpesaSettingsPage() {
           onChange={setShortCode}
           placeholder="e.g. 174379"
         />
-        <Input
-          label="Callback URL *"
-          value={callbackUrl}
-          onChange={setCallbackUrl}
-          placeholder="https://api.yourdomain.com/v1/payments/mpesa/callback"
-        />
+        <div style={{ padding: 12, background: 'var(--b360-surface)', borderRadius: 8, fontSize: 12, color: 'var(--b360-text-secondary)' }}>
+          Callback URL is managed globally by the platform and cannot be changed per merchant.
+          {callbackUrl && <div style={{ marginTop: 6, fontFamily: 'monospace', color: 'var(--b360-text-primary)' }}>{callbackUrl}</div>}
+        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1f 1f', gap: 16 }}>
           <Select
