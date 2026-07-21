@@ -454,6 +454,7 @@ data class SystemSettingResponse(val key: String, val value: String)
 data class MpesaConfigRequest(
     val shortCode: String,
     val callbackUrl: String,
+    val passKey: String? = null,
     val environment: String = "sandbox",
     val accountType: String = "paybill"   // paybill | till
 )
@@ -465,6 +466,7 @@ data class MpesaConfigResponse(
     val callbackUrl: String,
     val environment: String,
     val accountType: String,
+    val passkeyConfigured: Boolean,
     val updatedAt: String
 )
 

@@ -49,7 +49,7 @@ class MpesaService(
             if (dbConfig != null) return dbConfig.copy(
                 consumerKey = defaultConsumerKey,
                 consumerSecret = defaultConsumerSecret,
-                passKey = passKeyForBusiness(businessId),
+                passKey = dbConfig.passKey.ifBlank { passKeyForBusiness(businessId) },
                 initiatorName = defaultInitiatorName,
                 initiatorPassword = defaultInitiatorPassword,
                 certificateBase64 = defaultCertificateBase64,

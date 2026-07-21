@@ -24,6 +24,7 @@ class BusinessSettingsService {
                     callbackUrl  = it[MpesaConfigsTable.callbackUrl],
                     environment  = it[MpesaConfigsTable.environment],
                     accountType  = it[MpesaConfigsTable.accountType],
+                    passkeyConfigured = it[MpesaConfigsTable.passKey].isNotBlank(),
                     updatedAt    = it[MpesaConfigsTable.updatedAt].toString()
                 )
             }
@@ -51,6 +52,7 @@ class BusinessSettingsService {
                 it[callbackUrl]    = req.callbackUrl
                 it[environment]    = env
                 it[accountType]    = acctType
+                if (!req.passKey.isNullOrBlank()) it[passKey] = req.passKey
                 it[updatedAt]      = now
             }
         } else {
@@ -61,17 +63,22 @@ class BusinessSettingsService {
                 it[callbackUrl]    = req.callbackUrl
                 it[environment]    = env
                 it[accountType]    = acctType
+                if (!req.passKey.isNullOrBlank()) it[passKey] = req.passKey
                 it[createdAt]      = now
                 it[updatedAt]      = now
             }
         }
 
+        val passkeyConfigured = MpesaConfigsTable
+            .select { MpesaConfigsTable.businessId eq businessId }
+            .first()[MpesaConfigsTable.passKey].isNotBlank()
         val resp = MpesaConfigResponse(
             businessId  = businessId,
             shortCode   = req.shortCode,
             callbackUrl = req.callbackUrl,
             environment = env,
             accountType = acctType,
+            passkeyConfigured = passkeyConfigured,
             updatedAt   = now.toString()
         )
         ApiResponse(success = true, data = resp, message = "Mpesa configuration saved")

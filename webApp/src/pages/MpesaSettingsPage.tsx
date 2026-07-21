@@ -4,6 +4,8 @@ import { settingsApi } from '../services/api'
 
 export default function MpesaSettingsPage() {
   const [shortCode, setShortCode] = useState('')
+  const [passKey, setPassKey] = useState('')
+  const [passkeyConfigured, setPasskeyConfigured] = useState(false)
   const [callbackUrl, setCallbackUrl] = useState('')
   const [environment, setEnvironment] = useState('sandbox')
   const [accountType, setAccountType] = useState('paybill')
@@ -17,6 +19,7 @@ export default function MpesaSettingsPage() {
       .then(res => {
         if (res.success && res.data) {
           setShortCode(res.data.shortCode)
+          setPasskeyConfigured(res.data.passkeyConfigured)
           setCallbackUrl(res.data.callbackUrl)
           setEnvironment(res.data.environment)
           setAccountType(res.data.accountType)
@@ -34,6 +37,7 @@ export default function MpesaSettingsPage() {
     try {
       const res = await settingsApi.updateMpesa({
         shortCode,
+        ...(passKey.trim() ? { passKey: passKey.trim() } : {}),
         callbackUrl,
         environment,
         accountType
@@ -82,8 +86,9 @@ export default function MpesaSettingsPage() {
 
       <Section title="Daraja API Configurations">
         <div style={{ padding: 12, background: 'var(--b360-surface)', borderRadius: 8, fontSize: 12, color: 'var(--b360-text-secondary)' }}>
-          Consumer credentials and the Lipa na M-Pesa passkey are managed globally by the backend and are never stored in client applications.
+          Consumer credentials remain backend-managed. This merchant passkey is sent securely to the backend and is never returned to the client.
         </div>
+        <Input label={passkeyConfigured ? 'Replace Lipa na M-Pesa Passkey' : 'Lipa na M-Pesa Passkey *'} value={passKey} onChange={setPassKey} type="password" placeholder={passkeyConfigured ? '••••••••••••••••' : 'Enter passkey from Safaricom'} />
         <Input
           label="Business Shortcode (Paybill / Till) *"
           value={shortCode}

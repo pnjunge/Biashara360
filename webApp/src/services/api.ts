@@ -718,12 +718,14 @@ export interface MpesaConfigResponse {
   callbackUrl: string
   environment: string
   accountType: string
+  passkeyConfigured: boolean
   updatedAt: string
 }
 
 export interface MpesaConfigRequest {
   shortCode: string
   callbackUrl: string
+  passKey?: string
   environment: string
   accountType: string
 }
