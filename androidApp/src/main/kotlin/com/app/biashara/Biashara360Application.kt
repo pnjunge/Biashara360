@@ -11,6 +11,8 @@ import org.koin.core.logger.Level
 class Biashara360Application : Application() {
     override fun onCreate() {
         super.onCreate()
+        com.app.biashara.data.remote.CLIENT_PLATFORM = "android"
+        com.app.biashara.data.remote.SESSION_IDLE_TIMEOUT_SECONDS = BuildConfig.SESSION_IDLE_TIMEOUT_SECONDS
         val isDebug = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         if (isDebug) {
             com.app.biashara.data.remote.BASE_URL = "http://10.0.3.2:8081/v1"

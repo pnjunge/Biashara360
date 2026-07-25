@@ -4,8 +4,8 @@ import com.app.biashara.data.remote.ApiResponse
 import com.app.biashara.data.remote.BASE_URL
 import com.app.biashara.data.remote.UserDto
 import com.app.biashara.domain.model.BusinessProfile
+import com.app.biashara.domain.model.CyberSourceConfig
 import com.app.biashara.domain.model.MpesaConfig
-import com.app.biashara.domain.model.MpesaConfigRequest
 import com.app.biashara.domain.repository.BusinessRepository
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -43,14 +43,12 @@ class BusinessRepositoryImpl(
         response.data
     }
 
-    override suspend fun saveMpesaConfig(config: MpesaConfigRequest): Result<Unit> = runCatching {
-        val response: ApiResponse<Unit> = client.put("$BASE_URL/settings/mpesa") {
-            contentType(ContentType.Application.Json)
-            setBody(config)
-        }.body()
-        if (!response.success) {
-            throw Exception(response.message.ifBlank { "Failed to save M-Pesa config" })
+    override suspend fun getCyberSourceConfig(): Result<CyberSourceConfig> = runCatching {
+        val response: ApiResponse<CyberSourceConfig> = client.get("$BASE_URL/settings/cybersource").body()
+        if (!response.success || response.data == null) {
+            throw Exception(response.message.ifBlank { "Failed to fetch CyberSource config" })
         }
+        response.data
     }
 
     override suspend fun getUsers(): Result<List<UserDto>> = runCatching {

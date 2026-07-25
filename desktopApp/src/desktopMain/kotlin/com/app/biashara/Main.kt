@@ -3,6 +3,7 @@ package com.app.biashara
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.unit.dp
 import com.app.biashara.di.coreModule
 import com.app.biashara.di.platformModule
@@ -13,6 +14,10 @@ import org.koin.dsl.module
 import com.app.biashara.ui.DesktopNavigationViewModel
 
 fun main() {
+    com.app.biashara.data.remote.CLIENT_PLATFORM = "desktop"
+    System.getenv("SESSION_IDLE_TIMEOUT_SECONDS")?.toLongOrNull()?.let {
+        com.app.biashara.data.remote.SESSION_IDLE_TIMEOUT_SECONDS = it
+    }
     // Resolve BASE_URL before Koin starts so all HTTP clients use the correct endpoint
     val savedUrl = runCatching {
         val configFile = java.io.File(System.getProperty("user.home"), ".biashara360/base_url.txt")
@@ -32,7 +37,11 @@ fun main() {
     }
 
     application {
-        val windowState = rememberWindowState(width = 1280.dp, height = 800.dp)
+        val windowState = rememberWindowState(
+            placement = WindowPlacement.Maximized,
+            width = 1280.dp,
+            height = 800.dp
+        )
 
         Window(
             onCloseRequest = ::exitApplication,
@@ -46,4 +55,3 @@ fun main() {
         }
     }
 }
-

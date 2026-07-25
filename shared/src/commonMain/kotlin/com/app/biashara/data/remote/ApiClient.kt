@@ -14,6 +14,7 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
 var BASE_URL = "https://api.biashara360.co.ke/v1"
+var CLIENT_PLATFORM = "web"
 
 fun createHttpClient(tokenStorage: TokenStorage): HttpClient {
     return HttpClient {
@@ -61,6 +62,7 @@ fun createHttpClient(tokenStorage: TokenStorage): HttpClient {
         defaultRequest {
             contentType(ContentType.Application.Json)
             accept(ContentType.Application.Json)
+            header("X-Client-Platform", CLIENT_PLATFORM)
         }
     }
 }
@@ -70,6 +72,33 @@ interface TokenStorage {
     suspend fun getRefreshToken(): String?
     suspend fun saveTokens(accessToken: String, refreshToken: String)
     suspend fun clearTokens()
+    suspend fun saveSessionIdleTimeoutSeconds(seconds: Long)
+}
+
+/** Configurable client idle timeout; applications may override this at startup. */
+var SESSION_IDLE_TIMEOUT_SECONDS: Long = 1800L
+val SESSION_IDLE_TIMEOUT_MILLIS: Long
+    get() = SESSION_IDLE_TIMEOUT_SECONDS.coerceAtLeast(60L) * 1000L
+
+@kotlinx.serialization.Serializable
+data class SessionTimeoutConfigResponse(
+    val businessId: String,
+    val webTimeoutSeconds: Long,
+    val androidTimeoutSeconds: Long,
+    val desktopTimeoutSeconds: Long
+)
+
+suspend fun refreshSessionIdleTimeout(client: HttpClient): Long? {
+    val response: ApiResponse<SessionTimeoutConfigResponse> =
+        client.get("$BASE_URL/settings/session-timeouts").body()
+    val config = response.data ?: return null
+    val timeout = when (CLIENT_PLATFORM.lowercase()) {
+        "android" -> config.androidTimeoutSeconds
+        "desktop" -> config.desktopTimeoutSeconds
+        else -> config.webTimeoutSeconds
+    }.coerceIn(60L, 86_400L)
+    SESSION_IDLE_TIMEOUT_SECONDS = timeout
+    return timeout
 }
 
 // API Response wrapper

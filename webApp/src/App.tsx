@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
 import LoginPage from './pages/LoginPage'
@@ -16,12 +16,14 @@ import CyberSourcePage from './pages/CyberSourcePage'
 import CyberSourceSettingsPage from './pages/CyberSourceSettingsPage'
 import MpesaSettingsPage from './pages/MpesaSettingsPage'
 import ReceiptTemplatePage from './pages/ReceiptTemplatePage'
+import SessionTimeoutSettingsPage from './pages/SessionTimeoutSettingsPage'
 import TaxPage from './pages/TaxPage'
 import KraPage from './pages/KraPage'
 import SocialPage from './pages/SocialPage'
 import SocialOnboardingPage from './pages/SocialOnboardingPage'
 import UserCreationPage from './pages/UserCreationPage'
 import BusinessPage from './pages/BusinessPage'
+import { settingsApi } from './services/api'
 
 // ── Auth Context ──────────────────────────────────────────────────────────────
 interface AuthUser {
@@ -35,6 +37,8 @@ interface AuthUser {
   preferredLanguage: string
 }
 interface AuthCtx { isAuthenticated: boolean; user: AuthUser | null; login: () => void; logout: () => void }
+const DEFAULT_SESSION_IDLE_TIMEOUT_SECONDS = Number(import.meta.env.VITE_SESSION_IDLE_TIMEOUT_SECONDS || 1800)
+const LAST_ACTIVITY_KEY = 'sessionLastActivity'
 export const AuthContext = createContext<AuthCtx>({ isAuthenticated: false, user: null, login: () => {}, logout: () => {} })
 export const useAuth = () => useContext(AuthContext)
 
@@ -50,6 +54,7 @@ function RoleProtectedRoute({ children, blockedRoles }: { children: React.ReactN
 }
 
 export default function App() {
+  const [sessionIdleTimeoutSeconds, setSessionIdleTimeoutSeconds] = useState(DEFAULT_SESSION_IDLE_TIMEOUT_SECONDS)
   const [isAuthenticated, setIsAuthenticated] = useState(() =>
     Boolean(localStorage.getItem('accessToken') && localStorage.getItem('refreshToken'))
   )
@@ -59,15 +64,54 @@ export default function App() {
   const login = () => {
     if (!localStorage.getItem('accessToken') || !localStorage.getItem('refreshToken')) return
     localStorage.setItem('isAuthenticated', 'true')
+    localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
     setIsAuthenticated(true)
     try { setUser(JSON.parse(localStorage.getItem('user') || 'null')) } catch { /* ignore */ }
   }
   const logout = () => {
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
     localStorage.removeItem('isAuthenticated')
+    localStorage.removeItem(LAST_ACTIVITY_KEY)
     localStorage.removeItem('user')
     setIsAuthenticated(false)
     setUser(null)
   }
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let active = true
+    settingsApi.getSessionTimeouts()
+      .then(res => {
+        if (active && res.success && res.data) {
+          setSessionIdleTimeoutSeconds(Math.min(86_400, Math.max(60, res.data.webTimeoutSeconds)))
+        }
+      })
+      .catch(() => { /* retain the build-time fallback while offline */ })
+    const touch = () => localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
+    const updateTimeout = (event: Event) => {
+      const seconds = (event as CustomEvent<number>).detail
+      if (Number.isFinite(seconds)) setSessionIdleTimeoutSeconds(Math.min(86_400, Math.max(60, seconds)))
+    }
+    const check = () => {
+      if (!localStorage.getItem('accessToken') || !localStorage.getItem('refreshToken')) {
+        logout()
+        return
+      }
+      const last = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || Date.now())
+      if (Date.now() - last >= sessionIdleTimeoutSeconds * 1000) logout()
+    }
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll', 'click']
+    events.forEach((event) => window.addEventListener(event, touch, { passive: true }))
+    window.addEventListener('session-timeout-updated', updateTimeout)
+    const timer = window.setInterval(check, 15_000)
+    check()
+    return () => {
+      active = false
+      events.forEach((event) => window.removeEventListener(event, touch))
+      window.removeEventListener('session-timeout-updated', updateTimeout)
+      window.clearInterval(timer)
+    }
+  }, [isAuthenticated, sessionIdleTimeoutSeconds])
   return (
     <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
       <BrowserRouter
@@ -100,6 +144,7 @@ export default function App() {
             <Route path="business"      element={<RoleProtectedRoute blockedRoles={["STAFF"]}><BusinessPage /></RoleProtectedRoute>} />
             <Route path="mpesa-settings" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><MpesaSettingsPage /></RoleProtectedRoute>} />
             <Route path="receipt-template" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><ReceiptTemplatePage /></RoleProtectedRoute>} />
+            <Route path="session-timeouts" element={<RoleProtectedRoute blockedRoles={["STAFF", "SUPERADMIN"]}><SessionTimeoutSettingsPage /></RoleProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

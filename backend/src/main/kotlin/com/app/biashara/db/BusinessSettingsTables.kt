@@ -42,6 +42,17 @@ object CyberSourceConfigsTable : Table("cybersource_configs") {
     override val primaryKey = PrimaryKey(id)
 }
 
+// ─── Per-business client session policy ─────────────────────────────────────
+
+object BusinessSessionSettingsTable : Table("business_session_settings") {
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id)
+    val webTimeoutSeconds = long("web_timeout_seconds").default(1800L)
+    val androidTimeoutSeconds = long("android_timeout_seconds").default(1800L)
+    val desktopTimeoutSeconds = long("desktop_timeout_seconds").default(1800L)
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(businessId)
+}
+
 // ─── Audit Log for Configuration Changes ───────────────────────────────────────
 // 🔒 SECURITY: Track who changed what and when for compliance
 object ConfigurationAuditTable : Table("configuration_audit") {

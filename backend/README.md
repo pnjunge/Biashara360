@@ -69,6 +69,7 @@ See `.env` (created by setup.sh) or `src/main/resources/application.conf` for al
 | `KRA_ETIMS_ENV` | `sandbox` or `production` |
 | `ANTHROPIC_API_KEY` | For AI social auto-replies |
 | `META_APP_ID/SECRET` | From developers.facebook.com |
+| `META_SYSTEM_USER_TOKEN` | Platform-owned long-lived Meta system-user token; inject from a deployment vault, never store in the database |
 | `TIKTOK_CLIENT_KEY/SECRET` | From developers.tiktok.com |
 
 ## API Base URL

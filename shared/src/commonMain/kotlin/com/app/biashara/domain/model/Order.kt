@@ -65,5 +65,5 @@ enum class DeliveryStatus {
 
 @Serializable
 enum class PaymentMethod {
-    MPESA, AIRTEL_MONEY, TKASH, CASH, CARD, BANK_TRANSFER
+    MPESA, AIRTEL_MONEY, TKASH, CASH, COD, CARD, BANK_TRANSFER
 }

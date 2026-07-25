@@ -6,6 +6,8 @@ import io.ktor.server.application.*
 import io.ktor.server.config.*
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 
 object DatabaseFactory {
@@ -85,8 +87,15 @@ object DatabaseFactory {
                 SocialOrdersTable,
                 MpesaConfigsTable,
                 CyberSourceConfigsTable,
+                BusinessSessionSettingsTable,
                 SystemSettingsTable
             )
+            // WhatsApp uses the single platform system-user token injected from
+            // the deployment vault. Remove any legacy merchant tokens from DB.
+            SocialChannelsTable.update({ SocialChannelsTable.platform eq "WHATSAPP" }) {
+                it[SocialChannelsTable.accessToken] = ""
+                it[SocialChannelsTable.refreshToken] = null
+            }
         }
     }
 }

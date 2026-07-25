@@ -48,11 +48,10 @@ class OrdersViewModel(
 
     fun syncOrders(businessId: String) {
         scope.launch {
-            _state.update { it.copy(isSyncing = true) }
-            try {
-                orderRepository?.syncOrdersFromApi(businessId)
-            } catch (_: Exception) { }
-            _state.update { it.copy(isSyncing = false) }
+            _state.update { it.copy(isSyncing = true, error = null) }
+            val result = orderRepository?.syncOrdersFromApi(businessId)
+                ?: Result.failure(IllegalStateException("Order repository unavailable"))
+            _state.update { it.copy(isSyncing = false, error = result.exceptionOrNull()?.message) }
         }
     }
 
@@ -73,6 +72,36 @@ class OrdersViewModel(
             } else {
                 _state.update { it.copy(isLoading = false, error = res.exceptionOrNull()?.message) }
             }
+        }
+    }
+
+    fun amendOrder(orderId: String, paymentStatus: PaymentStatus, deliveryStatus: DeliveryStatus) {
+        scope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            val paymentResult = orderRepository?.updatePaymentStatus(orderId, paymentStatus, null)
+                ?: Result.failure(IllegalStateException("Order repository unavailable"))
+            val deliveryResult = if (paymentResult.isSuccess) {
+                orderRepository?.updateDeliveryStatus(orderId, deliveryStatus)
+                    ?: Result.failure(IllegalStateException("Order repository unavailable"))
+            } else paymentResult
+            _state.update {
+                it.copy(
+                    isLoading = false,
+                    error = deliveryResult.exceptionOrNull()?.message
+                )
+            }
+        }
+    }
+
+    fun voidOrder(orderId: String) {
+        scope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            val cancelled = cancelOrderUseCase(orderId)
+            val result = if (cancelled.isSuccess) {
+                orderRepository?.updatePaymentStatus(orderId, PaymentStatus.REFUNDED, null)
+                    ?: Result.failure(IllegalStateException("Order repository unavailable"))
+            } else cancelled
+            _state.update { it.copy(isLoading = false, error = result.exceptionOrNull()?.message) }
         }
     }
 }

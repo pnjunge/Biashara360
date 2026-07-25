@@ -120,9 +120,8 @@ fun Route.productRoutesValidated() {
                 }
                 field("category", req.category) {
                     optional {
-                        custom("Invalid category", "INVALID_CATEGORY") {
-                            ProductCategory.isValid(it as String)
-                        }
+                        maxLength(80)
+                        matches(Regex("^[A-Za-z0-9][A-Za-z0-9 &/_-]*$"), "Category contains unsupported characters")
                     }
                 }
                 field("imageUrl", req.imageUrl) {

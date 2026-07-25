@@ -18,7 +18,7 @@ export default function CyberSourceSettingsPage() {
         if (res.success && res.data) {
           setMerchantId(res.data.merchantId)
           setMerchantKeyId(res.data.merchantKeyId)
-          setMerchantSecretKey('••••••••••••••••••••••••••••••••')
+          setMerchantSecretKey('')
           setIsSandbox(res.data.environment === 'sandbox')
         }
       })
@@ -35,7 +35,7 @@ export default function CyberSourceSettingsPage() {
       const res = await settingsApi.updateCyberSource({
         merchantId,
         merchantKeyId,
-        merchantSecretKey,
+        ...(merchantSecretKey.trim() ? { merchantSecretKey: merchantSecretKey.trim() } : {}),
         environment: isSandbox ? 'sandbox' : 'production'
       })
       if (res.success) {
@@ -94,11 +94,11 @@ export default function CyberSourceSettingsPage() {
           placeholder="e.g. 9c7c25eb-xxxx-xxxx-xxxx-xxxxxxx"
         />
         <Input
-          label="Shared Secret Key (REST API Shared Secret) *"
+          label="Replace Shared Secret Key"
           value={merchantSecretKey}
           onChange={setMerchantSecretKey}
           type="password"
-          placeholder="Enter secure shared secret key"
+          placeholder="Leave blank to keep the current secret"
         />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>

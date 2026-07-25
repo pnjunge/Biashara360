@@ -470,15 +470,15 @@ fun Biashara360DesktopAppContent(
                         AppScreen.Inventory -> DesktopInventoryScreen(searchQuery = searchQuery)
                         AppScreen.Orders -> DesktopOrdersScreen(searchQuery = searchQuery)
                         AppScreen.Customers -> DesktopCustomersScreen(searchQuery = searchQuery)
-                        AppScreen.Expenses -> DesktopExpensesScreen()
-                        AppScreen.Payments -> DesktopPaymentsScreen()
-                        AppScreen.CyberSource -> DesktopCyberSourceSettingsScreen()
-                        AppScreen.Mpesa -> DesktopMpesaScreen()
+                        AppScreen.Expenses -> DesktopExpensesModernScreen()
+                        AppScreen.Payments -> DesktopPaymentsModernScreen()
+                        AppScreen.CyberSource -> DesktopPaymentConfigurationScreen()
+                        AppScreen.Mpesa -> DesktopPaymentConfigurationScreen()
                         AppScreen.ReceiptTemplate -> DesktopReceiptTemplateScreen()
                         AppScreen.Reports -> DesktopReportsScreen()
-                        AppScreen.Tax -> DesktopTaxScreen()
-                        AppScreen.KRA -> DesktopKraScreen()
-                        AppScreen.Social -> DesktopSocialScreen()
+                        AppScreen.Tax -> DesktopTaxModernScreen()
+                        AppScreen.KRA -> DesktopKraModernScreen()
+                        AppScreen.Social -> DesktopSocialModernScreen()
                         AppScreen.Settings -> DesktopSettingsScreen()
                     }
                 }
@@ -958,4 +958,3 @@ fun DesktopOtpCard(viewModel: AuthViewModel, state: com.app.biashara.presentatio
         }
     }
 }
-

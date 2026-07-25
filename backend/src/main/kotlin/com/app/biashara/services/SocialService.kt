@@ -8,6 +8,7 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.server.config.ApplicationConfig
 import kotlinx.datetime.Clock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
@@ -74,8 +75,13 @@ class SocialService(
     private val httpClient: HttpClient,
     private val mpesaService: MpesaService,
     private val orderService: OrderService,
-    private val productService: ProductService
+    private val productService: ProductService,
+    config: ApplicationConfig
 ) {
+    private val metaSystemUserToken =
+        config.propertyOrNull("social.metaSystemUserToken")?.getString()?.trim().orEmpty()
+
+    fun isMetaSystemUserConfigured(): Boolean = metaSystemUserToken.isNotBlank()
 
     // ── Channel Management ────────────────────────────────────────────────────
 
@@ -85,18 +91,39 @@ class SocialService(
     }
 
     fun connectChannel(businessId: String, req: SocialChannelRequest): ApiResponse<SocialChannelResponse> = transaction {
+        val platformName = req.platform.uppercase()
+        if (platformName == "WHATSAPP") {
+            if (!isMetaSystemUserConfigured()) {
+                return@transaction ApiResponse(false, message = "Platform WhatsApp credentials are not configured")
+            }
+            if (req.wabaId.isNullOrBlank() || req.phoneNumberId.isNullOrBlank() || req.metaBusinessId.isNullOrBlank()) {
+                return@transaction ApiResponse(false, message = "wabaId, phoneNumberId, and metaBusinessId are required")
+            }
+            val duplicate = SocialChannelsTable.select {
+                (SocialChannelsTable.platform eq "WHATSAPP") and
+                    ((SocialChannelsTable.wabaId eq req.wabaId) or
+                        (SocialChannelsTable.phoneNumberId eq req.phoneNumberId))
+            }.count() > 0
+            if (duplicate) {
+                return@transaction ApiResponse(false, message = "This WhatsApp Business Account or phone number is already connected")
+            }
+        }
         val id           = generateId()
         val verifyToken  = UUID.randomUUID().toString().replace("-", "")
         val now          = Clock.System.now()
         SocialChannelsTable.insert {
             it[SocialChannelsTable.id]           = id
             it[SocialChannelsTable.businessId]   = businessId
-            it[platform]                         = req.platform.uppercase()
+            it[platform]                         = platformName
             it[channelName]                      = req.channelName
-            it[externalId]                       = req.externalId
+            it[externalId]                       = if (platformName == "WHATSAPP") req.phoneNumberId!! else req.externalId
             it[phoneNumber]                      = req.phoneNumber
-            it[accessToken]                      = req.accessToken
-            it[refreshToken]                     = req.refreshToken
+            it[tenantId]                         = if (platformName == "WHATSAPP") businessId else null
+            it[wabaId]                           = req.wabaId
+            it[phoneNumberId]                    = req.phoneNumberId
+            it[metaBusinessId]                   = req.metaBusinessId
+            it[accessToken]                      = if (platformName == "WHATSAPP") "" else req.accessToken
+            it[refreshToken]                     = if (platformName == "WHATSAPP") null else req.refreshToken
             it[autoReplyEnabled]                 = req.autoReplyEnabled
             it[aiPersonaPrompt]                  = req.aiPersonaPrompt
             it[webhookVerifyToken]               = verifyToken
@@ -348,13 +375,30 @@ class SocialService(
         }
 
         val extConvId = conv[SocialConversationsTable.externalConvId]
+        val channel = transaction {
+            SocialChannelsTable.select {
+                SocialChannelsTable.id eq conv[SocialConversationsTable.channelId]
+            }.firstOrNull()
+        }
+        val platform = conv[SocialConversationsTable.platform]
+        val recipientId = conv[SocialConversationsTable.customerExternalId]
         val messageIdToReply = lastMsgId ?: try {
             val msgUrl = "http://unified-inbox:3000/api/messages?conversationId=$extConvId"
             val response: NodeMessagesResponse = httpClient.get(msgUrl).body()
             response.data.lastOrNull()?.nativeId
         } catch (_: Exception) { null }
 
-        val sendResult = if (messageIdToReply != null) {
+        val sendResult = if (platform == "WHATSAPP") {
+            // WhatsApp always uses the platform system-user token and the
+            // merchant's phone_number_id; never delegate with a DB token.
+            if (channel == null) false else {
+                sendWhatsAppMessage(
+                    channel[SocialChannelsTable.phoneNumberId] ?: channel[SocialChannelsTable.externalId],
+                    recipientId,
+                    req.content
+                )
+            }
+        } else if (messageIdToReply != null) {
             try {
                 val replyUrl = "http://unified-inbox:3000/api/messages/$messageIdToReply/reply"
                 val response = httpClient.post(replyUrl) {
@@ -365,14 +409,8 @@ class SocialService(
             } catch (_: Exception) { false }
         } else {
             // Fallback: call the direct platform API senders as a backup
-            val channel = transaction {
-                SocialChannelsTable.select { SocialChannelsTable.id eq conv[SocialConversationsTable.channelId] }.firstOrNull()
-            }
             if (channel != null) {
-                val platform = conv[SocialConversationsTable.platform]
-                val recipientId = conv[SocialConversationsTable.customerExternalId]
                 when (platform) {
-                    "WHATSAPP"  -> sendWhatsAppMessage(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], recipientId, req.content)
                     "INSTAGRAM" -> sendInstagramDm(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], recipientId, req.content)
                     "FACEBOOK"  -> sendFacebookMessage(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], recipientId, req.content)
                     "TIKTOK"    -> sendTikTokDm(channel[SocialChannelsTable.accessToken], conv[SocialConversationsTable.externalConvId], req.content)
@@ -657,7 +695,7 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
             if (msg.type != "text") return@forEach
             val senderName = contacts.find { it.wa_id == msg.from }?.profile?.name ?: "WhatsApp User"
             val content    = msg.text?.body ?: return@forEach
-            val channel    = findChannelByExternalId("WHATSAPP", wabaId) ?: return@forEach
+            val channel    = findWhatsAppChannelByWabaId(wabaId) ?: return@forEach
 
             val convId = upsertConversation(channel, "WHATSAPP", msg.from, msg.id, senderName, null)
             saveInboundMessage(convId, channel[SocialChannelsTable.businessId], msg.id, content, "TEXT")
@@ -712,11 +750,12 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
 
     // ── Platform API Senders ──────────────────────────────────────────────────
 
-    private suspend fun sendWhatsAppMessage(token: String, wabaPhoneId: String, to: String, text: String): Boolean {
+    private suspend fun sendWhatsAppMessage(phoneNumberId: String, to: String, text: String): Boolean {
+        if (metaSystemUserToken.isBlank()) return false
         return try {
-            val r = httpClient.post("https://graph.facebook.com/v20.0/$wabaPhoneId/messages") {
+            val r = httpClient.post("https://graph.facebook.com/v20.0/$phoneNumberId/messages") {
                 contentType(ContentType.Application.Json)
-                header("Authorization", "Bearer $token")
+                header("Authorization", "Bearer $metaSystemUserToken")
                 setBody("""{"messaging_product":"whatsapp","to":"$to","type":"text","text":{"body":${Json.encodeToString(text)}}}""")
             }
             r.status.isSuccess()
@@ -825,7 +864,11 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
                 // Actually send the reply via platform
                 val conv = transaction { SocialConversationsTable.select { SocialConversationsTable.id eq convId }.first() }
                 when (channel[SocialChannelsTable.platform]) {
-                    "WHATSAPP"  -> sendWhatsAppMessage(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], conv[SocialConversationsTable.customerExternalId], reply)
+                    "WHATSAPP"  -> sendWhatsAppMessage(
+                        channel[SocialChannelsTable.phoneNumberId] ?: channel[SocialChannelsTable.externalId],
+                        conv[SocialConversationsTable.customerExternalId],
+                        reply
+                    )
                     "INSTAGRAM" -> sendInstagramDm(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], conv[SocialConversationsTable.customerExternalId], reply)
                     "FACEBOOK"  -> sendFacebookMessage(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], conv[SocialConversationsTable.customerExternalId], reply)
                     "TIKTOK"    -> sendTikTokDm(channel[SocialChannelsTable.accessToken], conv[SocialConversationsTable.externalConvId], reply)
@@ -839,6 +882,15 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
             (SocialChannelsTable.platform eq platform) and
             (SocialChannelsTable.externalId eq externalId) and
             (SocialChannelsTable.isActive eq true)
+        }.firstOrNull()
+    }
+
+    private fun findWhatsAppChannelByWabaId(wabaId: String): ResultRow? = transaction {
+        SocialChannelsTable.select {
+            (SocialChannelsTable.platform eq "WHATSAPP") and
+                ((SocialChannelsTable.wabaId eq wabaId) or
+                    ((SocialChannelsTable.wabaId.isNull()) and (SocialChannelsTable.externalId eq wabaId))) and
+                (SocialChannelsTable.isActive eq true)
         }.firstOrNull()
     }
 
@@ -905,6 +957,10 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
             channelName        = this[SocialChannelsTable.channelName],
             externalId         = this[SocialChannelsTable.externalId],
             phoneNumber        = this[SocialChannelsTable.phoneNumber],
+            tenantId           = this[SocialChannelsTable.tenantId],
+            wabaId             = this[SocialChannelsTable.wabaId],
+            phoneNumberId      = this[SocialChannelsTable.phoneNumberId],
+            metaBusinessId     = this[SocialChannelsTable.metaBusinessId],
             isActive           = this[SocialChannelsTable.isActive],
             autoReplyEnabled   = this[SocialChannelsTable.autoReplyEnabled],
             aiPersonaPrompt    = this[SocialChannelsTable.aiPersonaPrompt],

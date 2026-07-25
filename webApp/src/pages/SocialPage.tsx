@@ -474,11 +474,11 @@ function ChannelsTab() {
     WHATSAPP: {
       title: 'Meta Business Suite → WhatsApp',
       steps: [
-        'Go to developers.facebook.com → Your App → WhatsApp → API Setup',
-        'Add a phone number and complete business verification',
-        'Copy the "Phone number ID" as External ID and generate a permanent access token',
-        'Paste your Webhook URL and Verify Token on the Webhooks configuration page',
-        'Subscribe to "messages" webhook fields',
+        'Choose Continue with Meta in the onboarding wizard',
+        'Sign in and select your verified Meta business',
+        'Select the WhatsApp Business Account and phone number',
+        'Biashara360 records only the WABA, phone-number, and business IDs',
+        'No merchant access token is requested or stored',
       ]
     },
     INSTAGRAM: {
@@ -653,9 +653,12 @@ function ChannelsTab() {
             {/* Form fields */}
             {[
               { label:'Channel Name', placeholder:'e.g. My WhatsApp Business', key:'channelName' },
-              { label: newPlatform === 'WHATSAPP' ? 'Phone Number ID (from Meta)' : newPlatform === 'TIKTOK' ? 'TikTok Open ID / Client Key' : 'Page ID / Account ID', placeholder:'Numeric ID from developer console', key:'externalId' },
-              ...(newPlatform === 'WHATSAPP' ? [{ label:'Phone Number', placeholder:'+254700000001', key:'phone' }] : []),
-              { label:'Access Token', placeholder:'Long-lived access token', key:'token' },
+              { label: newPlatform === 'WHATSAPP' ? 'Phone Number ID (from Embedded Signup)' : newPlatform === 'TIKTOK' ? 'TikTok Open ID / Client Key' : 'Page ID / Account ID', placeholder:'Numeric ID from developer console', key:'externalId' },
+              ...(newPlatform === 'WHATSAPP' ? [
+                { label:'WABA ID', placeholder:'102939...', key:'wabaId' },
+                { label:'Meta Business ID', placeholder:'merchant_business_id', key:'metaBusinessId' },
+                { label:'Phone Number', placeholder:'+254700000001', key:'phone' }
+              ] : [{ label:'Access Token', placeholder:'Long-lived access token', key:'token' }]),
             ].map(f => (
               <div key={f.key} style={{ marginBottom:12 }}>
                 <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5, color:'#666' }}>{f.label}</label>

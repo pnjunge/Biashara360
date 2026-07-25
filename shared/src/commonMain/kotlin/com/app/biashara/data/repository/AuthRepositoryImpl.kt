@@ -29,6 +29,7 @@ class AuthRepositoryImpl(
         val loginData = response.data
         if (!loginData.requiresOtp) {
             tokenStorage.saveTokens(loginData.accessToken ?: "", loginData.refreshToken ?: "")
+            refreshSessionTimeoutPolicy()
             loginData.user?.let { user ->
                 UserSession.setUser(
                     User(
@@ -71,6 +72,7 @@ class AuthRepositoryImpl(
 
         val authData = response.data
         tokenStorage.saveTokens(authData.accessToken, authData.refreshToken)
+        refreshSessionTimeoutPolicy()
 
         // Populate UserSession with the full user
         val user = authData.user
@@ -110,6 +112,7 @@ class AuthRepositoryImpl(
             ?: throw Exception(response.message.ifBlank { "Session expired. Please sign in again." })
         if (!response.success) throw Exception(response.message.ifBlank { "Session expired. Please sign in again." })
         tokenStorage.saveTokens(authData.accessToken, authData.refreshToken)
+        refreshSessionTimeoutPolicy()
         setSessionUser(authData.user)
         authData.accessToken
     }
@@ -182,5 +185,11 @@ class AuthRepositoryImpl(
                 createdAt = Clock.System.now()
             )
         )
+    }
+
+    private suspend fun refreshSessionTimeoutPolicy() {
+        runCatching {
+            refreshSessionIdleTimeout(client)?.let { tokenStorage.saveSessionIdleTimeoutSeconds(it) }
+        }
     }
 }

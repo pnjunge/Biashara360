@@ -2,6 +2,7 @@ package com.app.biashara.presentation.viewmodel
 
 import com.app.biashara.data.remote.UserDto
 import com.app.biashara.domain.model.BusinessProfile
+import com.app.biashara.domain.model.CyberSourceConfig
 import com.app.biashara.domain.model.MpesaConfig
 import com.app.biashara.domain.model.MpesaConfigRequest
 import com.app.biashara.domain.repository.BusinessRepository
@@ -27,6 +28,12 @@ data class MpesaConfigState(
     val saveSuccess: Boolean = false
 )
 
+data class CyberSourceConfigState(
+    val isLoading: Boolean = false,
+    val config: CyberSourceConfig? = null,
+    val error: String? = null
+)
+
 data class UsersState(
     val isLoading: Boolean = false,
     val users: List<UserDto> = emptyList(),
@@ -44,6 +51,9 @@ class BusinessViewModel(
 
     private val _mpesaState = MutableStateFlow(MpesaConfigState())
     val mpesaState: StateFlow<MpesaConfigState> = _mpesaState.asStateFlow()
+
+    private val _cyberSourceState = MutableStateFlow(CyberSourceConfigState())
+    val cyberSourceState: StateFlow<CyberSourceConfigState> = _cyberSourceState.asStateFlow()
 
     private val _usersState = MutableStateFlow(UsersState())
     val usersState: StateFlow<UsersState> = _usersState.asStateFlow()
@@ -87,17 +97,27 @@ class BusinessViewModel(
         }
     }
 
-    fun saveMpesaConfig(config: MpesaConfigRequest) {
+    fun loadCyberSourceConfig() {
         scope.launch {
-            _mpesaState.update { it.copy(isSaving = true, error = null, saveSuccess = false) }
-            repository.saveMpesaConfig(config)
-                .onSuccess {
-                    _mpesaState.update { it.copy(isSaving = false, saveSuccess = true) }
-                    loadMpesaConfig()
+            _cyberSourceState.update { it.copy(isLoading = true, error = null) }
+            repository.getCyberSourceConfig()
+                .onSuccess { config ->
+                    _cyberSourceState.update { it.copy(isLoading = false, config = config) }
                 }
                 .onFailure { exception ->
-                    _mpesaState.update { it.copy(isSaving = false, error = exception.message) }
+                    _cyberSourceState.update { it.copy(isLoading = false, error = exception.message) }
                 }
+        }
+    }
+
+    @Deprecated("Payment settings are managed in the web application")
+    fun saveMpesaConfig(config: MpesaConfigRequest) {
+        _mpesaState.update {
+            it.copy(
+                isSaving = false,
+                saveSuccess = false,
+                error = "M-Pesa configuration is read-only here. Manage it in the Biashara360 web application."
+            )
         }
     }
 

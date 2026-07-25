@@ -457,8 +457,8 @@ fun SettingsScreen(
             }
             item {
                 SettingsSection("Integrations") {
-                    SettingsNavItem("M-Pesa Setup", Icons.Filled.PhoneAndroid) { onNavigateToPayments?.invoke() }
-                    SettingsNavItem("Card / CyberSource Config", Icons.Filled.CreditCard) { onNavigateToCyberSourceSettings?.invoke() }
+                    SettingsNavItem("M-Pesa Configuration (Read-only)", Icons.Filled.PhoneAndroid) { onNavigateToCyberSourceSettings?.invoke() }
+                    SettingsNavItem("CyberSource Configuration (Read-only)", Icons.Filled.CreditCard) { onNavigateToCyberSourceSettings?.invoke() }
                     SettingsNavItem("KRA eTIMS", Icons.Filled.Assignment) { onNavigateToKra?.invoke() }
                     SettingsNavItem("Social Channels", Icons.Filled.Share) { onNavigateToSocial?.invoke() }
                 }

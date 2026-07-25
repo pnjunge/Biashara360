@@ -23,6 +23,7 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
+        buildConfigField("long", "SESSION_IDLE_TIMEOUT_SECONDS", (System.getenv("SESSION_IDLE_TIMEOUT_SECONDS") ?: "1800"))
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -65,6 +66,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -101,4 +103,3 @@ kotlin {
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
 }
-

@@ -48,10 +48,13 @@ const PLATFORMS = [
   }
 ]
 
+const META_APP_ID = import.meta.env.VITE_META_APP_ID || ''
+const META_EMBEDDED_SIGNUP_CONFIG_ID = import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID || ''
+
 // Steps for the Onboarding wizard
 const STEPS = [
   { label: 'Select Channel' },
-  { label: 'Enter Credentials' },
+  { label: 'Connect Account' },
   { label: 'Webhook Setup' },
   { label: 'Verify Integration' },
   { label: 'AI Persona Setup' }
@@ -69,6 +72,8 @@ export default function SocialOnboardingPage() {
   // Credentials form
   const [channelName, setChannelName] = useState('')
   const [externalId, setExternalId] = useState('')
+  const [wabaId, setWabaId] = useState('')
+  const [metaBusinessId, setMetaBusinessId] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [accessToken, setAccessToken] = useState('')
 
@@ -92,6 +97,58 @@ export default function SocialOnboardingPage() {
   useEffect(() => {
     loadChannels()
   }, [])
+
+  useEffect(() => {
+    const receiveMetaSignup = (event: MessageEvent) => {
+      if (event.origin !== 'https://www.facebook.com' && event.origin !== 'https://web.facebook.com') return
+      let payload: any = event.data
+      if (typeof payload === 'string') {
+        try { payload = JSON.parse(payload) } catch { return }
+      }
+      if (payload?.type !== 'WA_EMBEDDED_SIGNUP') return
+      const data = payload.data || {}
+      if (data.waba_id) setWabaId(String(data.waba_id))
+      if (data.phone_number_id) setExternalId(String(data.phone_number_id))
+      if (data.business_id) setMetaBusinessId(String(data.business_id))
+      setErrorMsg('')
+    }
+    window.addEventListener('message', receiveMetaSignup)
+    return () => window.removeEventListener('message', receiveMetaSignup)
+  }, [])
+
+  const launchEmbeddedSignup = () => {
+    if (!META_APP_ID || !META_EMBEDDED_SIGNUP_CONFIG_ID) {
+      setErrorMsg('Meta Embedded Signup is not configured for this deployment.')
+      return
+    }
+    const start = () => (window as any).FB.login(
+      () => {},
+      {
+        config_id: META_EMBEDDED_SIGNUP_CONFIG_ID,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: { setup: {} }
+      }
+    )
+    if ((window as any).FB) {
+      start()
+      return
+    }
+    ;(window as any).fbAsyncInit = () => {
+      ;(window as any).FB.init({ appId: META_APP_ID, cookie: true, xfbml: true, version: 'v20.0' })
+      start()
+    }
+    const existing = document.getElementById('facebook-jssdk')
+    if (!existing) {
+      const script = document.createElement('script')
+      script.id = 'facebook-jssdk'
+      script.async = true
+      script.defer = true
+      script.crossOrigin = 'anonymous'
+      script.src = 'https://connect.facebook.net/en_US/sdk.js'
+      document.body.appendChild(script)
+    }
+  }
 
   const loadChannels = async () => {
     setLoading(true)
@@ -126,10 +183,14 @@ export default function SocialOnboardingPage() {
       return
     }
     if (!externalId.trim()) {
-      setErrorMsg('External ID (Phone Number ID, Page ID, or Client Key) is required.')
+      setErrorMsg(selectedPlatform === 'WHATSAPP' ? 'Phone Number ID is required.' : 'External ID is required.')
       return
     }
-    if (!accessToken.trim()) {
+    if (selectedPlatform === 'WHATSAPP' && (!wabaId.trim() || !metaBusinessId.trim())) {
+      setErrorMsg('WABA ID and Meta Business ID are required.')
+      return
+    }
+    if (selectedPlatform !== 'WHATSAPP' && !accessToken.trim()) {
       setErrorMsg('Developer Access Token is required.')
       return
     }
@@ -142,7 +203,10 @@ export default function SocialOnboardingPage() {
         channelName,
         externalId,
         phoneNumber: selectedPlatform === 'WHATSAPP' ? phoneNumber : null,
-        accessToken,
+        accessToken: selectedPlatform === 'WHATSAPP' ? '' : accessToken,
+        wabaId: selectedPlatform === 'WHATSAPP' ? wabaId : null,
+        phoneNumberId: selectedPlatform === 'WHATSAPP' ? externalId : null,
+        metaBusinessId: selectedPlatform === 'WHATSAPP' ? metaBusinessId : null,
         autoReplyEnabled: false, // Save with false, activate during Step 5 AI Persona
         aiPersonaPrompt: ''
       })
@@ -447,6 +511,16 @@ export default function SocialOnboardingPage() {
 
           {errorMsg && <AlertBanner message={errorMsg} icon={<AlertCircle size={16} />} color="var(--b360-red)" />}
 
+          {selectedPlatform === 'WHATSAPP' && (
+            <div style={{ padding: 16, border: '1px solid var(--b360-border)', borderRadius: 10, background: 'var(--b360-surface)' }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Meta Embedded Signup</div>
+              <div style={{ fontSize: 12, color: 'var(--b360-text-secondary)', marginBottom: 12 }}>
+                Sign in with Meta and choose the WhatsApp Business Account and phone number to connect.
+              </div>
+              <Btn onClick={launchEmbeddedSignup}>Continue with Meta</Btn>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <Input
@@ -459,7 +533,7 @@ export default function SocialOnboardingPage() {
               <Input
                 label={
                   selectedPlatform === 'WHATSAPP'
-                    ? 'Phone Number ID (WABA External ID) *'
+                    ? 'Phone Number ID *'
                     : selectedPlatform === 'FACEBOOK' || selectedPlatform === 'INSTAGRAM'
                     ? 'Meta Page/Account ID *'
                     : 'TikTok Client App ID *'
@@ -470,17 +544,20 @@ export default function SocialOnboardingPage() {
               />
 
               {selectedPlatform === 'WHATSAPP' && (
-                <Input
-                  label="Business Phone Number *"
-                  placeholder="e.g. +254700000000"
-                  value={phoneNumber}
-                  onChange={setPhoneNumber}
-                />
+                <>
+                  <Input label="WhatsApp Business Account (WABA) ID *" placeholder="e.g. 102939..." value={wabaId} onChange={setWabaId} />
+                  <Input label="Meta Business ID *" placeholder="e.g. merchant_business_id" value={metaBusinessId} onChange={setMetaBusinessId} />
+                  <Input label="Business Phone Number *" placeholder="e.g. +254700000000" value={phoneNumber} onChange={setPhoneNumber} />
+                </>
               )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {selectedPlatform === 'WHATSAPP' ? (
+                <div style={{ padding: 16, borderRadius: 8, background: 'var(--b360-surface)', color: 'var(--b360-text-secondary)', fontSize: 12, lineHeight: 1.6 }}>
+                  Biashara360 uses its platform-owned Meta system-user token. Your merchant token is never requested or stored.
+                </div>
+              ) : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-text-secondary)' }}>
                   Developer System User/Page Token *
                 </label>
@@ -504,7 +581,7 @@ export default function SocialOnboardingPage() {
                 <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
                   <Info size={12} /> Make sure this token has permanent expiry (system user token) so connection does not expire.
                 </span>
-              </div>
+              </div>}
             </div>
           </div>
 

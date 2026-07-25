@@ -437,14 +437,14 @@ fun DesktopDashboardScreen(
     var toastMessage by remember { mutableStateOf<String?>(null) }
 
     val scrollState = rememberScrollState()
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .background(Color(0xFFF8FAFC))
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
+    Box(Modifier.fillMaxSize().background(Color(0xFFF8FAFC))) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(start = 24.dp, top = 24.dp, end = 34.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
         // Screen Header
         ScreenHeader(
             title = "Dashboard",
@@ -731,7 +731,11 @@ fun DesktopDashboardScreen(
                 subtitle = "Download as PDF",
                 icon = Icons.Default.Description
             ) {
-                toastMessage = "PDF export is being generated and will be available shortly!"
+                exportDesktopFile(
+                    "biashara360-dashboard-report.txt",
+                    "Biashara360 Dashboard Report\nMonthly Revenue: KES ${state.monthRevenue}\nNet Profit: KES ${state.netProfit}\nTotal Orders: ${state.totalOrders}\nPending Orders: ${state.pendingOrders}"
+                )
+                toastMessage = "Dashboard report saved to Downloads."
             }
             BottomActionCard(
                 modifier = Modifier.weight(1f),
@@ -739,7 +743,12 @@ fun DesktopDashboardScreen(
                 subtitle = "Download as Excel",
                 icon = Icons.Default.GridView
             ) {
-                toastMessage = "Excel export is being prepared and will download shortly!"
+                exportDesktopFile(
+                    "biashara360-dashboard-orders.csv",
+                    "Order,Customer,Status,Amount,Created\n" +
+                        state.recentOrders.joinToString("\n") { "${it.orderNumber},${it.customerName},${it.paymentStatus.name},${it.subtotal},${it.createdAt}" }
+                )
+                toastMessage = "Dashboard CSV saved to Downloads."
             }
             BottomActionCard(
                 modifier = Modifier.weight(1f),
@@ -758,6 +767,20 @@ fun DesktopDashboardScreen(
                 }
             }
         }
+        }
+
+        VerticalScrollbar(
+            adapter = rememberScrollbarAdapter(scrollState),
+            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(vertical = 8.dp, horizontal = 5.dp),
+            style = ScrollbarStyle(
+                minimalHeight = 42.dp,
+                thickness = 8.dp,
+                shape = RoundedCornerShape(6.dp),
+                hoverDurationMillis = 250,
+                unhoverColor = Color(0xFFCBD5E1).copy(alpha = 0.65f),
+                hoverColor = Color(0xFF94A3B8)
+            )
+        )
     }
 
     if (toastMessage != null) {
@@ -994,23 +1017,110 @@ fun DesktopInventoryScreen(
         viewModel.onSearchQueryChange(activeSearch)
     }
 
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = activeSearch, onValueChange = { localSearchQuery = it },
-                placeholder = { Text("Search products...") },
-                leadingIcon = { Icon(Icons.Filled.Search, null) },
-                modifier = Modifier.width(320.dp), shape = RoundedCornerShape(10.dp), singleLine = true
-            )
-            Spacer(Modifier.weight(1f))
-            Button(onClick = { showAddProductDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
-                Icon(Icons.Filled.Add, null, Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Add Product")
+    Column(
+        Modifier.fillMaxSize().background(Color(0xFFF8FAFC)).padding(28.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Inventory", color = Color(0xFF0F1F3A), fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Dashboard", color = Color(0xFF64748B), fontSize = 14.sp)
+                    Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                    Text("Inventory", color = Color(0xFF64748B), fontSize = 14.sp)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = { viewModel.syncProducts(UserSession.getBusinessId()) },
+                    enabled = !state.isSyncing,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, B360Green),
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 13.dp)
+                ) {
+                    if (state.isSyncing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(17.dp),
+                            strokeWidth = 2.dp,
+                            color = B360Green
+                        )
+                    } else {
+                        Icon(Icons.Default.Sync, null, Modifier.size(18.dp), tint = B360Green)
+                    }
+                    Spacer(Modifier.width(7.dp))
+                    Text(if (state.isSyncing) "Syncing…" else "Sync Backend", color = B360Green, fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = { showAddProductDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 13.dp)
+                ) {
+                    Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text("Add Product", fontWeight = FontWeight.Bold)
+                }
             }
         }
 
-        Card(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(12.dp)) {
+        state.error?.let { message ->
+            Surface(
+                color = Color(0xFFFEF2F2),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, Color(0xFFFCA5A5))
+            ) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.ErrorOutline, null, tint = B360Red, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Backend sync failed: $message", color = Color(0xFF991B1B), fontSize = 13.sp)
+                }
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            KpiCard(Modifier.weight(1f), "Total Products", state.products.size.toString(), "All products in store", Icons.Default.ShoppingBag, B360Green, Color(0xFFE6F7F0))
+            KpiCard(Modifier.weight(1f), "Low Stock", state.lowStockCount.toString(), "Products low on stock", Icons.Default.Inventory2, B360Blue, Color(0xFFE8F1FF))
+            KpiCard(Modifier.weight(1f), "Out of Stock", state.products.count { it.isOutOfStock }.toString(), "Products out of stock", Icons.Default.Inventory, B360Amber, Color(0xFFFFF3D6))
+            KpiCard(Modifier.weight(1f), "Inventory Value", "KES ${String.format("%,.0f", state.totalStockValue)}", "Total inventory value", Icons.Default.Sell, Color(0xFF7C3AED), Color(0xFFF1EAFE))
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = activeSearch, onValueChange = { localSearchQuery = it },
+                placeholder = { Text("Search products by name, SKU, or barcode…") },
+                leadingIcon = { Icon(Icons.Filled.Search, null) },
+                modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp), singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    focusedBorderColor = B360Green,
+                    unfocusedBorderColor = Color(0xFFE2E8F0)
+                )
+            )
+            listOf(
+                InventoryFilter.ALL to "All Status",
+                InventoryFilter.LOW_STOCK to "Low Stock",
+                InventoryFilter.OUT_OF_STOCK to "Out of Stock"
+            ).forEach { (filter, label) ->
+                FilterChip(
+                    selected = state.selectedFilter == filter,
+                    onClick = { viewModel.onFilterChange(filter) },
+                    label = { Text(label) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFFE6F7F0),
+                        selectedLabelColor = B360Green
+                    ),
+                    border = BorderStroke(1.dp, if (state.selectedFilter == filter) B360Green else Color(0xFFE2E8F0))
+                )
+            }
+        }
+
+        Card(
+            Modifier.fillMaxWidth().weight(1f),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        ) {
             Column {
                 // Header
                 Row(Modifier.fillMaxWidth().background(Color(0xFFF8F8F8)).padding(horizontal = 16.dp, vertical = 12.dp)) {
@@ -1038,7 +1148,7 @@ fun DesktopInventoryScreen(
                                 }
                                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     IconButton(onClick = { editingProduct = product }, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Edit, null, tint = B360Blue, modifier = Modifier.size(16.dp)) }
-                                    IconButton(onClick = {}, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.AddBox, null, tint = B360Green, modifier = Modifier.size(16.dp)) }
+                                    IconButton(onClick = { editingProduct = product }, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.AddBox, null, tint = B360Green, modifier = Modifier.size(16.dp)) }
                                 }
                             }
                             HorizontalDivider(color = Color(0xFFF5F5F5))
@@ -1057,6 +1167,10 @@ fun DesktopInventoryScreen(
         var buyingPrice by remember { mutableStateOf(editingProduct?.buyingPrice?.toString() ?: "") }
         var sellingPrice by remember { mutableStateOf(editingProduct?.sellingPrice?.toString() ?: "") }
         var currentStock by remember { mutableStateOf(editingProduct?.currentStock?.toString() ?: "") }
+        var category by remember { mutableStateOf(editingProduct?.category?.ifBlank { "OTHER" } ?: "OTHER") }
+        var categoryMenuOpen by remember { mutableStateOf(false) }
+        var creatingCategory by remember { mutableStateOf(false) }
+        var customCategory by remember { mutableStateOf("") }
         var error by remember { mutableStateOf<String?>(null) }
 
         val onSave = {
@@ -1077,6 +1191,7 @@ fun DesktopInventoryScreen(
                     buyingPrice = cost,
                     sellingPrice = sell,
                     currentStock = stock,
+                    category = category,
                     createdAt = editingProduct?.createdAt ?: Clock.System.now(),
                     updatedAt = Clock.System.now()
                 )
@@ -1092,17 +1207,34 @@ fun DesktopInventoryScreen(
                 editingProduct = null
             },
             title = {
-                Text(
-                    text = if (isEdit) "Edit Product" else "Add New Product",
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E293B)
-                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Surface(shape = CircleShape, color = Color(0xFFE2F8EF), modifier = Modifier.size(52.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.ShoppingBag, null, tint = B360Green, modifier = Modifier.size(28.dp))
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column {
+                        Text(if (isEdit) "Edit Product" else "Add New Product", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color(0xFF1E293B))
+                        Text(if (isEdit) "Update the product details." else "Enter the details of the new product.", color = Color(0xFF64748B), fontSize = 14.sp)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = {
+                        showAddProductDialog = false
+                        editingProduct = null
+                    }) {
+                        Icon(Icons.Default.Close, "Close", tint = Color(0xFF64748B), modifier = Modifier.size(27.dp))
+                    }
+                }
             },
             text = {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier
-                        .width(360.dp)
+                        .width(680.dp)
+                        .heightIn(max = 650.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(end = 8.dp)
                         .onPreviewKeyEvent { keyEvent ->
                             if (keyEvent.type == KeyEventType.KeyDown) {
                                 when (keyEvent.key) {
@@ -1129,67 +1261,158 @@ fun DesktopInventoryScreen(
                         value = name,
                         onValueChange = { name = it },
                         label = { Text("Product Name *") },
+                        leadingIcon = { Icon(Icons.Default.LocalOffer, null, tint = B360Green) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
-                        singleLine = true
+                        singleLine = true,
+                        colors = productDialogFieldColors()
                     )
                     OutlinedTextField(
                         value = sku,
                         onValueChange = { sku = it },
                         label = { Text("SKU / Barcode *") },
+                        leadingIcon = { Icon(Icons.Default.QrCode, null, tint = B360Green) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
-                        singleLine = true
+                        singleLine = true,
+                        colors = productDialogFieldColors()
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = buyingPrice,
                             onValueChange = { buyingPrice = it },
                             label = { Text("Cost Price *") },
+                            prefix = { Text("KES  ", color = B360Green, fontWeight = FontWeight.Bold) },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp),
-                            singleLine = true
+                            singleLine = true,
+                            colors = productDialogFieldColors()
                         )
                         OutlinedTextField(
                             value = sellingPrice,
                             onValueChange = { sellingPrice = it },
                             label = { Text("Sell Price *") },
+                            prefix = { Text("KES  ", color = B360Green, fontWeight = FontWeight.Bold) },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp),
-                            singleLine = true
+                            singleLine = true,
+                            colors = productDialogFieldColors()
+                        )
+                    }
+                    Row(Modifier.fillMaxWidth()) {
+                        Text("Your purchase price per unit", Modifier.weight(1f), color = Color(0xFF64748B), fontSize = 12.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Your selling price per unit", Modifier.weight(1f), color = Color(0xFF64748B), fontSize = 12.sp)
+                    }
+                    Box(Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = category,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Category *") },
+                            leadingIcon = { Icon(Icons.Default.Category, null, tint = B360Green) },
+                            trailingIcon = {
+                                IconButton(onClick = { categoryMenuOpen = true }) {
+                                    Icon(Icons.Default.KeyboardArrowDown, null)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = productDialogFieldColors()
+                        )
+                        DropdownMenu(expanded = categoryMenuOpen, onDismissRequest = { categoryMenuOpen = false }) {
+                            val categoryOptions = (
+                                listOf(
+                                "ELECTRONICS", "CLOTHING", "FOOD", "BEVERAGES",
+                                "HOUSEHOLD", "BEAUTY", "HEALTH", "BOOKS",
+                                "TOYS", "SPORTS", "AUTOMOTIVE", "OTHER"
+                                ) + state.products.map { it.category }.filter { it.isNotBlank() }
+                            ).distinct()
+                            categoryOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = { category = option; creatingCategory = false; categoryMenuOpen = false }
+                                )
+                            }
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Create new category…", color = B360Green, fontWeight = FontWeight.Bold) },
+                                leadingIcon = { Icon(Icons.Default.Add, null, tint = B360Green) },
+                                onClick = { creatingCategory = true; categoryMenuOpen = false }
+                            )
+                        }
+                    }
+                    if (creatingCategory) {
+                        OutlinedTextField(
+                            value = customCategory,
+                            onValueChange = {
+                                customCategory = it.take(80)
+                                category = customCategory.trim()
+                            },
+                            label = { Text("New Category Name *") },
+                            leadingIcon = { Icon(Icons.Default.CreateNewFolder, null, tint = B360Green) },
+                            supportingText = { Text("This category will be available on web and desktop after saving.") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            singleLine = true,
+                            colors = productDialogFieldColors()
                         )
                     }
                     OutlinedTextField(
                         value = currentStock,
                         onValueChange = { currentStock = it },
                         label = { Text("Stock Quantity *") },
+                        leadingIcon = { Icon(Icons.Default.Inventory2, null, tint = B360Green) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
-                        singleLine = true
+                        singleLine = true,
+                        colors = productDialogFieldColors()
                     )
+                    Text("Current available stock", color = Color(0xFF64748B), fontSize = 12.sp)
+                    HorizontalDivider(color = Color(0xFFE2E8F0), modifier = Modifier.padding(top = 8.dp))
                 }
             },
             confirmButton = {
                 Button(
                     onClick = { onSave() },
-                    colors = ButtonDefaults.buttonColors(containerColor = B360Green)
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                    shape = RoundedCornerShape(9.dp),
+                    modifier = Modifier.height(48.dp),
+                    contentPadding = PaddingValues(horizontal = 25.dp)
                 ) {
-                    Text("Save", color = Color.White)
+                    Icon(Icons.Default.Save, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(
+                OutlinedButton(
                     onClick = {
                         showAddProductDialog = false
                         editingProduct = null
-                    }
+                    },
+                    shape = RoundedCornerShape(9.dp),
+                    modifier = Modifier.height(48.dp),
+                    contentPadding = PaddingValues(horizontal = 25.dp)
                 ) {
-                    Text("Cancel", color = Color.Gray)
+                    Text("Cancel", color = Color(0xFF334155), fontWeight = FontWeight.SemiBold)
                 }
-            }
+            },
+            shape = RoundedCornerShape(22.dp),
+            containerColor = Color.White
         )
     }
 }
+
+@Composable
+private fun productDialogFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = B360Green,
+    unfocusedBorderColor = Color(0xFFD5DEE8),
+    focusedLeadingIconColor = B360Green,
+    unfocusedLeadingIconColor = B360Green,
+    focusedContainerColor = Color.White,
+    unfocusedContainerColor = Color.White
+)
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
@@ -1204,19 +1427,69 @@ fun DesktopOrdersScreen(
         viewModel.loadOrders()
     }
     var selectedOrder by remember { mutableStateOf<Order?>(null) }
+    var orderToCancel by remember { mutableStateOf<Order?>(null) }
+    var orderToVoid by remember { mutableStateOf<Order?>(null) }
+    var orderToAmend by remember { mutableStateOf<Order?>(null) }
+    var localSearchQuery by remember { mutableStateOf("") }
+    val activeSearch = searchQuery.ifBlank { localSearchQuery }
 
-    val filteredOrders = if (searchQuery.isBlank()) {
+    val filteredOrders = if (activeSearch.isBlank()) {
         state.filteredOrders
     } else {
         state.filteredOrders.filter { order ->
-            order.orderNumber.contains(searchQuery, ignoreCase = true) ||
-            order.customerName.contains(searchQuery, ignoreCase = true) ||
-            order.customerPhone.contains(searchQuery, ignoreCase = true)
+            order.orderNumber.contains(activeSearch, ignoreCase = true) ||
+            order.customerName.contains(activeSearch, ignoreCase = true) ||
+            order.customerPhone.contains(activeSearch, ignoreCase = true)
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(
+        Modifier.fillMaxSize().background(Color(0xFFF8FAFC)).padding(28.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Orders", color = Color(0xFF0F1F3A), fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Dashboard", color = Color(0xFF64748B), fontSize = 14.sp)
+                    Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                    Text("Orders", color = Color(0xFF64748B), fontSize = 14.sp)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = { viewModel.syncOrders(UserSession.getBusinessId()) },
+                    enabled = !state.isSyncing,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, B360Green),
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 13.dp)
+                ) {
+                    if (state.isSyncing) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = B360Green)
+                    else Icon(Icons.Default.Sync, null, Modifier.size(18.dp), tint = B360Green)
+                    Spacer(Modifier.width(7.dp))
+                    Text(if (state.isSyncing) "Syncing…" else "Sync Orders", color = B360Green, fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = { navigationViewModel.navigateTo(AppScreen.Pos) },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 13.dp)
+                ) {
+                    Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text("New Order", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            KpiCard(Modifier.weight(1f), "Total Orders", state.orders.size.toString(), "All orders placed", Icons.Default.ReceiptLong, Color(0xFF7C3AED), Color(0xFFF1EAFE))
+            KpiCard(Modifier.weight(1f), "Paid Orders", state.orders.count { it.paymentStatus == PaymentStatus.PAID }.toString(), "Completed payments", Icons.Default.AssignmentTurnedIn, B360Green, Color(0xFFE6F7F0))
+            KpiCard(Modifier.weight(1f), "Pending Orders", state.orders.count { it.paymentStatus == PaymentStatus.PENDING }.toString(), "Awaiting payment", Icons.Default.Schedule, B360Amber, Color(0xFFFFF3D6))
+            KpiCard(Modifier.weight(1f), "Total Sales", "KES ${String.format("%,.0f", state.orders.filter { it.paymentStatus == PaymentStatus.PAID }.sumOf { it.subtotal })}", "Paid order value", Icons.Default.MonetizationOn, B360Blue, Color(0xFFE8F1FF))
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = state.selectedTabStatus == null, onClick = { viewModel.selectTab(null) }, label = { Text("All") })
                 FilterChip(selected = state.selectedTabStatus == PaymentStatus.PAID, onClick = { viewModel.selectTab(PaymentStatus.PAID) }, label = { Text("Paid") })
@@ -1224,14 +1497,29 @@ fun DesktopOrdersScreen(
                 FilterChip(selected = state.selectedTabStatus == PaymentStatus.COD, onClick = { viewModel.selectTab(PaymentStatus.COD) }, label = { Text("COD") })
             }
             Spacer(Modifier.weight(1f))
-            Button(onClick = { navigationViewModel.navigateTo(AppScreen.Pos) }, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
-                Icon(Icons.Filled.Add, null, Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("New Order")
-            }
+            OutlinedTextField(
+                value = activeSearch,
+                onValueChange = { localSearchQuery = it },
+                placeholder = { Text("Search order, customer, or phone…") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                singleLine = true,
+                modifier = Modifier.width(360.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    focusedBorderColor = B360Green,
+                    unfocusedBorderColor = Color(0xFFE2E8F0)
+                )
+            )
         }
 
-        Card(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(12.dp)) {
+        Card(
+            Modifier.fillMaxWidth().weight(1f),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        ) {
             Column {
                 Row(Modifier.fillMaxWidth().background(Color(0xFFF8F8F8)).padding(horizontal = 16.dp, vertical = 12.dp)) {
                     listOf("Order #", "Customer", "Phone", "Amount", "Payment", "Delivery", "Date").forEachIndexed { i, h ->
@@ -1281,7 +1569,7 @@ fun DesktopOrdersScreen(
                 color = Color.White,
                 tonalElevation = 8.dp,
                 modifier = Modifier
-                    .width(550.dp)
+                    .width(820.dp)
                     .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
                             selectedOrder = null
@@ -1290,8 +1578,8 @@ fun DesktopOrdersScreen(
                     }
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.padding(30.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     // Header
                     Row(
@@ -1299,62 +1587,70 @@ fun DesktopOrdersScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = "Order Details: ${order.orderNumber}",
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                color = Color(0xFF1E293B)
-                            )
-                            Text(
-                                text = order.createdAt.toString().take(16).replace("T", " "),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(shape = CircleShape, color = Color(0xFFE2F8EF), modifier = Modifier.size(58.dp)) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.ShoppingCart, null, tint = B360Green, modifier = Modifier.size(31.dp))
+                                }
+                            }
+                            Spacer(Modifier.width(18.dp))
+                            Column {
+                                Text(
+                                    text = "Order Details: ${order.orderNumber}",
+                                    fontSize = 27.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF15233B)
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CalendarToday, null, tint = Color(0xFF64748B), modifier = Modifier.size(17.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = order.createdAt.toString().take(16).replace("T", " "),
+                                        fontSize = 15.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
+                            }
                         }
                         IconButton(onClick = { selectedOrder = null }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF64748B), modifier = Modifier.size(28.dp))
                         }
                     }
 
                     HorizontalDivider()
 
-                    // Customer and Shipping Info Card
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(24.dp)
+                        horizontalArrangement = Arrangement.spacedBy(30.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("CUSTOMER INFO", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.Gray)
-                            Spacer(Modifier.height(4.dp))
-                            Text(order.customerName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text(order.customerPhone, fontSize = 13.sp, color = Color.Gray)
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("DELIVERY INFO", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.Gray)
-                            Spacer(Modifier.height(4.dp))
-                            Text(order.deliveryStatus.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = B360Green)
-                            Text(order.deliveryLocation.ifBlank { "N/A" }, fontSize = 13.sp, color = Color.Gray)
-                        }
+                        OrderInfoBlock(
+                            Modifier.weight(1f), "CUSTOMER INFORMATION", Icons.Default.PersonOutline,
+                            order.customerName, order.customerPhone
+                        )
+                        VerticalDivider(Modifier.height(82.dp), color = Color(0xFFE2E8F0))
+                        OrderInfoBlock(
+                            Modifier.weight(1f), "DELIVERY INFORMATION", Icons.Default.Storefront,
+                            order.deliveryStatus.displayLabel().uppercase(),
+                            order.deliveryLocation.ifBlank { "In-Store POS" },
+                            accent = order.deliveryStatus != DeliveryStatus.CANCELLED
+                        )
                     }
 
-                    // Payment details
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(24.dp)
+                        horizontalArrangement = Arrangement.spacedBy(30.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("PAYMENT METHOD", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.Gray)
-                            Spacer(Modifier.height(4.dp))
-                            Text(order.paymentMethod.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            if (order.mpesaTransactionCode != null) {
-                                Text("M-Pesa ID: ${order.mpesaTransactionCode}", fontSize = 13.sp, color = Color.Gray)
-                            }
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("PAYMENT STATUS", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.Gray)
-                            Spacer(Modifier.height(4.dp))
-                            Text(order.paymentStatus.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = if (order.paymentStatus == PaymentStatus.PAID) B360Green else B360Amber)
-                        }
+                        OrderInfoBlock(
+                            Modifier.weight(1f), "PAYMENT METHOD", Icons.Default.Payments,
+                            order.paymentMethod.name.replace("_", " "),
+                            order.mpesaTransactionCode?.let { "Transaction: $it" }
+                        )
+                        VerticalDivider(Modifier.height(82.dp), color = Color(0xFFE2E8F0))
+                        OrderInfoBlock(
+                            Modifier.weight(1f), "PAYMENT STATUS", Icons.Default.CheckCircle,
+                            order.paymentStatus.displayLabel().uppercase(), null,
+                            accent = order.paymentStatus == PaymentStatus.PAID
+                        )
                     }
 
                     if (order.notes.isNotBlank()) {
@@ -1367,46 +1663,91 @@ fun DesktopOrdersScreen(
 
                     HorizontalDivider()
 
-                    // Items List header
-                    Text("ITEMS ORDERED", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.Gray)
-                    
-                    Box(modifier = Modifier.heightIn(max = 180.dp)) {
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text("ITEMS ORDERED", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF64748B))
+
+                    Surface(
+                        shape = RoundedCornerShape(9.dp),
+                        border = BorderStroke(1.dp, Color(0xFFDCE3EA)),
+                        color = Color.White
+                    ) {
+                        Column {
+                            Row(Modifier.fillMaxWidth().background(Color(0xFFF8FBFA)).padding(horizontal = 16.dp, vertical = 13.dp)) {
+                                Text("Item", Modifier.weight(2.2f), fontWeight = FontWeight.Bold)
+                                Text("Unit Price", Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                                Text("Qty", Modifier.weight(.7f), fontWeight = FontWeight.Bold)
+                                Text("Subtotal", Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                            }
+                            HorizontalDivider(color = Color(0xFFDCE3EA))
+                            Column(modifier = Modifier.heightIn(max = 190.dp).verticalScroll(rememberScrollState())) {
                             order.items.forEach { item ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column {
-                                        Text(item.productName, fontWeight = FontWeight.Medium, fontSize = 13.sp)
-                                        Text("KES ${String.format("%,.0f", item.unitPrice)} x ${item.quantity}", fontSize = 11.sp, color = Color.Gray)
+                                    Row(Modifier.weight(2.2f), verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(shape = RoundedCornerShape(7.dp), color = Color(0xFFF1F5F9), modifier = Modifier.size(48.dp)) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(Icons.Default.Inventory2, null, tint = B360Green)
+                                            }
+                                        }
+                                        Spacer(Modifier.width(12.dp))
+                                        Column {
+                                            Text(item.productName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text("KES ${String.format("%,.0f", item.unitPrice)} × ${item.quantity}", fontSize = 12.sp, color = Color(0xFF64748B))
+                                        }
                                     }
-                                    Text("KES ${String.format("%,.0f", item.lineTotal)}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("KES ${String.format("%,.0f", item.unitPrice)}", Modifier.weight(1f), color = Color(0xFF64748B))
+                                    Text(item.quantity.toString(), Modifier.weight(.7f), color = Color(0xFF475569))
+                                    Text("KES ${String.format("%,.0f", item.lineTotal)}", Modifier.weight(1f), fontWeight = FontWeight.Bold)
                                 }
-                                HorizontalDivider(color = Color(0xFFF1F5F9))
                             }
                         }
+                    }
                     }
 
                     HorizontalDivider()
 
-                    // Totals Row
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().background(Color(0xFFF0FBF7), RoundedCornerShape(9.dp)).padding(horizontal = 18.dp, vertical = 16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Total Amount", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text("KES ${String.format("%,.2f", order.subtotal)}", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = B360Green)
+                        Text("Total Amount", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF15233B))
+                        Text("KES ${String.format("%,.2f", order.subtotal)}", fontWeight = FontWeight.Bold, fontSize = 25.sp, color = B360Green)
                     }
 
                     Spacer(Modifier.height(8.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
                     ) {
+                        OutlinedButton(
+                            onClick = { orderToAmend = order },
+                            enabled = order.deliveryStatus != DeliveryStatus.CANCELLED
+                        ) {
+                            Icon(Icons.Default.Edit, null, Modifier.size(17.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Amend")
+                        }
+                        OutlinedButton(
+                            onClick = { orderToCancel = order },
+                            enabled = order.deliveryStatus != DeliveryStatus.CANCELLED,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = B360Amber)
+                        ) {
+                            Icon(Icons.Default.Cancel, null, Modifier.size(17.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Cancel")
+                        }
+                        OutlinedButton(
+                            onClick = { orderToVoid = order },
+                            enabled = order.deliveryStatus != DeliveryStatus.CANCELLED,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = B360Red)
+                        ) {
+                            Icon(Icons.Default.Block, null, Modifier.size(17.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Void")
+                        }
                         Button(
                             onClick = { selectedOrder = null },
                             colors = ButtonDefaults.buttonColors(containerColor = B360Green),
@@ -1419,6 +1760,120 @@ fun DesktopOrdersScreen(
             }
         }
     }
+
+    orderToCancel?.let { order ->
+        AlertDialog(
+            onDismissRequest = { orderToCancel = null },
+            title = { Text("Cancel ${order.orderNumber}?") },
+            text = { Text("This cancels fulfilment and restores the ordered stock. This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.cancelOrder(order.id)
+                        selectedOrder = null
+                        orderToCancel = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Amber)
+                ) { Text("Cancel order") }
+            },
+            dismissButton = { TextButton(onClick = { orderToCancel = null }) { Text("Keep order") } }
+        )
+    }
+
+    orderToVoid?.let { order ->
+        AlertDialog(
+            onDismissRequest = { orderToVoid = null },
+            title = { Text("Void ${order.orderNumber}?") },
+            text = { Text("Use Void only for an erroneous transaction. Stock will be restored and the payment will be marked refunded for audit purposes.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.voidOrder(order.id)
+                        selectedOrder = null
+                        orderToVoid = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Red)
+                ) { Text("Void order") }
+            },
+            dismissButton = { TextButton(onClick = { orderToVoid = null }) { Text("Go back") } }
+        )
+    }
+
+    orderToAmend?.let { order ->
+        var amendedPayment by remember(order.id) { mutableStateOf(order.paymentStatus) }
+        var amendedDelivery by remember(order.id) { mutableStateOf(order.deliveryStatus) }
+        AlertDialog(
+            onDismissRequest = { orderToAmend = null },
+            title = { Text("Amend ${order.orderNumber}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text("Update payment and fulfilment status. Product quantities cannot be changed after checkout; cancel and recreate the order instead.")
+                    Text("Payment", fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(PaymentStatus.PENDING, PaymentStatus.COD, PaymentStatus.PAID).forEach { status ->
+                            FilterChip(
+                                selected = amendedPayment == status,
+                                onClick = { amendedPayment = status },
+                                label = { Text(status.displayLabel()) }
+                            )
+                        }
+                    }
+                    Text("Delivery", fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(DeliveryStatus.PENDING, DeliveryStatus.PROCESSING, DeliveryStatus.SHIPPED, DeliveryStatus.DELIVERED).forEach { status ->
+                            FilterChip(
+                                selected = amendedDelivery == status,
+                                onClick = { amendedDelivery = status },
+                                label = { Text(status.displayLabel()) }
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.amendOrder(order.id, amendedPayment, amendedDelivery)
+                        selectedOrder = null
+                        orderToAmend = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green)
+                ) { Text("Save changes") }
+            },
+            dismissButton = { TextButton(onClick = { orderToAmend = null }) { Text("Cancel") } }
+        )
+    }
+}
+
+@Composable
+private fun OrderInfoBlock(
+    modifier: Modifier,
+    label: String,
+    icon: ImageVector,
+    primary: String,
+    secondary: String?,
+    accent: Boolean = false
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(label, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF64748B))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFEAF9F3), modifier = Modifier.size(48.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = B360Green, modifier = Modifier.size(25.dp))
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    primary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = if (accent) B360Green else Color(0xFF1E293B)
+                )
+                secondary?.let { Text(it, fontSize = 14.sp, color = Color(0xFF64748B)) }
+            }
+        }
+    }
 }
 
 // ─── Customers ────────────────────────────────────────────────────────────────
@@ -1427,7 +1882,8 @@ fun DesktopOrdersScreen(
 fun DesktopCustomersScreen(
     searchQuery: String = "",
     viewModel: CustomersViewModel = remember { inject() },
-    ordersViewModel: OrdersViewModel = remember { inject() }
+    ordersViewModel: OrdersViewModel = remember { inject() },
+    navigationViewModel: DesktopNavigationViewModel = remember { inject() }
 ) {
     val state by viewModel.state.collectAsState()
     val ordersState by ordersViewModel.state.collectAsState()
@@ -1443,18 +1899,60 @@ fun DesktopCustomersScreen(
     }
 
     var showAddCustomerDialog by remember { mutableStateOf(false) }
+    var selectedCustomer by remember { mutableStateOf<Customer?>(null) }
+    val customerOrderCount = ordersState.orders.count { !it.customerId.isNullOrBlank() }
+    val totalCustomerSpend = ordersState.orders.filter { !it.customerId.isNullOrBlank() }.sumOf { it.subtotal }
+    val loyaltyTotal = state.customers.sumOf { it.loyaltyPoints }
 
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = activeSearch, onValueChange = { localSearchQuery = it }, placeholder = { Text("Search customers...") },
-                leadingIcon = { Icon(Icons.Filled.Search, null) }, modifier = Modifier.width(320.dp), shape = RoundedCornerShape(10.dp), singleLine = true)
-            Spacer(Modifier.weight(1f))
-            Button(onClick = { showAddCustomerDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
-                Icon(Icons.Filled.PersonAdd, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Add Customer")
+    Column(
+        Modifier.fillMaxSize().background(Color(0xFFF8FAFC)).padding(28.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Customers", color = Color(0xFF0F1F3A), fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Dashboard", color = Color(0xFF64748B), fontSize = 14.sp)
+                    Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                    Text("Customers", color = Color(0xFF64748B), fontSize = 14.sp)
+                }
+            }
+            Button(
+                onClick = { showAddCustomerDialog = true },
+                colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 13.dp)
+            ) {
+                Icon(Icons.Filled.PersonAdd, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(7.dp))
+                Text("Add Customer", fontWeight = FontWeight.Bold)
             }
         }
 
-        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            KpiCard(Modifier.weight(1f), "Total Customers", state.customers.size.toString(), "Customer profiles", Icons.Default.Groups, B360Green, Color(0xFFE6F7F0))
+            KpiCard(Modifier.weight(1f), "Customer Orders", customerOrderCount.toString(), "Orders linked to customers", Icons.Default.ShoppingCart, B360Blue, Color(0xFFE8F1FF))
+            KpiCard(Modifier.weight(1f), "Customer Spend", "KES ${String.format("%,.0f", totalCustomerSpend)}", "Lifetime order value", Icons.Default.Payments, Color(0xFF7C3AED), Color(0xFFF1EAFE))
+            KpiCard(Modifier.weight(1f), "Loyalty Points", loyaltyTotal.toString(), "Points awarded", Icons.Default.Star, B360Amber, Color(0xFFFFF3D6))
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(value = activeSearch, onValueChange = { localSearchQuery = it }, placeholder = { Text("Search customers...") },
+                leadingIcon = { Icon(Icons.Filled.Search, null) }, modifier = Modifier.width(420.dp), shape = RoundedCornerShape(10.dp), singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    focusedBorderColor = B360Green,
+                    unfocusedBorderColor = Color(0xFFE2E8F0)
+                ))
+        }
+
+        Card(
+            Modifier.fillMaxWidth().weight(1f),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        ) {
             // Precompute lookup maps to avoid O(n²) filter inside the render loop
             val ordersByCustomerId = remember(ordersState.orders) {
                 ordersState.orders.filter { !it.customerId.isNullOrBlank() }.groupBy { it.customerId!! }
@@ -1495,8 +1993,8 @@ fun DesktopCustomersScreen(
                                 Text(customer.loyaltyPoints.toString(), fontWeight = FontWeight.Medium)
                             }
                             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                IconButton(onClick = {}, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Visibility, null, tint = B360Blue, modifier = Modifier.size(16.dp)) }
-                                IconButton(onClick = {}, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Chat, null, tint = B360Green, modifier = Modifier.size(16.dp)) }
+                                IconButton(onClick = { selectedCustomer = customer }, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Visibility, null, tint = B360Blue, modifier = Modifier.size(16.dp)) }
+                                IconButton(onClick = { navigationViewModel.navigateTo(AppScreen.Social) }, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Chat, null, tint = B360Green, modifier = Modifier.size(16.dp)) }
                             }
                         }
                         HorizontalDivider(color = Color(0xFFF5F5F5))
@@ -1504,6 +2002,54 @@ fun DesktopCustomersScreen(
                 }
             }
         }
+    }
+
+    selectedCustomer?.let { customer ->
+        val customerOrders = ordersState.orders.filter {
+            it.customerId == customer.id || it.customerPhone == customer.phone
+        }
+        AlertDialog(
+            onDismissRequest = { selectedCustomer = null },
+            icon = {
+                Surface(shape = CircleShape, color = Color(0xFFE6F7F0)) {
+                    Icon(Icons.Default.Person, null, tint = B360Green, modifier = Modifier.padding(12.dp))
+                }
+            },
+            title = { Text(customer.name, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(Modifier.width(380.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(customer.phone, color = Color(0xFF64748B))
+                    customer.email?.let { Text(it, color = Color(0xFF64748B)) }
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Orders")
+                        Text(customerOrders.size.toString(), fontWeight = FontWeight.Bold)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Total spent")
+                        Text("KES ${String.format("%,.0f", customerOrders.sumOf { it.subtotal })}", fontWeight = FontWeight.Bold, color = B360Green)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Loyalty points")
+                        Text(customer.loyaltyPoints.toString(), fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        selectedCustomer = null
+                        navigationViewModel.navigateTo(AppScreen.Social)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green)
+                ) {
+                    Icon(Icons.Default.Chat, null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text("Open Conversation")
+                }
+            },
+            dismissButton = { OutlinedButton(onClick = { selectedCustomer = null }) { Text("Close") } }
+        )
     }
 
     if (showAddCustomerDialog) {
@@ -1534,11 +2080,11 @@ fun DesktopCustomersScreen(
             onDismissRequest = { showAddCustomerDialog = false }
         ) {
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(22.dp),
                 color = Color.White,
-                tonalElevation = 8.dp,
+                shadowElevation = 18.dp,
                 modifier = Modifier
-                    .width(460.dp)
+                    .width(720.dp)
                     .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.type == KeyEventType.KeyDown) {
                             when (keyEvent.key) {
@@ -1558,7 +2104,10 @@ fun DesktopCustomersScreen(
                     }
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier
+                        .heightIn(max = 760.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 30.dp, vertical = 26.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // Top Row: Icon, Title, Close Button
@@ -1573,32 +2122,41 @@ fun DesktopCustomersScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(58.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFFE6F7F0)),
+                                    .background(Color(0xFFE2F8EF)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.PersonAdd,
                                     contentDescription = null,
                                     tint = B360Green,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(31.dp)
                                 )
                             }
-                            Text(
-                                text = "Add New Customer",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = Color(0xFF1E293B)
-                            )
+                            Column {
+                                Text(
+                                    text = "Add New Customer",
+                                    fontSize = 27.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF15233B)
+                                )
+                                Text(
+                                    text = "Enter the details of the new customer.",
+                                    fontSize = 16.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
                         }
                         IconButton(
                             onClick = { showAddCustomerDialog = false },
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(42.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
-                                tint = Color(0xFF64748B)
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                     }
@@ -1610,8 +2168,8 @@ fun DesktopCustomersScreen(
                     // Field 1: Customer Name *
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("Customer Name", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1E293B))
-                            Text("*", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = B360Green)
+                            Text("Customer Name", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1E293B))
+                            Text("*", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = B360Green)
                         }
                         OutlinedTextField(
                             value = name,
@@ -1638,8 +2196,8 @@ fun DesktopCustomersScreen(
                     // Field 2: Phone Number *
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("Phone Number", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1E293B))
-                            Text("*", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = B360Green)
+                            Text("Phone Number", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1E293B))
+                            Text("*", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = B360Green)
                         }
                         OutlinedTextField(
                             value = phone,
@@ -1665,7 +2223,7 @@ fun DesktopCustomersScreen(
 
                     // Field 3: Email Address
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Email Address", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1E293B))
+                        Text("Email Address", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1E293B))
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it },
@@ -1688,7 +2246,10 @@ fun DesktopCustomersScreen(
                         )
                     }
 
-                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(
+                        color = Color(0xFFE2E8F0),
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
 
                     // Buttons Row
                     Row(
@@ -1701,25 +2262,27 @@ fun DesktopCustomersScreen(
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF64748B)),
                             border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            modifier = Modifier.height(40.dp)
+                            modifier = Modifier.height(48.dp),
+                            contentPadding = PaddingValues(horizontal = 25.dp)
                         ) {
-                            Text("Cancel", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Cancel", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
                         Spacer(Modifier.width(12.dp))
                         Button(
                             onClick = { onSave() },
                             colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(40.dp)
+                            modifier = Modifier.height(48.dp),
+                            contentPadding = PaddingValues(horizontal = 25.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Save,
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp)
                             )
-                            Spacer(Modifier.width(6.dp))
-                            Text("Save", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.width(7.dp))
+                            Text("Save", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -2199,7 +2762,11 @@ fun DesktopReportsScreen(
                 subtitle = "Download as PDF",
                 icon = Icons.Default.Description
             ) {
-                toastMessage = "PDF export is being generated and will be available shortly!"
+                exportDesktopFile(
+                    "biashara360-profit-report.txt",
+                    "Biashara360 Profit Report\nRevenue: KES ${summary?.totalRevenue ?: 0.0}\nExpenses: KES ${summary?.totalExpenses ?: 0.0}\nNet Profit: KES ${summary?.netProfit ?: 0.0}\nNet Margin: ${summary?.netMargin ?: 0.0}%"
+                )
+                toastMessage = "Profit report saved to Downloads."
             }
             BottomActionCard(
                 modifier = Modifier.weight(1f),
@@ -2207,7 +2774,11 @@ fun DesktopReportsScreen(
                 subtitle = "Download as Excel",
                 icon = Icons.Default.GridView
             ) {
-                toastMessage = "Excel export is being prepared and will download shortly!"
+                exportDesktopFile(
+                    "biashara360-profit-report.csv",
+                    "Metric,Value\nRevenue,${summary?.totalRevenue ?: 0.0}\nExpenses,${summary?.totalExpenses ?: 0.0}\nNet Profit,${summary?.netProfit ?: 0.0}\nNet Margin,${summary?.netMargin ?: 0.0}"
+                )
+                toastMessage = "Profit CSV saved to Downloads."
             }
             BottomActionCard(
                 modifier = Modifier.weight(1f),
@@ -2509,7 +3080,17 @@ fun DesktopSettingsScreen(
                                     )
                                 }
                                 Button(
-                                    onClick = {},
+                                    onClick = {
+                                        runCatching {
+                                            if (java.awt.Desktop.isDesktopSupported() &&
+                                                java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)
+                                            ) {
+                                                java.awt.Desktop.getDesktop().browse(
+                                                    java.net.URI("https://enw9p7mvty.us-east-1.awsapprunner.com/settings")
+                                                )
+                                            }
+                                        }
+                                    },
                                     colors = ButtonDefaults.buttonColors(B360Green),
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
@@ -2564,10 +3145,10 @@ fun DesktopSettingsScreen(
                     }
                 }
                 SettingsTab.Mpesa -> {
-                    DesktopMpesaScreen()
+                    DesktopPaymentConfigurationScreen()
                 }
                 SettingsTab.CyberSource -> {
-                    DesktopCyberSourceSettingsScreen()
+                    DesktopPaymentConfigurationScreen()
                 }
                 SettingsTab.Receipt -> {
                     DesktopReceiptTemplateScreen()

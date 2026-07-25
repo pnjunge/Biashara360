@@ -12,6 +12,7 @@ import com.app.biashara.domain.usecase.generateId
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.request.delete
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -41,6 +42,26 @@ data class ProductDto(
     val updatedAt: String
 )
 
+@kotlinx.serialization.Serializable
+private data class StockUpdateRequest(
+    val type: String,
+    val quantity: Int,
+    val note: String = ""
+)
+
+@kotlinx.serialization.Serializable
+private data class ProductRequestDto(
+    val sku: String,
+    val name: String,
+    val description: String,
+    val buyingPrice: Double,
+    val sellingPrice: Double,
+    val currentStock: Int,
+    val lowStockThreshold: Int,
+    val category: String,
+    val imageUrl: String?
+)
+
 class ProductRepositoryImpl(
     private val database: Biashara360Database,
     private val client: HttpClient
@@ -64,24 +85,70 @@ class ProductRepositoryImpl(
         queries.selectProductById(id).executeAsOneOrNull()?.toDomain()
 
     override suspend fun saveProduct(product: Product): Result<Product> = runCatching {
-        val now = Clock.System.now().toString()
-        queries.insertProduct(
-            id = product.id,
-            business_id = product.businessId,
+        val request = ProductRequestDto(
             sku = product.sku,
             name = product.name,
             description = product.description,
-            buying_price = product.buyingPrice,
-            selling_price = product.sellingPrice,
-            current_stock = product.currentStock.toLong(),
-            low_stock_threshold = product.lowStockThreshold.toLong(),
+            buyingPrice = product.buyingPrice,
+            sellingPrice = product.sellingPrice,
+            currentStock = product.currentStock,
+            lowStockThreshold = product.lowStockThreshold,
             category = product.category,
-            image_url = product.imageUrl,
-            is_active = if (product.isActive) 1L else 0L,
-            created_at = product.createdAt.toString(),
-            updated_at = now
+            imageUrl = product.imageUrl
         )
-        product
+        var response: ApiResponse<ProductDto> = client.put("$BASE_URL/products/${product.id}") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
+        if (!response.success && response.message.contains("not found", ignoreCase = true)) {
+            response = client.post("$BASE_URL/products") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }.body()
+        }
+        if (!response.success || response.data == null) {
+            val details = response.errors.filter { it.isNotBlank() }.joinToString("; ")
+            throw Exception(
+                listOf(response.message, details)
+                    .filter { it.isNotBlank() }
+                    .joinToString(": ")
+                    .ifBlank { "Failed to save product on backend" }
+            )
+        }
+
+        var savedDto = requireNotNull(response.data)
+        if (savedDto.currentStock != product.currentStock) {
+            val stockResponse: ApiResponse<ProductDto> = client.post("$BASE_URL/products/${savedDto.id}/stock") {
+                contentType(ContentType.Application.Json)
+                setBody(StockUpdateRequest("ADJUSTMENT", product.currentStock, "Desktop inventory adjustment"))
+            }.body()
+            if (!stockResponse.success || stockResponse.data == null) {
+                throw Exception(stockResponse.message.ifBlank { "Product saved but stock adjustment failed" })
+            }
+            savedDto = requireNotNull(stockResponse.data)
+        }
+
+        val now = Clock.System.now().toString()
+        if (savedDto.id != product.id) {
+            queries.deleteProduct(now, product.id)
+        }
+        queries.insertProduct(
+            id = savedDto.id,
+            business_id = savedDto.businessId,
+            sku = savedDto.sku,
+            name = savedDto.name,
+            description = savedDto.description,
+            buying_price = savedDto.buyingPrice,
+            selling_price = savedDto.sellingPrice,
+            current_stock = savedDto.currentStock.toLong(),
+            low_stock_threshold = savedDto.lowStockThreshold.toLong(),
+            category = savedDto.category,
+            image_url = savedDto.imageUrl,
+            is_active = if (savedDto.isActive) 1L else 0L,
+            created_at = savedDto.createdAt,
+            updated_at = savedDto.updatedAt
+        )
+        savedDto.toDomain()
     }
 
     override suspend fun updateStock(productId: String, movement: StockMovement): Result<Unit> = runCatching {
@@ -107,9 +174,31 @@ class ProductRepositoryImpl(
             order_id = movement.orderId,
             recorded_at = movement.recordedAt.toString()
         )
+
+        // Order create/cancel endpoints already adjust server inventory
+        // transactionally. Only mirror those movements in the local cache.
+        if (movement.orderId != null) return@runCatching
+
+        val response: ApiResponse<ProductDto> = client.post("$BASE_URL/products/$productId/stock") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                StockUpdateRequest(
+                    type = movement.type.name,
+                    quantity = movement.quantity,
+                    note = movement.note
+                )
+            )
+        }.body()
+        if (!response.success) {
+            throw Exception(response.message.ifBlank { "Failed to update inventory on server" })
+        }
     }
 
     override suspend fun deleteProduct(id: String): Result<Unit> = runCatching {
+        val response: ApiResponse<Unit> = client.delete("$BASE_URL/products/$id").body()
+        if (!response.success) {
+            throw Exception(response.message.ifBlank { "Failed to delete product on backend" })
+        }
         queries.deleteProduct(Clock.System.now().toString(), id)
     }
 
@@ -148,7 +237,14 @@ class ProductRepositoryImpl(
             throw Exception(response.message.ifBlank { "Failed to fetch products" })
         }
 
-        // Update local cache
+        // The backend is authoritative. Hide stale desktop-only records that
+        // are no longer returned for this business.
+        val remoteIds = response.data.map { it.id }.toSet()
+        queries.selectAllProducts(businessId).executeAsList()
+            .filter { it.id !in remoteIds }
+            .forEach { queries.deleteProduct(Clock.System.now().toString(), it.id) }
+
+        // Update local cache.
         response.data.forEach { dto ->
             queries.insertProduct(
                 id = dto.id,

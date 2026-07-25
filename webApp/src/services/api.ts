@@ -4,16 +4,19 @@ import axios, { AxiosInstance } from 'axios'
 // deployed App Runner endpoint as the working fallback; production builds can
 // still override it with VITE_API_BASE_URL when DNS is configured.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://sddgmezqj2.us-east-1.awsapprunner.com/v1'
+const LAST_ACTIVITY_KEY = 'sessionLastActivity'
 
 const client: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'X-Client-Platform': 'web'
   }
 })
 
 // Add token to requests if it exists
 client.interceptors.request.use((config) => {
+  if (localStorage.getItem('accessToken')) localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
   const token = localStorage.getItem('accessToken')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
@@ -45,6 +48,7 @@ client.interceptors.response.use(
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('isAuthenticated')
+      localStorage.removeItem(LAST_ACTIVITY_KEY)
       localStorage.removeItem('user')
       window.location.href = '/login'
     }
@@ -101,6 +105,14 @@ export interface ApiResponse<T> {
   data: T | null
   message: string
   errors: any[]
+}
+
+export interface SessionTimeoutConfig {
+  businessId: string
+  webTimeoutSeconds: number
+  androidTimeoutSeconds: number
+  desktopTimeoutSeconds: number
+  updatedAt?: string | null
 }
 
 // ── Domain Models ─────────────────────────────────────────────────────────────
@@ -196,6 +208,8 @@ export interface TaxReturnResponse {
 export interface SocialChannel {
   id: string; platform: string; channelName: string; externalId: string
   phoneNumber: string | null; isActive: boolean; autoReplyEnabled: boolean
+  tenantId?: string | null; wabaId?: string | null; phoneNumberId?: string | null
+  metaBusinessId?: string | null
   webhookVerifyToken: string; webhookUrl: string; unreadCount: number
 }
 
@@ -735,13 +749,14 @@ export interface CyberSourceConfigResponse {
   merchantId: string
   merchantKeyId: string
   environment: string
+  secretConfigured: boolean
   updatedAt: string
 }
 
 export interface CyberSourceConfigRequest {
   merchantId: string
   merchantKeyId: string
-  merchantSecretKey: string
+  merchantSecretKey?: string
   environment: string
 }
 
@@ -757,6 +772,14 @@ export const businessApi = {
 }
 
 export const settingsApi = {
+  getSessionTimeouts: async () => {
+    const res = await client.get<ApiResponse<SessionTimeoutConfig>>('/settings/session-timeouts')
+    return res.data
+  },
+  updateSessionTimeouts: async (data: Pick<SessionTimeoutConfig, 'webTimeoutSeconds' | 'androidTimeoutSeconds' | 'desktopTimeoutSeconds'>) => {
+    const res = await client.put<ApiResponse<SessionTimeoutConfig>>('/settings/session-timeouts', data)
+    return res.data
+  },
   getMpesa: async () => {
     const res = await client.get<ApiResponse<MpesaConfigResponse>>('/settings/mpesa')
     return res.data

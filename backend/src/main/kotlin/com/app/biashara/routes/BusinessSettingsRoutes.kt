@@ -23,14 +23,27 @@ fun Route.businessSettingsRoutes() {
 
     route("/settings") {
 
+        route("/session-timeouts") {
+            get {
+                val businessId = call.businessId()
+                call.respond(ApiResponse(true, data = settingsService.getSessionTimeoutConfig(businessId)))
+            }
+
+            put {
+                if (!call.hasRole("ADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Merchant admin access required"))
+                    return@put
+                }
+                val businessId = call.businessId()
+                val result = settingsService.saveSessionTimeoutConfig(businessId, call.receive<SessionTimeoutConfigRequest>())
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+        }
+
         // ── Mpesa ─────────────────────────────────────────────────────────────
 
         route("/mpesa") {
             get {
-                if (!call.hasRole("ADMIN")) {
-                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
-                    return@get
-                }
                 val businessId = call.businessId()
                 val config = settingsService.getMpesaConfig(businessId)
                 if (config == null) {
@@ -41,8 +54,8 @@ fun Route.businessSettingsRoutes() {
             }
 
             put {
-                if (!call.hasRole("ADMIN")) {
-                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                if (!call.hasRole("ADMIN") || !call.isWebClient()) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Payment settings can only be managed by an admin in the web application"))
                     return@put
                 }
                 val businessId = call.businessId()
@@ -56,10 +69,6 @@ fun Route.businessSettingsRoutes() {
 
         route("/cybersource") {
             get {
-                if (!call.hasRole("ADMIN")) {
-                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
-                    return@get
-                }
                 val businessId = call.businessId()
                 val config = settingsService.getCyberSourceConfig(businessId)
                 if (config == null) {
@@ -70,8 +79,8 @@ fun Route.businessSettingsRoutes() {
             }
 
             put {
-                if (!call.hasRole("ADMIN")) {
-                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                if (!call.hasRole("ADMIN") || !call.isWebClient()) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Payment settings can only be managed by an admin in the web application"))
                     return@put
                 }
                 val businessId = call.businessId()
@@ -82,3 +91,6 @@ fun Route.businessSettingsRoutes() {
         }
     }
 }
+
+private fun ApplicationCall.isWebClient(): Boolean =
+    request.headers["X-Client-Platform"]?.equals("web", ignoreCase = true) == true

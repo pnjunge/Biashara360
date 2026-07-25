@@ -11,7 +11,10 @@ data class SocialChannelRequest(
     val channelName: String,
     val externalId: String,         // WABA ID, Page ID, TikTok open_id
     val phoneNumber: String? = null,
-    val accessToken: String,
+    val accessToken: String = "",
+    val wabaId: String? = null,
+    val phoneNumberId: String? = null,
+    val metaBusinessId: String? = null,
     val refreshToken: String? = null,
     val autoReplyEnabled: Boolean = true,
     val aiPersonaPrompt: String = ""
@@ -24,6 +27,10 @@ data class SocialChannelResponse(
     val channelName: String,
     val externalId: String,
     val phoneNumber: String?,
+    val tenantId: String? = null,
+    val wabaId: String? = null,
+    val phoneNumberId: String? = null,
+    val metaBusinessId: String? = null,
     val isActive: Boolean,
     val autoReplyEnabled: Boolean,
     val aiPersonaPrompt: String,

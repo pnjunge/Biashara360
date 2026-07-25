@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 import com.app.biashara.data.repository.PaymentRepositoryImpl
 
@@ -17,8 +18,8 @@ data class PaymentsState(
     val error: String? = null,
     val isSyncing: Boolean = false
 ) {
-    val totalReconciled: Double get() = payments.filter { it.reconciled }.sumOf { it.amount }
-    val totalUnmatched: Double get() = payments.filter { !it.reconciled }.sumOf { it.amount }
+    val totalReconciled: Double get() = payments.filter { it.status == TransactionStatus.SUCCESS }.sumOf { it.amount }
+    val totalUnmatched: Double get() = payments.filter { it.status == TransactionStatus.SUCCESS && !it.reconciled }.sumOf { it.amount }
 }
 
 class PaymentsViewModel(
@@ -31,10 +32,11 @@ class PaymentsViewModel(
 
     private val _reconcileResult = MutableSharedFlow<Result<Unit>>()
     val reconcileResult: SharedFlow<Result<Unit>> = _reconcileResult.asSharedFlow()
+    private var paymentsJob: Job? = null
 
     fun loadPayments() {
         val businessId = UserSession.getBusinessId()
-        scope.launch {
+        if (paymentsJob == null) paymentsJob = scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             try {
                 getPaymentsUseCase(businessId).collect { payments ->
@@ -44,16 +46,16 @@ class PaymentsViewModel(
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
         }
-        syncPayments(businessId)
+        refreshPayments()
     }
 
-    fun syncPayments(businessId: String) {
+    fun refreshPayments() {
+        val businessId = UserSession.getBusinessId()
         scope.launch {
-            _state.update { it.copy(isSyncing = true) }
-            try {
-                paymentRepository?.syncPaymentsFromApi(businessId)
-            } catch (_: Exception) { }
-            _state.update { it.copy(isSyncing = false) }
+            _state.update { it.copy(isSyncing = true, error = null) }
+            val result = paymentRepository?.syncPaymentsFromApi(businessId)
+                ?: Result.failure(IllegalStateException("Payment repository unavailable"))
+            _state.update { it.copy(isSyncing = false, error = result.exceptionOrNull()?.message) }
         }
     }
 
@@ -62,7 +64,7 @@ class PaymentsViewModel(
             val result = reconcilePaymentUseCase(paymentId, orderId)
             _reconcileResult.emit(result)
             if (result.isSuccess) {
-                loadPayments()
+                refreshPayments()
             } else {
                 _state.update { it.copy(error = result.exceptionOrNull()?.message) }
             }

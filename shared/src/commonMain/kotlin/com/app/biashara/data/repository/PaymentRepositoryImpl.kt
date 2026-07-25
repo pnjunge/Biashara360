@@ -29,7 +29,7 @@ import kotlinx.serialization.Serializable
 data class PaymentDto(
     val id: String,
     val businessId: String,
-    val orderId: String,
+    val orderId: String?,
     val transactionCode: String,
     val amount: Double,
     val payerPhone: String,
@@ -47,6 +47,9 @@ data class StkInitiateRequest(
     val orderId: String,
     val phoneNumber: String
 )
+
+@Serializable
+private data class ReconcilePaymentRequest(val orderId: String)
 
 class PaymentRepositoryImpl(
     private val database: Biashara360Database,
@@ -85,6 +88,14 @@ class PaymentRepositoryImpl(
 
     override suspend fun reconcilePayment(paymentId: String, orderId: String): Result<Unit> =
         runCatching {
+            require(orderId.isNotBlank()) { "Select an order before matching this payment" }
+            val response: ApiResponse<Unit> = client.post("$BASE_URL/payments/$paymentId/reconcile") {
+                contentType(ContentType.Application.Json)
+                setBody(ReconcilePaymentRequest(orderId))
+            }.body()
+            if (!response.success) {
+                throw Exception(response.message.ifBlank { "Failed to reconcile payment on server" })
+            }
             queries.updateReconciliation(orderId = orderId, paymentId = paymentId)
         }
 

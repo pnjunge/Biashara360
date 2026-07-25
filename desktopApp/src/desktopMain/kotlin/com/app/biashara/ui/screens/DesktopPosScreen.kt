@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.app.biashara.UserSession
 import com.app.biashara.domain.model.*
 import com.app.biashara.domain.usecase.CreateOrderUseCase
+import com.app.biashara.domain.usecase.InitiatePaymentUseCase
 import com.app.biashara.domain.usecase.generateId
 import com.app.biashara.presentation.viewmodel.CustomersViewModel
 import com.app.biashara.presentation.viewmodel.InventoryViewModel
@@ -39,7 +40,8 @@ data class DesktopCartItem(
 fun DesktopPosScreen(
     inventoryViewModel: InventoryViewModel = remember { inject() },
     customersViewModel: CustomersViewModel = remember { inject() },
-    createOrderUseCase: CreateOrderUseCase = remember { inject() }
+    createOrderUseCase: CreateOrderUseCase = remember { inject() },
+    initiatePaymentUseCase: InitiatePaymentUseCase = remember { inject() }
 ) {
     val coroutineScope = rememberCoroutineScope()
     val businessId = remember { UserSession.getBusinessId() }
@@ -89,6 +91,8 @@ fun DesktopPosScreen(
     var isCheckingOut by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successOrderNumber by remember { mutableStateOf<String?>(null) }
+    var paymentFeedback by remember { mutableStateOf<String?>(null) }
+    var showCartMenu by remember { mutableStateOf(false) }
 
     val subtotal = cart.sumOf { it.product.sellingPrice * it.qty }
     val tax = subtotal * 0.16
@@ -438,8 +442,35 @@ fun DesktopPosScreen(
                                 Text("Clear All", color = B360Red, fontWeight = FontWeight.Bold)
                             }
                         }
-                        IconButton(onClick = {}) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = Color.Gray)
+                        Box {
+                            IconButton(onClick = { showCartMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = Color.Gray)
+                            }
+                            DropdownMenu(expanded = showCartMenu, onDismissRequest = { showCartMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Clear cart") },
+                                    onClick = {
+                                        cart.clear()
+                                        errorMessage = null
+                                        showCartMenu = false
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.DeleteSweep, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Reset checkout") },
+                                    onClick = {
+                                        selectedCustomer = null
+                                        walkInName = "Walk-In Customer"
+                                        walkInPhone = "+254000000000"
+                                        paymentMethod = PaymentMethod.CASH
+                                        notes = ""
+                                        paymentFeedback = null
+                                        errorMessage = null
+                                        showCartMenu = false
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.RestartAlt, null) }
+                                )
+                            }
                         }
                     }
                 }
@@ -675,12 +706,23 @@ fun DesktopPosScreen(
                             ) {
                                 listOf(
                                     Triple(PaymentMethod.CASH, "CASH", Icons.Default.ShoppingCart),
+                                    Triple(PaymentMethod.COD, "COD", Icons.Default.LocalShipping),
                                     Triple(PaymentMethod.MPESA, "MPESA", Icons.Default.Phone),
                                     Triple(PaymentMethod.CARD, "CARD", Icons.Default.CheckCircle)
                                 ).forEach { (pm, label, icon) ->
                                     val isSelected = paymentMethod == pm
                                     Button(
-                                        onClick = { paymentMethod = pm },
+                                        onClick = {
+                                            paymentMethod = pm
+                                            errorMessage = null
+                                            paymentFeedback = when (pm) {
+                                                PaymentMethod.CASH -> "Cash payment will mark the order as paid immediately."
+                                                PaymentMethod.COD -> "Cash on Delivery will keep payment due until the order is delivered."
+                                                PaymentMethod.MPESA -> "M-Pesa will send an STK prompt to $walkInPhone after the order is created."
+                                                PaymentMethod.CARD -> "Card payment will open the secure CyberSource checkout after the order is created."
+                                                else -> null
+                                            }
+                                        },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = if (isSelected) B360Green else Color(0xFFF1F5F9),
@@ -703,6 +745,21 @@ fun DesktopPosScreen(
                                         }
                                     }
                                 }
+                            }
+                        }
+
+                        paymentFeedback?.let { feedback ->
+                            Surface(
+                                color = B360Green.copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, B360Green.copy(alpha = 0.2f))
+                            ) {
+                                Text(
+                                    feedback,
+                                    color = Color(0xFF166534),
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                                )
                             }
                         }
 
@@ -774,7 +831,11 @@ fun DesktopPosScreen(
                                                 buyingPrice = it.product.buyingPrice
                                             )
                                         },
-                                        paymentStatus = if (paymentMethod == PaymentMethod.CASH) PaymentStatus.PAID else PaymentStatus.PENDING,
+                                        paymentStatus = when (paymentMethod) {
+                                            PaymentMethod.CASH -> PaymentStatus.PAID
+                                            PaymentMethod.COD -> PaymentStatus.COD
+                                            else -> PaymentStatus.PENDING
+                                        },
                                         deliveryStatus = DeliveryStatus.DELIVERED,
                                         paymentMethod = paymentMethod,
                                         notes = notes,
@@ -784,9 +845,43 @@ fun DesktopPosScreen(
 
                                     createOrderUseCase(order)
                                         .onSuccess { savedOrder ->
-                                            successOrderNumber = savedOrder.orderNumber
-                                            cart.clear()
-                                            notes = ""
+                                            when (paymentMethod) {
+                                                PaymentMethod.MPESA -> {
+                                                    initiatePaymentUseCase(savedOrder.id, walkInPhone)
+                                                        .onSuccess {
+                                                            paymentFeedback = "M-Pesa STK prompt sent to $walkInPhone."
+                                                            successOrderNumber = savedOrder.orderNumber
+                                                            cart.clear()
+                                                            notes = ""
+                                                        }
+                                                        .onFailure { paymentError ->
+                                                            errorMessage = "Order ${savedOrder.orderNumber} was saved, but M-Pesa could not start: ${paymentError.message ?: "STK push failed"}"
+                                                        }
+                                                }
+                                                PaymentMethod.CARD -> {
+                                                    try {
+                                                        val checkoutUrl = "https://enw9p7mvty.us-east-1.awsapprunner.com/card-payments?orderId=${savedOrder.id}"
+                                                        if (java.awt.Desktop.isDesktopSupported() &&
+                                                            java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)
+                                                        ) {
+                                                            java.awt.Desktop.getDesktop().browse(java.net.URI(checkoutUrl))
+                                                            paymentFeedback = "Secure CyberSource checkout opened in your browser."
+                                                            successOrderNumber = savedOrder.orderNumber
+                                                            cart.clear()
+                                                            notes = ""
+                                                        } else {
+                                                            errorMessage = "Order ${savedOrder.orderNumber} was saved. Open $checkoutUrl to complete card payment."
+                                                        }
+                                                    } catch (paymentError: Exception) {
+                                                        errorMessage = "Order ${savedOrder.orderNumber} was saved, but card checkout could not open: ${paymentError.message}"
+                                                    }
+                                                }
+                                                else -> {
+                                                    successOrderNumber = savedOrder.orderNumber
+                                                    cart.clear()
+                                                    notes = ""
+                                                }
+                                            }
                                             inventoryViewModel.loadProducts(businessId)
                                         }
                                         .onFailure { err ->

@@ -12,6 +12,11 @@ object SocialChannelsTable : Table("social_channels") {
     val channelName     = varchar("channel_name", 255)     // Page/account display name
     val externalId      = varchar("external_id", 255)      // WABA ID / Page ID / TikTok open_id
     val phoneNumber     = varchar("phone_number", 30).nullable()  // WhatsApp only
+    // WhatsApp tenant routing metadata. The platform system-user token is never stored here.
+    val tenantId        = varchar("tenant_id", 64).nullable()
+    val wabaId          = varchar("waba_id", 255).nullable()
+    val phoneNumberId   = varchar("phone_number_id", 255).nullable()
+    val metaBusinessId  = varchar("meta_business_id", 255).nullable()
     val accessToken     = text("access_token")             // encrypted in prod
     val refreshToken    = text("refresh_token").nullable()
     val tokenExpiresAt  = timestamp("token_expires_at").nullable()
@@ -22,6 +27,10 @@ object SocialChannelsTable : Table("social_channels") {
     val createdAt       = timestamp("created_at")
     val updatedAt       = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
+    init {
+        index(false, platform, wabaId)
+        index(false, platform, phoneNumberId)
+    }
 }
 
 // ─── Conversations ────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.patch
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
@@ -55,6 +56,42 @@ data class OrderDto(
     val updatedAt: String
 )
 
+@kotlinx.serialization.Serializable
+private data class CreateOrderRequestDto(
+    val customerId: String?,
+    val customerName: String,
+    val customerPhone: String,
+    val deliveryLocation: String,
+    val items: List<CreateOrderItemRequestDto>,
+    val paymentMethod: String,
+    val notes: String
+)
+
+@kotlinx.serialization.Serializable
+private data class CreateOrderItemRequestDto(
+    val productId: String,
+    val quantity: Int,
+    val unitPrice: Double
+)
+
+@kotlinx.serialization.Serializable
+private data class PagedOrdersDto(
+    val data: List<OrderDto>,
+    val total: Int,
+    val page: Int,
+    val pageSize: Int,
+    val hasMore: Boolean
+)
+
+@kotlinx.serialization.Serializable
+private data class PaymentStatusRequestDto(
+    val status: String,
+    val mpesaTransactionCode: String? = null
+)
+
+@kotlinx.serialization.Serializable
+private data class DeliveryStatusRequestDto(val status: String)
+
 class OrderRepositoryImpl(
     private val database: Biashara360Database,
     private val client: HttpClient
@@ -78,28 +115,37 @@ class OrderRepositoryImpl(
         queries.selectOrderById(id).executeAsOneOrNull()?.toDomainWithItems()
 
     override suspend fun createOrder(order: Order): Result<Order> = runCatching {
-        val now = kotlinx.datetime.Clock.System.now().toString()
+        val response: ApiResponse<OrderDto> = client.post("$BASE_URL/orders") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                CreateOrderRequestDto(
+                    customerId = order.customerId,
+                    customerName = order.customerName,
+                    customerPhone = order.customerPhone,
+                    deliveryLocation = order.deliveryLocation,
+                    items = order.items.map { CreateOrderItemRequestDto(it.productId, it.quantity, it.unitPrice) },
+                    paymentMethod = order.paymentMethod.name,
+                    notes = order.notes
+                )
+            )
+        }.body()
+        if (!response.success || response.data == null) {
+            throw Exception(response.message.ifBlank { "Failed to create order on backend" })
+        }
+        val saved = requireNotNull(response.data)
         queries.insertOrder(
-            id = order.id,
-            order_number = order.orderNumber,
-            business_id = order.businessId,
-            customer_id = order.customerId,
-            customer_name = order.customerName,
-            customer_phone = order.customerPhone,
-            delivery_location = order.deliveryLocation,
-            payment_status = order.paymentStatus.name,
-            delivery_status = order.deliveryStatus.name,
-            payment_method = order.paymentMethod.name,
-            mpesa_transaction_code = order.mpesaTransactionCode,
-            notes = order.notes,
-            subtotal = order.subtotal,
-            created_at = now,
-            updated_at = now
+            id = saved.id, order_number = saved.orderNumber, business_id = saved.businessId,
+            customer_id = saved.customerId, customer_name = saved.customerName,
+            customer_phone = saved.customerPhone, delivery_location = saved.deliveryLocation,
+            payment_status = saved.paymentStatus, delivery_status = saved.deliveryStatus,
+            payment_method = saved.paymentMethod, mpesa_transaction_code = saved.mpesaTransactionCode,
+            notes = saved.notes, subtotal = saved.items.sumOf { it.quantity * it.unitPrice },
+            created_at = saved.createdAt, updated_at = saved.updatedAt
         )
-        order.items.forEach { item ->
+        saved.items.forEach { item ->
             queries.insertOrderItem(
                 id = generateId(),
-                order_id = order.id,
+                order_id = saved.id,
                 product_id = item.productId,
                 product_name = item.productName,
                 quantity = item.quantity.toLong(),
@@ -107,7 +153,7 @@ class OrderRepositoryImpl(
                 buying_price = item.buyingPrice
             )
         }
-        order
+        saved.toDomain()
     }
 
     override suspend fun updateOrder(order: Order): Result<Order> = runCatching {
@@ -126,6 +172,11 @@ class OrderRepositoryImpl(
         status: PaymentStatus,
         txCode: String?
     ): Result<Unit> = runCatching {
+        val response: ApiResponse<OrderDto> = client.patch("$BASE_URL/orders/$orderId/payment-status") {
+            contentType(ContentType.Application.Json)
+            setBody(PaymentStatusRequestDto(status.name, txCode))
+        }.body()
+        if (!response.success) throw Exception(response.message.ifBlank { "Failed to update payment status on backend" })
         queries.updateOrderPaymentStatus(
             status = status.name,
             txCode = txCode,
@@ -138,6 +189,11 @@ class OrderRepositoryImpl(
         orderId: String,
         status: DeliveryStatus
     ): Result<Unit> = runCatching {
+        val response: ApiResponse<OrderDto> = client.patch("$BASE_URL/orders/$orderId/delivery-status") {
+            contentType(ContentType.Application.Json)
+            setBody(DeliveryStatusRequestDto(status.name))
+        }.body()
+        if (!response.success) throw Exception(response.message.ifBlank { "Failed to update delivery status on backend" })
         queries.updateOrderDeliveryStatus(
             status = status.name,
             updatedAt = kotlinx.datetime.Clock.System.now().toString(),
@@ -148,7 +204,9 @@ class OrderRepositoryImpl(
     override suspend fun cancelOrder(orderId: String): Result<Unit> = runCatching {
         val now = kotlinx.datetime.Clock.System.now().toString()
         queries.updateOrderPaymentStatus(
-            status = "CANCELLED",
+            // PaymentStatus has no CANCELLED value. FAILED keeps the record
+            // readable while deliveryStatus carries the cancellation state.
+            status = "FAILED",
             txCode = null,
             updatedAt = now,
             orderId = orderId
@@ -194,16 +252,17 @@ class OrderRepositoryImpl(
 
     /** Sync orders from API and update local cache **/
     suspend fun syncOrdersFromApi(businessId: String): Result<List<Order>> = runCatching {
-        val response: ApiResponse<List<OrderDto>> = client.get("$BASE_URL/orders") {
-            url { parameters.append("businessId", businessId) }
+        val response: ApiResponse<PagedOrdersDto> = client.get("$BASE_URL/orders") {
+            url { parameters.append("pageSize", "100") }
         }.body()
 
         if (!response.success || response.data == null) {
             throw Exception(response.message.ifBlank { "Failed to fetch orders" })
         }
+        val remoteOrders = requireNotNull(response.data).data
 
         // Update local cache
-        response.data.forEach { dto ->
+        remoteOrders.forEach { dto ->
             queries.insertOrder(
                 id = dto.id,
                 order_number = dto.orderNumber,
@@ -235,7 +294,7 @@ class OrderRepositoryImpl(
             }
         }
 
-        response.data.map { it.toDomain() }
+        remoteOrders.map { it.toDomain() }
     }
 
     private fun OrderDto.toDomain() = Order(

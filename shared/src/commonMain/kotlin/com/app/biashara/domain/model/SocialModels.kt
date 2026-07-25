@@ -24,7 +24,10 @@ data class SocialChannelRequest(
     val channelName: String,
     val externalId: String,
     val phoneNumber: String? = null,
-    val accessToken: String,
+    val accessToken: String = "",
+    val wabaId: String? = null,
+    val phoneNumberId: String? = null,
+    val metaBusinessId: String? = null,
     val autoReplyEnabled: Boolean = true,
     val aiPersonaPrompt: String = ""
 )

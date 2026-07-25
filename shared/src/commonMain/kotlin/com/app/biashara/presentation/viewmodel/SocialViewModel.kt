@@ -134,6 +134,10 @@ class SocialViewModel(
 
     fun saveCredentials() {
         val stateVal = _state.value
+        if (stateVal.selectedPlatform == "WHATSAPP") {
+            _state.update { it.copy(error = "Complete WhatsApp Embedded Signup in the Biashara360 web app. Merchant tokens are not accepted.") }
+            return
+        }
         if (stateVal.channelNameInput.isBlank()) {
             _state.update { it.copy(error = "Please specify a display name for this channel.") }
             return

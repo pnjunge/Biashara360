@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.app.biashara.data.remote.TokenStorage
+import com.app.biashara.data.remote.SESSION_IDLE_TIMEOUT_MILLIS
 
 class SharedPreferencesTokenStorage(context: Context) : TokenStorage {
 
@@ -29,18 +30,20 @@ class SharedPreferencesTokenStorage(context: Context) : TokenStorage {
                 .apply()
             legacyPrefs.edit().clear().apply()
         }
+        if (prefs.contains(KEY_ACCESS_TOKEN) && !prefs.contains(KEY_LAST_ACTIVITY)) {
+            prefs.edit().putLong(KEY_LAST_ACTIVITY, System.currentTimeMillis()).apply()
+        }
     }
 
-    override suspend fun getAccessToken(): String? =
-        prefs.getString(KEY_ACCESS_TOKEN, null)
+    override suspend fun getAccessToken(): String? = activeToken(KEY_ACCESS_TOKEN)
 
-    override suspend fun getRefreshToken(): String? =
-        prefs.getString(KEY_REFRESH_TOKEN, null)
+    override suspend fun getRefreshToken(): String? = activeToken(KEY_REFRESH_TOKEN)
 
     override suspend fun saveTokens(accessToken: String, refreshToken: String) {
         prefs.edit()
             .putString(KEY_ACCESS_TOKEN, accessToken)
             .putString(KEY_REFRESH_TOKEN, refreshToken)
+            .putLong(KEY_LAST_ACTIVITY, System.currentTimeMillis())
             .apply()
     }
 
@@ -48,13 +51,39 @@ class SharedPreferencesTokenStorage(context: Context) : TokenStorage {
         prefs.edit()
             .remove(KEY_ACCESS_TOKEN)
             .remove(KEY_REFRESH_TOKEN)
+            .remove(KEY_LAST_ACTIVITY)
             .apply()
     }
+
+    override suspend fun saveSessionIdleTimeoutSeconds(seconds: Long) {
+        prefs.edit().putLong(KEY_SESSION_TIMEOUT_SECONDS, seconds.coerceIn(60L, 86_400L)).apply()
+    }
+
+    private fun activeToken(key: String): String? {
+        val access = prefs.getString(KEY_ACCESS_TOKEN, null)
+        val last = prefs.getLong(KEY_LAST_ACTIVITY, 0L)
+        if (access != null && last == 0L) {
+            prefs.edit().putLong(KEY_LAST_ACTIVITY, System.currentTimeMillis()).apply()
+        } else if (access != null && System.currentTimeMillis() - last >= effectiveTimeoutMillis()) {
+            clearTokensSync()
+            return null
+        }
+        if (access != null) prefs.edit().putLong(KEY_LAST_ACTIVITY, System.currentTimeMillis()).apply()
+        return prefs.getString(key, null)
+    }
+
+    private fun clearTokensSync() { prefs.edit().remove(KEY_ACCESS_TOKEN).remove(KEY_REFRESH_TOKEN).remove(KEY_LAST_ACTIVITY).apply() }
+
+    private fun effectiveTimeoutMillis() =
+        prefs.getLong(KEY_SESSION_TIMEOUT_SECONDS, SESSION_IDLE_TIMEOUT_MILLIS / 1000L)
+            .coerceIn(60L, 86_400L) * 1000L
 
     companion object {
         private const val LEGACY_PREFERENCES_NAME = "b360_auth_prefs"
         private const val SECURE_PREFERENCES_NAME = "b360_secure_auth_prefs"
         private const val KEY_ACCESS_TOKEN = "access_token"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
+        private const val KEY_LAST_ACTIVITY = "last_activity"
+        private const val KEY_SESSION_TIMEOUT_SECONDS = "session_timeout_seconds"
     }
 }

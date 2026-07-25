@@ -9,9 +9,21 @@ data class MpesaConfig(
     val callbackUrl: String,
     val environment: String = "sandbox",
     val accountType: String = "paybill",
+    val passkeyConfigured: Boolean = false,
     val updatedAt: String = ""
 )
 
+@Serializable
+data class CyberSourceConfig(
+    val businessId: String,
+    val merchantId: String,
+    val merchantKeyId: String,
+    val environment: String = "sandbox",
+    val secretConfigured: Boolean = false,
+    val updatedAt: String = ""
+)
+
+@Deprecated("Payment settings are managed in the web application")
 @Serializable
 data class MpesaConfigRequest(
     val shortCode: String,

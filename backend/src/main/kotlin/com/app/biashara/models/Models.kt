@@ -448,6 +448,22 @@ data class SystemSettingRequest(val value: String)
 @Serializable
 data class SystemSettingResponse(val key: String, val value: String)
 
+@Serializable
+data class SessionTimeoutConfigRequest(
+    val webTimeoutSeconds: Long,
+    val androidTimeoutSeconds: Long,
+    val desktopTimeoutSeconds: Long
+)
+
+@Serializable
+data class SessionTimeoutConfigResponse(
+    val businessId: String,
+    val webTimeoutSeconds: Long,
+    val androidTimeoutSeconds: Long,
+    val desktopTimeoutSeconds: Long,
+    val updatedAt: String? = null
+)
+
 // ─── Business Settings — Mpesa ────────────────────────────────────────────────
 
 @Serializable
@@ -476,7 +492,7 @@ data class MpesaConfigResponse(
 data class CyberSourceConfigRequest(
     val merchantId: String,
     val merchantKeyId: String,
-    val merchantSecretKey: String,
+    val merchantSecretKey: String? = null,
     val environment: String = "sandbox"
 )
 
@@ -486,6 +502,7 @@ data class CyberSourceConfigResponse(
     val merchantId: String,
     val merchantKeyId: String,
     val environment: String,
+    val secretConfigured: Boolean,
     val updatedAt: String
 )
 

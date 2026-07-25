@@ -202,7 +202,7 @@ fun Biashara360App() {
                 )
             }
             composable(Screen.CyberSourceSettings.route) {
-                com.app.biashara.ui.screens.settings.CyberSourceSettingsScreen(
+                com.app.biashara.ui.screens.settings.PaymentConfigurationScreen(
                     onBack = { navController.popBackStack() }
                 )
             }

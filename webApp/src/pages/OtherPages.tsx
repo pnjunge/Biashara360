@@ -883,6 +883,8 @@ export function BusinessPage() {
 
 export function SettingsPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isMerchantAdmin = (user?.role || '').toUpperCase() === 'ADMIN'
 
   const [twoFA, setTwoFA] = useState(true)
   const [sms, setSms] = useState(true)
@@ -968,6 +970,15 @@ export function SettingsPage() {
         </div>
       </Section>
       <Section title="Security">
+        {isMerchantAdmin && (
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid var(--b360-border)', paddingBottom:14 }}>
+            <div>
+              <span style={{ fontSize:13, fontWeight:600, display:'block' }}>Session Timeout Policy</span>
+              <span style={{ fontSize:11, color:'var(--b360-text-secondary)' }}>Set idle timeouts for web, Android, and desktop users</span>
+            </div>
+            <Btn onClick={() => navigate('/session-timeouts')} variant="secondary" small>Manage</Btn>
+          </div>
+        )}
         <Toggle label="Two-Factor Authentication (2FA)" checked={twoFA} onChange={setTwoFA} />
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <span style={{ fontSize:13, color:'var(--b360-text-secondary)' }}>2FA Method</span>

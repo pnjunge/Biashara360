@@ -14,6 +14,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.koin.ktor.ext.inject
+import kotlinx.serialization.json.Json
 
 // ─── Social Commerce Routes ───────────────────────────────────────────────────
 //
@@ -58,6 +59,10 @@ fun Route.socialRoutes() {
                 call.respond(ApiResponse(true, data = channels))
             }
             post {
+                if (!call.hasRole("ADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Merchant admin access required"))
+                    return@post
+                }
                 val businessId = call.businessId()
                 val req        = call.receive<SocialChannelRequest>()
                 if (req.platform.uppercase() !in listOf("WHATSAPP","INSTAGRAM","FACEBOOK","TIKTOK")) {
@@ -65,7 +70,7 @@ fun Route.socialRoutes() {
                         message = "Platform must be WHATSAPP, INSTAGRAM, FACEBOOK or TIKTOK"))
                     return@post
                 }
-                if (req.accessToken.isBlank()) {
+                if (req.platform.uppercase() != "WHATSAPP" && req.accessToken.isBlank()) {
                     call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Access token required"))
                     return@post
                 }
@@ -206,10 +211,17 @@ suspend fun proxyWebhook(call: ApplicationCall, httpClient: HttpClient, path: St
             setBody(rawBody)
         }
         
-        // Sync to Postgres in background
-        try {
-            svc.syncFromUnifiedInbox()
-        } catch (_: Exception) {}
+        if (response.status.isSuccess() && path == "/webhooks/whatsapp") {
+            // The proxy validates Meta's signature. Route the verified payload
+            // by entry.id (WABA ID) to the owning tenant in PostgreSQL.
+            runCatching {
+                val payload = Json { ignoreUnknownKeys = true; isLenient = true }
+                    .decodeFromString<MetaWebhookPayload>(rawBody)
+                svc.processMetaWebhook(payload)
+            }
+        } else if (response.status.isSuccess()) {
+            runCatching { svc.syncFromUnifiedInbox() }
+        }
 
         call.respond(response.status, response.bodyAsText())
     } catch (e: Exception) {
