@@ -109,6 +109,7 @@ data class StockUpdateRequest(
 
 @Serializable
 data class CreateOrderRequest(
+    val clientReference: String? = null,
     val customerId: String? = null,
     val customerName: String,
     val customerPhone: String,

@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import com.app.biashara.UserSession
 import com.app.biashara.domain.model.*
 import com.app.biashara.domain.usecase.CreateOrderUseCase
+import com.app.biashara.domain.usecase.InitiatePaymentUseCase
 import com.app.biashara.domain.usecase.generateId
 import com.app.biashara.presentation.viewmodel.CustomersViewModel
 import com.app.biashara.presentation.viewmodel.InventoryViewModel
@@ -41,6 +42,22 @@ import org.koin.compose.koinInject
 private const val VAT_RATE = 0.16
 
 data class MobileCartItem(val product: Product, var qty: Int)
+
+private data class CheckoutResult(
+    val orderId: String,
+    val orderNumber: String,
+    val paymentMethod: PaymentMethod,
+    val phoneNumber: String,
+    val paymentMessage: String,
+    val paymentPromptAccepted: Boolean
+)
+
+private fun friendlyPaymentError(message: String): String =
+    if (message.contains("Invalid TransactionType", ignoreCase = true)) {
+        "This shortcode may not be provisioned as the selected Paybill or Till type."
+    } else {
+        message.ifBlank { "The M-Pesa prompt could not be sent." }
+    }
 
 // ─── Filter Tab Model ─────────────────────────────────────────────────────────
 private enum class PosFilter(val label: String, val icon: ImageVector) {
@@ -212,7 +229,8 @@ fun PaperAirplaneBoxIllustration(modifier: Modifier = Modifier) {
 fun PosScreen(
     inventoryViewModel: InventoryViewModel = kmpViewModel(),
     customersViewModel: CustomersViewModel = kmpViewModel(),
-    createOrderUseCase: CreateOrderUseCase = koinInject()
+    createOrderUseCase: CreateOrderUseCase = koinInject(),
+    initiatePaymentUseCase: InitiatePaymentUseCase = koinInject()
 ) {
     val coroutineScope = rememberCoroutineScope()
     val businessId = remember { UserSession.getBusinessId() }
@@ -262,7 +280,7 @@ fun PosScreen(
     var notes by remember { mutableStateOf("") }
     var isCheckingOut by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var successOrderNumber by remember { mutableStateOf<String?>(null) }
+    var checkoutResult by remember { mutableStateOf<CheckoutResult?>(null) }
     var showCartSheet by remember { mutableStateOf(false) }
 
     val subtotal = cart.sumOf { it.product.sellingPrice * it.qty }
@@ -378,7 +396,7 @@ fun PosScreen(
             }
         },
         floatingActionButton = {
-            if (cart.isNotEmpty() && successOrderNumber == null) {
+            if (cart.isNotEmpty() && checkoutResult == null) {
                 ExtendedFloatingActionButton(
                     onClick = { showCartSheet = true },
                     containerColor = B360Green,
@@ -527,20 +545,66 @@ fun PosScreen(
         }
 
         // ── Success Dialog ────────────────────────────────────────────────────
-        successOrderNumber?.let { orderNo ->
+        checkoutResult?.let { result ->
             AlertDialog(
-                onDismissRequest = { successOrderNumber = null },
-                title = { Text("Checkout Successful", fontWeight = FontWeight.Bold) },
+                onDismissRequest = { if (!isCheckingOut) checkoutResult = null },
+                title = {
+                    Text(
+                        if (result.paymentPromptAccepted || result.paymentMethod == PaymentMethod.CASH) {
+                            "Checkout Successful"
+                        } else {
+                            "Order Created — Payment Pending"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 text = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Filled.CheckCircle, null, tint = B360Green, modifier = Modifier.size(64.dp))
+                        Icon(
+                            if (result.paymentPromptAccepted || result.paymentMethod == PaymentMethod.CASH) Icons.Filled.CheckCircle else Icons.Filled.Pending,
+                            null,
+                            tint = if (result.paymentPromptAccepted || result.paymentMethod == PaymentMethod.CASH) B360Green else Color(0xFFF59E0B),
+                            modifier = Modifier.size(64.dp)
+                        )
                         Spacer(Modifier.height(8.dp))
-                        Text("Order Number: $orderNo", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))
+                        Text("Order Number: ${result.orderNumber}", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))
+                        Text(result.paymentMessage, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color(0xFF64748B))
                     }
                 },
                 confirmButton = {
-                    Button(onClick = { successOrderNumber = null }, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
+                    Button(onClick = { checkoutResult = null }, enabled = !isCheckingOut, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
                         Text("New Sale", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    if (result.paymentMethod == PaymentMethod.MPESA && !result.paymentPromptAccepted) {
+                        OutlinedButton(
+                            enabled = !isCheckingOut,
+                            onClick = {
+                                isCheckingOut = true
+                                coroutineScope.launch {
+                                    initiatePaymentUseCase(result.orderId, result.phoneNumber)
+                                        .onSuccess {
+                                            checkoutResult = result.copy(
+                                                paymentMessage = it.customerMessage,
+                                                paymentPromptAccepted = true
+                                            )
+                                        }
+                                        .onFailure {
+                                            checkoutResult = result.copy(
+                                                paymentMessage = friendlyPaymentError(it.message.orEmpty())
+                                            )
+                                        }
+                                    isCheckingOut = false
+                                }
+                            }
+                        ) {
+                            if (isCheckingOut) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("Retry M-Pesa")
+                            }
+                        }
                     }
                 }
             )
@@ -633,7 +697,41 @@ fun PosScreen(
                                     createdAt = Clock.System.now(), updatedAt = Clock.System.now()
                                 )
                                 createOrderUseCase(order)
-                                    .onSuccess { saved -> successOrderNumber = saved.orderNumber; cart.clear(); notes = ""; showCartSheet = false; inventoryViewModel.loadProducts(businessId) }
+                                    .onSuccess { saved ->
+                                        val phone = selectedCustomer?.phone ?: walkInPhone
+                                        val result = if (paymentMethod == PaymentMethod.MPESA) {
+                                            initiatePaymentUseCase(saved.id, phone).fold(
+                                                onSuccess = {
+                                                    CheckoutResult(saved.id, saved.orderNumber, paymentMethod, phone, it.customerMessage, true)
+                                                },
+                                                onFailure = {
+                                                    CheckoutResult(
+                                                        saved.id,
+                                                        saved.orderNumber,
+                                                        paymentMethod,
+                                                        phone,
+                                                        friendlyPaymentError(it.message.orEmpty()),
+                                                        false
+                                                    )
+                                                }
+                                            )
+                                        } else {
+                                            CheckoutResult(
+                                                saved.id,
+                                                saved.orderNumber,
+                                                paymentMethod,
+                                                phone,
+                                                if (paymentMethod == PaymentMethod.CASH) "Cash payment recorded."
+                                                else "Order saved. Collect or reconcile the card payment from Payments.",
+                                                paymentMethod == PaymentMethod.CASH
+                                            )
+                                        }
+                                        checkoutResult = result
+                                        cart.clear()
+                                        notes = ""
+                                        showCartSheet = false
+                                        inventoryViewModel.loadProducts(businessId)
+                                    }
                                     .onFailure { err -> errorMessage = err.message ?: "Failed to save sale." }
                                 isCheckingOut = false
                             }

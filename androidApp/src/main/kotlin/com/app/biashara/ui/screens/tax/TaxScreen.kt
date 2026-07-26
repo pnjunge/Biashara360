@@ -1,5 +1,6 @@
 package com.app.biashara.ui.screens.tax
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import com.app.biashara.ui.theme.*
 
@@ -54,6 +56,13 @@ private val TYPE_COLORS = mapOf(
     "CUSTOM" to Color(0xFF37474F)
 )
 
+private val KENYA_DEFAULT_TAX_RATES = listOf(
+    TaxRateUi("vat-default", "VAT", "Value Added Tax", 16.0, true, "Sales", false, "Kenya standard VAT rate"),
+    TaxRateUi("tot-default", "TOT", "Turnover Tax", 1.5, true, "Turnover", false, "Kenya turnover tax rate"),
+    TaxRateUi("wht-default", "WHT", "Withholding Tax", 3.0, true, "Services", false, "Standard resident withholding rate"),
+    TaxRateUi("excise-default", "EXCISE", "Excise Duty", 20.0, true, "Selected goods", false, "Default excise duty rate")
+)
+
 
 
 
@@ -61,7 +70,7 @@ private val TYPE_COLORS = mapOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaxScreen() {
+fun TaxScreen(onConfigureKra: () -> Unit = {}) {
     var tab by remember { mutableStateOf(0) }
     val tabs = listOf("Summary", "Tax Rates", "Calculator", "Remittances")
 
@@ -70,11 +79,7 @@ fun TaxScreen() {
             TopAppBar(
                 title = { Text("Tax Management", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface),
-                actions = {
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Default.Download, contentDescription = "Export", tint = B360Green)
-                    }
-                }
+                actions = {}
             )
         },
         containerColor = B360Surface
@@ -107,7 +112,7 @@ fun TaxScreen() {
                 0 -> TaxSummaryTab()
                 1 -> TaxRatesTab()
                 2 -> TaxCalculatorTab()
-                3 -> RemittancesTab()
+                3 -> RemittancesTab(onConfigureKra)
             }
         }
     }
@@ -198,8 +203,7 @@ fun TaxSummaryTab() {
 
 @Composable
 fun TaxRatesTab() {
-    var rates by remember { mutableStateOf(emptyList<TaxRateUi>()) }
-    var showAdd by remember { mutableStateOf(false) }
+    var rates by remember { mutableStateOf(KENYA_DEFAULT_TAX_RATES) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp),
@@ -224,10 +228,11 @@ fun TaxRatesTab() {
                     }
                     Button(
                         onClick = {},
+                        enabled = false,
                         colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                         shape = RoundedCornerShape(20.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) { Text("Seed Defaults", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+                    ) { Text("Defaults loaded", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -280,7 +285,8 @@ fun TaxRatesTab() {
 
         item {
             OutlinedButton(
-                onClick = { showAdd = !showAdd },
+                onClick = {},
+                enabled = false,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(24.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = B360Green),
@@ -288,7 +294,7 @@ fun TaxRatesTab() {
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Add Custom Tax Rate", fontWeight = FontWeight.Bold)
+                Text("Add custom rates on web", fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -299,10 +305,10 @@ fun TaxRatesTab() {
 @Composable
 fun TaxCalculatorTab() {
     var amount by remember { mutableStateOf("10000") }
-    var selectedIds by remember { mutableStateOf(setOf("1")) }
+    var selectedIds by remember { mutableStateOf(setOf("vat-default")) }
 
     val numAmount = amount.toDoubleOrNull() ?: 0.0
-    val activeRates = emptyList<TaxRateUi>()
+    val activeRates = KENYA_DEFAULT_TAX_RATES.filter { it.isActive }
     val selectedRates = activeRates.filter { it.id in selectedIds }
     val lines = selectedRates.map { r ->
         TaxLineUi(r.name, r.taxType, r.ratePercent, Math.round(numAmount * r.ratePercent / 100 * 100.0) / 100.0)
@@ -421,21 +427,22 @@ fun TaxCalculatorTab() {
 // ── Remittances Tab ───────────────────────────────────────────────────────────
 
 @Composable
-fun RemittancesTab() {
+fun RemittancesTab(onConfigureKra: () -> Unit) {
+    val context = LocalContext.current
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
             Button(
-                onClick = {},
+                onClick = onConfigureKra,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                 shape = RoundedCornerShape(24.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
                 Spacer(Modifier.width(8.dp))
-                Text("File New Period", fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Configure KRA to File", fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
 
@@ -488,14 +495,18 @@ fun RemittancesTab() {
                         Spacer(Modifier.height(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
-                                onClick = {},
+                                onClick = {
+                                    Toast.makeText(context, "This remittance must be filed through KRA first", Toast.LENGTH_LONG).show()
+                                },
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(20.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1565C0)),
                                 border = BorderStroke(1.dp, Color(0xFF1565C0).copy(0.3f))
                             ) { Text("Mark Filed", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                             Button(
-                                onClick = {},
+                                onClick = {
+                                    Toast.makeText(context, "Enter the KRA payment receipt before marking paid", Toast.LENGTH_LONG).show()
+                                },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                                 shape = RoundedCornerShape(20.dp)

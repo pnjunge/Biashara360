@@ -403,17 +403,6 @@ fun KpiCard(
                     ) {
                         Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
                     }
-                    IconButton(
-                        onClick = { /* menu action */ },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.MoreHoriz,
-                            contentDescription = "Options",
-                            tint = color.copy(alpha = 0.5f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
                 }
                 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

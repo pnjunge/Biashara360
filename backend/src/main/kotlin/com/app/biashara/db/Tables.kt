@@ -131,6 +131,7 @@ object OrdersTable : Table("orders") {
     val id = varchar("id", 36)
     val orderNumber = varchar("order_number", 20).uniqueIndex()
     val businessId = varchar("business_id", 36).references(BusinessesTable.id)
+    val clientReference = varchar("client_reference", 64).nullable()
     val customerId = varchar("customer_id", 36).nullable()
     val customerName = varchar("customer_name", 255)
     val customerPhone = varchar("customer_phone", 20)
@@ -147,6 +148,8 @@ object OrdersTable : Table("orders") {
     override val primaryKey = PrimaryKey(id)
     // Composite index for the most common query pattern: list by business, ordered by date
     val businessCreatedAtIdx = index("idx_orders_business_created", false, businessId, createdAt)
+    val businessClientReferenceIdx =
+        uniqueIndex("idx_orders_business_client_reference", businessId, clientReference)
 }
 
 object OrderItemsTable : Table("order_items") {

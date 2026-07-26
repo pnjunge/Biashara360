@@ -22,7 +22,7 @@ data class Product(
 ) {
     val profitPerItem: Double get() = sellingPrice - buyingPrice
     val profitMargin: Double get() = if (sellingPrice > 0) (profitPerItem / sellingPrice) * 100 else 0.0
-    val isLowStock: Boolean get() = currentStock <= lowStockThreshold
+    val isLowStock: Boolean get() = currentStock in 1..lowStockThreshold
     val isOutOfStock: Boolean get() = currentStock <= 0
 }
 

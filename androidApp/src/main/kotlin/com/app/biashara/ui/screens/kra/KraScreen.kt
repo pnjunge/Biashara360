@@ -1,5 +1,9 @@
 package com.app.biashara.ui.screens.kra
 
+import android.content.Intent
+import android.content.ActivityNotFoundException
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,6 +26,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.app.biashara.ui.theme.*
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -45,6 +50,7 @@ data class TaxReturnUi(
 @Composable
 fun KraScreen() {
     var tab by remember { mutableStateOf(0) }
+    val context = LocalContext.current
     val tabs = listOf("Compliance", "eTIMS", "Returns", "Setup")
 
     Scaffold(
@@ -53,7 +59,7 @@ fun KraScreen() {
                 title = { Text("KRA iTax", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface),
                 actions = {
-                    TextButton(onClick = {}) {
+                    TextButton(onClick = { openExternalUrl(context, "https://itax.kra.go.ke/") }) {
                         Text("iTax Portal", color = B360Green, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Icon(Icons.Default.OpenInBrowser, contentDescription = null, tint = B360Green, modifier = Modifier.size(16.dp).padding(start = 2.dp))
                     }
@@ -87,7 +93,7 @@ fun KraScreen() {
             when (tab) {
                 0 -> KraComplianceTab()
                 1 -> KraEtimsTab()
-                2 -> KraReturnsTab()
+                2 -> KraReturnsTab(onConfigureKra = { tab = 3 })
                 3 -> KraSetupTab()
             }
         }
@@ -290,8 +296,9 @@ fun KraEtimsTab() {
 // ── Returns Tab ───────────────────────────────────────────────────────────────
 
 @Composable
-fun KraReturnsTab() {
+fun KraReturnsTab(onConfigureKra: () -> Unit) {
     var returns by remember { mutableStateOf(emptyList<TaxReturnUi>()) }
+    val context = LocalContext.current
     val typeColor = mapOf("VAT3" to B360Green, "TOT" to Color(0xFF1565C0), "WHT" to Color(0xFF6A1B9A))
     val typeBg    = mapOf("VAT3" to B360GreenBg, "TOT" to Color(0xFFE3F2FD), "WHT" to Color(0xFFF3E5F5))
     val statusColor = mapOf("DRAFT" to Color(0xFF64748B), "GENERATED" to Color(0xFF1565C0), "SUBMITTED" to Color(0xFFFF8F00), "ACKNOWLEDGED" to B360Green)
@@ -309,14 +316,14 @@ fun KraReturnsTab() {
                     Text("Use the controls below to generate a VAT3, TOT, or WHT return for any past period.", fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(12.dp))
                     Button(
-                        onClick = {},
+                        onClick = onConfigureKra,
                         colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(24.dp)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
                         Spacer(Modifier.width(6.dp))
-                        Text("Generate Return", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Configure KRA to Generate", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -361,6 +368,7 @@ fun KraReturnsTab() {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = {},
+                            enabled = false,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(20.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = tc),
@@ -371,7 +379,7 @@ fun KraReturnsTab() {
                             Text("CSV", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                         Button(
-                            onClick = {},
+                            onClick = { openExternalUrl(context, "https://itax.kra.go.ke/") },
                             modifier = Modifier.weight(2f),
                             colors = ButtonDefaults.buttonColors(containerColor = tc),
                             shape = RoundedCornerShape(20.dp)
@@ -391,9 +399,11 @@ fun KraReturnsTab() {
 
 @Composable
 fun KraSetupTab() {
-    var pin by remember { mutableStateOf("") }
-    var sdcId by remember { mutableStateOf("") }
-    var env by remember { mutableStateOf("sandbox") }
+    val context = LocalContext.current
+    val preferences = remember { context.getSharedPreferences("kra_setup", android.content.Context.MODE_PRIVATE) }
+    var pin by remember { mutableStateOf(preferences.getString("pin", "").orEmpty()) }
+    var sdcId by remember { mutableStateOf(preferences.getString("sdc_id", "").orEmpty()) }
+    var env by remember { mutableStateOf(preferences.getString("environment", "sandbox") ?: "sandbox") }
     var saved by remember { mutableStateOf(false) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -454,13 +464,14 @@ fun KraSetupTab() {
                     Spacer(Modifier.height(12.dp))
                     Button(
                         onClick = {},
+                        enabled = false,
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
                         shape = RoundedCornerShape(24.dp)
                     ) {
                         Icon(Icons.Default.FlashOn, contentDescription = null, tint = Color.White)
                         Spacer(Modifier.width(6.dp))
-                        Text("Initialise Device with KRA", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Initialisation available on web", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -496,7 +507,19 @@ fun KraSetupTab() {
 
         item {
             Button(
-                onClick = { saved = true },
+                onClick = {
+                    if (!Regex("^[A-Z][0-9]{9}[A-Z]$").matches(pin)) {
+                        Toast.makeText(context, "Enter a valid KRA PIN", Toast.LENGTH_LONG).show()
+                    } else {
+                        preferences.edit()
+                            .putString("pin", pin)
+                            .putString("sdc_id", sdcId)
+                            .putString("environment", env)
+                            .apply()
+                        saved = true
+                    }
+                },
+                enabled = Regex("^[A-Z][0-9]{9}[A-Z]$").matches(pin),
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                 shape = RoundedCornerShape(24.dp)
@@ -506,6 +529,14 @@ fun KraSetupTab() {
                 Text(if (saved) "Saved!" else "Save KRA Profile", fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
+    }
+}
+
+private fun openExternalUrl(context: android.content.Context, url: String) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(context, "No browser is available to open this link", Toast.LENGTH_LONG).show()
     }
 }
 

@@ -183,7 +183,8 @@ fun Route.orderRoutes() {
         post {
             val businessId = call.businessId()
             val req = call.receive<CreateOrderRequest>()
-            val result = orderService.create(businessId, req)
+            val platform = call.request.headers["X-Client-Platform"]
+            val result = orderService.create(businessId, req, platform)
             call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
         }
 
@@ -216,6 +217,13 @@ fun Route.orderRoutes() {
                 val businessId = call.businessId()
                 val id = call.parameters["id"]!!
                 val result = orderService.cancel(id, businessId)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+
+            post("/void") {
+                val businessId = call.businessId()
+                val id = call.parameters["id"]!!
+                val result = orderService.void(id, businessId)
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
             }
         }

@@ -37,9 +37,18 @@ import com.app.biashara.ui.theme.B360GreenDark
 import com.app.biashara.ui.kmpViewModel
 import org.koin.compose.koinInject
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+import com.app.biashara.ui.biometricEnrollmentIntent
+import com.app.biashara.ui.isBiometricLoginEnabled
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 
 @Composable
 fun AuthBackground(
@@ -292,6 +301,19 @@ fun LoginScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
+    val biometricLoginEnabled = remember { context.isBiometricLoginEnabled() }
+    val biometricEnrollmentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        val enrolled = BiometricManager.from(context)
+            .canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
+        Toast.makeText(
+            context,
+            if (enrolled) "Fingerprint setup complete. You can now use biometric login."
+            else "Fingerprint setup was not completed.",
+            Toast.LENGTH_LONG
+        ).show()
+    }
 
     LaunchedEffect(state.step) {
         if (state.step is AuthStep.Otp) {
@@ -398,37 +420,79 @@ fun LoginScreen(
                             HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
                         }
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    val biometricManager = BiometricManager.from(context)
-                                    val canAuthenticate = biometricManager.canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
-                                    if (canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS) {
-                                        // Restore session from saved token — no hardcoded credentials
-                                        viewModel.loginWithBiometric(onSuccess = {})
-                                    } else {
-                                        val errorMsg = when (canAuthenticate) {
-                                            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "No biometric hardware found on this device."
-                                            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "Biometric hardware is currently unavailable."
-                                            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "No biometrics enrolled. Please go to settings to configure fingerprint."
-                                            else -> "Biometric authentication is not available."
+                        if (biometricLoginEnabled) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !state.isLoading, role = Role.Button) {
+                                        val biometricManager = BiometricManager.from(context)
+                                        val canAuthenticate = biometricManager.canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
+                                        if (canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS) {
+                                            val activity = context as? FragmentActivity
+                                            if (activity == null) {
+                                                viewModel.setError("Biometric authentication cannot be started.")
+                                            } else {
+                                                val prompt = BiometricPrompt(
+                                                    activity,
+                                                    ContextCompat.getMainExecutor(context),
+                                                    object : BiometricPrompt.AuthenticationCallback() {
+                                                        override fun onAuthenticationSucceeded(
+                                                            result: BiometricPrompt.AuthenticationResult
+                                                        ) {
+                                                            viewModel.loginWithBiometric(onSuccess = onAuthenticated)
+                                                        }
+
+                                                        override fun onAuthenticationError(
+                                                            errorCode: Int,
+                                                            errString: CharSequence
+                                                        ) {
+                                                            if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
+                                                                errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON
+                                                            ) {
+                                                                viewModel.setError(errString.toString())
+                                                            }
+                                                        }
+
+                                                        override fun onAuthenticationFailed() {
+                                                            viewModel.setError("Fingerprint not recognized. Try again.")
+                                                        }
+                                                    }
+                                                )
+                                                prompt.authenticate(
+                                                    BiometricPrompt.PromptInfo.Builder()
+                                                        .setTitle("Sign in to Biashara360")
+                                                        .setSubtitle("Confirm your fingerprint to restore your session")
+                                                        .setAllowedAuthenticators(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
+                                                        .setNegativeButtonText("Use password")
+                                                        .build()
+                                                )
+                                            }
+                                        } else {
+                                            val errorMsg = when (canAuthenticate) {
+                                                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "No biometric hardware found on this device."
+                                                BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "Biometric hardware is currently unavailable."
+                                                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
+                                                    biometricEnrollmentLauncher.launch(biometricEnrollmentIntent())
+                                                    "Complete fingerprint setup in device settings, then return to Biashara360."
+                                                }
+                                                else -> "Biometric authentication is not available."
+                                            }
+                                            viewModel.setError(errorMsg)
                                         }
-                                        viewModel.setError(errorMsg)
                                     }
-                                }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier.size(40.dp).background(Color(0xFFE6F4EA), CircleShape),
-                                contentAlignment = Alignment.Center
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Icon(Icons.Default.Fingerprint, contentDescription = null, tint = B360Green, modifier = Modifier.size(22.dp))
+                                Box(
+                                    modifier = Modifier.size(40.dp).background(Color(0xFFE6F4EA), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Fingerprint, contentDescription = null, tint = B360Green, modifier = Modifier.size(22.dp))
+                                }
+                                Text("Login with fingerprint", modifier = Modifier.weight(1f), color = Color(0xFF0F172A), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = Color(0xFF64748B))
                             }
-                            Text("Login with biometrics", modifier = Modifier.weight(1f), color = Color(0xFF0F172A), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = Color(0xFF64748B))
                         }
 
                         Row(
@@ -795,4 +859,3 @@ fun OtpScreen(
         }
     }
 }
-

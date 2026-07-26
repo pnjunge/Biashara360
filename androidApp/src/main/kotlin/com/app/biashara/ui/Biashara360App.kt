@@ -12,7 +12,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.app.biashara.domain.repository.AuthRepository
 import com.app.biashara.ui.theme.B360Green
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
@@ -36,28 +35,10 @@ import com.app.biashara.ui.screens.tax.TaxScreen
 import com.app.biashara.ui.screens.kra.KraScreen
 import com.app.biashara.ui.screens.social.SocialScreen
 import com.app.biashara.ui.screens.pos.PosScreen
-import org.koin.compose.koinInject
 
 @Composable
 fun Biashara360App() {
-    val authRepository = koinInject<AuthRepository>()
-    var startDestination by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(authRepository) {
-        startDestination = if (authRepository.loginWithBiometric().isSuccess) {
-            Screen.Dashboard.route
-        } else {
-            Screen.Login.route
-        }
-    }
-
-    // Avoid briefly presenting the login screen while an encrypted saved session is restored.
-    if (startDestination == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-        return
-    }
+    val startDestination = Screen.Login.route
 
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -79,7 +60,7 @@ fun Biashara360App() {
     ) { paddingValues ->
         NavHost(
             navController = navController,
-            startDestination = startDestination!!,
+            startDestination = startDestination,
             modifier = Modifier.padding(paddingValues)
         ) {
             composable(Screen.Login.route) {
@@ -147,7 +128,7 @@ fun Biashara360App() {
                 PaymentsScreen()
             }
             composable(Screen.Tax.route) {
-                TaxScreen()
+                TaxScreen(onConfigureKra = { navController.navigate(Screen.Kra.route) })
             }
             composable(Screen.Kra.route) { KraScreen() }
             composable(Screen.Social.route) { SocialScreen() }

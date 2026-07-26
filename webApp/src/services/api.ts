@@ -345,7 +345,11 @@ export const orderApi = {
     return res.data
   },
   create: async (data: any) => {
-    const res = await client.post<ApiResponse<OrderResponse>>('/orders', data)
+    const payload = {
+      ...data,
+      clientReference: data.clientReference || crypto.randomUUID()
+    }
+    const res = await client.post<ApiResponse<OrderResponse>>('/orders', payload)
     return res.data
   },
   updatePaymentStatus: async (id: string, data: { status: string; mpesaTransactionCode?: string }) => {

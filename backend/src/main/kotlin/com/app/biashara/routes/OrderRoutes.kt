@@ -124,7 +124,8 @@ fun Route.orderRoutesValidated() {
                 }
             }
             
-            val result = orderService.create(businessId, req)
+            val platform = call.request.headers["X-Client-Platform"]
+            val result = orderService.create(businessId, req, platform)
             call.respond(
                 if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest,
                 result
@@ -234,6 +235,27 @@ fun Route.orderRoutesValidated() {
                 }
                 
                 val result = orderService.cancel(id, businessId)
+                call.respond(
+                    if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest,
+                    result
+                )
+            }
+
+            /**
+             * Void order and restore inventory
+             * POST /orders/{id}/void
+             */
+            post("/void") {
+                val businessId = call.businessId()
+                val id = call.parameters["id"] ?: throw IllegalArgumentException("Order ID required")
+
+                Validator.validate {
+                    field("id", id) {
+                        uuid()
+                    }
+                }
+
+                val result = orderService.void(id, businessId)
                 call.respond(
                     if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest,
                     result

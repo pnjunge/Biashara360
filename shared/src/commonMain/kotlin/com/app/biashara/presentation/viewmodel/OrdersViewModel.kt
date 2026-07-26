@@ -16,12 +16,20 @@ data class OrdersState(
     val orders: List<Order> = emptyList(),
     val selectedTabStatus: PaymentStatus? = null,
     val error: String? = null,
-    val isSyncing: Boolean = false
+    val isSyncing: Boolean = false,
+    val lastOperation: OrderOperationResult? = null
 ) {
     val filteredOrders: List<Order>
         get() = if (selectedTabStatus == null) orders
         else orders.filter { it.paymentStatus == selectedTabStatus }
 }
+
+data class OrderOperationResult(
+    val orderId: String,
+    val action: String,
+    val succeeded: Boolean,
+    val message: String? = null
+)
 
 class OrdersViewModel(
     private val getOrdersUseCase: GetOrdersUseCase,
@@ -60,34 +68,52 @@ class OrdersViewModel(
     }
 
     fun dismissError() {
-        _state.update { it.copy(error = null) }
+        _state.update { it.copy(error = null, lastOperation = null) }
     }
 
     fun cancelOrder(orderId: String) {
         scope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
+            _state.update { it.copy(isLoading = true, error = null, lastOperation = null) }
             val res = cancelOrderUseCase(orderId)
-            if (res.isSuccess) {
-                _state.update { it.copy(isLoading = false) }
-            } else {
-                _state.update { it.copy(isLoading = false, error = res.exceptionOrNull()?.message) }
+            val message = res.exceptionOrNull()?.message
+            _state.update {
+                it.copy(
+                    isLoading = false,
+                    error = message,
+                    lastOperation = OrderOperationResult(orderId, "cancel", res.isSuccess, message)
+                )
             }
         }
     }
 
     fun amendOrder(orderId: String, paymentStatus: PaymentStatus, deliveryStatus: DeliveryStatus) {
         scope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
-            val paymentResult = orderRepository?.updatePaymentStatus(orderId, paymentStatus, null)
+            _state.update { it.copy(isLoading = true, error = null, lastOperation = null) }
+            val original = _state.value.orders.firstOrNull { it.id == orderId }
+            val deliveryResult = orderRepository?.updateDeliveryStatus(orderId, deliveryStatus)
                 ?: Result.failure(IllegalStateException("Order repository unavailable"))
-            val deliveryResult = if (paymentResult.isSuccess) {
-                orderRepository?.updateDeliveryStatus(orderId, deliveryStatus)
+            val paymentResult = if (deliveryResult.isSuccess) {
+                orderRepository?.updatePaymentStatus(orderId, paymentStatus, null)
                     ?: Result.failure(IllegalStateException("Order repository unavailable"))
-            } else paymentResult
+            } else deliveryResult
+            var finalResult = paymentResult
+            if (deliveryResult.isSuccess && paymentResult.isFailure && original != null) {
+                val rollback = orderRepository?.updateDeliveryStatus(orderId, original.deliveryStatus)
+                    ?: Result.failure(IllegalStateException("Order repository unavailable"))
+                if (rollback.isFailure) {
+                    finalResult = Result.failure(
+                        IllegalStateException(
+                            "${paymentResult.exceptionOrNull()?.message}; delivery rollback also failed: ${rollback.exceptionOrNull()?.message}"
+                        )
+                    )
+                }
+            }
+            val message = finalResult.exceptionOrNull()?.message
             _state.update {
                 it.copy(
                     isLoading = false,
-                    error = deliveryResult.exceptionOrNull()?.message
+                    error = message,
+                    lastOperation = OrderOperationResult(orderId, "amend", finalResult.isSuccess, message)
                 )
             }
         }
@@ -95,13 +121,17 @@ class OrdersViewModel(
 
     fun voidOrder(orderId: String) {
         scope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
-            val cancelled = cancelOrderUseCase(orderId)
-            val result = if (cancelled.isSuccess) {
-                orderRepository?.updatePaymentStatus(orderId, PaymentStatus.REFUNDED, null)
-                    ?: Result.failure(IllegalStateException("Order repository unavailable"))
-            } else cancelled
-            _state.update { it.copy(isLoading = false, error = result.exceptionOrNull()?.message) }
+            _state.update { it.copy(isLoading = true, error = null, lastOperation = null) }
+            val result = orderRepository?.voidOrder(orderId)
+                ?: Result.failure(IllegalStateException("Order repository unavailable"))
+            val message = result.exceptionOrNull()?.message
+            _state.update {
+                it.copy(
+                    isLoading = false,
+                    error = message,
+                    lastOperation = OrderOperationResult(orderId, "void", result.isSuccess, message)
+                )
+            }
         }
     }
 }

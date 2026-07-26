@@ -76,6 +76,7 @@ fun Application.configureCors() {
                 "localhost:5173", // Vite default
                 "localhost:8080",
                 // Production
+                "biashara360.co.ke",
                 "app.biashara360.co.ke",
                 "admin.biashara360.co.ke",
                 "enw9p7mvty.us-east-1.awsapprunner.com"
@@ -97,6 +98,7 @@ fun Application.configureCors() {
         allowMethod(HttpMethod.Delete)
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)
+        allowHeader("X-Client-Platform")
         allowHeader("X-Tenant-ID")
         allowCredentials = true
         maxAgeInSeconds = 86400 // 24 hours

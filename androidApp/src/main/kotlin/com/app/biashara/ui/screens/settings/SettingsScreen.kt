@@ -21,6 +21,8 @@ import android.widget.Toast
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -31,6 +33,9 @@ import com.app.biashara.presentation.viewmodel.AuthViewModel
 import com.app.biashara.presentation.viewmodel.BusinessViewModel
 import com.app.biashara.ui.theme.*
 import com.app.biashara.ui.kmpViewModel
+import com.app.biashara.ui.biometricEnrollmentIntent
+import com.app.biashara.ui.isBiometricLoginEnabled
+import com.app.biashara.ui.setBiometricLoginEnabled
 import org.koin.compose.koinInject
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -60,7 +65,21 @@ fun SettingsScreen(
     var notificationsEnabled by remember { mutableStateOf(true) }
     // Dark mode reads/writes from the process-scoped ThemeState
     val darkMode by ThemeState.isDarkMode.collectAsState()
-    var biometricEnabled by remember { mutableStateOf(false) }
+    var biometricEnabled by remember { mutableStateOf(context.isBiometricLoginEnabled()) }
+    val biometricEnrollmentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        val enrolled = BiometricManager.from(context)
+            .canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
+        biometricEnabled = enrolled
+        context.setBiometricLoginEnabled(enrolled)
+        Toast.makeText(
+            context,
+            if (enrolled) "Fingerprint login enabled."
+            else "Fingerprint setup was not completed.",
+            Toast.LENGTH_LONG
+        ).show()
+    }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showBusinessProfileDialog by remember { mutableStateOf(false) }
@@ -432,18 +451,22 @@ fun SettingsScreen(
                             val canAuthenticate = biometricManager.canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
                             if (canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS) {
                                 biometricEnabled = true
+                                context.setBiometricLoginEnabled(true)
+                            } else if (canAuthenticate == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED) {
+                                biometricEnrollmentLauncher.launch(biometricEnrollmentIntent())
                             } else {
                                 val errorMsg = when (canAuthenticate) {
                                     BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "No biometric hardware found."
                                     BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "Biometric hardware is currently unavailable."
-                                    BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "No biometrics enrolled. Go to settings to set up fingerprint/face."
                                     else -> "Biometrics not available on this device."
                                 }
                                 Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
                                 biometricEnabled = false
+                                context.setBiometricLoginEnabled(false)
                             }
                         } else {
                             biometricEnabled = false
+                            context.setBiometricLoginEnabled(false)
                         }
                     }
                 }

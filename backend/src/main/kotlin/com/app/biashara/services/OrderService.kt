@@ -56,7 +56,52 @@ class OrderService {
         }.firstOrNull()?.toResponse()
     }
 
-    fun create(businessId: String, req: CreateOrderRequest): ApiResponse<OrderResponse> = transaction {
+    fun create(
+        businessId: String,
+        req: CreateOrderRequest,
+        clientPlatform: String? = null
+    ): ApiResponse<OrderResponse> = transaction {
+        val clientReference = req.clientReference?.trim()?.takeIf { it.isNotEmpty() }
+        if (clientReference != null &&
+            (clientReference.length > 64 || !clientReference.matches(Regex("^[A-Za-z0-9._:-]+$")))
+        ) {
+            return@transaction ApiResponse(
+                false,
+                message = "Invalid client transaction reference"
+            )
+        }
+        if (clientReference != null) {
+            val existing = OrdersTable.select {
+                (OrdersTable.businessId eq businessId) and
+                    (OrdersTable.clientReference eq clientReference)
+            }.firstOrNull()
+            if (existing != null) {
+                val existingOrder = existing.toResponse()
+                val sameTransaction =
+                    existingOrder.customerId == req.customerId &&
+                    existingOrder.customerName == req.customerName &&
+                    existingOrder.customerPhone == req.customerPhone &&
+                    existingOrder.paymentMethod == req.paymentMethod &&
+                    existingOrder.items.size == req.items.size &&
+                    existingOrder.items.zip(req.items).all { (saved, submitted) ->
+                        saved.productId == submitted.productId &&
+                            saved.quantity == submitted.quantity &&
+                            saved.unitPrice == submitted.unitPrice
+                    }
+                if (!sameTransaction) {
+                    return@transaction ApiResponse(
+                        false,
+                        message = "Client transaction reference is already used by another order"
+                    )
+                }
+                return@transaction ApiResponse(
+                    true,
+                    data = existingOrder,
+                    message = "Existing order returned for repeated transaction"
+                )
+            }
+        }
+
         // Validate stock for all items
         for (item in req.items) {
             val product = ProductsTable.select {
@@ -72,7 +117,7 @@ class OrderService {
         }
 
         val orderId = generateId()
-        val orderNumber = generateOrderNumber()
+        val orderNumber = generateOrderNumber(clientPlatform)
         val now = Clock.System.now()
         val subtotal = req.items.sumOf { it.quantity * it.unitPrice }
 
@@ -80,6 +125,7 @@ class OrderService {
             it[id] = orderId
             it[OrdersTable.orderNumber] = orderNumber
             it[OrdersTable.businessId] = businessId
+            it[OrdersTable.clientReference] = clientReference
             it[customerId] = req.customerId
             it[customerName] = req.customerName
             it[customerPhone] = req.customerPhone
@@ -176,16 +222,23 @@ class OrderService {
         ApiResponse(true, data = order)
     }
 
-    fun cancel(id: String, businessId: String): ApiResponse<OrderResponse> = transaction {
+    fun cancel(id: String, businessId: String): ApiResponse<OrderResponse> =
+        closeOrder(id, businessId, isVoid = false)
+
+    fun void(id: String, businessId: String): ApiResponse<OrderResponse> =
+        closeOrder(id, businessId, isVoid = true)
+
+    private fun closeOrder(id: String, businessId: String, isVoid: Boolean): ApiResponse<OrderResponse> = transaction {
         val order = OrdersTable.select {
             (OrdersTable.id eq id) and (OrdersTable.businessId eq businessId)
         }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Order not found")
 
         val currentPaymentStatus = order[OrdersTable.paymentStatus]
-        if (currentPaymentStatus == "CANCELLED") {
-            return@transaction ApiResponse(false, message = "Order is already cancelled")
+        val currentDeliveryStatus = order[OrdersTable.deliveryStatus]
+        if (currentPaymentStatus in setOf("CANCELLED", "REFUNDED") || currentDeliveryStatus == "CANCELLED") {
+            return@transaction ApiResponse(false, message = "Order is already cancelled or voided")
         }
-        if (currentPaymentStatus == "PAID") {
+        if (!isVoid && currentPaymentStatus == "PAID") {
             return@transaction ApiResponse(false, message = "Cannot cancel a paid order. Please initiate a refund instead.")
         }
 
@@ -211,7 +264,8 @@ class OrderService {
                     it[StockMovementsTable.businessId] = businessId
                     it[StockMovementsTable.type] = "STOCK_IN"
                     it[StockMovementsTable.quantity] = quantity
-                    it[StockMovementsTable.note] = "Cancelled Order ${order[OrdersTable.orderNumber]}"
+                    it[StockMovementsTable.note] =
+                        "${if (isVoid) "Voided" else "Cancelled"} Order ${order[OrdersTable.orderNumber]}"
                     it[StockMovementsTable.orderId] = id
                     it[StockMovementsTable.recordedAt] = now
                 }
@@ -237,19 +291,42 @@ class OrderService {
 
         // Update order status
         OrdersTable.update({ OrdersTable.id eq id }) {
-            it[paymentStatus] = "CANCELLED"
+            it[paymentStatus] = if (isVoid) "REFUNDED" else "CANCELLED"
             it[deliveryStatus] = "CANCELLED"
             it[updatedAt] = now
         }
 
         val updatedOrder = OrdersTable.select { OrdersTable.id eq id }.first().toResponse()
-        ApiResponse(true, data = updatedOrder, message = "Order ${order[OrdersTable.orderNumber]} cancelled successfully")
+        val action = if (isVoid) "voided" else "cancelled"
+        ApiResponse(true, data = updatedOrder, message = "Order ${order[OrdersTable.orderNumber]} $action successfully")
     }
 
-    private fun generateOrderNumber(): String {
-        // UUID-based suffix is collision-free even under concurrent requests
-        val suffix = java.util.UUID.randomUUID().toString().replace("-", "").take(8).uppercase()
-        return "B360-$suffix"
+    private fun generateOrderNumber(clientPlatform: String?): String {
+        val platform = when (clientPlatform?.trim()?.lowercase()) {
+            "desktop" -> "DESK"
+            "android" -> "ANDR"
+            "ios" -> "IOS"
+            "web" -> "WEB"
+            "social" -> "SOC"
+            else -> "WEB"
+        }
+
+        // The unique database index is the final guard. Checking candidates
+        // here gives every supported client a readable, globally unique
+        // reference while remaining within the existing VARCHAR(20) column.
+        repeat(10) {
+            val suffix = java.util.UUID.randomUUID().toString()
+                .replace("-", "")
+                .take(8)
+                .uppercase()
+            val candidate = "B360-$platform-$suffix"
+            val exists = OrdersTable
+                .select { OrdersTable.orderNumber eq candidate }
+                .limit(1)
+                .any()
+            if (!exists) return candidate
+        }
+        throw IllegalStateException("Unable to generate a unique order reference")
     }
 
     private fun ResultRow.toResponse(preloadedItems: List<OrderItemResponse>? = null): OrderResponse {

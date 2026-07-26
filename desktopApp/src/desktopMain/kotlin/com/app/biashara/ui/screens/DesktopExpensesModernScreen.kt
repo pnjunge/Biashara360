@@ -114,7 +114,6 @@ fun DesktopExpensesModernScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ExpenseFilterButton("This Month", Icons.Default.CalendarMonth, enabled = false)
                         Box {
                             ExpenseFilterButton(
                                 selectedCategory?.displayName() ?: "All Categories",
@@ -133,17 +132,17 @@ fun DesktopExpensesModernScreen(
                                 }
                             }
                         }
-                        ExpenseFilterButton("All Payment Methods", Icons.Default.Payments, enabled = false)
                     }
                     OutlinedButton(
                         onClick = { selectedCategory = null },
+                        enabled = selectedCategory != null,
                         shape = RoundedCornerShape(9.dp),
                         border = BorderStroke(1.dp, ExpensesBorder),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpensesNavy)
                     ) {
                         Icon(Icons.Default.FilterAlt, null, modifier = Modifier.size(17.dp))
                         Spacer(Modifier.width(7.dp))
-                        Text("Filters")
+                        Text("Clear category")
                     }
                 }
 
@@ -181,13 +180,7 @@ fun DesktopExpensesModernScreen(
                         color = ExpensesMuted,
                         fontSize = 13.sp
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PaginationButton(Icons.Default.ChevronLeft, enabled = false)
-                        Surface(shape = RoundedCornerShape(7.dp), color = ExpensesGreen) {
-                            Text("1", color = Color.White, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp))
-                        }
-                        PaginationButton(Icons.Default.ChevronRight, enabled = false)
-                    }
+                    Text("All matching expenses shown", color = ExpensesMuted, fontSize = 12.sp)
                 }
             }
         }
@@ -355,19 +348,6 @@ private fun ExpenseEmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) 
             Spacer(Modifier.width(7.dp))
             Text("Add Expense", fontWeight = FontWeight.Bold)
         }
-    }
-}
-
-@Composable
-private fun PaginationButton(icon: ImageVector, enabled: Boolean) {
-    OutlinedIconButton(
-        onClick = { },
-        enabled = enabled,
-        shape = RoundedCornerShape(7.dp),
-        border = BorderStroke(1.dp, ExpensesBorder),
-        modifier = Modifier.size(38.dp)
-    ) {
-        Icon(icon, null, modifier = Modifier.size(17.dp))
     }
 }
 

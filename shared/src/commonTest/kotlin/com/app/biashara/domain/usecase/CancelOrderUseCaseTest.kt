@@ -62,6 +62,7 @@ class CancelOrderUseCaseTest {
                 cancelOrderCalled = true
                 return Result.success(Unit)
             }
+            override suspend fun voidOrder(orderId: String): Result<Unit> = Result.success(Unit)
             override fun getOrdersForCustomer(customerId: String): Flow<List<Order>> = flowOf(emptyList())
             override fun getOrdersByDateRange(businessId: String, start: LocalDate, end: LocalDate): Flow<List<Order>> = flowOf(emptyList())
             override suspend fun generateOrderNumber(businessId: String): String = ""

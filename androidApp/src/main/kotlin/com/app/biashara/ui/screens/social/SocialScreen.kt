@@ -1,5 +1,8 @@
 package com.app.biashara.ui.screens.social
 
+import android.content.Intent
+import android.content.ActivityNotFoundException
+import android.net.Uri
 import kotlinx.coroutines.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -24,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import com.app.biashara.ui.theme.*
 
@@ -537,6 +541,7 @@ fun ChatBubble(msg: SocialMsg) {
 // ── Channels Tab ──────────────────────────────────────────────────────────────
 @Composable
 fun SocialChannelsTab() {
+    val context = LocalContext.current
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -564,11 +569,23 @@ fun SocialChannelsTab() {
                             }
                         } else {
                             Button(
-                                onClick = {},
+                                onClick = {
+                                    val url = when (key) {
+                                        "WHATSAPP" -> "https://business.whatsapp.com/"
+                                        "INSTAGRAM" -> "https://www.instagram.com/accounts/login/"
+                                        "FACEBOOK" -> "https://www.facebook.com/business/"
+                                        else -> "https://www.tiktok.com/business/"
+                                    }
+                                    try {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                    } catch (_: ActivityNotFoundException) {
+                                        android.widget.Toast.makeText(context, "No browser is available", android.widget.Toast.LENGTH_LONG).show()
+                                    }
+                                },
                                 colors = ButtonDefaults.buttonColors(containerColor = meta.color),
                                 shape = RoundedCornerShape(20.dp)
                             ) {
-                                Text("Connect", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("Setup guide", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             }
                         }
                     }
@@ -675,4 +692,3 @@ private fun KraKpiCard(title: String, value: String, sub: String, color: Color, 
         }
     }
 }
-

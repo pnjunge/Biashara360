@@ -70,6 +70,7 @@ fun DesktopPaymentConfigurationScreen(
                 }
                 Button(
                     onClick = ::refresh,
+                    enabled = !mpesa.isLoading && !cyberSource.isLoading,
                     colors = ButtonDefaults.buttonColors(containerColor = PaymentGreen),
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 13.dp)

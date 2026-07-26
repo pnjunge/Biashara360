@@ -615,7 +615,7 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
             paymentMethod    = req.paymentMethod,
             notes            = "Order from ${transaction { SocialConversationsTable.select { SocialConversationsTable.id eq req.conversationId }.firstOrNull()?.get(SocialConversationsTable.platform) } ?: "Social"}"
         )
-        val result = orderService.create(businessId, orderReq)
+        val result = orderService.create(businessId, orderReq, "social")
         if (result.success && result.data != null) {
             val orderId = result.data.id
             transaction {

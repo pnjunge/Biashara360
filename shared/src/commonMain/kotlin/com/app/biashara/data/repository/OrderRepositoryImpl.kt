@@ -58,6 +58,7 @@ data class OrderDto(
 
 @kotlinx.serialization.Serializable
 private data class CreateOrderRequestDto(
+    val clientReference: String,
     val customerId: String?,
     val customerName: String,
     val customerPhone: String,
@@ -119,6 +120,7 @@ class OrderRepositoryImpl(
             contentType(ContentType.Application.Json)
             setBody(
                 CreateOrderRequestDto(
+                    clientReference = order.id,
                     customerId = order.customerId,
                     customerName = order.customerName,
                     customerPhone = order.customerPhone,
@@ -202,6 +204,11 @@ class OrderRepositoryImpl(
     }
 
     override suspend fun cancelOrder(orderId: String): Result<Unit> = runCatching {
+        val response: ApiResponse<OrderDto> = client.post("$BASE_URL/orders/$orderId/cancel").body()
+        if (!response.success) {
+            throw Exception(response.message.ifBlank { "Failed to cancel order on server" })
+        }
+
         val now = kotlinx.datetime.Clock.System.now().toString()
         queries.updateOrderPaymentStatus(
             // PaymentStatus has no CANCELLED value. FAILED keeps the record
@@ -216,11 +223,26 @@ class OrderRepositoryImpl(
             updatedAt = now,
             orderId = orderId
         )
+    }
 
-        val response: ApiResponse<OrderDto> = client.post("$BASE_URL/orders/$orderId/cancel").body()
+    override suspend fun voidOrder(orderId: String): Result<Unit> = runCatching {
+        val response: ApiResponse<OrderDto> = client.post("$BASE_URL/orders/$orderId/void").body()
         if (!response.success) {
-            throw Exception(response.message.ifBlank { "Failed to cancel order on server" })
+            throw Exception(response.message.ifBlank { "Failed to void order on server" })
         }
+
+        val now = kotlinx.datetime.Clock.System.now().toString()
+        queries.updateOrderPaymentStatus(
+            status = "REFUNDED",
+            txCode = null,
+            updatedAt = now,
+            orderId = orderId
+        )
+        queries.updateOrderDeliveryStatus(
+            status = "CANCELLED",
+            updatedAt = now,
+            orderId = orderId
+        )
     }
 
     override fun getOrdersForCustomer(customerId: String): Flow<List<Order>> =
@@ -252,45 +274,70 @@ class OrderRepositoryImpl(
 
     /** Sync orders from API and update local cache **/
     suspend fun syncOrdersFromApi(businessId: String): Result<List<Order>> = runCatching {
-        val response: ApiResponse<PagedOrdersDto> = client.get("$BASE_URL/orders") {
-            url { parameters.append("pageSize", "100") }
-        }.body()
+        val remoteOrders = mutableListOf<OrderDto>()
+        var page = 1
+        var hasMore: Boolean
+        do {
+            val response: ApiResponse<PagedOrdersDto> = client.get("$BASE_URL/orders") {
+                url {
+                    parameters.append("page", page.toString())
+                    parameters.append("pageSize", "100")
+                }
+            }.body()
 
-        if (!response.success || response.data == null) {
-            throw Exception(response.message.ifBlank { "Failed to fetch orders" })
-        }
-        val remoteOrders = requireNotNull(response.data).data
+            if (!response.success || response.data == null) {
+                throw Exception(response.message.ifBlank { "Failed to fetch orders" })
+            }
+            val paged = requireNotNull(response.data)
+            remoteOrders += paged.data
+            hasMore = paged.hasMore
+            page += 1
+        } while (hasMore)
 
-        // Update local cache
-        remoteOrders.forEach { dto ->
-            queries.insertOrder(
-                id = dto.id,
-                order_number = dto.orderNumber,
-                business_id = dto.businessId,
-                customer_id = dto.customerId,
-                customer_name = dto.customerName,
-                customer_phone = dto.customerPhone,
-                delivery_location = dto.deliveryLocation,
-                payment_status = dto.paymentStatus,
-                delivery_status = dto.deliveryStatus,
-                payment_method = dto.paymentMethod,
-                mpesa_transaction_code = dto.mpesaTransactionCode,
-                notes = dto.notes,
-                subtotal = dto.items.sumOf { it.quantity * it.unitPrice },
-                created_at = dto.createdAt,
-                updated_at = dto.updatedAt
-            )
+        // The backend is authoritative. Reconcile the whole business cache in
+        // one transaction so observers never see a partially-synced order list.
+        queries.transaction {
+            val remoteIds = remoteOrders.mapTo(mutableSetOf()) { it.id }
+            queries.selectAllOrders(businessId).executeAsList()
+                .filter { it.id !in remoteIds }
+                .forEach { stale ->
+                    queries.deleteItemsByOrder(stale.id)
+                    queries.deleteOrder(stale.id)
+                }
 
-            dto.items.forEach { item ->
-                queries.insertOrderItem(
-                    id = generateId(),
-                    order_id = dto.id,
-                    product_id = item.productId,
-                    product_name = item.productName,
-                    quantity = item.quantity.toLong(),
-                    unit_price = item.unitPrice,
-                    buying_price = item.buyingPrice
+            remoteOrders.forEach { dto ->
+                // Replace item rows to prevent duplicates when an order is
+                // re-synced or amended on another client.
+                queries.deleteItemsByOrder(dto.id)
+                queries.insertOrder(
+                    id = dto.id,
+                    order_number = dto.orderNumber,
+                    business_id = dto.businessId,
+                    customer_id = dto.customerId,
+                    customer_name = dto.customerName,
+                    customer_phone = dto.customerPhone,
+                    delivery_location = dto.deliveryLocation,
+                    payment_status = dto.paymentStatus,
+                    delivery_status = dto.deliveryStatus,
+                    payment_method = dto.paymentMethod,
+                    mpesa_transaction_code = dto.mpesaTransactionCode,
+                    notes = dto.notes,
+                    subtotal = dto.items.sumOf { it.quantity * it.unitPrice },
+                    created_at = dto.createdAt,
+                    updated_at = dto.updatedAt
                 )
+
+                dto.items.forEach { item ->
+                    queries.insertOrderItem(
+                        id = generateId(),
+                        order_id = dto.id,
+                        product_id = item.productId,
+                        product_name = item.productName,
+                        quantity = item.quantity.toLong(),
+                        unit_price = item.unitPrice,
+                        buying_price = item.buyingPrice
+                    )
+                }
             }
         }
 

@@ -1167,6 +1167,7 @@ fun DesktopInventoryScreen(
         var buyingPrice by remember { mutableStateOf(editingProduct?.buyingPrice?.toString() ?: "") }
         var sellingPrice by remember { mutableStateOf(editingProduct?.sellingPrice?.toString() ?: "") }
         var currentStock by remember { mutableStateOf(editingProduct?.currentStock?.toString() ?: "") }
+        var lowStockThreshold by remember { mutableStateOf(editingProduct?.lowStockThreshold?.toString() ?: "5") }
         var category by remember { mutableStateOf(editingProduct?.category?.ifBlank { "OTHER" } ?: "OTHER") }
         var categoryMenuOpen by remember { mutableStateOf(false) }
         var creatingCategory by remember { mutableStateOf(false) }
@@ -1177,11 +1178,14 @@ fun DesktopInventoryScreen(
             val cost = buyingPrice.toDoubleOrNull()
             val sell = sellingPrice.toDoubleOrNull()
             val stock = currentStock.toIntOrNull()
+            val minimumStock = lowStockThreshold.toIntOrNull()
 
-            if (cost == null || sell == null || stock == null) {
+            if (cost == null || sell == null || stock == null || minimumStock == null) {
                 error = "Please enter valid numeric values for prices and stock."
             } else if (name.isBlank() || sku.isBlank()) {
                 error = "Product Name and SKU are required."
+            } else if (stock < 0 || minimumStock < 0) {
+                error = "Stock quantity and minimum stock cannot be negative."
             } else {
                 val product = Product(
                     id = editingProduct?.id ?: generateId(),
@@ -1191,6 +1195,7 @@ fun DesktopInventoryScreen(
                     buyingPrice = cost,
                     sellingPrice = sell,
                     currentStock = stock,
+                    lowStockThreshold = minimumStock,
                     category = category,
                     createdAt = editingProduct?.createdAt ?: Clock.System.now(),
                     updatedAt = Clock.System.now()
@@ -1358,17 +1363,28 @@ fun DesktopInventoryScreen(
                             colors = productDialogFieldColors()
                         )
                     }
-                    OutlinedTextField(
-                        value = currentStock,
-                        onValueChange = { currentStock = it },
-                        label = { Text("Stock Quantity *") },
-                        leadingIcon = { Icon(Icons.Default.Inventory2, null, tint = B360Green) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        singleLine = true,
-                        colors = productDialogFieldColors()
-                    )
-                    Text("Current available stock", color = Color(0xFF64748B), fontSize = 12.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value = currentStock,
+                            onValueChange = { currentStock = it },
+                            label = { Text("Stock Quantity *") },
+                            leadingIcon = { Icon(Icons.Default.Inventory2, null, tint = B360Green) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            singleLine = true,
+                            colors = productDialogFieldColors()
+                        )
+                        OutlinedTextField(
+                            value = lowStockThreshold,
+                            onValueChange = { lowStockThreshold = it },
+                            label = { Text("Minimum Stock *") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            singleLine = true,
+                            colors = productDialogFieldColors()
+                        )
+                    }
+                    Text("An alert is shown when available stock reaches the minimum.", color = Color(0xFF64748B), fontSize = 12.sp)
                     HorizontalDivider(color = Color(0xFFE2E8F0), modifier = Modifier.padding(top = 8.dp))
                 }
             },
@@ -1432,6 +1448,18 @@ fun DesktopOrdersScreen(
     var orderToAmend by remember { mutableStateOf<Order?>(null) }
     var localSearchQuery by remember { mutableStateOf("") }
     val activeSearch = searchQuery.ifBlank { localSearchQuery }
+
+    LaunchedEffect(state.lastOperation) {
+        val result = state.lastOperation ?: return@LaunchedEffect
+        if (!result.succeeded) return@LaunchedEffect
+        when (result.action) {
+            "cancel" -> if (orderToCancel?.id == result.orderId) orderToCancel = null
+            "void" -> if (orderToVoid?.id == result.orderId) orderToVoid = null
+            "amend" -> if (orderToAmend?.id == result.orderId) orderToAmend = null
+        }
+        selectedOrder = null
+        viewModel.dismissError()
+    }
 
     val filteredOrders = if (activeSearch.isBlank()) {
         state.filteredOrders
@@ -1765,16 +1793,23 @@ fun DesktopOrdersScreen(
         AlertDialog(
             onDismissRequest = { orderToCancel = null },
             title = { Text("Cancel ${order.orderNumber}?") },
-            text = { Text("This cancels fulfilment and restores the ordered stock. This action cannot be undone.") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This cancels fulfilment and restores the ordered stock. This action cannot be undone.")
+                    state.error?.let { Text(it, color = B360Red) }
+                }
+            },
             confirmButton = {
                 Button(
                     onClick = {
                         viewModel.cancelOrder(order.id)
-                        selectedOrder = null
-                        orderToCancel = null
                     },
+                    enabled = !state.isLoading,
                     colors = ButtonDefaults.buttonColors(containerColor = B360Amber)
-                ) { Text("Cancel order") }
+                ) {
+                    if (state.isLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("Cancel order")
+                }
             },
             dismissButton = { TextButton(onClick = { orderToCancel = null }) { Text("Keep order") } }
         )
@@ -1784,16 +1819,23 @@ fun DesktopOrdersScreen(
         AlertDialog(
             onDismissRequest = { orderToVoid = null },
             title = { Text("Void ${order.orderNumber}?") },
-            text = { Text("Use Void only for an erroneous transaction. Stock will be restored and the payment will be marked refunded for audit purposes.") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Use Void only for an erroneous transaction. Stock will be restored and the payment will be marked refunded for audit purposes.")
+                    state.error?.let { Text(it, color = B360Red) }
+                }
+            },
             confirmButton = {
                 Button(
                     onClick = {
                         viewModel.voidOrder(order.id)
-                        selectedOrder = null
-                        orderToVoid = null
                     },
+                    enabled = !state.isLoading,
                     colors = ButtonDefaults.buttonColors(containerColor = B360Red)
-                ) { Text("Void order") }
+                ) {
+                    if (state.isLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("Void order")
+                }
             },
             dismissButton = { TextButton(onClick = { orderToVoid = null }) { Text("Go back") } }
         )
@@ -1818,6 +1860,7 @@ fun DesktopOrdersScreen(
                             )
                         }
                     }
+                    state.error?.let { Text(it, color = B360Red) }
                     Text("Delivery", fontWeight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf(DeliveryStatus.PENDING, DeliveryStatus.PROCESSING, DeliveryStatus.SHIPPED, DeliveryStatus.DELIVERED).forEach { status ->
@@ -1834,11 +1877,14 @@ fun DesktopOrdersScreen(
                 Button(
                     onClick = {
                         viewModel.amendOrder(order.id, amendedPayment, amendedDelivery)
-                        selectedOrder = null
-                        orderToAmend = null
                     },
+                    enabled = !state.isLoading &&
+                        (amendedPayment != order.paymentStatus || amendedDelivery != order.deliveryStatus),
                     colors = ButtonDefaults.buttonColors(containerColor = B360Green)
-                ) { Text("Save changes") }
+                ) {
+                    if (state.isLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("Save changes")
+                }
             },
             dismissButton = { TextButton(onClick = { orderToAmend = null }) { Text("Cancel") } }
         )

@@ -1,0 +1,43 @@
+name: Build Windows Desktop Installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  windows-msi:
+    name: Windows MSI
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Validate desktop compilation
+        shell: pwsh
+        run: .\gradlew.bat :desktopApp:compileKotlinDesktop --no-daemon
+
+      - name: Build MSI installer
+        shell: pwsh
+        run: .\gradlew.bat :desktopApp:packageMsi --no-daemon
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Biashara360ERP-Windows-MSI
+          path: desktopApp/build/compose/binaries/main/msi/*.msi
+          if-no-files-found: error
+          retention-days: 30

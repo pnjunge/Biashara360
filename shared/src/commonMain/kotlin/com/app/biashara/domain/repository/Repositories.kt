@@ -24,6 +24,7 @@ interface OrderRepository {
     suspend fun updatePaymentStatus(orderId: String, status: PaymentStatus, txCode: String?): Result<Unit>
     suspend fun updateDeliveryStatus(orderId: String, status: DeliveryStatus): Result<Unit>
     suspend fun cancelOrder(orderId: String): Result<Unit>
+    suspend fun voidOrder(orderId: String): Result<Unit>
     fun getOrdersForCustomer(customerId: String): Flow<List<Order>>
     fun getOrdersByDateRange(businessId: String, start: LocalDate, end: LocalDate): Flow<List<Order>>
     suspend fun generateOrderNumber(businessId: String): String

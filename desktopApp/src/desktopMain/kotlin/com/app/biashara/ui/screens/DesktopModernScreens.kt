@@ -61,7 +61,7 @@ fun DesktopPaymentsModernScreen(
     val mpesaCount = state.payments.count { it.channel.name.startsWith("MPESA") }
     val failedCount = state.payments.count { it.status == TransactionStatus.FAILED || it.status == TransactionStatus.CANCELLED }
 
-    ModernPage("Payments", "Dashboard", "Payments", if (state.isSyncing) "Syncing…" else "Sync Backend", Icons.Default.Sync, viewModel::refreshPayments) {
+    ModernPage("Payments", "Dashboard", "Payments", if (state.isSyncing) "Syncing…" else "Sync Backend", Icons.Default.Sync, viewModel::refreshPayments, actionEnabled = !state.isSyncing) {
         state.error?.let {
             Surface(color = Color(0xFFFEF2F2), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFFFCA5A5))) {
                 Text("Payment sync failed: $it", color = Color(0xFF991B1B), modifier = Modifier.fillMaxWidth().padding(12.dp))
@@ -127,6 +127,7 @@ fun DesktopTaxModernScreen() {
     var summary by remember { mutableStateOf<TaxSummaryDto?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var selectedType by remember { mutableStateOf<String?>(null) }
     val month = remember { java.time.LocalDate.now() }
     val from = remember { month.withDayOfMonth(1).toString() }
     val to = remember { month.withDayOfMonth(month.lengthOfMonth()).toString() }
@@ -149,10 +150,11 @@ fun DesktopTaxModernScreen() {
         Triple("VAT", summary?.netVat ?: 0.0, "Due 20th"),
         Triple("TOT", summary?.totAmount ?: 0.0, "Due 20th"),
         Triple("WHT", summary?.whtAmount ?: 0.0, "Due 20th")
-    )
+    ).filter { selectedType == null || it.first == selectedType }
     var selectedTax by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     ModernPage(
-        "Tax Management", "Dashboard", "Tax", if (loading) "Refreshing…" else "Refresh", Icons.Default.Refresh, loadTax
+        "Tax Management", "Dashboard", "Tax", if (loading) "Refreshing…" else "Refresh", Icons.Default.Refresh, loadTax,
+        actionEnabled = !loading
     ) {
         error?.let { ComplianceError(it) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -163,9 +165,11 @@ fun DesktopTaxModernScreen() {
         }
         ModernTableCard(
             toolbar = {
-                ModernFilter("This Month", Icons.Default.CalendarMonth)
-                ModernFilter("All Tax Types", Icons.Default.AccountBalance)
-                ModernFilter("All Status", Icons.Default.FilterAlt)
+                PaymentFilter(
+                    selectedType ?: "All Tax Types",
+                    Icons.Default.AccountBalance,
+                    listOf("All Tax Types", "VAT", "TOT", "WHT")
+                ) { selectedType = it.takeUnless { value -> value == "All Tax Types" } }
             },
             headers = listOf("Tax Type", "Taxable Period", "Liability", "Due Date", "Status", "Actions"),
             weights = listOf(1.4f, 1.2f, 1.2f, 1f, 1f, .7f),
@@ -212,6 +216,9 @@ fun DesktopKraModernScreen() {
     var history by remember { mutableStateOf<List<EtimsInvoiceDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var selectedType by remember { mutableStateOf<String?>(null) }
+    var selectedStatus by remember { mutableStateOf<String?>(null) }
+    var downloadingKey by remember { mutableStateOf<String?>(null) }
     val now = remember { java.time.LocalDate.now() }
     val loadKra = {
         scope.launch {
@@ -228,8 +235,14 @@ fun DesktopKraModernScreen() {
         Unit
     }
     LaunchedEffect(Unit) { loadKra() }
-    val pending = compliance?.pendingReturns.orEmpty() + compliance?.overdueReturns.orEmpty()
-    ModernPage("KRA & eTIMS", "Dashboard", "KRA", if (loading) "Refreshing…" else "Refresh", Icons.Default.Refresh, loadKra) {
+    val pending = (compliance?.pendingReturns.orEmpty() + compliance?.overdueReturns.orEmpty())
+        .filter { selectedType == null || it.returnType == selectedType }
+        .filter {
+            selectedStatus == null ||
+                (selectedStatus == "OVERDUE" && it.isOverdue) ||
+                (selectedStatus == "PENDING" && !it.isOverdue)
+        }
+    ModernPage("KRA & eTIMS", "Dashboard", "KRA", if (loading) "Refreshing…" else "Refresh", Icons.Default.Refresh, loadKra, actionEnabled = !loading) {
         error?.let { ComplianceError(it) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             ModernSummary(Modifier.weight(1f), "Compliance Score", (compliance?.complianceScore ?: 0).toDouble(), if (compliance?.pin == null) "KRA profile required" else "Live compliance", Icons.Default.VerifiedUser, ModernGreen, Color(0xFFE1F8EF), money = false, suffix = "%")
@@ -239,9 +252,16 @@ fun DesktopKraModernScreen() {
         }
         ModernTableCard(
             toolbar = {
-                ModernFilter("Current Period", Icons.Default.CalendarMonth)
-                ModernFilter("All Return Types", Icons.Default.Assignment)
-                ModernFilter("All Status", Icons.Default.FilterAlt)
+                PaymentFilter(
+                    selectedType ?: "All Return Types",
+                    Icons.Default.Assignment,
+                    listOf("All Return Types", "VAT3", "TOT", "WHT")
+                ) { selectedType = it.takeUnless { value -> value == "All Return Types" } }
+                PaymentFilter(
+                    selectedStatus ?: "All Status",
+                    Icons.Default.FilterAlt,
+                    listOf("All Status", "PENDING", "OVERDUE")
+                ) { selectedStatus = it.takeUnless { value -> value == "All Status" } }
             },
             headers = listOf("Return", "Period", "Tax Amount", "Submission Status", "Last Updated", "Actions"),
             weights = listOf(1.5f, 1.1f, 1.2f, 1.2f, 1.2f, .7f),
@@ -260,9 +280,21 @@ fun DesktopKraModernScreen() {
                     Box(Modifier.weight(.7f)) {
                         IconButton(
                             onClick = {
-                                scope.launch { downloadKraCsv(client, item.returnType, now.year, now.monthValue) { error = it } }
+                                val key = "${item.returnType}:${item.period}"
+                                downloadingKey = key
+                                scope.launch {
+                                    downloadKraCsv(client, item.returnType, now.year, now.monthValue) { error = it }
+                                    downloadingKey = null
+                                }
+                            },
+                            enabled = downloadingKey == null
+                        ) {
+                            if (downloadingKey == "${item.returnType}:${item.period}") {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Download, "Download", tint = Color(0xFF2563EB), modifier = Modifier.size(18.dp))
                             }
-                        ) { Icon(Icons.Default.Download, "Download", tint = Color(0xFF2563EB), modifier = Modifier.size(18.dp)) }
+                        }
                     }
                 }
             }
@@ -490,6 +522,7 @@ private fun ModernPage(
     actionLabel: String,
     actionIcon: ImageVector,
     onAction: () -> Unit,
+    actionEnabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(
@@ -507,6 +540,7 @@ private fun ModernPage(
             }
             Button(
                 onClick = onAction,
+                enabled = actionEnabled,
                 colors = ButtonDefaults.buttonColors(containerColor = ModernGreen),
                 shape = RoundedCornerShape(10.dp),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 13.dp)
@@ -606,23 +640,6 @@ private fun ColumnScope.ModernTableCard(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ModernFilter(label: String, icon: ImageVector) {
-    OutlinedButton(
-        onClick = {},
-        enabled = false,
-        shape = RoundedCornerShape(9.dp),
-        border = BorderStroke(1.dp, ModernBorder),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = ModernNavy)
-    ) {
-        Icon(icon, null, modifier = Modifier.size(17.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(label)
-        Spacer(Modifier.width(12.dp))
-        Icon(Icons.Default.KeyboardArrowDown, null, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -772,7 +789,12 @@ private suspend fun downloadKraCsv(
         if (!response.success || response.data == null) error(response.message.ifBlank { "KRA export failed" })
         val export = requireNotNull(response.data)
         val directory = File(System.getProperty("user.home"), "Downloads").apply { mkdirs() }
-        val output = File(directory, export.fileName)
+        val requested = File(directory, export.fileName)
+        val output = if (requested.exists()) {
+            File(directory, "${requested.nameWithoutExtension}-${System.currentTimeMillis()}.${requested.extension}")
+        } else {
+            requested
+        }
         output.writeBytes(Base64.getDecoder().decode(export.downloadBase64))
         if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().open(output)
     }.onFailure { onError(it.message ?: "KRA export failed") }
