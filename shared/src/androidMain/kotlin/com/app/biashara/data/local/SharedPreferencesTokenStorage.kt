@@ -59,6 +59,18 @@ class SharedPreferencesTokenStorage(context: Context) : TokenStorage {
         prefs.edit().putLong(KEY_SESSION_TIMEOUT_SECONDS, seconds.coerceIn(60L, 86_400L)).apply()
     }
 
+    override suspend fun getSessionRemainingMillis(): Long? {
+        if (!prefs.contains(KEY_ACCESS_TOKEN)) return null
+        val lastActivity = prefs.getLong(KEY_LAST_ACTIVITY, 0L)
+        return (effectiveTimeoutMillis() - (System.currentTimeMillis() - lastActivity)).coerceAtLeast(0L)
+    }
+
+    override suspend fun touchSession() {
+        if (prefs.contains(KEY_ACCESS_TOKEN)) {
+            prefs.edit().putLong(KEY_LAST_ACTIVITY, System.currentTimeMillis()).apply()
+        }
+    }
+
     private fun activeToken(key: String): String? {
         val access = prefs.getString(KEY_ACCESS_TOKEN, null)
         val last = prefs.getLong(KEY_LAST_ACTIVITY, 0L)

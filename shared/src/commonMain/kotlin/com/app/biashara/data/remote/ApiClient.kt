@@ -74,6 +74,8 @@ interface TokenStorage {
     suspend fun saveTokens(accessToken: String, refreshToken: String)
     suspend fun clearTokens()
     suspend fun saveSessionIdleTimeoutSeconds(seconds: Long)
+    suspend fun getSessionRemainingMillis(): Long?
+    suspend fun touchSession()
 }
 
 /** Configurable client idle timeout; applications may override this at startup. */

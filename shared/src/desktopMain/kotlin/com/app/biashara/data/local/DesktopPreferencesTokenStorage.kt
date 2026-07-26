@@ -34,6 +34,19 @@ class DesktopPreferencesTokenStorage : TokenStorage {
         prefs.flush()
     }
 
+    override suspend fun getSessionRemainingMillis(): Long? {
+        if (prefs.get(KEY_ACCESS_TOKEN, null) == null) return null
+        val lastActivity = prefs.get(KEY_LAST_ACTIVITY, "0").toLongOrNull() ?: 0L
+        return (effectiveTimeoutMillis() - (System.currentTimeMillis() - lastActivity)).coerceAtLeast(0L)
+    }
+
+    override suspend fun touchSession() {
+        if (prefs.get(KEY_ACCESS_TOKEN, null) != null) {
+            prefs.put(KEY_LAST_ACTIVITY, System.currentTimeMillis().toString())
+            prefs.flush()
+        }
+    }
+
     private fun activeToken(key: String): String? {
         val access = prefs.get(KEY_ACCESS_TOKEN, null)
         val last = prefs.get(KEY_LAST_ACTIVITY, "0").toLongOrNull() ?: 0L

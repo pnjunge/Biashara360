@@ -35,14 +35,71 @@ import com.app.biashara.ui.screens.tax.TaxScreen
 import com.app.biashara.ui.screens.kra.KraScreen
 import com.app.biashara.ui.screens.social.SocialScreen
 import com.app.biashara.ui.screens.pos.PosScreen
+import com.app.biashara.data.remote.TokenStorage
+import com.app.biashara.domain.repository.AuthRepository
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 
 @Composable
 fun Biashara360App() {
     val startDestination = Screen.Login.route
+    val tokenStorage = koinInject<TokenStorage>()
+    val authRepository = koinInject<AuthRepository>()
+    val coroutineScope = rememberCoroutineScope()
+    var sessionWarningSeconds by remember { mutableStateOf<Int?>(null) }
 
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+
+    LaunchedEffect(currentDestination?.route) {
+        while (true) {
+            val remaining = tokenStorage.getSessionRemainingMillis()
+            sessionWarningSeconds = remaining
+                ?.takeIf { it in 1..60_000 }
+                ?.let { ((it + 999) / 1000).toInt() }
+            if (remaining == 0L) {
+                authRepository.logout()
+                sessionWarningSeconds = null
+                navController.navigate(Screen.Login.route) {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+            delay(1_000)
+        }
+    }
+
+    sessionWarningSeconds?.let { seconds ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Session expiring") },
+            text = { Text("You’ll be signed out in $seconds seconds due to inactivity.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        sessionWarningSeconds = null
+                        coroutineScope.launch { tokenStorage.touchSession() }
+                    }
+                ) { Text("Stay signed in") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        sessionWarningSeconds = null
+                        coroutineScope.launch {
+                            authRepository.logout()
+                            navController.navigate(Screen.Login.route) {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                ) { Text("Sign out") }
+            }
+        )
+    }
 
     val showBottomBar = bottomNavItems.any { item ->
         currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
