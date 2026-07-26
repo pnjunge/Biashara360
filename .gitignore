@@ -24,5 +24,7 @@ keystore.properties
 
 # Build / IDE outputs
 bin/
+!infra/bin/
+!infra/bin/*.ts
+infra/cdk.out/
 *.zip
-

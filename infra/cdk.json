@@ -1,0 +1,13 @@
+{
+  "app": "npx tsx bin/biashara360.ts",
+  "context": {
+    "account": "403460914856",
+    "region": "us-east-1",
+    "vpcId": "vpc-0202917da334cdf99",
+    "hostedZoneName": "biashara360.co.ke",
+    "apiDomainName": "api.biashara360.co.ke",
+    "apiImageTag": "bcfb8b2",
+    "apiSecretName": "biashara360/production/api",
+    "databaseSecurityGroupId": "sg-09c21fd1999e93667"
+  }
+}

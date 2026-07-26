@@ -1,29 +1,30 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { Suspense, createContext, lazy, useContext, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
-import LoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
-import DashboardPage from './pages/DashboardPage'
-import InventoryPage from './pages/InventoryPage'
-import OrdersPage from './pages/OrdersPage'
-import PosPage from './pages/PosPage'
-import CustomersPage from './pages/CustomersPage'
-import ExpensesPage from './pages/ExpensesPage'
-import PaymentsPage from './pages/PaymentsPage'
-import ReportsPage from './pages/ReportsPage'
-import SettingsPage from './pages/SettingsPage'
-import CyberSourcePage from './pages/CyberSourcePage'
-import CyberSourceSettingsPage from './pages/CyberSourceSettingsPage'
-import MpesaSettingsPage from './pages/MpesaSettingsPage'
-import ReceiptTemplatePage from './pages/ReceiptTemplatePage'
-import SessionTimeoutSettingsPage from './pages/SessionTimeoutSettingsPage'
-import TaxPage from './pages/TaxPage'
-import KraPage from './pages/KraPage'
-import SocialPage from './pages/SocialPage'
-import SocialOnboardingPage from './pages/SocialOnboardingPage'
-import UserCreationPage from './pages/UserCreationPage'
-import BusinessPage from './pages/BusinessPage'
 import { settingsApi } from './services/api'
+
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/RegisterPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const InventoryPage = lazy(() => import('./pages/InventoryPage'))
+const OrdersPage = lazy(() => import('./pages/OrdersPage'))
+const PosPage = lazy(() => import('./pages/PosPage'))
+const CustomersPage = lazy(() => import('./pages/CustomersPage'))
+const ExpensesPage = lazy(() => import('./pages/ExpensesPage'))
+const PaymentsPage = lazy(() => import('./pages/PaymentsPage'))
+const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const CyberSourcePage = lazy(() => import('./pages/CyberSourcePage'))
+const CyberSourceSettingsPage = lazy(() => import('./pages/CyberSourceSettingsPage'))
+const MpesaSettingsPage = lazy(() => import('./pages/MpesaSettingsPage'))
+const ReceiptTemplatePage = lazy(() => import('./pages/ReceiptTemplatePage'))
+const SessionTimeoutSettingsPage = lazy(() => import('./pages/SessionTimeoutSettingsPage'))
+const TaxPage = lazy(() => import('./pages/TaxPage'))
+const KraPage = lazy(() => import('./pages/KraPage'))
+const SocialPage = lazy(() => import('./pages/SocialPage'))
+const SocialOnboardingPage = lazy(() => import('./pages/SocialOnboardingPage'))
+const UserCreationPage = lazy(() => import('./pages/UserCreationPage'))
+const BusinessPage = lazy(() => import('./pages/BusinessPage'))
 
 // ── Auth Context ──────────────────────────────────────────────────────────────
 interface AuthUser {
@@ -120,6 +121,7 @@ export default function App() {
           v7_relativeSplatPath: true,
         }}
       >
+        <Suspense fallback={<div style={{ padding: 32, textAlign: 'center' }}>Loading…</div>}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -148,6 +150,7 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthContext.Provider>
   )

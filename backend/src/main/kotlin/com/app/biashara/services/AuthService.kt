@@ -310,14 +310,14 @@ class AuthService(
             try {
                 runBlocking { smsService.sendOtp(phone, otp) }
             } catch (e: Exception) {
-                println("[AuthService] SMS dispatch failed: ${e.message}")
+                println("[AuthService] SMS dispatch failed")
             }
         }
         if (email.isNotBlank()) {
             try {
                 emailService.sendOtpEmail(email, otp, name)
             } catch (e: Exception) {
-                println("[AuthService] Email dispatch failed: ${e.message}")
+                println("[AuthService] Email dispatch failed")
             }
         }
     }

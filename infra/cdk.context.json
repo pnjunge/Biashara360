@@ -1,0 +1,56 @@
+{
+  "vpc-provider:account=403460914856:filter.vpc-id=vpc-0202917da334cdf99:region=us-east-1:returnAsymmetricSubnets=true": {
+    "vpcId": "vpc-0202917da334cdf99",
+    "vpcCidrBlock": "172.31.0.0/16",
+    "ownerAccountId": "403460914856",
+    "availabilityZones": [],
+    "subnetGroups": [
+      {
+        "name": "Public",
+        "type": "Public",
+        "subnets": [
+          {
+            "subnetId": "subnet-0d3602cffc335653d",
+            "cidr": "172.31.0.0/20",
+            "availabilityZone": "us-east-1a",
+            "routeTableId": "rtb-012f6de513a70f8df"
+          },
+          {
+            "subnetId": "subnet-012c8e946faaac7db",
+            "cidr": "172.31.80.0/20",
+            "availabilityZone": "us-east-1b",
+            "routeTableId": "rtb-012f6de513a70f8df"
+          },
+          {
+            "subnetId": "subnet-037f2ef0abeabca03",
+            "cidr": "172.31.16.0/20",
+            "availabilityZone": "us-east-1c",
+            "routeTableId": "rtb-012f6de513a70f8df"
+          },
+          {
+            "subnetId": "subnet-0b9ec6564d1075bd8",
+            "cidr": "172.31.32.0/20",
+            "availabilityZone": "us-east-1d",
+            "routeTableId": "rtb-012f6de513a70f8df"
+          },
+          {
+            "subnetId": "subnet-01a55f38d93b1f925",
+            "cidr": "172.31.48.0/20",
+            "availabilityZone": "us-east-1e",
+            "routeTableId": "rtb-012f6de513a70f8df"
+          },
+          {
+            "subnetId": "subnet-03c4d7796d98c93bd",
+            "cidr": "172.31.64.0/20",
+            "availabilityZone": "us-east-1f",
+            "routeTableId": "rtb-012f6de513a70f8df"
+          }
+        ]
+      }
+    ]
+  },
+  "hosted-zone:account=403460914856:domainName=biashara360.co.ke:region=us-east-1": {
+    "Id": "/hostedzone/Z04879661N3N22H54MODV",
+    "Name": "biashara360.co.ke."
+  }
+}

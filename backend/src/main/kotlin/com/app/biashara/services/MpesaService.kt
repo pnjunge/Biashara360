@@ -18,6 +18,7 @@ import java.util.Base64
 import java.security.cert.CertificateFactory
 import java.io.ByteArrayInputStream
 import javax.crypto.Cipher
+import org.slf4j.LoggerFactory
 
 internal val MPESA_ACCOUNT_TYPES = setOf("paybill", "till")
 
@@ -39,6 +40,7 @@ class MpesaService(
     private val settingsService: BusinessSettingsService? = null,
     private val systemSettingsService: SystemSettingsService? = null
 ) {
+    private val logger = LoggerFactory.getLogger(MpesaService::class.java)
     // Fall-back to application-level config when no per-business DB config is found.
     // For the callback URL, the system settings DB value takes precedence over application.conf.
     private val defaultConsumerKey get() = config.propertyOrNull("mpesa.consumerKey")?.getString() ?: ""
@@ -167,12 +169,12 @@ class MpesaService(
             val httpResponse = httpClient.post("${baseUrl(cfg.isSandbox)}/mpesa/stkpush/v1/processrequest") {
                 headers { append(HttpHeaders.Authorization, "Bearer $token") }
                 contentType(ContentType.Application.Json)
-                println("[MpesaSTK] Sending STK request")
+                logger.info("""{"event":"mpesa_stk_requested","account_type":"${cfg.accountType}"}""")
                 setBody(payload)
             }
 
             val rawBody = httpResponse.bodyAsText()
-            println("[MpesaSTK] Response status ${httpResponse.status.value}")
+            logger.info("""{"event":"mpesa_stk_response","status":${httpResponse.status.value}}""")
 
             if (!httpResponse.status.isSuccess()) {
                 // Parse Daraja error shape: {"requestId":"...","errorCode":"...","errorMessage":"..."}
@@ -181,15 +183,15 @@ class MpesaService(
                     obj["errorMessage"]?.jsonPrimitive?.contentOrNull
                         ?: obj["ResultDesc"]?.jsonPrimitive?.contentOrNull
                         ?: "Daraja error (${httpResponse.status.value})"
-                } catch (_: Exception) { "Daraja error (${httpResponse.status.value}): $rawBody" }
+                } catch (_: Exception) { "Daraja rejected the STK request (${httpResponse.status.value})" }
                 return StkPushResult.Error(errMsg)
             }
 
             val response = try {
                 lenientJson.decodeFromString(StkPushResponse.serializer(), rawBody)
             } catch (e: Exception) {
-                println("[MpesaSTK] Failed to parse success body: ${e.message}")
-                return StkPushResult.Error("Unexpected Daraja response format: $rawBody")
+                logger.warn("""{"event":"payment_failure","provider":"mpesa","reason":"invalid_response"}""")
+                return StkPushResult.Error("Unexpected response from M-Pesa")
             }
 
             StkPushResult.Success(
@@ -200,7 +202,7 @@ class MpesaService(
             )
         } catch (e: ClientRequestException) {
             val rawErr = try { e.response.bodyAsText() } catch (_: Exception) { "" }
-            println("[MpesaSTK] ClientRequestException: ${e.response.status.value} — $rawErr")
+            logger.warn("""{"event":"payment_failure","provider":"mpesa","status":${e.response.status.value}}""")
             val friendly = try {
                 val obj = lenientJson.decodeFromString(JsonObject.serializer(), rawErr)
                 obj["errorMessage"]?.jsonPrimitive?.contentOrNull
@@ -208,7 +210,7 @@ class MpesaService(
             } catch (_: Exception) { "M-Pesa request failed (${e.response.status.value})" }
             StkPushResult.Error(friendly)
         } catch (e: Exception) {
-            println("[MpesaSTK] Exception: ${e.message}")
+            logger.error("""{"event":"payment_failure","provider":"mpesa","reason":"internal_error"}""", e)
             StkPushResult.Error(e.message ?: "Failed to initiate payment")
         }
     }

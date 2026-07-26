@@ -34,13 +34,16 @@ private val startTime = System.currentTimeMillis()
 
 fun Route.healthRoutes() {
     
-    // Basic health check (fast, for load balancers)
+    // Load-balancer health check: only accept traffic when the database is reachable.
     get("/health") {
+        val database = checkDatabase()
+        val ready = database.status == "up"
         call.respond(
-            HttpStatusCode.OK,
+            if (ready) HttpStatusCode.OK else HttpStatusCode.ServiceUnavailable,
             mapOf(
-                "status" to "healthy",
-                "timestamp" to Instant.now().toString()
+                "status" to if (ready) "healthy" else "unhealthy",
+                "timestamp" to Instant.now().toString(),
+                "database" to database.status
             )
         )
     }

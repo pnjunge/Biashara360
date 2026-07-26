@@ -4,14 +4,12 @@ import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.ktor.server.application.*
 import io.ktor.server.config.*
+import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.SchemaUtils
-import org.jetbrains.exposed.sql.update
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.Transaction
+import org.slf4j.LoggerFactory
 
 object DatabaseFactory {
+    private val logger = LoggerFactory.getLogger(DatabaseFactory::class.java)
 
     fun init(config: ApplicationConfig) {
         // Use optional properties with defaults - they'll work if config has them
@@ -55,81 +53,22 @@ object DatabaseFactory {
             validate()
         }
 
-        Database.connect(HikariDataSource(hikariConfig))
-        createTables()
-        // Note: seedSuperuser() is called by Application.module() after init()
-    }
-
-    private fun createTables() {
-        transaction {
-            migrateMpesaConfigsForMultipleChannels()
-            SchemaUtils.createMissingTablesAndColumns(
-                BusinessesTable,
-                UsersTable,
-                OtpTable,
-                RefreshTokensTable,
-                ProductsTable,
-                StockMovementsTable,
-                CustomersTable,
-                OrdersTable,
-                OrderItemsTable,
-                ExpensesTable,
-                PaymentsTable,
-                CyberSourceTransactionsTable,
-                CsCustomerTokensTable,
-                TaxRatesTable,
-                OrderTaxLinesTable,
-                TaxRemittancesTable,
-                KraProfilesTable,
-                EtimsInvoicesTable,
-                TaxReturnsTable,
-                SocialChannelsTable,
-                SocialConversationsTable,
-                SocialMessagesTable,
-                SocialOrdersTable,
-                MpesaConfigsTable,
-                CyberSourceConfigsTable,
-                BusinessSessionSettingsTable,
-                SystemSettingsTable
-            )
-            // WhatsApp uses the single platform system-user token injected from
-            // the deployment vault. Remove any legacy merchant tokens from DB.
-            SocialChannelsTable.update({ SocialChannelsTable.platform eq "WHATSAPP" }) {
-                it[SocialChannelsTable.accessToken] = ""
-                it[SocialChannelsTable.refreshToken] = null
-            }
+        try {
+            val dataSource = HikariDataSource(hikariConfig)
+            Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration")
+                .baselineOnMigrate(true)
+                .baselineVersion("2")
+                .validateMigrationNaming(true)
+                .load()
+                .migrate()
+            Database.connect(dataSource)
+            logger.info("""{"event":"database_ready"}""")
+        } catch (exception: Exception) {
+            logger.error("""{"event":"database_connection_failure"}""", exception)
+            throw exception
         }
-    }
-
-    private fun Transaction.migrateMpesaConfigsForMultipleChannels() {
-        exec(
-            """
-            DO ${'$'}migration${'$'}
-            DECLARE constraint_name text;
-            BEGIN
-                IF to_regclass('public.mpesa_configs') IS NULL THEN
-                    RETURN;
-                END IF;
-                FOR constraint_name IN
-                    SELECT con.conname
-                    FROM pg_constraint con
-                    JOIN pg_class rel ON rel.oid = con.conrelid
-                    JOIN pg_namespace ns ON ns.oid = rel.relnamespace
-                    WHERE ns.nspname = current_schema()
-                      AND rel.relname = 'mpesa_configs'
-                      AND con.contype = 'u'
-                      AND (
-                          SELECT array_agg(CAST(att.attname AS text) ORDER BY key_columns.ordinality)
-                          FROM unnest(con.conkey) WITH ORDINALITY AS key_columns(attnum, ordinality)
-                          JOIN pg_attribute att
-                            ON att.attrelid = rel.oid AND att.attnum = key_columns.attnum
-                      ) = ARRAY['business_id']
-                LOOP
-                    EXECUTE format('ALTER TABLE mpesa_configs DROP CONSTRAINT %I', constraint_name);
-                END LOOP;
-            END
-            ${'$'}migration${'$'};
-            """.trimIndent()
-        )
+        // Note: seedSuperuser() is called by Application.module() after init()
     }
 }

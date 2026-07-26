@@ -31,7 +31,7 @@ class EmailService(config: ApplicationConfig) {
      */
     fun sendOtpEmail(to: String, otp: String, userName: String): Result<Unit> {
         if (!isConfigured()) {
-            println("[EmailService] ⚠ SMTP credentials not configured — email not sent. OTP: $otp → $to")
+            println("[EmailService] SMTP credentials not configured; email was not sent")
             return Result.failure(IllegalStateException("SMTP credentials not configured"))
         }
 
@@ -57,7 +57,7 @@ class EmailService(config: ApplicationConfig) {
             }
 
             Transport.send(message)
-            println("[EmailService] ✓ OTP email sent successfully to $to")
+            println("[EmailService] OTP email sent successfully")
             Result.success(Unit)
         } catch (e: Exception) {
             println("[EmailService] ✗ Failed to send email: ${e.message}")

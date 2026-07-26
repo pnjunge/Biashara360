@@ -12,6 +12,9 @@ import io.ktor.server.netty.*
 import io.ktor.server.routing.*
 import com.app.biashara.models.HealthResponse
 import io.ktor.server.plugins.callloging.*
+import io.ktor.server.plugins.callid.*
+import io.ktor.server.request.*
+import java.util.UUID
 import com.typesafe.config.ConfigFactory
 import io.ktor.server.config.HoconApplicationConfig
 
@@ -37,8 +40,20 @@ fun Application.module() {
     configureExceptionHandling()  // Global exception handler (single StatusPages installation)
     configureDefaultHeaders()
     configureRateLimiting()
+    install(CallId) {
+        retrieveFromHeader("X-Request-ID")
+        generate { UUID.randomUUID().toString() }
+        verify { it.length in 8..128 && it.all { char -> char.isLetterOrDigit() || char in "-_." } }
+        replyToHeader("X-Request-ID")
+    }
     install(CallLogging) {
         level = org.slf4j.event.Level.INFO
+        callIdMdc("requestId")
+        format { call ->
+            val requestId = call.callId ?: "unknown"
+            val status = call.response.status()?.value ?: 0
+            """{"event":"http_request","request_id":"$requestId","method":"${call.request.httpMethod.value}","path":"${call.request.path()}","status":$status}"""
+        }
     }
 
     // Routes

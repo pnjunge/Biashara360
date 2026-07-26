@@ -166,7 +166,6 @@ fun Route.paymentRoutesValidated() {
 fun Route.mpesaCallbackRouteValidated() {
     post("/payments/mpesa/callback") {
         val rawBody = call.receiveText()
-        println("[MpesaCallback] Received callback raw payload: $rawBody")
         
         // Parse callback
         val callback = try {
@@ -177,7 +176,7 @@ fun Route.mpesaCallbackRouteValidated() {
             }
             lenientJson.decodeFromString<MpesaCallbackRequest>(rawBody)
         } catch (e: Exception) {
-            println("[MpesaCallback] Failed to deserialize callback payload: ${e.message}")
+            application.log.warn("""{"event":"mpesa_callback_rejected","reason":"invalid_payload"}""")
             call.respond(HttpStatusCode.OK, DarajaAck())
             return@post
         }
@@ -194,7 +193,7 @@ fun Route.mpesaCallbackRouteValidated() {
                 timestamp = timestamp,
                 maxAgeSeconds = Constants.Mpesa.CALLBACK_TIMEOUT_SECONDS.toLong()
             )) {
-            println("[MpesaCallback] Invalid callback: checkoutRequestId=$checkoutRequestId, timestamp=$timestamp")
+            application.log.warn("""{"event":"mpesa_callback_rejected","reason":"invalid_signature"}""")
             call.respond(HttpStatusCode.Unauthorized, DarajaAck(ResultCode = 1, ResultDesc = "Invalid callback"))
             return@post
         }
@@ -220,7 +219,7 @@ fun Route.mpesaCallbackRouteValidated() {
                     
                     // Validate amount matches order
                     if (Math.abs(amount - orderSubtotal) > orderSubtotal * 0.01) {
-                        println("[MpesaCallback] Amount mismatch for order $orderId: expected $orderSubtotal, received $amount (txCode=$txCode)")
+                        application.log.warn("""{"event":"mpesa_callback_rejected","reason":"amount_mismatch","order_id":"$orderId"}""")
                     }
                     
                     // Save payment record
@@ -246,13 +245,13 @@ fun Route.mpesaCallbackRouteValidated() {
                         it[OrdersTable.updatedAt] = now
                     }
                     
-                    println("[MpesaCallback] Payment processed successfully: order=$orderId, tx=$txCode, amount=$amount")
+                    application.log.info("""{"event":"payment_completed","provider":"mpesa","order_id":"$orderId"}""")
                 } else {
-                    println("[MpesaCallback] No order found for checkoutRequestId=$checkoutRequestId (txCode=$txCode)")
+                    application.log.warn("""{"event":"mpesa_callback_unmatched"}""")
                 }
             }
         } else {
-            println("[MpesaCallback] Payment failed: ResultCode=${stkCallback.ResultCode}, ResultDesc=${stkCallback.ResultDesc}")
+            application.log.warn("""{"event":"payment_failure","provider":"mpesa","result_code":${stkCallback.ResultCode}}""")
         }
         
         // Always acknowledge to Safaricom

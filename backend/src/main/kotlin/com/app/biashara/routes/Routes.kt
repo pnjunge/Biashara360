@@ -396,11 +396,10 @@ private val lenientJson = Json {
 fun Route.mpesaCallbackRoute() {
     post("/payments/mpesa/callback") {
         val rawBody = call.receiveText()
-        println("[MpesaCallback] Received callback raw payload: $rawBody")
         val callback = try {
             lenientJson.decodeFromString<MpesaCallbackRequest>(rawBody)
         } catch (e: Exception) {
-            println("[MpesaCallback] Failed to deserialize callback payload: ${e.message}")
+            application.log.warn("""{"event":"mpesa_callback_rejected","reason":"invalid_payload"}""")
             call.respond(HttpStatusCode.OK, DarajaAck())
             return@post
         }
@@ -428,8 +427,7 @@ fun Route.mpesaCallbackRoute() {
 
                     // Warn on amount discrepancy (log but still accept — partial payments are valid)
                     if (Math.abs(amount - orderSubtotal) > orderSubtotal * 0.01) {
-                        println("[MpesaCallback] Amount mismatch for order $orderId: " +
-                            "expected $orderSubtotal, received $amount (txCode=$txCode)")
+                        application.log.warn("""{"event":"mpesa_callback_rejected","reason":"amount_mismatch","order_id":"$orderId"}""")
                     }
 
                     // Save payment record (auto-reconciled since it came from the callback)
@@ -455,7 +453,7 @@ fun Route.mpesaCallbackRoute() {
                         it[OrdersTable.updatedAt]             = now
                     }
                 } else {
-                    println("[MpesaCallback] No order found for checkoutRequestId=$checkoutRequestId (txCode=$txCode)")
+                    application.log.warn("""{"event":"mpesa_callback_unmatched"}""")
                 }
             }
         }

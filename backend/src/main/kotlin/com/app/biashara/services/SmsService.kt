@@ -42,7 +42,7 @@ class SmsService(
      */
     suspend fun sendSms(to: String, message: String): Result<String> {
         if (!isConfigured()) {
-            println("[SmsService] ⚠ API key not configured — SMS not sent. Message: $message → $to")
+            println("[SmsService] API key not configured; SMS was not sent")
             return Result.failure(IllegalStateException("Africa's Talking API key not configured"))
         }
 
@@ -75,7 +75,7 @@ class SmsService(
                 if (recipients != null && recipients.isNotEmpty()) {
                     val status = recipients[0].jsonObject["status"]?.jsonPrimitive?.content
                     if (status == "Success") {
-                        println("[SmsService] ✓ SMS sent successfully to $to")
+                        println("[SmsService] SMS sent successfully")
                         Result.success("SMS sent successfully")
                     } else {
                         println("[SmsService] ✗ AT reported status: $status")
