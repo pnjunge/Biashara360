@@ -26,6 +26,7 @@ import com.app.biashara.domain.usecase.InitiatePaymentUseCase
 import com.app.biashara.domain.usecase.generateId
 import com.app.biashara.presentation.viewmodel.CustomersViewModel
 import com.app.biashara.presentation.viewmodel.InventoryViewModel
+import com.app.biashara.presentation.viewmodel.BusinessViewModel
 import com.app.biashara.ui.theme.*
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -40,6 +41,7 @@ data class DesktopCartItem(
 fun DesktopPosScreen(
     inventoryViewModel: InventoryViewModel = remember { inject() },
     customersViewModel: CustomersViewModel = remember { inject() },
+    businessViewModel: BusinessViewModel = remember { inject() },
     createOrderUseCase: CreateOrderUseCase = remember { inject() },
     initiatePaymentUseCase: InitiatePaymentUseCase = remember { inject() }
 ) {
@@ -50,10 +52,12 @@ fun DesktopPosScreen(
     LaunchedEffect(Unit) {
         inventoryViewModel.loadProducts(businessId)
         customersViewModel.loadCustomers()
+        businessViewModel.loadMpesaConfig()
     }
 
     val inventoryState by inventoryViewModel.state.collectAsState()
     val customersState by customersViewModel.state.collectAsState()
+    val mpesaState by businessViewModel.mpesaState.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("All") }
@@ -86,6 +90,7 @@ fun DesktopPosScreen(
     var walkInName by remember { mutableStateOf("Walk-In Customer") }
     var walkInPhone by remember { mutableStateOf("+254000000000") }
     var paymentMethod by remember { mutableStateOf(PaymentMethod.CASH) }
+    var mpesaAccountType by remember { mutableStateOf<String?>(null) }
     var notes by remember { mutableStateOf("") }
 
     var isCheckingOut by remember { mutableStateOf(false) }
@@ -93,6 +98,13 @@ fun DesktopPosScreen(
     var successOrderNumber by remember { mutableStateOf<String?>(null) }
     var paymentFeedback by remember { mutableStateOf<String?>(null) }
     var showCartMenu by remember { mutableStateOf(false) }
+
+    LaunchedEffect(mpesaState.configs) {
+        val availableTypes = mpesaState.configs.map { it.accountType }
+        if (mpesaAccountType !in availableTypes) {
+            mpesaAccountType = availableTypes.firstOrNull()
+        }
+    }
 
     val subtotal = cart.sumOf { it.product.sellingPrice * it.qty }
     val tax = subtotal * 0.16
@@ -225,6 +237,27 @@ fun DesktopPosScreen(
                                 border = BorderStroke(1.dp, if (isSelected) B360Green else Color(0xFFE2E8F0)),
                                 shape = RoundedCornerShape(6.dp)
                             )
+                        }
+
+                        if (paymentMethod == PaymentMethod.MPESA && mpesaState.configs.size > 1) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("M-Pesa Channel", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    mpesaState.configs.forEach { config ->
+                                        FilterChip(
+                                            selected = mpesaAccountType == config.accountType,
+                                            onClick = { mpesaAccountType = config.accountType },
+                                            label = {
+                                                Text(config.accountType.lowercase().replaceFirstChar { it.uppercase() })
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -847,7 +880,7 @@ fun DesktopPosScreen(
                                         .onSuccess { savedOrder ->
                                             when (paymentMethod) {
                                                 PaymentMethod.MPESA -> {
-                                                    initiatePaymentUseCase(savedOrder.id, walkInPhone)
+                                                    initiatePaymentUseCase(savedOrder.id, walkInPhone, mpesaAccountType)
                                                         .onSuccess {
                                                             paymentFeedback = "M-Pesa STK prompt sent to $walkInPhone."
                                                             successOrderNumber = savedOrder.orderNumber

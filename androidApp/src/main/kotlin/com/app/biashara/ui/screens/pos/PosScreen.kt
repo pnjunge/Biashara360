@@ -32,6 +32,7 @@ import com.app.biashara.domain.usecase.InitiatePaymentUseCase
 import com.app.biashara.domain.usecase.generateId
 import com.app.biashara.presentation.viewmodel.CustomersViewModel
 import com.app.biashara.presentation.viewmodel.InventoryViewModel
+import com.app.biashara.presentation.viewmodel.BusinessViewModel
 import com.app.biashara.ui.kmpViewModel
 import com.app.biashara.ui.LocalNetworkAvailable
 import com.app.biashara.ui.SecureScreen
@@ -51,7 +52,8 @@ private data class CheckoutResult(
     val paymentMethod: PaymentMethod,
     val phoneNumber: String,
     val paymentMessage: String,
-    val paymentPromptAccepted: Boolean
+    val paymentPromptAccepted: Boolean,
+    val mpesaAccountType: String? = null
 )
 
 private fun friendlyPaymentError(message: String): String =
@@ -231,6 +233,7 @@ fun PaperAirplaneBoxIllustration(modifier: Modifier = Modifier) {
 fun PosScreen(
     inventoryViewModel: InventoryViewModel = kmpViewModel(),
     customersViewModel: CustomersViewModel = kmpViewModel(),
+    businessViewModel: BusinessViewModel = kmpViewModel(),
     createOrderUseCase: CreateOrderUseCase = koinInject(),
     initiatePaymentUseCase: InitiatePaymentUseCase = koinInject()
 ) {
@@ -242,10 +245,12 @@ fun PosScreen(
     LaunchedEffect(Unit) {
         inventoryViewModel.loadProducts(businessId)
         customersViewModel.loadCustomers()
+        businessViewModel.loadMpesaConfig()
     }
 
     val inventoryState by inventoryViewModel.state.collectAsState()
     val customersState by customersViewModel.state.collectAsState()
+    val mpesaState by businessViewModel.mpesaState.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(PosFilter.ALL) }
@@ -281,11 +286,19 @@ fun PosScreen(
     var walkInName by remember { mutableStateOf("Walk-In Customer") }
     var walkInPhone by remember { mutableStateOf("+254000000000") }
     var paymentMethod by remember { mutableStateOf(PaymentMethod.CASH) }
+    var mpesaAccountType by remember { mutableStateOf<String?>(null) }
     var notes by remember { mutableStateOf("") }
     var isCheckingOut by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var checkoutResult by remember { mutableStateOf<CheckoutResult?>(null) }
     var showCartSheet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(mpesaState.configs) {
+        val availableTypes = mpesaState.configs.map { it.accountType }
+        if (mpesaAccountType !in availableTypes) {
+            mpesaAccountType = availableTypes.firstOrNull()
+        }
+    }
 
     val subtotal = cart.sumOf { it.product.sellingPrice * it.qty }
     val tax = subtotal * VAT_RATE  // 16% Kenya standard VAT
@@ -587,7 +600,11 @@ fun PosScreen(
                             onClick = {
                                 isCheckingOut = true
                                 coroutineScope.launch {
-                                    initiatePaymentUseCase(result.orderId, result.phoneNumber)
+                                    initiatePaymentUseCase(
+                                        result.orderId,
+                                        result.phoneNumber,
+                                        result.mpesaAccountType
+                                    )
                                         .onSuccess {
                                             checkoutResult = result.copy(
                                                 paymentMessage = it.customerMessage,
@@ -679,6 +696,24 @@ fun PosScreen(
                         }
                     }
 
+                    if (paymentMethod == PaymentMethod.MPESA && mpesaState.configs.size > 1) {
+                        Text("M-Pesa channel", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            mpesaState.configs.forEach { config ->
+                                val selected = mpesaAccountType == config.accountType
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { mpesaAccountType = config.accountType },
+                                    label = { Text(config.accountType.displayMpesaChannel()) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
                     OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Sale Notes") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(14.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = B360Green, unfocusedBorderColor = Color(0xFFE2E8F0)))
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -708,9 +743,9 @@ fun PosScreen(
                                     .onSuccess { saved ->
                                         val phone = selectedCustomer?.phone ?: walkInPhone
                                         val result = if (paymentMethod == PaymentMethod.MPESA) {
-                                            initiatePaymentUseCase(saved.id, phone).fold(
+                                            initiatePaymentUseCase(saved.id, phone, mpesaAccountType).fold(
                                                 onSuccess = {
-                                                    CheckoutResult(saved.id, saved.orderNumber, paymentMethod, phone, it.customerMessage, true)
+                                                    CheckoutResult(saved.id, saved.orderNumber, paymentMethod, phone, it.customerMessage, true, mpesaAccountType)
                                                 },
                                                 onFailure = {
                                                     CheckoutResult(
@@ -719,7 +754,8 @@ fun PosScreen(
                                                         paymentMethod,
                                                         phone,
                                                         friendlyPaymentError(it.message.orEmpty()),
-                                                        false
+                                                        false,
+                                                        mpesaAccountType
                                                     )
                                                 }
                                             )
@@ -761,3 +797,6 @@ fun PosScreen(
         }
     }
 }
+
+private fun String.displayMpesaChannel(): String =
+    lowercase().replaceFirstChar { it.uppercase() }
