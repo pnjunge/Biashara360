@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { PageHeader, Card, Btn, Input, Select } from '../components/ui'
 import { Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard, CheckCircle, Store, Smartphone } from 'lucide-react'
-import { orderApi, productApi, customerApi, paymentApi, ProductResponse, CustomerResponse } from '../services/api'
+import { orderApi, productApi, customerApi, paymentApi, settingsApi, ProductResponse, CustomerResponse, MpesaConfigResponse } from '../services/api'
 
 interface CartItem {
   product: ProductResponse
@@ -38,15 +38,22 @@ export function PosPage() {
   const [stkError, setStkError] = useState('')
   const [stkAmount, setStkAmount] = useState(0)
   const [cartBackup, setCartBackup] = useState<CartItem[]>([])
+  const [mpesaChannels, setMpesaChannels] = useState<MpesaConfigResponse[]>([])
+  const [mpesaAccountType, setMpesaAccountType] = useState('')
 
   useEffect(() => {
     setLoading(true)
     Promise.all([
       productApi.list(),
-      customerApi.list()
-    ]).then(([prodRes, custRes]) => {
+      customerApi.list(),
+      settingsApi.getMpesaChannels()
+    ]).then(([prodRes, custRes, mpesaRes]) => {
       if (prodRes.success && prodRes.data) setProducts(prodRes.data)
       if (custRes.success && custRes.data) setCustomers(custRes.data)
+      if (mpesaRes.success && mpesaRes.data) {
+        setMpesaChannels(mpesaRes.data)
+        setMpesaAccountType(mpesaRes.data[0]?.accountType || '')
+      }
     }).catch(err => {
       console.error("Failed to load POS resources", err)
     }).finally(() => setLoading(false))
@@ -130,7 +137,11 @@ export function PosPage() {
     setStkStep('pushing')
     setStkError('')
     try {
-      const res = await paymentApi.initiate({ orderId: stkOrderId, phoneNumber: stkPhone.trim() })
+      const res = await paymentApi.initiate({
+        orderId: stkOrderId,
+        phoneNumber: stkPhone.trim(),
+        ...(mpesaAccountType ? { accountType: mpesaAccountType } : {})
+      })
       if (res.success) {
         setStkStep('pushed')
       } else {
@@ -268,6 +279,17 @@ export function PosPage() {
                   onChange={setStkPhone}
                   placeholder="+254 7XX XXX XXX"
                 />
+                {mpesaChannels.length > 1 && (
+                  <Select
+                    label="M-Pesa channel"
+                    value={mpesaAccountType}
+                    onChange={setMpesaAccountType}
+                    options={mpesaChannels.map(channel => ({
+                      value: channel.accountType,
+                      label: `${channel.accountType === 'paybill' ? 'Paybill' : 'Till'} — ${channel.shortCode}`
+                    }))}
+                  />
+                )}
                 {stkError && <p style={{ color: 'var(--b360-red)', fontSize: 12, marginTop: 6 }}>{stkError}</p>}
                 <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
                   <Btn variant="secondary" onClick={handleCancelCheckout}>Cancel</Btn>
@@ -610,4 +632,3 @@ export function PosPage() {
 }
 
 export default PosPage
-

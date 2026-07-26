@@ -416,7 +416,7 @@ export const paymentApi = {
     const res = await client.get<ApiResponse<PaymentResponse[]>>(`/payments${params}`)
     return res.data
   },
-  initiate: async (data: { orderId: string; phoneNumber: string }) => {
+  initiate: async (data: { orderId: string; phoneNumber: string; accountType?: string }) => {
     const res = await client.post<ApiResponse<StkPushResponse>>('/payments/initiate', data)
     return res.data
   },
@@ -786,6 +786,10 @@ export const settingsApi = {
   },
   getMpesa: async () => {
     const res = await client.get<ApiResponse<MpesaConfigResponse>>('/settings/mpesa')
+    return res.data
+  },
+  getMpesaChannels: async () => {
+    const res = await client.get<ApiResponse<MpesaConfigResponse[]>>('/settings/mpesa/channels')
     return res.data
   },
   updateMpesa: async (data: MpesaConfigRequest) => {

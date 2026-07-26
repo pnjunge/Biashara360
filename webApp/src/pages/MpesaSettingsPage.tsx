@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { PageHeader, Card, Btn, Input, Select } from '../components/ui'
-import { settingsApi } from '../services/api'
+import { settingsApi, MpesaConfigResponse } from '../services/api'
 
 export default function MpesaSettingsPage() {
   const [shortCode, setShortCode] = useState('')
@@ -8,19 +8,18 @@ export default function MpesaSettingsPage() {
   const [passkeyConfigured, setPasskeyConfigured] = useState(false)
   const [environment, setEnvironment] = useState('sandbox')
   const [accountType, setAccountType] = useState('paybill')
+  const [callbackUrl, setCallbackUrl] = useState('')
+  const [channels, setChannels] = useState<MpesaConfigResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
-    settingsApi.getMpesa()
+    settingsApi.getMpesaChannels()
       .then(res => {
         if (res.success && res.data) {
-          setShortCode(res.data.shortCode)
-          setPasskeyConfigured(res.data.passkeyConfigured)
-          setEnvironment(res.data.environment)
-          setAccountType(res.data.accountType)
+          setChannels(res.data)
         }
       })
       .catch(() => {
@@ -28,6 +27,15 @@ export default function MpesaSettingsPage() {
       })
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    const config = channels.find(channel => channel.accountType === accountType)
+    setShortCode(config?.shortCode || '')
+    setCallbackUrl(config?.callbackUrl || '')
+    setPasskeyConfigured(config?.passkeyConfigured || false)
+    setEnvironment(config?.environment || 'sandbox')
+    setPassKey('')
+  }, [accountType, channels])
 
   const handleSave = async () => {
     setSaving(true)
@@ -37,9 +45,18 @@ export default function MpesaSettingsPage() {
         shortCode,
         ...(passKey.trim() ? { passKey: passKey.trim() } : {}),
         environment,
-        accountType
+        accountType,
+        callbackUrl
       })
       if (res.success) {
+        if (res.data) {
+          setChannels(previous => [
+            ...previous.filter(channel => channel.accountType !== accountType),
+            res.data as MpesaConfigResponse
+          ])
+          setPasskeyConfigured(res.data.passkeyConfigured)
+          setPassKey('')
+        }
         setSaved(true)
         setTimeout(() => setSaved(false), 3000)
       } else {
@@ -85,6 +102,15 @@ export default function MpesaSettingsPage() {
         <div style={{ padding: 12, background: 'var(--b360-surface)', borderRadius: 8, fontSize: 12, color: 'var(--b360-text-secondary)' }}>
           Consumer credentials remain backend-managed. This merchant passkey is sent securely to the backend and is never returned to the client.
         </div>
+        <Select
+          label="Channel to configure"
+          value={accountType}
+          onChange={setAccountType}
+          options={[
+            { value: 'paybill', label: channels.some(c => c.accountType === 'paybill') ? 'Paybill — Configured' : 'Paybill — Not configured' },
+            { value: 'till', label: channels.some(c => c.accountType === 'till') ? 'Till — Configured' : 'Till — Not configured' }
+          ]}
+        />
         <Input label={passkeyConfigured ? 'Replace Lipa na M-Pesa Passkey' : 'Lipa na M-Pesa Passkey *'} value={passKey} onChange={setPassKey} type="password" placeholder={passkeyConfigured ? '••••••••••••••••' : 'Enter passkey from Safaricom'} />
         <Input
           label="Business Shortcode (Paybill / Till) *"
@@ -92,8 +118,14 @@ export default function MpesaSettingsPage() {
           onChange={setShortCode}
           placeholder="e.g. 174379"
         />
+        <Input
+          label="Callback URL *"
+          value={callbackUrl}
+          onChange={setCallbackUrl}
+          placeholder="https://api.example.com/v1/payments/mpesa/callback"
+        />
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1f 1f', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Select
             label="Environment"
             value={environment}
@@ -103,15 +135,9 @@ export default function MpesaSettingsPage() {
               { value: 'production', label: 'Production' }
             ]}
           />
-          <Select
-            label="Account Type"
-            value={accountType}
-            onChange={setAccountType}
-            options={[
-              { value: 'paybill', label: 'Paybill (C2B / LNM)' },
-              { value: 'till', label: 'Buy Goods Till' }
-            ]}
-          />
+          <div style={{ padding: 12, borderRadius: 8, background: 'var(--b360-surface)', fontSize: 12 }}>
+            Transaction type: <strong>{accountType === 'paybill' ? 'CustomerPayBillOnline' : 'CustomerBuyGoodsOnline'}</strong>
+          </div>
         </div>
       </Section>
     </div>
