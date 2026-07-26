@@ -22,6 +22,12 @@ object SocialChannelsTable : Table("social_channels") {
     val tokenExpiresAt  = timestamp("token_expires_at").nullable()
     val webhookVerifyToken = varchar("webhook_verify_token", 100)
     val isActive        = bool("is_active").default(true)
+    val connectionStatus= varchar("connection_status", 20).default("CONNECTED")
+    val onboardingMethod= varchar("onboarding_method", 30).default("MANUAL")
+    val tokenEncryptionVersion = integer("token_encryption_version").default(0)
+    val registrationPinEncrypted = text("registration_pin_encrypted").nullable()
+    val lastVerifiedAt  = timestamp("last_verified_at").nullable()
+    val disconnectedAt  = timestamp("disconnected_at").nullable()
     val autoReplyEnabled= bool("auto_reply_enabled").default(true)
     val aiPersonaPrompt = text("ai_persona_prompt").default("")  // custom AI persona per channel
     val createdAt       = timestamp("created_at")

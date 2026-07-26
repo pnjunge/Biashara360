@@ -3,6 +3,7 @@ package com.app.biashara.services
 import com.app.biashara.auth.generateId
 import com.app.biashara.db.*
 import com.app.biashara.models.*
+import com.app.biashara.security.TokenCipher
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -18,45 +19,10 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.Instant
 import java.util.UUID
 import kotlinx.serialization.Serializable
-
-@Serializable
-data class NodeConversationsResponse(
-    val data: List<NodeConversation>
-)
-
-@Serializable
-data class NodeConversation(
-    val id: String,
-    val platform: String,
-    val key: String,
-    val status: String,
-    val participantId: String,
-    val participantName: String? = null,
-    val lastMessageAt: String,
-    val lastMessagePreview: String? = null,
-    val messageCount: Int
-)
-
-@Serializable
-data class NodeMessagesResponse(
-    val data: List<NodeMessage>
-)
-
-@Serializable
-data class NodeMessage(
-    val id: String,
-    val conversationId: String,
-    val platform: String,
-    val nativeId: String,
-    val conversationKey: String,
-    val senderId: String,
-    val senderName: String? = null,
-    val recipientId: String? = null,
-    val direction: String,
-    val type: String,
-    val text: String? = null,
-    val receivedAt: String
-)
+import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Social Commerce Service
@@ -80,8 +46,38 @@ class SocialService(
 ) {
     private val metaSystemUserToken =
         config.propertyOrNull("social.metaSystemUserToken")?.getString()?.trim().orEmpty()
+    private val metaAppId =
+        config.propertyOrNull("facebook.appId")?.getString()?.trim().orEmpty()
+    private val metaAppSecret =
+        config.propertyOrNull("facebook.appSecret")?.getString()?.trim().orEmpty()
+    private val metaEmbeddedSignupConfigurationId =
+        config.propertyOrNull("facebook.embeddedSignupConfigurationId")?.getString()?.trim().orEmpty()
+    private val metaWebhookVerifyToken =
+        config.propertyOrNull("facebook.webhookVerifyToken")?.getString()?.trim().orEmpty()
+    private val tokenCipher = config.propertyOrNull("social.tokenEncryptionKey")
+        ?.getString()
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?.let(::TokenCipher)
+    private val graphApiVersion = "v20.0"
 
     fun isMetaSystemUserConfigured(): Boolean = metaSystemUserToken.isNotBlank()
+
+    fun getMetaOnboardingConfiguration(): MetaOnboardingConfigurationResponse {
+        val missing = buildList {
+            if (metaAppId.isBlank()) add("META_APP_ID")
+            if (metaAppSecret.isBlank()) add("META_APP_SECRET")
+            if (metaEmbeddedSignupConfigurationId.isBlank()) add("META_EMBEDDED_SIGNUP_CONFIG_ID")
+            if (metaWebhookVerifyToken.isBlank()) add("META_WEBHOOK_VERIFY_TOKEN")
+            if (tokenCipher == null) add("SOCIAL_TOKEN_ENCRYPTION_KEY")
+        }
+        return MetaOnboardingConfigurationResponse(
+            configured = missing.isEmpty(),
+            appId = metaAppId.takeIf { it.isNotBlank() },
+            configurationId = metaEmbeddedSignupConfigurationId.takeIf { it.isNotBlank() },
+            missing = missing
+        )
+    }
 
     // ── Channel Management ────────────────────────────────────────────────────
 
@@ -134,12 +130,251 @@ class SocialService(
         ApiResponse(true, data = channel.toChannelResponse(businessId), message = "${req.platform} channel connected")
     }
 
-    fun disconnectChannel(businessId: String, channelId: String): ApiResponse<Unit> = transaction {
-        val updated = SocialChannelsTable.update({
-            (SocialChannelsTable.id eq channelId) and (SocialChannelsTable.businessId eq businessId)
-        }) { it[isActive] = false }
-        if (updated == 0) ApiResponse(false, message = "Channel not found")
-        else ApiResponse(true, message = "Channel disconnected")
+    suspend fun completeMetaEmbeddedSignup(
+        businessId: String,
+        req: MetaEmbeddedSignupRequest
+    ): ApiResponse<SocialChannelResponse> {
+        val config = getMetaOnboardingConfiguration()
+        if (!config.configured) {
+            return ApiResponse(false, message = "Meta onboarding is not configured")
+        }
+        if (!req.wabaId.isMetaId() || !req.phoneNumberId.isMetaId() || !req.metaBusinessId.isMetaId()) {
+            return ApiResponse(false, message = "Meta returned invalid business asset identifiers")
+        }
+        if (req.code.isBlank() || req.code.length > 4096) {
+            return ApiResponse(false, message = "Meta authorization code is missing or invalid")
+        }
+        val alreadyAssigned = transaction {
+            SocialChannelsTable.select {
+                (SocialChannelsTable.platform eq "WHATSAPP") and
+                    (SocialChannelsTable.phoneNumberId eq req.phoneNumberId) and
+                    (SocialChannelsTable.businessId neq businessId) and
+                    (SocialChannelsTable.isActive eq true)
+            }.count() > 0
+        }
+        if (alreadyAssigned) {
+            return ApiResponse(false, message = "This WhatsApp number is already connected to another Biashara360 business")
+        }
+
+        return try {
+            val tokenResponse = httpClient.get("https://graph.facebook.com/$graphApiVersion/oauth/access_token") {
+                parameter("client_id", metaAppId)
+                parameter("client_secret", metaAppSecret)
+                parameter("code", req.code)
+            }
+            val tokenJson = tokenResponse.safeGraphJson()
+            if (!tokenResponse.status.isSuccess()) {
+                return ApiResponse(false, message = tokenJson.graphErrorMessage("Meta authorization failed"))
+            }
+            val accessToken = tokenJson.string("access_token")
+                ?: return ApiResponse(false, message = "Meta did not return an access token")
+
+            val wabaResponse = graphGet(req.wabaId, accessToken, "id,name,owner_business_info")
+            if (!wabaResponse.first) {
+                return ApiResponse(false, message = wabaResponse.second.graphErrorMessage("Unable to access the selected WhatsApp account"))
+            }
+            val ownerBusinessId = wabaResponse.second["owner_business_info"]
+                ?.jsonObject
+                ?.string("id")
+            if (ownerBusinessId != null && ownerBusinessId != req.metaBusinessId) {
+                return ApiResponse(false, message = "The selected WhatsApp account does not belong to the authorized Meta business")
+            }
+
+            val phonesResponse = graphGet("${req.wabaId}/phone_numbers", accessToken,
+                "id,display_phone_number,verified_name,code_verification_status,platform_type")
+            if (!phonesResponse.first) {
+                return ApiResponse(false, message = phonesResponse.second.graphErrorMessage("Unable to access WhatsApp phone numbers"))
+            }
+            val phoneJson = phonesResponse.second["data"]?.jsonArray
+                ?.firstOrNull { it.jsonObject.string("id") == req.phoneNumberId }
+                ?.jsonObject
+                ?: return ApiResponse(false, message = "The selected phone number does not belong to the authorized WhatsApp account")
+
+            val registrationPin = "%06d".format(SecureRandom().nextInt(1_000_000))
+            val registerResponse = httpClient.post(
+                "https://graph.facebook.com/$graphApiVersion/${req.phoneNumberId}/register"
+            ) {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("messaging_product", "whatsapp")
+                    put("pin", registrationPin)
+                }.toString())
+            }
+            val registerJson = registerResponse.safeGraphJson()
+            if (!registerResponse.status.isSuccess() ||
+                registerJson["success"]?.jsonPrimitive?.booleanOrNull != true
+            ) {
+                return ApiResponse(false, message = registerJson.graphErrorMessage("Could not register the WhatsApp phone number"))
+            }
+
+            val subscribeResponse = httpClient.post("https://graph.facebook.com/$graphApiVersion/${req.wabaId}/subscribed_apps") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+            }
+            val subscribeJson = subscribeResponse.safeGraphJson()
+            if (!subscribeResponse.status.isSuccess() || subscribeJson["success"]?.jsonPrimitive?.booleanOrNull != true) {
+                return ApiResponse(false, message = subscribeJson.graphErrorMessage("Could not subscribe WhatsApp webhooks"))
+            }
+
+            val encryptedToken = tokenCipher!!.encrypt(accessToken)
+            val encryptedPin = tokenCipher.encrypt(registrationPin)
+            val now = Clock.System.now()
+            val displayPhone = phoneJson.string("display_phone_number")
+            val verifiedName = phoneJson.string("verified_name")
+            val name = req.channelName?.trim()?.takeIf { it.isNotEmpty() }
+                ?: verifiedName?.takeIf { it.isNotBlank() }
+                ?: "WhatsApp Business"
+
+            val row = transaction {
+                val owned = SocialChannelsTable.select {
+                    (SocialChannelsTable.platform eq "WHATSAPP") and
+                        (SocialChannelsTable.phoneNumberId eq req.phoneNumberId) and
+                        (SocialChannelsTable.businessId eq businessId)
+                }.firstOrNull()
+                val channelId = owned?.get(SocialChannelsTable.id) ?: generateId()
+                if (owned == null) {
+                    SocialChannelsTable.insert {
+                        it[id] = channelId
+                        it[SocialChannelsTable.businessId] = businessId
+                        it[platform] = "WHATSAPP"
+                        it[channelName] = name
+                        it[externalId] = req.phoneNumberId
+                        it[phoneNumber] = displayPhone
+                        it[tenantId] = businessId
+                        it[wabaId] = req.wabaId
+                        it[phoneNumberId] = req.phoneNumberId
+                        it[metaBusinessId] = req.metaBusinessId
+                        it[SocialChannelsTable.accessToken] = encryptedToken
+                        it[refreshToken] = null
+                        it[webhookVerifyToken] = metaWebhookVerifyToken
+                        it[isActive] = true
+                        it[connectionStatus] = "CONNECTED"
+                        it[onboardingMethod] = "META_EMBEDDED_SIGNUP"
+                        it[tokenEncryptionVersion] = 1
+                        it[registrationPinEncrypted] = encryptedPin
+                        it[lastVerifiedAt] = now
+                        it[disconnectedAt] = null
+                        it[autoReplyEnabled] = false
+                        it[aiPersonaPrompt] = ""
+                        it[createdAt] = now
+                        it[updatedAt] = now
+                    }
+                } else {
+                    SocialChannelsTable.update({ SocialChannelsTable.id eq channelId }) {
+                        it[channelName] = name
+                        it[externalId] = req.phoneNumberId
+                        it[phoneNumber] = displayPhone
+                        it[tenantId] = businessId
+                        it[wabaId] = req.wabaId
+                        it[phoneNumberId] = req.phoneNumberId
+                        it[metaBusinessId] = req.metaBusinessId
+                        it[SocialChannelsTable.accessToken] = encryptedToken
+                        it[refreshToken] = null
+                        it[isActive] = true
+                        it[connectionStatus] = "CONNECTED"
+                        it[onboardingMethod] = "META_EMBEDDED_SIGNUP"
+                        it[tokenEncryptionVersion] = 1
+                        it[registrationPinEncrypted] = encryptedPin
+                        it[lastVerifiedAt] = now
+                        it[disconnectedAt] = null
+                        it[updatedAt] = now
+                    }
+                }
+                SocialChannelsTable.select { SocialChannelsTable.id eq channelId }.first()
+            }
+            ApiResponse(true, data = row.toChannelResponse(businessId), message = "WhatsApp connected")
+        } catch (exception: Exception) {
+            val safeMessage = exception.message
+                ?.takeIf { it.startsWith("This WhatsApp number") }
+                ?: "Unable to complete WhatsApp onboarding"
+            ApiResponse(false, message = safeMessage)
+        }
+    }
+
+    suspend fun verifyChannelConnection(
+        businessId: String,
+        channelId: String
+    ): ApiResponse<SocialConnectionVerificationResponse> {
+        val channel = transaction {
+            SocialChannelsTable.select {
+                (SocialChannelsTable.id eq channelId) and
+                    (SocialChannelsTable.businessId eq businessId)
+            }.firstOrNull()
+        } ?: return ApiResponse(false, message = "Channel not found")
+        if (channel[SocialChannelsTable.platform] != "WHATSAPP") {
+            return ApiResponse(false, message = "Automatic verification is currently available for WhatsApp")
+        }
+        return try {
+            val token = channelToken(channel)
+            val phoneId = channel[SocialChannelsTable.phoneNumberId] ?: channel[SocialChannelsTable.externalId]
+            val response = graphGet(phoneId, token, "id,display_phone_number,verified_name,quality_rating")
+            val connected = response.first && response.second.string("id") == phoneId
+            val now = Clock.System.now()
+            transaction {
+                SocialChannelsTable.update({ SocialChannelsTable.id eq channelId }) {
+                    it[connectionStatus] = if (connected) "CONNECTED" else "ACTION_REQUIRED"
+                    if (connected) it[lastVerifiedAt] = now
+                    it[updatedAt] = now
+                }
+            }
+            ApiResponse(
+                success = connected,
+                data = SocialConnectionVerificationResponse(
+                    connected = connected,
+                    connectionStatus = if (connected) "CONNECTED" else "ACTION_REQUIRED",
+                    phoneNumber = response.second.string("display_phone_number"),
+                    displayName = response.second.string("verified_name")
+                ),
+                message = if (connected) "WhatsApp connection verified" else "WhatsApp authorization needs attention"
+            )
+        } catch (_: Exception) {
+            transaction {
+                SocialChannelsTable.update({ SocialChannelsTable.id eq channelId }) {
+                    it[connectionStatus] = "ACTION_REQUIRED"
+                    it[updatedAt] = Clock.System.now()
+                }
+            }
+            ApiResponse(
+                false,
+                data = SocialConnectionVerificationResponse(false, "ACTION_REQUIRED"),
+                message = "WhatsApp authorization needs attention"
+            )
+        }
+    }
+
+    suspend fun disconnectChannel(businessId: String, channelId: String): ApiResponse<Unit> {
+        val channel = transaction {
+            SocialChannelsTable.select {
+                (SocialChannelsTable.id eq channelId) and
+                    (SocialChannelsTable.businessId eq businessId)
+            }.firstOrNull()
+        } ?: return ApiResponse(false, message = "Channel not found")
+
+        if (channel[SocialChannelsTable.platform] == "WHATSAPP" &&
+            channel[SocialChannelsTable.onboardingMethod] == "META_EMBEDDED_SIGNUP"
+        ) {
+            runCatching {
+                val token = channelToken(channel)
+                val waba = channel[SocialChannelsTable.wabaId]
+                if (!waba.isNullOrBlank()) {
+                    httpClient.delete("https://graph.facebook.com/$graphApiVersion/$waba/subscribed_apps") {
+                        header(HttpHeaders.Authorization, "Bearer $token")
+                    }
+                }
+            }
+        }
+        transaction {
+            SocialChannelsTable.update({ SocialChannelsTable.id eq channelId }) {
+                it[isActive] = false
+                it[connectionStatus] = "DISCONNECTED"
+                it[SocialChannelsTable.accessToken] = ""
+                it[refreshToken] = null
+                it[registrationPinEncrypted] = null
+                it[disconnectedAt] = Clock.System.now()
+                it[updatedAt] = Clock.System.now()
+            }
+        }
+        return ApiResponse(true, message = "Channel disconnected and stored authorization removed")
     }
 
     // ── Conversation List ─────────────────────────────────────────────────────
@@ -151,9 +386,6 @@ class SocialService(
         page: Int = 1,
         pageSize: Int = 30
     ): PagedResponse<ConversationResponse> {
-        try {
-            syncFromUnifiedInbox()
-        } catch (_: Exception) {}
         return transaction {
             var query = SocialConversationsTable.select { SocialConversationsTable.businessId eq businessId }
             if (!platform.isNullOrBlank()) query = query.andWhere { SocialConversationsTable.platform eq platform.uppercase() }
@@ -190,9 +422,6 @@ class SocialService(
     // ── Conversation Detail ───────────────────────────────────────────────────
 
     suspend fun getConversationDetail(businessId: String, conversationId: String): ConversationDetailResponse? {
-        try {
-            syncFromUnifiedInbox()
-        } catch (_: Exception) {}
         return transaction {
             val convRow = SocialConversationsTable.select {
                 (SocialConversationsTable.id eq conversationId) and
@@ -246,120 +475,6 @@ class SocialService(
 
     // ── Send Message ──────────────────────────────────────────────────────────
 
-    suspend fun syncFromUnifiedInbox() {
-        val businessId = transaction {
-            BusinessesTable.selectAll().firstOrNull()?.get(BusinessesTable.id)
-        } ?: return
-
-        try {
-            val response: NodeConversationsResponse = httpClient.get("http://unified-inbox:3000/api/conversations").body()
-            response.data.forEach { nodeConv ->
-                val platformUpper = nodeConv.platform.uppercase()
-                val channel = transaction {
-                    SocialChannelsTable.select {
-                        (SocialChannelsTable.businessId eq businessId) and
-                        (SocialChannelsTable.platform eq platformUpper)
-                    }.firstOrNull()
-                }
-                
-                val channelId = channel?.get(SocialChannelsTable.id) ?: transaction {
-                    val newId = generateId()
-                    SocialChannelsTable.insert {
-                        it[id] = newId
-                        it[SocialChannelsTable.businessId] = businessId
-                        it[platform] = platformUpper
-                        it[channelName] = "${nodeConv.platform.replaceFirstChar { it.uppercase() }} Channel"
-                        it[externalId] = nodeConv.key
-                        it[accessToken] = "temp_sync_token"
-                        it[isActive] = true
-                        it[autoReplyEnabled] = true
-                        it[webhookVerifyToken] = java.util.UUID.randomUUID().toString().replace("-", "")
-                        it[createdAt] = Clock.System.now()
-                        it[updatedAt] = Clock.System.now()
-                    }
-                    newId
-                }
-
-                val existingConv = transaction {
-                    SocialConversationsTable.select {
-                        (SocialConversationsTable.channelId eq channelId) and
-                        (SocialConversationsTable.customerExternalId eq nodeConv.participantId)
-                    }.firstOrNull()
-                }
-
-                val parsedTime = try {
-                    kotlinx.datetime.Instant.parse(nodeConv.lastMessageAt)
-                } catch (_: Exception) {
-                    Clock.System.now()
-                }
-
-                val convDbId = if (existingConv != null) {
-                    transaction {
-                        SocialConversationsTable.update({ SocialConversationsTable.id eq existingConv[SocialConversationsTable.id] }) {
-                            it[customerName] = nodeConv.participantName ?: nodeConv.participantId
-                            it[lastMessageAt] = parsedTime
-                            it[status] = nodeConv.status.uppercase()
-                        }
-                        existingConv[SocialConversationsTable.id]
-                    }
-                } else {
-                    val newConvId = generateId()
-                    transaction {
-                        SocialConversationsTable.insert {
-                            it[id] = newConvId
-                            it[SocialConversationsTable.businessId] = businessId
-                            it[SocialConversationsTable.channelId] = channelId
-                            it[platform] = platformUpper
-                            it[externalConvId] = nodeConv.id
-                            it[customerExternalId] = nodeConv.participantId
-                            it[customerName] = nodeConv.participantName ?: nodeConv.participantId
-                            it[lastMessageAt] = parsedTime
-                            it[unreadCount] = 0
-                            it[createdAt] = Clock.System.now()
-                        }
-                    }
-                    newConvId
-                }
-
-                // Now sync messages for this conversation
-                val msgUrl = "http://unified-inbox:3000/api/messages?conversationId=${nodeConv.id}"
-                val messagesResponse: NodeMessagesResponse = httpClient.get(msgUrl).body()
-                messagesResponse.data.forEach { nodeMsg ->
-                    val existingMsg = transaction {
-                        SocialMessagesTable.select {
-                            (SocialMessagesTable.conversationId eq convDbId) and
-                            (SocialMessagesTable.externalMsgId eq nodeMsg.nativeId)
-                        }.firstOrNull()
-                    }
-                    if (existingMsg == null) {
-                        val parsedMsgTime = try {
-                            kotlinx.datetime.Instant.parse(nodeMsg.receivedAt)
-                        } catch (_: Exception) {
-                            Clock.System.now()
-                        }
-                        transaction {
-                            SocialMessagesTable.insert {
-                                it[id] = generateId()
-                                it[conversationId] = convDbId
-                                it[SocialMessagesTable.businessId] = businessId
-                                it[externalMsgId] = nodeMsg.nativeId
-                                it[direction] = nodeMsg.direction.uppercase()
-                                it[senderType] = if (nodeMsg.direction == "inbound") "CUSTOMER" else "AGENT"
-                                it[content] = nodeMsg.text ?: ""
-                                it[messageType] = nodeMsg.type.uppercase()
-                                it[status] = "SENT"
-                                it[createdAt] = parsedMsgTime
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            println("[SyncError] Failed to sync from unified inbox: ${e.message}")
-            e.printStackTrace()
-        }
-    }
-
     suspend fun sendMessage(businessId: String, req: SendMessageRequest): ApiResponse<MessageResponse> {
         val conv = transaction {
             SocialConversationsTable.select {
@@ -368,13 +483,6 @@ class SocialService(
             }.firstOrNull()
         } ?: return ApiResponse(false, message = "Conversation not found")
 
-        val lastMsgId = transaction {
-            SocialMessagesTable.select { SocialMessagesTable.conversationId eq req.conversationId }
-                .orderBy(SocialMessagesTable.createdAt, SortOrder.DESC)
-                .firstOrNull()?.get(SocialMessagesTable.externalMsgId)
-        }
-
-        val extConvId = conv[SocialConversationsTable.externalConvId]
         val channel = transaction {
             SocialChannelsTable.select {
                 SocialChannelsTable.id eq conv[SocialConversationsTable.channelId]
@@ -382,43 +490,31 @@ class SocialService(
         }
         val platform = conv[SocialConversationsTable.platform]
         val recipientId = conv[SocialConversationsTable.customerExternalId]
-        val messageIdToReply = lastMsgId ?: try {
-            val msgUrl = "http://unified-inbox:3000/api/messages?conversationId=$extConvId"
-            val response: NodeMessagesResponse = httpClient.get(msgUrl).body()
-            response.data.lastOrNull()?.nativeId
-        } catch (_: Exception) { null }
-
-        val sendResult = if (platform == "WHATSAPP") {
-            // WhatsApp always uses the platform system-user token and the
-            // merchant's phone_number_id; never delegate with a DB token.
-            if (channel == null) false else {
-                sendWhatsAppMessage(
-                    channel[SocialChannelsTable.phoneNumberId] ?: channel[SocialChannelsTable.externalId],
-                    recipientId,
-                    req.content
-                )
-            }
-        } else if (messageIdToReply != null) {
-            try {
-                val replyUrl = "http://unified-inbox:3000/api/messages/$messageIdToReply/reply"
-                val response = httpClient.post(replyUrl) {
-                    contentType(ContentType.Application.Json)
-                    setBody(buildJsonObject { put("text", req.content) }.toString())
-                }
-                response.status.isSuccess()
-            } catch (_: Exception) { false }
-        } else {
-            // Fallback: call the direct platform API senders as a backup
-            if (channel != null) {
-                when (platform) {
-                    "INSTAGRAM" -> sendInstagramDm(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], recipientId, req.content)
-                    "FACEBOOK"  -> sendFacebookMessage(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], recipientId, req.content)
-                    "TIKTOK"    -> sendTikTokDm(channel[SocialChannelsTable.accessToken], conv[SocialConversationsTable.externalConvId], req.content)
-                    else        -> false
-                }
-            } else {
-                false
-            }
+        val sendResult = if (channel == null) false else when (platform) {
+            "WHATSAPP" -> sendWhatsAppMessage(
+                channelToken(channel),
+                channel[SocialChannelsTable.phoneNumberId] ?: channel[SocialChannelsTable.externalId],
+                recipientId,
+                req.content
+            )
+            "INSTAGRAM" -> sendInstagramDm(
+                channelToken(channel),
+                channel[SocialChannelsTable.externalId],
+                recipientId,
+                req.content
+            )
+            "FACEBOOK" -> sendFacebookMessage(
+                channelToken(channel),
+                channel[SocialChannelsTable.externalId],
+                recipientId,
+                req.content
+            )
+            "TIKTOK" -> sendTikTokDm(
+                channelToken(channel),
+                conv[SocialConversationsTable.externalConvId],
+                req.content
+            )
+            else -> false
         }
 
         val now = Clock.System.now()
@@ -750,12 +846,12 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
 
     // ── Platform API Senders ──────────────────────────────────────────────────
 
-    private suspend fun sendWhatsAppMessage(phoneNumberId: String, to: String, text: String): Boolean {
-        if (metaSystemUserToken.isBlank()) return false
+    private suspend fun sendWhatsAppMessage(token: String, phoneNumberId: String, to: String, text: String): Boolean {
+        if (token.isBlank()) return false
         return try {
-            val r = httpClient.post("https://graph.facebook.com/v20.0/$phoneNumberId/messages") {
+            val r = httpClient.post("https://graph.facebook.com/$graphApiVersion/$phoneNumberId/messages") {
                 contentType(ContentType.Application.Json)
-                header("Authorization", "Bearer $metaSystemUserToken")
+                header(HttpHeaders.Authorization, "Bearer $token")
                 setBody("""{"messaging_product":"whatsapp","to":"$to","type":"text","text":{"body":${Json.encodeToString(text)}}}""")
             }
             r.status.isSuccess()
@@ -826,15 +922,46 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
 
     // ── Webhook Token Verification ─────────────────────────────────────────────
 
-    fun verifyWebhookToken(platform: String, token: String): Boolean = transaction {
-        SocialChannelsTable.select {
-            (SocialChannelsTable.platform eq platform.uppercase()) and
-            (SocialChannelsTable.webhookVerifyToken eq token) and
-            (SocialChannelsTable.isActive eq true)
-        }.count() > 0L
+    fun verifyMetaWebhookToken(token: String): Boolean {
+        if (metaWebhookVerifyToken.isBlank() || token.isBlank()) return false
+        return MessageDigest.isEqual(
+            metaWebhookVerifyToken.toByteArray(Charsets.UTF_8),
+            token.toByteArray(Charsets.UTF_8)
+        )
+    }
+
+    fun verifyMetaWebhookSignature(rawBody: String, signature: String?): Boolean {
+        if (metaAppSecret.isBlank() || signature.isNullOrBlank() || !signature.startsWith("sha256=")) return false
+        val expected = signature.removePrefix("sha256=").lowercase()
+        if (expected.length != 64 || expected.any { it !in "0123456789abcdef" }) return false
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(metaAppSecret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+        val actual = mac.doFinal(rawBody.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        return MessageDigest.isEqual(
+            expected.toByteArray(Charsets.UTF_8),
+            actual.toByteArray(Charsets.UTF_8)
+        )
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private suspend fun graphGet(path: String, token: String, fields: String): Pair<Boolean, JsonObject> {
+        val response = httpClient.get("https://graph.facebook.com/$graphApiVersion/$path") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            parameter("fields", fields)
+        }
+        return response.status.isSuccess() to response.safeGraphJson()
+    }
+
+    private fun channelToken(channel: ResultRow): String {
+        val stored = channel[SocialChannelsTable.accessToken]
+        if (stored.isBlank()) return metaSystemUserToken
+        if (!TokenCipher.isEncrypted(stored)) return stored
+        return requireNotNull(tokenCipher) {
+            "SOCIAL_TOKEN_ENCRYPTION_KEY is required to decrypt merchant credentials"
+        }.decrypt(stored)
+    }
 
     private suspend fun autoReplyIfNeeded(channel: ResultRow, convId: String, @Suppress("UNUSED_PARAMETER") inboundText: String) {
         val businessId = channel[SocialChannelsTable.businessId]
@@ -865,13 +992,14 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
                 val conv = transaction { SocialConversationsTable.select { SocialConversationsTable.id eq convId }.first() }
                 when (channel[SocialChannelsTable.platform]) {
                     "WHATSAPP"  -> sendWhatsAppMessage(
+                        channelToken(channel),
                         channel[SocialChannelsTable.phoneNumberId] ?: channel[SocialChannelsTable.externalId],
                         conv[SocialConversationsTable.customerExternalId],
                         reply
                     )
-                    "INSTAGRAM" -> sendInstagramDm(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], conv[SocialConversationsTable.customerExternalId], reply)
-                    "FACEBOOK"  -> sendFacebookMessage(channel[SocialChannelsTable.accessToken], channel[SocialChannelsTable.externalId], conv[SocialConversationsTable.customerExternalId], reply)
-                    "TIKTOK"    -> sendTikTokDm(channel[SocialChannelsTable.accessToken], conv[SocialConversationsTable.externalConvId], reply)
+                    "INSTAGRAM" -> sendInstagramDm(channelToken(channel), channel[SocialChannelsTable.externalId], conv[SocialConversationsTable.customerExternalId], reply)
+                    "FACEBOOK"  -> sendFacebookMessage(channelToken(channel), channel[SocialChannelsTable.externalId], conv[SocialConversationsTable.customerExternalId], reply)
+                    "TIKTOK"    -> sendTikTokDm(channelToken(channel), conv[SocialConversationsTable.externalConvId], reply)
                 }
             }
         }
@@ -950,7 +1078,11 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
                 (SocialConversationsTable.channelId eq this@toChannelResponse[SocialChannelsTable.id])
             }.sumOf { it[SocialConversationsTable.unreadCount] }
         }
-        val token = this[SocialChannelsTable.webhookVerifyToken]
+        val token = if (this[SocialChannelsTable.onboardingMethod] == "META_EMBEDDED_SIGNUP") {
+            ""
+        } else {
+            this[SocialChannelsTable.webhookVerifyToken]
+        }
         return SocialChannelResponse(
             id                 = this[SocialChannelsTable.id],
             platform           = this[SocialChannelsTable.platform],
@@ -962,6 +1094,9 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
             phoneNumberId      = this[SocialChannelsTable.phoneNumberId],
             metaBusinessId     = this[SocialChannelsTable.metaBusinessId],
             isActive           = this[SocialChannelsTable.isActive],
+            connectionStatus   = this[SocialChannelsTable.connectionStatus],
+            onboardingMethod   = this[SocialChannelsTable.onboardingMethod],
+            lastVerifiedAt     = this[SocialChannelsTable.lastVerifiedAt]?.toString(),
             autoReplyEnabled   = this[SocialChannelsTable.autoReplyEnabled],
             aiPersonaPrompt    = this[SocialChannelsTable.aiPersonaPrompt],
             webhookVerifyToken = token,
@@ -971,3 +1106,21 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
         )
     }
 }
+
+private suspend fun HttpResponse.safeGraphJson(): JsonObject {
+    val body = bodyAsText()
+    return runCatching { Json.parseToJsonElement(body).jsonObject }
+        .getOrElse { buildJsonObject { put("message", "Invalid response from Meta") } }
+}
+
+private fun JsonObject.string(key: String): String? =
+    this[key]?.jsonPrimitive?.contentOrNull
+
+private fun JsonObject.graphErrorMessage(fallback: String): String =
+    this["error"]?.jsonObject?.string("message")
+        ?.take(240)
+        ?.takeIf { it.isNotBlank() }
+        ?: fallback
+
+private fun String.isMetaId(): Boolean =
+    length in 5..64 && all(Char::isDigit)

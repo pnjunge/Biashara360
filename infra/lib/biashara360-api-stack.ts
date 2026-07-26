@@ -80,7 +80,15 @@ export class Biashara360ApiStack extends cdk.Stack {
         JWT_SECRET: ecs.Secret.fromSecretsManager(apiSecret, 'JWT_SECRET'),
         MPESA_CONSUMER_KEY: ecs.Secret.fromSecretsManager(apiSecret, 'MPESA_CONSUMER_KEY'),
         MPESA_CONSUMER_SECRET: ecs.Secret.fromSecretsManager(apiSecret, 'MPESA_CONSUMER_SECRET'),
-        SUPERUSER_PASSWORD: ecs.Secret.fromSecretsManager(apiSecret, 'SUPERUSER_PASSWORD')
+        SUPERUSER_PASSWORD: ecs.Secret.fromSecretsManager(apiSecret, 'SUPERUSER_PASSWORD'),
+        META_APP_ID: ecs.Secret.fromSecretsManager(apiSecret, 'META_APP_ID'),
+        META_APP_SECRET: ecs.Secret.fromSecretsManager(apiSecret, 'META_APP_SECRET'),
+        META_EMBEDDED_SIGNUP_CONFIG_ID: ecs.Secret.fromSecretsManager(
+          apiSecret,
+          'META_EMBEDDED_SIGNUP_CONFIG_ID'
+        ),
+        META_WEBHOOK_VERIFY_TOKEN: ecs.Secret.fromSecretsManager(apiSecret, 'META_WEBHOOK_VERIFY_TOKEN'),
+        SOCIAL_TOKEN_ENCRYPTION_KEY: ecs.Secret.fromSecretsManager(apiSecret, 'SOCIAL_TOKEN_ENCRYPTION_KEY')
       },
       healthCheck: {
         command: ['CMD-SHELL', 'wget -q -O /dev/null http://localhost:8080/v1/health || exit 1'],

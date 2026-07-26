@@ -5,7 +5,7 @@ import {
   Cpu, CheckCircle2, AlertCircle, Info, Settings, ShieldAlert, Zap,
   Play, Link as LinkIcon, ExternalLink
 } from 'lucide-react'
-import { socialApi, SocialChannel } from '../services/api'
+import { socialApi, SocialChannel, MetaOnboardingConfiguration } from '../services/api'
 import { PageHeader, Card, Btn, Input, ProgressBar, AlertBanner } from '../components/ui'
 
 // ── Platform Brand Styling ───────────────────────────────────────────────────
@@ -48,9 +48,6 @@ const PLATFORMS = [
   }
 ]
 
-const META_APP_ID = import.meta.env.VITE_META_APP_ID || ''
-const META_EMBEDDED_SIGNUP_CONFIG_ID = import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID || ''
-
 // Steps for the Onboarding wizard
 const STEPS = [
   { label: 'Select Channel' },
@@ -68,6 +65,8 @@ export default function SocialOnboardingPage() {
   const [selectedPlatform, setSelectedPlatform] = useState<string>('')
   const [channels, setChannels] = useState<SocialChannel[]>([])
   const [loading, setLoading] = useState(true)
+  const [metaConfiguration, setMetaConfiguration] = useState<MetaOnboardingConfiguration | null>(null)
+  const [metaAuthorizationCode, setMetaAuthorizationCode] = useState('')
 
   // Credentials form
   const [channelName, setChannelName] = useState('')
@@ -89,13 +88,16 @@ export default function SocialOnboardingPage() {
   const [copiedText, setCopiedText] = useState<'url' | 'token' | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
 
-  // Verification Simulation states
+  // Real provider connection verification
   const [verificationStage, setVerificationStage] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle')
   const [verificationLogs, setVerificationLogs] = useState<string[]>([])
   const [verifyProgress, setVerifyProgress] = useState(0)
 
   useEffect(() => {
     loadChannels()
+    socialApi.getMetaConfiguration()
+      .then(res => setMetaConfiguration(res.data || null))
+      .catch(() => setMetaConfiguration(null))
   }, [])
 
   useEffect(() => {
@@ -116,15 +118,72 @@ export default function SocialOnboardingPage() {
     return () => window.removeEventListener('message', receiveMetaSignup)
   }, [])
 
+  useEffect(() => {
+    if (
+      selectedPlatform !== 'WHATSAPP' ||
+      !metaAuthorizationCode ||
+      !wabaId ||
+      !externalId ||
+      !metaBusinessId ||
+      savingChannel ||
+      createdChannel
+    ) return
+
+    const complete = async () => {
+      const code = metaAuthorizationCode
+      setMetaAuthorizationCode('')
+      setSavingChannel(true)
+      setErrorMsg('')
+      try {
+        const res = await socialApi.completeMetaEmbeddedSignup({
+          code,
+          wabaId,
+          phoneNumberId: externalId,
+          metaBusinessId,
+          channelName
+        })
+        if (!res.success || !res.data) {
+          setErrorMsg(res.message || 'Meta could not complete the WhatsApp connection.')
+          return
+        }
+        setCreatedChannel(res.data)
+        setChannels(prev => [...prev.filter(channel => channel.id !== res.data!.id), res.data!])
+        setCurrentStep(3)
+      } catch (e: any) {
+        setErrorMsg(e.response?.data?.message || 'Meta could not complete the WhatsApp connection.')
+      } finally {
+        setSavingChannel(false)
+      }
+    }
+    complete()
+  }, [
+    selectedPlatform,
+    metaAuthorizationCode,
+    wabaId,
+    externalId,
+    metaBusinessId,
+    channelName,
+    savingChannel,
+    createdChannel
+  ])
+
   const launchEmbeddedSignup = () => {
-    if (!META_APP_ID || !META_EMBEDDED_SIGNUP_CONFIG_ID) {
+    if (!metaConfiguration?.configured || !metaConfiguration.appId || !metaConfiguration.configurationId) {
       setErrorMsg('Meta Embedded Signup is not configured for this deployment.')
       return
     }
     const start = () => (window as any).FB.login(
-      () => {},
+      (response: any) => {
+        const code = response?.authResponse?.code
+        if (code) {
+          setMetaAuthorizationCode(String(code))
+          setErrorMsg('')
+        } else {
+          setErrorMsg('Meta sign-in was cancelled or did not grant access.')
+        }
+      },
       {
-        config_id: META_EMBEDDED_SIGNUP_CONFIG_ID,
+        config_id: metaConfiguration.configurationId,
         response_type: 'code',
         override_default_response_type: true,
         extras: { setup: {} }
@@ -135,7 +194,7 @@ export default function SocialOnboardingPage() {
       return
     }
     ;(window as any).fbAsyncInit = () => {
-      ;(window as any).FB.init({ appId: META_APP_ID, cookie: true, xfbml: true, version: 'v20.0' })
+      ;(window as any).FB.init({ appId: metaConfiguration.appId, cookie: true, xfbml: true, version: 'v20.0' })
       start()
     }
     const existing = document.getElementById('facebook-jssdk')
@@ -225,35 +284,32 @@ export default function SocialOnboardingPage() {
     }
   }
 
-  // Verification Scan Simulator
-  const runVerificationScan = () => {
+  const runVerificationScan = async () => {
     if (!createdChannel) return
     setVerificationStage('testing')
-    setVerifyProgress(0)
-    setVerificationLogs([])
-
-    const logs = [
-      'Establishing secure handshake with Biashara360 API...',
-      'Validating platform access token payload...',
-      'Syncing verification handshake parameters...',
-      'Transmitting test payload challenge...',
-      'Listening for mock webhook challenge loop-back reply...',
-      'Webhook challenge successfully verified!',
-      'Active connection registered! System is now live.'
-    ]
-
-    let step = 0
-    const interval = setInterval(() => {
-      if (step < logs.length) {
-        setVerificationLogs(prev => [...prev, logs[step]])
-        setVerifyProgress(((step + 1) / logs.length))
-        step++
-      } else {
-        clearInterval(interval)
+    setVerifyProgress(0.25)
+    setVerificationLogs(['Checking the merchant authorization with Meta...'])
+    try {
+      const res = await socialApi.verifyChannel(createdChannel.id)
+      if (res.success && res.data?.connected) {
+        setVerificationLogs([
+          'Merchant authorization confirmed.',
+          'WhatsApp Business phone number is accessible.',
+          'Webhook subscription is active.',
+          'Connection is ready.'
+        ])
         setVerificationStage('success')
         setVerifyProgress(1)
+      } else {
+        setVerificationLogs([res.message || 'Meta reported that the connection needs attention.'])
+        setVerificationStage('failed')
+        setVerifyProgress(1)
       }
-    }, 600)
+    } catch (e: any) {
+      setVerificationLogs([e.response?.data?.message || 'Unable to verify the Meta connection.'])
+      setVerificationStage('failed')
+      setVerifyProgress(1)
+    }
   }
 
   const handleSaveAIPersona = async () => {
@@ -501,10 +557,12 @@ export default function SocialOnboardingPage() {
             </div>
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--b360-text)' }}>
-                Set Up Credentials for {platformMeta.name}
+                {selectedPlatform === 'WHATSAPP' ? 'Connect WhatsApp with Meta' : `Set Up Credentials for ${platformMeta.name}`}
               </h2>
               <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>
-                Input API and identifier credentials generated from your developer profile.
+                {selectedPlatform === 'WHATSAPP'
+                  ? 'Meta securely authorizes your business account. No tokens or technical identifiers need to be copied.'
+                  : 'Input API and identifier credentials generated from your developer profile.'}
               </span>
             </div>
           </div>
@@ -515,12 +573,24 @@ export default function SocialOnboardingPage() {
             <div style={{ padding: 16, border: '1px solid var(--b360-border)', borderRadius: 10, background: 'var(--b360-surface)' }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Meta Embedded Signup</div>
               <div style={{ fontSize: 12, color: 'var(--b360-text-secondary)', marginBottom: 12 }}>
-                Sign in with Meta and choose the WhatsApp Business Account and phone number to connect.
+                Sign in with Meta, select your business and phone number, then approve Biashara360. The connection is completed automatically.
               </div>
-              <Btn onClick={launchEmbeddedSignup}>Continue with Meta</Btn>
+              {!metaConfiguration?.configured && metaConfiguration && (
+                <AlertBanner
+                  message={`Embedded Signup needs administrator configuration: ${metaConfiguration.missing.join(', ')}`}
+                  icon={<ShieldAlert size={16} />}
+                  color="var(--b360-red)"
+                />
+              )}
+              <div style={{ marginTop: 12 }}>
+                <Btn onClick={launchEmbeddedSignup} disabled={savingChannel || !metaConfiguration?.configured}>
+                  {savingChannel ? 'Completing Connection...' : 'Continue with Meta'}
+                </Btn>
+              </div>
             </div>
           )}
 
+          {selectedPlatform !== 'WHATSAPP' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <Input
@@ -543,21 +613,10 @@ export default function SocialOnboardingPage() {
                 onChange={setExternalId}
               />
 
-              {selectedPlatform === 'WHATSAPP' && (
-                <>
-                  <Input label="WhatsApp Business Account (WABA) ID *" placeholder="e.g. 102939..." value={wabaId} onChange={setWabaId} />
-                  <Input label="Meta Business ID *" placeholder="e.g. merchant_business_id" value={metaBusinessId} onChange={setMetaBusinessId} />
-                  <Input label="Business Phone Number *" placeholder="e.g. +254700000000" value={phoneNumber} onChange={setPhoneNumber} />
-                </>
-              )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {selectedPlatform === 'WHATSAPP' ? (
-                <div style={{ padding: 16, borderRadius: 8, background: 'var(--b360-surface)', color: 'var(--b360-text-secondary)', fontSize: 12, lineHeight: 1.6 }}>
-                  Biashara360 uses its platform-owned Meta system-user token. Your merchant token is never requested or stored.
-                </div>
-              ) : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-text-secondary)' }}>
                   Developer System User/Page Token *
                 </label>
@@ -581,17 +640,20 @@ export default function SocialOnboardingPage() {
                 <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
                   <Info size={12} /> Make sure this token has permanent expiry (system user token) so connection does not expire.
                 </span>
-              </div>}
+              </div>
             </div>
           </div>
+          )}
 
           <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 20, display: 'flex', justifyContent: 'space-between' }}>
             <Btn variant="secondary" onClick={() => setCurrentStep(0)} icon={<ArrowLeft size={14} />}>
               Back
             </Btn>
-            <Btn onClick={handleSaveCredentials} disabled={savingChannel}>
-              {savingChannel ? 'Saving Details...' : 'Save & Continue'}
-            </Btn>
+            {selectedPlatform !== 'WHATSAPP' && (
+              <Btn onClick={handleSaveCredentials} disabled={savingChannel}>
+                {savingChannel ? 'Saving Details...' : 'Save & Continue'}
+              </Btn>
+            )}
           </div>
         </Card>
       )}
@@ -720,7 +782,7 @@ export default function SocialOnboardingPage() {
                 Verify and Test Channel Connection
               </h2>
               <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>
-                Perform a connection handshake scan to verify endpoint connectivity.
+                Confirm that Meta still authorizes this WhatsApp business account and phone number.
               </span>
             </div>
           </div>
@@ -732,14 +794,14 @@ export default function SocialOnboardingPage() {
               </div>
               <div>
                 <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 6px 0', color: 'var(--b360-text)' }}>
-                  Ready to Handshake
+                  Ready to Verify
                 </h3>
                 <p style={{ fontSize: 12, color: 'var(--b360-text-secondary)', maxWidth: 400, margin: '0 auto', lineHeight: 1.5 }}>
-                  Clicking verify triggers a sequence of secure tests sending a token verification challenge and confirming callback delivery logs.
+                  Biashara360 will securely query Meta for the selected business phone number. No test message is sent to customers.
                 </p>
               </div>
               <Btn onClick={runVerificationScan} icon={<Play size={14} />}>
-                Start Connection Scan
+                Verify Connection
               </Btn>
             </div>
           )}
@@ -748,7 +810,7 @@ export default function SocialOnboardingPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--b360-text)' }}>
-                  Scanning Integration Handshake...
+                  Verifying Meta Authorization...
                 </span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-blue)' }}>
                   {Math.round(verifyProgress * 100)}%
@@ -794,10 +856,10 @@ export default function SocialOnboardingPage() {
               </div>
               <div style={{ textAlign: 'center' }}>
                 <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--b360-green)', margin: '0 0 6px 0' }}>
-                  Handshake Active & Connected!
+                  WhatsApp Connected
                 </h3>
                 <p style={{ fontSize: 13, color: 'var(--b360-text-secondary)', maxWidth: 450, margin: '0 auto', lineHeight: 1.5 }}>
-                  The server validated your webhook configuration challenges and mapped the access token payload. You are ready to go live!
+                  Meta confirmed access to your WhatsApp Business phone number and Biashara360 subscribed the account to webhook updates.
                 </p>
               </div>
 
@@ -809,14 +871,27 @@ export default function SocialOnboardingPage() {
             </div>
           )}
 
+          {verificationStage === 'failed' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', padding: '24px 0' }}>
+              <AlertCircle size={40} color="var(--b360-red)" />
+              <h3 style={{ margin: 0, fontSize: 16 }}>Connection needs attention</h3>
+              <p style={{ margin: 0, color: 'var(--b360-text-secondary)', fontSize: 13, textAlign: 'center' }}>
+                {verificationLogs[0] || 'Meta could not verify this connection.'}
+              </p>
+              <Btn onClick={runVerificationScan}>Try Again</Btn>
+            </div>
+          )}
+
           {currentStep === 3 && verificationStage !== 'success' && (
             <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 20, display: 'flex', justifyContent: 'space-between' }}>
               <Btn variant="secondary" onClick={handleBack} icon={<ArrowLeft size={14} />}>
                 Back
               </Btn>
-              <Btn variant="secondary" onClick={() => setCurrentStep(4)} icon={<ArrowRight size={14} />}>
-                Skip Verification
-              </Btn>
+              {selectedPlatform !== 'WHATSAPP' && (
+                <Btn variant="secondary" onClick={() => setCurrentStep(4)} icon={<ArrowRight size={14} />}>
+                  Skip Verification
+                </Btn>
+              )}
             </div>
           )}
         </Card>

@@ -210,7 +210,17 @@ export interface SocialChannel {
   phoneNumber: string | null; isActive: boolean; autoReplyEnabled: boolean
   tenantId?: string | null; wabaId?: string | null; phoneNumberId?: string | null
   metaBusinessId?: string | null
+  connectionStatus?: 'CONNECTED' | 'ACTION_REQUIRED' | 'DISCONNECTED'
+  onboardingMethod?: 'MANUAL' | 'META_EMBEDDED_SIGNUP'
+  lastVerifiedAt?: string | null
   webhookVerifyToken: string; webhookUrl: string; unreadCount: number
+}
+
+export interface MetaOnboardingConfiguration {
+  configured: boolean
+  appId: string | null
+  configurationId: string | null
+  missing: string[]
 }
 
 export interface ConversationSummary {
@@ -535,6 +545,20 @@ export const kraApi = {
 }
 
 export const socialApi = {
+  getMetaConfiguration: async () => {
+    const res = await client.get<ApiResponse<MetaOnboardingConfiguration>>('/social/meta/configuration')
+    return res.data
+  },
+  completeMetaEmbeddedSignup: async (data: {
+    code: string
+    wabaId: string
+    phoneNumberId: string
+    metaBusinessId: string
+    channelName?: string
+  }) => {
+    const res = await client.post<ApiResponse<SocialChannel>>('/social/meta/embedded-signup/complete', data)
+    return res.data
+  },
   getChannels: async () => {
     const res = await client.get<ApiResponse<SocialChannel[]>>('/social/channels')
     return res.data
@@ -545,6 +569,15 @@ export const socialApi = {
   },
   deleteChannel: async (id: string) => {
     const res = await client.delete<ApiResponse<null>>(`/social/channels/${id}`)
+    return res.data
+  },
+  verifyChannel: async (id: string) => {
+    const res = await client.post<ApiResponse<{
+      connected: boolean
+      connectionStatus: string
+      phoneNumber?: string | null
+      displayName?: string | null
+    }>>(`/social/channels/${id}/verify`)
     return res.data
   },
   updateChannelSettings: async (id: string, data: any) => {

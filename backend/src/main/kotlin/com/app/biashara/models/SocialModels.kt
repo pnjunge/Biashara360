@@ -32,12 +32,40 @@ data class SocialChannelResponse(
     val phoneNumberId: String? = null,
     val metaBusinessId: String? = null,
     val isActive: Boolean,
+    val connectionStatus: String = "CONNECTED",
+    val onboardingMethod: String = "MANUAL",
+    val lastVerifiedAt: String? = null,
     val autoReplyEnabled: Boolean,
     val aiPersonaPrompt: String,
     val webhookVerifyToken: String,  // used to verify webhook with Meta/TikTok
     val webhookUrl: String,          // URL to register on Meta Developer console
     val unreadCount: Int,
     val createdAt: String
+)
+
+@Serializable
+data class MetaEmbeddedSignupRequest(
+    val code: String,
+    val wabaId: String,
+    val phoneNumberId: String,
+    val metaBusinessId: String,
+    val channelName: String? = null
+)
+
+@Serializable
+data class MetaOnboardingConfigurationResponse(
+    val configured: Boolean,
+    val appId: String? = null,
+    val configurationId: String? = null,
+    val missing: List<String> = emptyList()
+)
+
+@Serializable
+data class SocialConnectionVerificationResponse(
+    val connected: Boolean,
+    val connectionStatus: String,
+    val phoneNumber: String? = null,
+    val displayName: String? = null
 )
 
 // ─── Conversations ────────────────────────────────────────────────────────────
