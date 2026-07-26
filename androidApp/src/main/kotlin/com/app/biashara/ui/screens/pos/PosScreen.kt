@@ -34,6 +34,7 @@ import com.app.biashara.presentation.viewmodel.CustomersViewModel
 import com.app.biashara.presentation.viewmodel.InventoryViewModel
 import com.app.biashara.ui.kmpViewModel
 import com.app.biashara.ui.LocalNetworkAvailable
+import com.app.biashara.ui.SecureScreen
 import com.app.biashara.ui.theme.*
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -233,6 +234,7 @@ fun PosScreen(
     createOrderUseCase: CreateOrderUseCase = koinInject(),
     initiatePaymentUseCase: InitiatePaymentUseCase = koinInject()
 ) {
+    SecureScreen()
     val coroutineScope = rememberCoroutineScope()
     val businessId = remember { UserSession.getBusinessId() }
     val networkAvailable = LocalNetworkAvailable.current

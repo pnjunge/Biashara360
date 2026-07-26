@@ -45,6 +45,7 @@ import androidx.biometric.BiometricPrompt
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import com.app.biashara.ui.biometricEnrollmentIntent
+import com.app.biashara.ui.SecureScreen
 import com.app.biashara.ui.isBiometricLoginEnabled
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -54,6 +55,7 @@ import androidx.fragment.app.FragmentActivity
 fun AuthBackground(
     content: @Composable BoxScope.() -> Unit
 ) {
+    SecureScreen()
     Box(
         modifier = Modifier
             .fillMaxSize()

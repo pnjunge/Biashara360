@@ -12,6 +12,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.app.biashara.ui.theme.B360Green
@@ -301,9 +305,14 @@ fun CustomBottomNavigation(
                     verticalArrangement = Arrangement.Center,
                     modifier = Modifier
                         .weight(1f)
+                        .semantics {
+                            selected = isSelected
+                            contentDescription = "${item.label} tab${if (isSelected) ", selected" else ""}"
+                        }
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = null
+                            indication = null,
+                            role = Role.Tab
                         ) {
                             navController.navigate(item.screen.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {

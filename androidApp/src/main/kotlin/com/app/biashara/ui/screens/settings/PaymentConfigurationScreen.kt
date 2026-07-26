@@ -17,6 +17,7 @@ import com.app.biashara.presentation.viewmodel.BusinessViewModel
 import com.app.biashara.ui.kmpViewModel
 import com.app.biashara.ui.theme.B360Green
 import com.app.biashara.ui.theme.B360Surface
+import com.app.biashara.ui.SecureScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,6 +25,7 @@ fun PaymentConfigurationScreen(
     onBack: () -> Unit,
     viewModel: BusinessViewModel = kmpViewModel()
 ) {
+    SecureScreen()
     val mpesa by viewModel.mpesaState.collectAsState()
     val cyberSource by viewModel.cyberSourceState.collectAsState()
 
