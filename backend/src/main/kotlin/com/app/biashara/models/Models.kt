@@ -194,7 +194,8 @@ data class CustomerResponse(
     val totalOrders: Int,
     val totalSpent: Double,
     val isRepeatCustomer: Boolean,
-    val createdAt: String
+    val createdAt: String,
+    val updatedAt: String
 )
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────

@@ -142,7 +142,7 @@ fun SocialInboxTab() {
                 messages = (messages + (selectedId!! to (messages[selectedId] ?: emptyList()) + newMsg)).toMutableMap()
             },
             onSendPayment = { amount, desc ->
-                val payMsg = "Hujambo ${conv.customerName.split(" ")[0]}! 🛍️\n\n$desc\n💰 KES ${amount.toLong()}\n\n💳 Lipa Mpesa:\nPaybill: 174379\nKiasi: KES $amount\n\nAsante! 🙏"
+                val payMsg = "Hujambo ${conv.customerName.split(" ")[0]}! 🛍️\n\n$desc\n💰 KES ${amount.toLong()}\n\nTutakutumia ombi salama la M-Pesa kwa nambari yako.\n\nAsante! 🙏"
                 val newMsg = SocialMsg("m${System.currentTimeMillis()}", "OUTBOUND", "AGENT", payMsg, "PAYMENT_REQUEST", "Now", false)
                 messages = (messages + (selectedId!! to (messages[selectedId] ?: emptyList()) + newMsg)).toMutableMap()
                 conversations = conversations.map { if (it.id == selectedId) it.copy(status = "PENDING_PAYMENT") else it }
@@ -291,7 +291,7 @@ fun ChatView(
             last.contains("saa ngapi", ignoreCase = true) || last.contains("open", ignoreCase = true) ->
                 "Tunafungua 7:00 asubuhi hadi 9:00 usiku kila siku! 🕖 Je, ungependa kuagiza kitu?"
             last.contains("payment", ignoreCase = true) || last.contains("kulipa", ignoreCase = true) ->
-                "Tunakubali M-Pesa (Paybill 174379), Cash, na Card. Unataka kulipa kwa njia gani? 💳"
+                "Tunakubali M-Pesa, Cash, na Card. Unataka kulipa kwa njia gani? 💳"
             else ->
                 "Habari ${conv.customerName.split(" ")[0]}! Asante kwa kuwasiliana. Ninawezaje kukusaidia leo? 😊"
         }

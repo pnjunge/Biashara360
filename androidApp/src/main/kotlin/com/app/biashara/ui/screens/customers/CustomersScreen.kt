@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import com.app.biashara.UserSession
 import com.app.biashara.domain.model.Customer
 import com.app.biashara.domain.usecase.generateId
+import com.app.biashara.domain.usecase.normalizeKenyanMobile
 import com.app.biashara.presentation.viewmodel.CustomersViewModel
 import com.app.biashara.ui.theme.*
 import kotlinx.datetime.Clock
@@ -98,7 +99,12 @@ fun CustomersScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (newName.isNotBlank() && newPhone.isNotBlank()) {
+                        val normalizedPhone = newPhone.normalizeKenyanMobile()
+                        if (normalizedPhone == null) {
+                            viewModel.setError("Enter a valid Kenyan mobile number, for example 0712345678")
+                        } else if (state.customers.any { it.phone == normalizedPhone }) {
+                            viewModel.setError("A customer with this phone number already exists")
+                        } else if (newName.isNotBlank()) {
                             saving = true
                             val now = Clock.System.now()
                             viewModel.saveCustomer(
@@ -106,7 +112,7 @@ fun CustomersScreen(
                                     id = generateId(),
                                     businessId = UserSession.getBusinessId(),
                                     name = newName,
-                                    phone = newPhone,
+                                    phone = normalizedPhone,
                                     email = newEmail.ifBlank { null },
                                     location = newLocation,
                                     createdAt = now,

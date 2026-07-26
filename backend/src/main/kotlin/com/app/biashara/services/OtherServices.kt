@@ -19,6 +19,17 @@ import java.time.Instant
 
 class CustomerService {
 
+    private fun normalizeKenyanPhone(value: String): String? {
+        val digits = value.trim().replace(Regex("[\\s()-]"), "").removePrefix("+")
+        val normalized = when {
+            digits.matches(Regex("^0[17]\\d{8}$")) -> "254${digits.drop(1)}"
+            digits.matches(Regex("^[17]\\d{8}$")) -> "254$digits"
+            digits.matches(Regex("^254[17]\\d{8}$")) -> digits
+            else -> return null
+        }
+        return normalized
+    }
+
     fun getAll(businessId: String, query: String? = null): List<CustomerResponse> = transaction {
         var stmt = CustomersTable.select {
             (CustomersTable.businessId eq businessId) and (CustomersTable.isActive eq true)
@@ -39,8 +50,10 @@ class CustomerService {
     }
 
     fun create(businessId: String, req: CustomerRequest): ApiResponse<CustomerResponse> = transaction {
+        val normalizedPhone = normalizeKenyanPhone(req.phone)
+            ?: return@transaction ApiResponse(false, message = "Enter a valid Kenyan mobile number")
         val existing = CustomersTable.select {
-            (CustomersTable.businessId eq businessId) and (CustomersTable.phone eq req.phone)
+            (CustomersTable.businessId eq businessId) and (CustomersTable.phone eq normalizedPhone)
         }.firstOrNull()
         if (existing != null) return@transaction ApiResponse(false, message = "Customer with this phone already exists")
 
@@ -50,7 +63,7 @@ class CustomerService {
             it[CustomersTable.id] = id
             it[CustomersTable.businessId] = businessId
             it[name] = req.name
-            it[phone] = req.phone
+            it[phone] = normalizedPhone
             it[email] = req.email
             it[location] = req.location
             it[notes] = req.notes
@@ -62,11 +75,19 @@ class CustomerService {
     }
 
     fun update(id: String, businessId: String, req: CustomerRequest): ApiResponse<CustomerResponse> = transaction {
+        val normalizedPhone = normalizeKenyanPhone(req.phone)
+            ?: return@transaction ApiResponse(false, message = "Enter a valid Kenyan mobile number")
+        val duplicate = CustomersTable.select {
+            (CustomersTable.businessId eq businessId) and
+                (CustomersTable.id neq id) and
+                (CustomersTable.phone eq normalizedPhone)
+        }.any()
+        if (duplicate) return@transaction ApiResponse(false, message = "Customer with this phone already exists")
         val updated = CustomersTable.update({
             (CustomersTable.id eq id) and (CustomersTable.businessId eq businessId)
         }) {
             it[name] = req.name
-            it[phone] = req.phone
+            it[phone] = normalizedPhone
             it[email] = req.email
             it[location] = req.location
             it[notes] = req.notes
@@ -114,7 +135,8 @@ class CustomerService {
             totalOrders = totalOrders,
             totalSpent = totalSpent,
             isRepeatCustomer = totalOrders > 1,
-            createdAt = this[CustomersTable.createdAt].toString()
+            createdAt = this[CustomersTable.createdAt].toString(),
+            updatedAt = this[CustomersTable.updatedAt].toString()
         )
     }
 }

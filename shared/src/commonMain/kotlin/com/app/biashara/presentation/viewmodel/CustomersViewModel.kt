@@ -134,4 +134,8 @@ class CustomersViewModel(
     fun dismissError() {
         _state.update { it.copy(error = null) }
     }
+
+    fun setError(message: String) {
+        _state.update { it.copy(error = message) }
+    }
 }

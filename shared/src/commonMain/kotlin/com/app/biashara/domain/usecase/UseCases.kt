@@ -307,3 +307,15 @@ internal fun String.normalizePhone(): String {
         else -> this
     }
 }
+
+fun String.normalizeKenyanMobile(): String? {
+    val digits = trim()
+        .replace(Regex("[\\s()-]"), "")
+        .removePrefix("+")
+    return when {
+        digits.matches(Regex("^0[17]\\d{8}$")) -> "254${digits.drop(1)}"
+        digits.matches(Regex("^[17]\\d{8}$")) -> "254$digits"
+        digits.matches(Regex("^254[17]\\d{8}$")) -> digits
+        else -> null
+    }
+}

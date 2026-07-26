@@ -8,10 +8,12 @@ import com.app.biashara.db.Biashara360Database
 import com.app.biashara.db.CustomerEntity
 import com.app.biashara.domain.model.*
 import com.app.biashara.domain.repository.CustomerRepository
+import com.app.biashara.domain.usecase.normalizeKenyanMobile
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
@@ -35,6 +37,15 @@ data class CustomerDto(
     val isActive: Boolean = true,
     val createdAt: String,
     val updatedAt: String
+)
+
+@kotlinx.serialization.Serializable
+private data class CustomerRequestDto(
+    val name: String,
+    val phone: String,
+    val email: String?,
+    val location: String,
+    val notes: String
 )
 
 class CustomerRepositoryImpl(
@@ -85,24 +96,50 @@ class CustomerRepositoryImpl(
     override suspend fun getCustomer(id: String): Customer? =
         queries.selectCustomerById(id).executeAsOneOrNull()?.toDomain()
 
-    override suspend fun getCustomerByPhone(phone: String): Customer? = null
+    override suspend fun getCustomerByPhone(phone: String): Customer? {
+        val normalized = phone.normalizeKenyanMobile() ?: return null
+        return queries.selectAllCustomers(com.app.biashara.UserSession.getBusinessId())
+            .executeAsList()
+            .firstOrNull { it.phone == normalized }
+            ?.toDomain()
+    }
 
     override suspend fun saveCustomer(customer: Customer): Result<Customer> = runCatching {
-        val now = Clock.System.now().toString()
-        queries.insertCustomer(
-            id = customer.id,
-            business_id = customer.businessId,
-            name = customer.name,
-            phone = customer.phone,
-            email = customer.email,
-            location = customer.location,
-            notes = customer.notes,
-            loyalty_points = customer.loyaltyPoints.toLong(),
-            is_active = if (customer.isActive) 1L else 0L,
-            created_at = customer.createdAt.toString(),
-            updated_at = now
+        val normalizedPhone = customer.phone.normalizeKenyanMobile()
+            ?: throw IllegalArgumentException("Enter a valid Kenyan mobile number")
+        val request = CustomerRequestDto(
+            name = customer.name.trim(),
+            phone = normalizedPhone,
+            email = customer.email?.trim()?.ifBlank { null },
+            location = customer.location.trim(),
+            notes = customer.notes.trim()
         )
-        customer
+        var response: ApiResponse<CustomerDto> = client.put("$BASE_URL/customers/${customer.id}") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
+        if (!response.success && response.message.contains("not found", ignoreCase = true)) {
+            response = client.post("$BASE_URL/customers") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }.body()
+        }
+        val saved = response.data
+            ?: throw Exception(response.message.ifBlank { "Failed to save customer" })
+        queries.insertCustomer(
+            id = saved.id,
+            business_id = saved.businessId,
+            name = saved.name,
+            phone = saved.phone,
+            email = saved.email,
+            location = saved.location,
+            notes = saved.notes,
+            loyalty_points = saved.loyaltyPoints.toLong(),
+            is_active = if (saved.isActive) 1L else 0L,
+            created_at = saved.createdAt,
+            updated_at = saved.updatedAt
+        )
+        saved.toDomain()
     }
 
     override suspend fun getCustomerStats(customerId: String): CustomerStats {

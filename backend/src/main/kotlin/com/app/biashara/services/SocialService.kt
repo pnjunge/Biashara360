@@ -552,7 +552,7 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
 
         // Build payment message (Mpesa STK or manual paybill)
         val mpesaPaybill = channel[SocialChannelsTable.phoneNumber]?.let {
-            "💳 *Lipa kwa Mpesa:*\nPaybill: 174379\nAccount: ${req.orderId ?: "ORDER"}\nKiasi: KES ${"%,.0f".format(req.amount)}"
+            "💳 *M-Pesa payment:*\nTutakutumia ombi salama la malipo kwa simu yako.\nKiasi: KES ${"%,.0f".format(req.amount)}"
         }
 
         val paymentMsg = buildString {
@@ -562,7 +562,7 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
             if (mpesaPaybill != null) {
                 append("$mpesaPaybill\n\n")
             }
-            append("Au tuma pesa kwa:\n📱 M-Pesa: ${channel[SocialChannelsTable.phoneNumber] ?: "0700000000"}\n\n")
+            append("Unaweza pia kuchagua njia nyingine ya malipo kupitia biashara.\n\n")
             append("Asante kwa kununua! 🙏")
         }
 
