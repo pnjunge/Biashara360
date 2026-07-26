@@ -220,6 +220,7 @@ export interface MetaOnboardingConfiguration {
   configured: boolean
   appId: string | null
   configurationId: string | null
+  graphApiVersion: string
   missing: string[]
 }
 

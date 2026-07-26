@@ -59,7 +59,11 @@ class SocialService(
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
         ?.let(::TokenCipher)
-    private val graphApiVersion = "v20.0"
+    private val graphApiVersion = config.propertyOrNull("facebook.graphApiVersion")
+        ?.getString()
+        ?.trim()
+        ?.takeIf { it.matches(Regex("""v\d+\.\d+""")) }
+        ?: "v25.0"
 
     fun isMetaSystemUserConfigured(): Boolean = metaSystemUserToken.isNotBlank()
 
@@ -75,6 +79,7 @@ class SocialService(
             configured = missing.isEmpty(),
             appId = metaAppId.takeIf { it.isNotBlank() },
             configurationId = metaEmbeddedSignupConfigurationId.takeIf { it.isNotBlank() },
+            graphApiVersion = graphApiVersion,
             missing = missing
         )
     }

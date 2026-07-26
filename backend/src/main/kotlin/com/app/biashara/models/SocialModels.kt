@@ -57,6 +57,7 @@ data class MetaOnboardingConfigurationResponse(
     val configured: Boolean,
     val appId: String? = null,
     val configurationId: String? = null,
+    val graphApiVersion: String = "v25.0",
     val missing: List<String> = emptyList()
 )
 

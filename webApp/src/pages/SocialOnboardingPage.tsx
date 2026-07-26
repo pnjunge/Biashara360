@@ -194,7 +194,12 @@ export default function SocialOnboardingPage() {
       return
     }
     ;(window as any).fbAsyncInit = () => {
-      ;(window as any).FB.init({ appId: metaConfiguration.appId, cookie: true, xfbml: true, version: 'v20.0' })
+      ;(window as any).FB.init({
+        appId: metaConfiguration.appId,
+        cookie: true,
+        xfbml: true,
+        version: metaConfiguration.graphApiVersion || 'v25.0'
+      })
       start()
     }
     const existing = document.getElementById('facebook-jssdk')

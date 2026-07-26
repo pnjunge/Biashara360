@@ -71,6 +71,7 @@ export class Biashara360ApiStack extends cdk.Stack {
       environment: {
         API_PORT: '8080',
         PORT: '8080',
+        META_GRAPH_API_VERSION: 'v25.0',
         DB_USER: 'postgres',
         DATABASE_URL: 'jdbc:postgresql://biashara360-db.ckrko2ecqjqy.us-east-1.rds.amazonaws.com:5432/biashara360',
         MPESA_CALLBACK_URL: `https://${apiDomainName}/v1/payments/mpesa/callback`
