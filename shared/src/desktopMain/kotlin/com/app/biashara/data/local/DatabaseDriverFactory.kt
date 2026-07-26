@@ -17,6 +17,12 @@ actual class DatabaseDriverFactory {
             } catch (e: Exception) {
                 // Ignore if schema already created
             }
+        } else {
+            try {
+                driver.execute(null, "ALTER TABLE ProductEntity ADD COLUMN barcode TEXT", 0)
+            } catch (_: Exception) {
+                // Column already exists.
+            }
         }
         return driver
     }

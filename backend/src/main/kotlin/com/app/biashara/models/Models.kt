@@ -74,7 +74,9 @@ data class ProductRequest(
     val currentStock: Int = 0,
     val lowStockThreshold: Int = 5,
     val category: String = "",
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val barcode: String? = null,
+    val expectedUpdatedAt: String? = null
 )
 
 @Serializable
@@ -93,6 +95,7 @@ data class ProductResponse(
     val isLowStock: Boolean,
     val isOutOfStock: Boolean,
     val category: String,
+    val barcode: String? = null,
     val imageUrl: String?,
     val createdAt: String,
     val updatedAt: String

@@ -89,6 +89,7 @@ object ProductsTable : Table("products") {
     val currentStock = integer("current_stock").default(0)
     val lowStockThreshold = integer("low_stock_threshold").default(5)
     val category = varchar("category", 100).default("")
+    val barcode = varchar("barcode", 100).nullable()
     val imageUrl = varchar("image_url", 500).nullable()
     val isActive = bool("is_active").default(true)
     val createdAt = timestamp("created_at")

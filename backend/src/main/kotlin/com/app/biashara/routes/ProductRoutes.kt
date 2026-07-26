@@ -130,6 +130,12 @@ fun Route.productRoutesValidated() {
                         matches(Regex("^https?://.*"), "Image URL must be a valid HTTP(S) URL")
                     }
                 }
+                field("barcode", req.barcode) {
+                    optional {
+                        maxLength(100)
+                        matches(Regex("^[A-Za-z0-9-]+$"), "Barcode contains unsupported characters")
+                    }
+                }
             }
             
             val result = productService.create(businessId, req)
@@ -199,7 +205,11 @@ fun Route.productRoutesValidated() {
                 
                 val result = productService.update(id, businessId, req)
                 call.respond(
-                    if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound,
+                    when {
+                        result.success -> HttpStatusCode.OK
+                        result.message.contains("changed since", ignoreCase = true) -> HttpStatusCode.Conflict
+                        else -> HttpStatusCode.BadRequest
+                    },
                     result
                 )
             }

@@ -15,6 +15,7 @@ data class Product(
     val currentStock: Int,
     val lowStockThreshold: Int = 5,
     val category: String = "",
+    val barcode: String? = null,
     val imageUrl: String? = null,
     val isActive: Boolean = true,
     val createdAt: Instant,

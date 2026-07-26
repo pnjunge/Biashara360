@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS ProductEntity (
     current_stock INTEGER NOT NULL DEFAULT 0,
     low_stock_threshold INTEGER NOT NULL DEFAULT 5,
     category TEXT NOT NULL DEFAULT '',
+    barcode TEXT,
     image_url TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
@@ -33,7 +34,7 @@ searchProducts:
 SELECT * FROM ProductEntity WHERE business_id = :businessId AND (name LIKE '%' || :query || '%' OR sku LIKE '%' || :query || '%');
 
 insertProduct:
-INSERT OR REPLACE INTO ProductEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO ProductEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 updateStock:
 UPDATE ProductEntity SET current_stock = :newStock, updated_at = :updatedAt WHERE id = :productId;

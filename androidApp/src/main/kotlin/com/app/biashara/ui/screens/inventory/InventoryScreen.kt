@@ -253,6 +253,7 @@ fun AddProductScreen(
 
     var name by remember(existingProduct) { mutableStateOf(existingProduct?.name ?: "") }
     var sku by remember(existingProduct) { mutableStateOf(existingProduct?.sku ?: "") }
+    var barcode by remember(existingProduct) { mutableStateOf(existingProduct?.barcode ?: "") }
     var description by remember(existingProduct) { mutableStateOf(existingProduct?.description ?: "") }
     var category by remember(existingProduct) { mutableStateOf(existingProduct?.category ?: "") }
     var price by remember(existingProduct) { mutableStateOf(existingProduct?.sellingPrice?.toString() ?: "") }
@@ -261,6 +262,13 @@ fun AddProductScreen(
     var lowStockThreshold by remember(existingProduct) { mutableStateOf(existingProduct?.lowStockThreshold?.toString() ?: "5") }
     var isActive by remember(existingProduct) { mutableStateOf(existingProduct?.isActive ?: true) }
     var formError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(state.saveSucceeded) {
+        if (state.saveSucceeded) {
+            viewModel.consumeSaveSuccess()
+            onBack()
+        }
+    }
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = B360Green,
@@ -280,9 +288,21 @@ fun AddProductScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {
+                    if (state.isSaving) return@ExtendedFloatingActionButton
                     when {
                         name.isBlank() -> formError = "Product name is required"
+                        sku.isBlank() -> formError = "SKU is required"
+                        state.products.any {
+                            it.id != existingProduct?.id && it.sku.equals(sku.trim(), ignoreCase = true)
+                        } -> formError = "SKU already exists"
+                        barcode.isNotBlank() && state.products.any {
+                            it.id != existingProduct?.id && it.barcode.equals(barcode.trim(), ignoreCase = true)
+                        } -> formError = "Barcode already exists"
                         price.toDoubleOrNull() == null -> formError = "Enter a valid selling price"
+                        (buyingPrice.toDoubleOrNull() ?: 0.0) < 0 ||
+                            (stock.toIntOrNull() ?: 0) < 0 ||
+                            (lowStockThreshold.toIntOrNull() ?: 5) < 0 ->
+                            formError = "Prices, stock, and minimum stock cannot be negative"
                         else -> {
                             formError = null
                             val businessId = com.app.biashara.UserSession.getBusinessId()
@@ -294,6 +314,7 @@ fun AddProductScreen(
                                 sku = sku.trim(),
                                 description = description.trim(),
                                 category = category.trim(),
+                                barcode = barcode.trim().ifBlank { null },
                                 sellingPrice = price.toDoubleOrNull() ?: 0.0,
                                 buyingPrice = buyingPrice.toDoubleOrNull() ?: 0.0,
                                 currentStock = stock.toIntOrNull() ?: 0,
@@ -303,7 +324,6 @@ fun AddProductScreen(
                                 updatedAt = now
                             )
                             viewModel.saveProduct(product)
-                            onBack()
                         }
                     }
                 },
@@ -311,9 +331,17 @@ fun AddProductScreen(
                 contentColor = Color.White,
                 shape = RoundedCornerShape(24.dp)
             ) {
-                Icon(Icons.Filled.Check, null, tint = Color.White)
+                if (state.isSaving) {
+                    CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Filled.Check, null, tint = Color.White)
+                }
                 Spacer(Modifier.width(8.dp))
-                Text(if (isEdit) "Update" else "Save Product", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(
+                    if (state.isSaving) "Saving…" else if (isEdit) "Update" else "Save Product",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     ) { padding ->
@@ -331,8 +359,21 @@ fun AddProductScreen(
             item {
                 OutlinedTextField(
                     value = sku, onValueChange = { sku = it },
-                    label = { Text("SKU / Barcode") }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text("SKU *") }, modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp), colors = fieldColors
+                )
+            }
+            item {
+                OutlinedTextField(
+                    value = barcode,
+                    onValueChange = { barcode = it.filter { char -> char.isLetterOrDigit() || char == '-' } },
+                    label = { Text("Barcode") },
+                    supportingText = { Text("Enter the number printed below the product barcode.") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = fieldColors,
+                    singleLine = true
                 )
             }
             item {

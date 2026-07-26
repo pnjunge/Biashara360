@@ -32,9 +32,11 @@ class ProductService {
 
     fun create(businessId: String, req: ProductRequest): ApiResponse<ProductResponse> = transaction {
         val existing = ProductsTable.select {
-            (ProductsTable.businessId eq businessId) and (ProductsTable.sku eq req.sku)
+            (ProductsTable.businessId eq businessId) and
+                ((ProductsTable.sku eq req.sku) or
+                    (req.barcode?.let { ProductsTable.barcode eq it } ?: Op.FALSE))
         }.firstOrNull()
-        if (existing != null) return@transaction ApiResponse(false, message = "SKU already exists")
+        if (existing != null) return@transaction ApiResponse(false, message = "SKU or barcode already exists")
 
         val id = generateId()
         val now = Clock.System.now()
@@ -49,6 +51,7 @@ class ProductService {
             it[currentStock] = req.currentStock
             it[lowStockThreshold] = req.lowStockThreshold
             it[category] = req.category
+            it[barcode] = req.barcode?.trim()?.ifBlank { null }
             it[imageUrl] = req.imageUrl
             it[createdAt] = now
             it[updatedAt] = now
@@ -58,6 +61,22 @@ class ProductService {
     }
 
     fun update(id: String, businessId: String, req: ProductRequest): ApiResponse<ProductResponse> = transaction {
+        val current = ProductsTable.select {
+            (ProductsTable.id eq id) and (ProductsTable.businessId eq businessId)
+        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Product not found")
+        if (req.expectedUpdatedAt != null && current[ProductsTable.updatedAt].toString() != req.expectedUpdatedAt) {
+            return@transaction ApiResponse(
+                false,
+                message = "This product changed since you opened it. Refresh and review the latest values."
+            )
+        }
+        val duplicate = ProductsTable.select {
+            (ProductsTable.businessId eq businessId) and
+                (ProductsTable.id neq id) and
+                ((ProductsTable.sku eq req.sku) or
+                    (req.barcode?.let { ProductsTable.barcode eq it } ?: Op.FALSE))
+        }.any()
+        if (duplicate) return@transaction ApiResponse(false, message = "SKU or barcode already exists")
         val updated = ProductsTable.update({
             (ProductsTable.id eq id) and (ProductsTable.businessId eq businessId)
         }) {
@@ -68,6 +87,7 @@ class ProductService {
             it[sellingPrice] = req.sellingPrice
             it[lowStockThreshold] = req.lowStockThreshold
             it[category] = req.category
+            it[barcode] = req.barcode?.trim()?.ifBlank { null }
             it[imageUrl] = req.imageUrl
             it[updatedAt] = Clock.System.now()
         }
@@ -140,6 +160,7 @@ class ProductService {
             isLowStock = stock in 1..threshold,
             isOutOfStock = stock <= 0,
             category = this[ProductsTable.category],
+            barcode = this[ProductsTable.barcode],
             imageUrl = this[ProductsTable.imageUrl],
             createdAt = this[ProductsTable.createdAt].toString(),
             updatedAt = this[ProductsTable.updatedAt].toString()

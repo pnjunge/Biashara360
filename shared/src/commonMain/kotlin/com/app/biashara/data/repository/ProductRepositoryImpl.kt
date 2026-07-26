@@ -36,6 +36,7 @@ data class ProductDto(
     val currentStock: Int,
     val lowStockThreshold: Int = 5,
     val category: String = "",
+    val barcode: String? = null,
     val imageUrl: String? = null,
     val isActive: Boolean = true,
     val createdAt: String,
@@ -59,7 +60,9 @@ private data class ProductRequestDto(
     val currentStock: Int,
     val lowStockThreshold: Int,
     val category: String,
-    val imageUrl: String?
+    val imageUrl: String?,
+    val barcode: String?,
+    val expectedUpdatedAt: String?
 )
 
 class ProductRepositoryImpl(
@@ -94,7 +97,9 @@ class ProductRepositoryImpl(
             currentStock = product.currentStock,
             lowStockThreshold = product.lowStockThreshold,
             category = product.category,
-            imageUrl = product.imageUrl
+            imageUrl = product.imageUrl,
+            barcode = product.barcode,
+            expectedUpdatedAt = product.updatedAt.toString()
         )
         var response: ApiResponse<ProductDto> = client.put("$BASE_URL/products/${product.id}") {
             contentType(ContentType.Application.Json)
@@ -143,6 +148,7 @@ class ProductRepositoryImpl(
             current_stock = savedDto.currentStock.toLong(),
             low_stock_threshold = savedDto.lowStockThreshold.toLong(),
             category = savedDto.category,
+            barcode = savedDto.barcode,
             image_url = savedDto.imageUrl,
             is_active = if (savedDto.isActive) 1L else 0L,
             created_at = savedDto.createdAt,
@@ -257,6 +263,7 @@ class ProductRepositoryImpl(
                 current_stock = dto.currentStock.toLong(),
                 low_stock_threshold = dto.lowStockThreshold.toLong(),
                 category = dto.category,
+                barcode = dto.barcode,
                 image_url = dto.imageUrl,
                 is_active = if (dto.isActive) 1L else 0L,
                 created_at = dto.createdAt,
@@ -278,6 +285,7 @@ class ProductRepositoryImpl(
         currentStock = currentStock,
         lowStockThreshold = lowStockThreshold,
         category = category,
+        barcode = barcode,
         imageUrl = imageUrl,
         isActive = isActive,
         createdAt = Instant.parse(createdAt),
@@ -295,6 +303,7 @@ class ProductRepositoryImpl(
         currentStock = current_stock.toInt(),
         lowStockThreshold = low_stock_threshold.toInt(),
         category = category,
+        barcode = barcode,
         imageUrl = image_url,
         isActive = is_active == 1L,
         createdAt = Instant.parse(created_at),

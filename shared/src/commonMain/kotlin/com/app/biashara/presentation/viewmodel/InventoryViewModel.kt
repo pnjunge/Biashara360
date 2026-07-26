@@ -20,7 +20,9 @@ data class InventoryState(
     val lowStockCount: Int = 0,
     val totalStockValue: Double = 0.0,
     val error: String? = null,
-    val lastSyncTime: Long? = null
+    val lastSyncTime: Long? = null,
+    val isSaving: Boolean = false,
+    val saveSucceeded: Boolean = false
 )
 
 enum class InventoryFilter { ALL, LOW_STOCK, OUT_OF_STOCK }
@@ -109,14 +111,24 @@ class InventoryViewModel(
 
     fun saveProduct(product: Product) {
         scope.launch {
+            _state.update { it.copy(isSaving = true, saveSucceeded = false, error = null) }
             try {
-                saveProductUseCase(product).onFailure { e ->
-                    _state.update { it.copy(error = e.message) }
-                }
+                saveProductUseCase(product).fold(
+                    onSuccess = {
+                        _state.update { it.copy(isSaving = false, saveSucceeded = true) }
+                    },
+                    onFailure = { e ->
+                        _state.update { it.copy(isSaving = false, error = e.message) }
+                    }
+                )
             } catch (e: Exception) {
-                _state.update { it.copy(error = e.message) }
+                _state.update { it.copy(isSaving = false, error = e.message) }
             }
         }
+    }
+
+    fun consumeSaveSuccess() {
+        _state.update { it.copy(saveSucceeded = false) }
     }
 
     fun dismissError() {
@@ -128,7 +140,8 @@ class InventoryViewModel(
         if (query.isNotBlank()) {
             result = result.filter {
                 it.name.contains(query, ignoreCase = true) ||
-                it.sku.contains(query, ignoreCase = true)
+                it.sku.contains(query, ignoreCase = true) ||
+                it.barcode?.contains(query, ignoreCase = true) == true
             }
         }
         return when (filter) {
