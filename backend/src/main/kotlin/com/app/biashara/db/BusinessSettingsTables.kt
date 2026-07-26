@@ -8,7 +8,7 @@ import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 
 object MpesaConfigsTable : Table("mpesa_configs") {
     val id             = varchar("id", 36)
-    val businessId     = varchar("business_id", 36).references(BusinessesTable.id).uniqueIndex()
+    val businessId     = varchar("business_id", 36).references(BusinessesTable.id)
     // 🔒 SECURITY FIX: Increased field size for encrypted values (base64 encoded)
     val consumerKey    = text("consumer_key")        // Encrypted
     val consumerSecret = text("consumer_secret")     // Encrypted
@@ -22,6 +22,10 @@ object MpesaConfigsTable : Table("mpesa_configs") {
     val createdAt      = timestamp("created_at")
     val updatedAt      = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex(businessId, accountType)
+    }
 }
 
 // ─── Per-business CyberSource Configuration ───────────────────────────────────

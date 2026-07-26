@@ -57,9 +57,9 @@ class MpesaService(
     private val defaultResultUrl get() = config.propertyOrNull("mpesa.resultUrl")?.getString() ?: ""
     private val defaultTimeoutUrl get() = config.propertyOrNull("mpesa.timeoutUrl")?.getString() ?: ""
 
-    private fun resolveConfig(businessId: String?): MpesaRuntimeConfig {
+    private fun resolveConfig(businessId: String?, accountType: String? = null): MpesaRuntimeConfig {
         if (businessId != null && settingsService != null) {
-            val dbConfig = settingsService.loadMpesaConfigForBusiness(businessId)
+            val dbConfig = settingsService.loadMpesaConfigForBusiness(businessId, accountType)
             if (dbConfig != null) return dbConfig.copy(
                 consumerKey = defaultConsumerKey,
                 consumerSecret = defaultConsumerSecret,
@@ -126,11 +126,11 @@ class MpesaService(
         accountType: String? = null
     ): StkPushResult {
         return try {
-            val cfg = resolveConfig(businessId)
             val requestedAccountType = accountType?.trim()?.lowercase()
             if (requestedAccountType != null && requestedAccountType !in MPESA_ACCOUNT_TYPES) {
                 return StkPushResult.Error("M-Pesa account type must be 'paybill' or 'till'")
             }
+            val cfg = resolveConfig(businessId, requestedAccountType)
             if (requestedAccountType != null && requestedAccountType != cfg.accountType.lowercase()) {
                 return StkPushResult.Error(
                     "The selected ${requestedAccountType.displayMpesaAccountType()} channel is not configured. " +

@@ -9,6 +9,7 @@ import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.update
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.Transaction
 
 object DatabaseFactory {
 
@@ -61,6 +62,7 @@ object DatabaseFactory {
 
     private fun createTables() {
         transaction {
+            migrateMpesaConfigsForMultipleChannels()
             SchemaUtils.createMissingTablesAndColumns(
                 BusinessesTable,
                 UsersTable,
@@ -97,5 +99,37 @@ object DatabaseFactory {
                 it[SocialChannelsTable.refreshToken] = null
             }
         }
+    }
+
+    private fun Transaction.migrateMpesaConfigsForMultipleChannels() {
+        exec(
+            """
+            DO ${'$'}migration${'$'}
+            DECLARE constraint_name text;
+            BEGIN
+                IF to_regclass('public.mpesa_configs') IS NULL THEN
+                    RETURN;
+                END IF;
+                FOR constraint_name IN
+                    SELECT con.conname
+                    FROM pg_constraint con
+                    JOIN pg_class rel ON rel.oid = con.conrelid
+                    JOIN pg_namespace ns ON ns.oid = rel.relnamespace
+                    WHERE ns.nspname = current_schema()
+                      AND rel.relname = 'mpesa_configs'
+                      AND con.contype = 'u'
+                      AND (
+                          SELECT array_agg(att.attname ORDER BY key_columns.ordinality)
+                          FROM unnest(con.conkey) WITH ORDINALITY AS key_columns(attnum, ordinality)
+                          JOIN pg_attribute att
+                            ON att.attrelid = rel.oid AND att.attnum = key_columns.attnum
+                      ) = ARRAY['business_id']
+                LOOP
+                    EXECUTE format('ALTER TABLE mpesa_configs DROP CONSTRAINT %I', constraint_name);
+                END LOOP;
+            END
+            ${'$'}migration${'$'};
+            """.trimIndent()
+        )
     }
 }

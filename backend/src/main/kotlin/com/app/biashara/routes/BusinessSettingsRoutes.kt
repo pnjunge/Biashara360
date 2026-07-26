@@ -45,12 +45,20 @@ fun Route.businessSettingsRoutes() {
         route("/mpesa") {
             get {
                 val businessId = call.businessId()
-                val config = settingsService.getMpesaConfig(businessId)
+                val config = settingsService.getMpesaConfig(
+                    businessId,
+                    call.request.queryParameters["accountType"]
+                )
                 if (config == null) {
                     call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(false, message = "Mpesa not configured yet"))
                 } else {
                     call.respond(ApiResponse(true, data = config))
                 }
+            }
+
+            get("/channels") {
+                val businessId = call.businessId()
+                call.respond(ApiResponse(true, data = settingsService.getMpesaConfigs(businessId)))
             }
 
             put {

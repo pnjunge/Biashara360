@@ -75,21 +75,26 @@ class BusinessSettingsService {
 
     // ── Mpesa Config ──────────────────────────────────────────────────────────
 
-    fun getMpesaConfig(businessId: String): MpesaConfigResponse? = transaction {
+    fun getMpesaConfig(businessId: String, accountType: String? = null): MpesaConfigResponse? = transaction {
+        MpesaConfigsTable
+            .select {
+                if (accountType == null) {
+                    MpesaConfigsTable.businessId eq businessId
+                } else {
+                    (MpesaConfigsTable.businessId eq businessId) and
+                        (MpesaConfigsTable.accountType eq accountType.lowercase())
+                }
+            }
+            .orderBy(MpesaConfigsTable.accountType to SortOrder.ASC)
+            .firstOrNull()
+            ?.toMpesaConfigResponse(businessId)
+    }
+
+    fun getMpesaConfigs(businessId: String): List<MpesaConfigResponse> = transaction {
         MpesaConfigsTable
             .select { MpesaConfigsTable.businessId eq businessId }
-            .firstOrNull()
-            ?.let {
-                MpesaConfigResponse(
-                    businessId   = businessId,
-                    shortCode    = it[MpesaConfigsTable.shortCode],
-                    callbackUrl  = it[MpesaConfigsTable.callbackUrl],
-                    environment  = it[MpesaConfigsTable.environment],
-                    accountType  = it[MpesaConfigsTable.accountType],
-                    passkeyConfigured = it[MpesaConfigsTable.passKey].isNotBlank(),
-                    updatedAt    = it[MpesaConfigsTable.updatedAt].toString()
-                )
-            }
+            .orderBy(MpesaConfigsTable.accountType to SortOrder.ASC)
+            .map { it.toMpesaConfigResponse(businessId) }
     }
 
     fun saveMpesaConfig(businessId: String, req: MpesaConfigRequest): ApiResponse<MpesaConfigResponse> = transaction {
@@ -106,10 +111,12 @@ class BusinessSettingsService {
         }
 
         val now = Clock.System.now()
-        val exists = MpesaConfigsTable.select { MpesaConfigsTable.businessId eq businessId }.count() > 0
+        val channelFilter = (MpesaConfigsTable.businessId eq businessId) and
+            (MpesaConfigsTable.accountType eq acctType)
+        val exists = MpesaConfigsTable.select { channelFilter }.count() > 0
 
         if (exists) {
-            MpesaConfigsTable.update({ MpesaConfigsTable.businessId eq businessId }) {
+            MpesaConfigsTable.update({ channelFilter }) {
                 it[shortCode]      = req.shortCode
                 it[callbackUrl]    = req.callbackUrl
                 it[environment]    = env
@@ -132,7 +139,7 @@ class BusinessSettingsService {
         }
 
         val passkeyConfigured = MpesaConfigsTable
-            .select { MpesaConfigsTable.businessId eq businessId }
+            .select { channelFilter }
             .first()[MpesaConfigsTable.passKey].isNotBlank()
         val resp = MpesaConfigResponse(
             businessId  = businessId,
@@ -213,9 +220,17 @@ class BusinessSettingsService {
 
     // ── DB helpers for runtime lookup ─────────────────────────────────────────
 
-    fun loadMpesaConfigForBusiness(businessId: String): MpesaRuntimeConfig? = transaction {
+    fun loadMpesaConfigForBusiness(businessId: String, accountType: String? = null): MpesaRuntimeConfig? = transaction {
         MpesaConfigsTable
-            .select { MpesaConfigsTable.businessId eq businessId }
+            .select {
+                if (accountType == null) {
+                    MpesaConfigsTable.businessId eq businessId
+                } else {
+                    (MpesaConfigsTable.businessId eq businessId) and
+                        (MpesaConfigsTable.accountType eq accountType.lowercase())
+                }
+            }
+            .orderBy(MpesaConfigsTable.accountType to SortOrder.ASC)
             .firstOrNull()
             ?.let {
                 MpesaRuntimeConfig(
@@ -229,6 +244,16 @@ class BusinessSettingsService {
                 )
             }
     }
+
+    private fun ResultRow.toMpesaConfigResponse(businessId: String) = MpesaConfigResponse(
+        businessId = businessId,
+        shortCode = this[MpesaConfigsTable.shortCode],
+        callbackUrl = this[MpesaConfigsTable.callbackUrl],
+        environment = this[MpesaConfigsTable.environment],
+        accountType = this[MpesaConfigsTable.accountType],
+        passkeyConfigured = this[MpesaConfigsTable.passKey].isNotBlank(),
+        updatedAt = this[MpesaConfigsTable.updatedAt].toString()
+    )
 
     fun loadCyberSourceConfigForBusiness(businessId: String): CyberSourceConfig? = transaction {
         CyberSourceConfigsTable

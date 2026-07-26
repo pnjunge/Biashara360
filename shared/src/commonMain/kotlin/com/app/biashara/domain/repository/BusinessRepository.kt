@@ -9,6 +9,7 @@ interface BusinessRepository {
     suspend fun getProfile(): Result<BusinessProfile>
     suspend fun updateProfile(profile: BusinessProfile): Result<BusinessProfile>
     suspend fun getMpesaConfig(): Result<MpesaConfig>
+    suspend fun getMpesaConfigs(): Result<List<MpesaConfig>>
     suspend fun getCyberSourceConfig(): Result<CyberSourceConfig>
     suspend fun getUsers(): Result<List<UserDto>>
     suspend fun inviteUser(name: String, email: String, phone: String, password: String, role: String): Result<UserDto>

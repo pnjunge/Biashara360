@@ -43,6 +43,15 @@ class BusinessRepositoryImpl(
         response.data
     }
 
+    override suspend fun getMpesaConfigs(): Result<List<MpesaConfig>> = runCatching {
+        val response: ApiResponse<List<MpesaConfig>> =
+            client.get("$BASE_URL/settings/mpesa/channels").body()
+        if (!response.success || response.data == null) {
+            throw Exception(response.message.ifBlank { "Failed to fetch M-Pesa channels" })
+        }
+        response.data
+    }
+
     override suspend fun getCyberSourceConfig(): Result<CyberSourceConfig> = runCatching {
         val response: ApiResponse<CyberSourceConfig> = client.get("$BASE_URL/settings/cybersource").body()
         if (!response.success || response.data == null) {
