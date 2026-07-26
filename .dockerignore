@@ -1,0 +1,13 @@
+.git
+.github
+.gradle
+.idea
+.kotlin
+.vscode
+**/build
+**/dist
+**/node_modules
+infra/cdk.out
+unified-inbox
+*.log
+local.properties
