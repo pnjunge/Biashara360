@@ -6,7 +6,7 @@
     "vpcId": "vpc-0202917da334cdf99",
     "hostedZoneName": "biashara360.co.ke",
     "apiDomainName": "api.biashara360.co.ke",
-    "apiImageTag": "13e3722",
+    "apiImageTag": "4f80d8f",
     "apiSecretName": "biashara360/production/api",
     "databaseSecurityGroupId": "sg-09c21fd1999e93667"
   }
