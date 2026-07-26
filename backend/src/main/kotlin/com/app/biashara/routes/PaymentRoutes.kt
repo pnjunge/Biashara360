@@ -77,7 +77,8 @@ fun Route.paymentRoutesValidated() {
                 amount = amount,
                 accountReference = order[OrdersTable.orderNumber],
                 transactionDesc = "Payment for order ${order[OrdersTable.orderNumber]}",
-                businessId = businessId
+                businessId = businessId,
+                accountType = req.accountType
             )
             
             when (result) {

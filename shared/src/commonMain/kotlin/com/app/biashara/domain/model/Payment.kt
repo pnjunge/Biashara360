@@ -45,7 +45,8 @@ data class MpesaStkPushRequest(
     val phoneNumber: String,       // Customer phone in format 2547XXXXXXXX
     val amount: Double,
     val accountReference: String,  // Order number
-    val transactionDesc: String
+    val transactionDesc: String,
+    val accountType: String? = null
 )
 
 @Serializable

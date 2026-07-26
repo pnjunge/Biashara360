@@ -341,7 +341,8 @@ fun Route.paymentRoutes() {
                 amount = order.subtotal,
                 accountReference = order.orderNumber,
                 transactionDesc = "Payment for ${order.orderNumber}",
-                businessId = businessId
+                businessId = businessId,
+                accountType = req.accountType
             )
 
             when (result) {

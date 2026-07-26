@@ -19,6 +19,20 @@ import java.security.cert.CertificateFactory
 import java.io.ByteArrayInputStream
 import javax.crypto.Cipher
 
+internal val MPESA_ACCOUNT_TYPES = setOf("paybill", "till")
+
+internal fun mpesaTransactionType(accountType: String): String = when (accountType.trim().lowercase()) {
+    "paybill" -> "CustomerPayBillOnline"
+    "till" -> "CustomerBuyGoodsOnline"
+    else -> throw IllegalArgumentException("Unsupported M-Pesa account type: $accountType")
+}
+
+private fun String.displayMpesaAccountType(): String = when (trim().lowercase()) {
+    "paybill" -> "Paybill"
+    "till" -> "Till"
+    else -> this
+}
+
 class MpesaService(
     private val httpClient: HttpClient,
     private val config: ApplicationConfig,
@@ -108,10 +122,21 @@ class MpesaService(
         amount: Double,
         accountReference: String,
         transactionDesc: String,
-        businessId: String? = null
+        businessId: String? = null,
+        accountType: String? = null
     ): StkPushResult {
         return try {
             val cfg = resolveConfig(businessId)
+            val requestedAccountType = accountType?.trim()?.lowercase()
+            if (requestedAccountType != null && requestedAccountType !in MPESA_ACCOUNT_TYPES) {
+                return StkPushResult.Error("M-Pesa account type must be 'paybill' or 'till'")
+            }
+            if (requestedAccountType != null && requestedAccountType != cfg.accountType.lowercase()) {
+                return StkPushResult.Error(
+                    "The selected ${requestedAccountType.displayMpesaAccountType()} channel is not configured. " +
+                        "Current channel: ${cfg.accountType.displayMpesaAccountType()}."
+                )
+            }
             val missing = validateConfig(cfg)
             if (missing.isNotEmpty()) {
                 return StkPushResult.Error(
@@ -124,7 +149,7 @@ class MpesaService(
                 "${cfg.shortCode}${cfg.passKey}$timestamp".toByteArray()
             )
 
-            val transactionType = if (cfg.accountType == "paybill") "CustomerPayBillOnline" else "CustomerBuyGoodsOnline"
+            val transactionType = mpesaTransactionType(cfg.accountType)
             val payload = StkPushPayload(
                 BusinessShortCode = cfg.shortCode,
                 Password = password,

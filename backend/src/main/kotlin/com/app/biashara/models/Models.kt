@@ -226,7 +226,8 @@ data class ExpenseResponse(
 @Serializable
 data class InitiatePaymentRequest(
     val orderId: String,
-    val phoneNumber: String
+    val phoneNumber: String,
+    val accountType: String? = null
 )
 
 @Serializable

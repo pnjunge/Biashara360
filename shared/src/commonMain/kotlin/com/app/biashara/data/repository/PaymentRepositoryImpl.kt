@@ -45,7 +45,8 @@ data class PaymentDto(
 @Serializable
 data class StkInitiateRequest(
     val orderId: String,
-    val phoneNumber: String
+    val phoneNumber: String,
+    val accountType: String? = null
 )
 
 @Serializable
@@ -74,7 +75,8 @@ class PaymentRepositoryImpl(
         runCatching {
             val body = StkInitiateRequest(
                 orderId = request.accountReference, // use accountReference as fallback
-                phoneNumber = request.phoneNumber
+                phoneNumber = request.phoneNumber,
+                accountType = request.accountType
             )
             val response: ApiResponse<MpesaStkPushResponse> = client.post("$BASE_URL/payments/initiate") {
                 contentType(ContentType.Application.Json)

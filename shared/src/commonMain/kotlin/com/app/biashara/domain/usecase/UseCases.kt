@@ -123,7 +123,11 @@ class InitiatePaymentUseCase(
     private val paymentRepo: PaymentRepository,
     private val orderRepo: OrderRepository
 ) {
-    suspend operator fun invoke(orderId: String, phoneNumber: String): Result<MpesaStkPushResponse> {
+    suspend operator fun invoke(
+        orderId: String,
+        phoneNumber: String,
+        accountType: String? = null
+    ): Result<MpesaStkPushResponse> {
         val order = orderRepo.getOrder(orderId)
             ?: return Result.failure(IllegalArgumentException("Order not found"))
         val request = MpesaStkPushRequest(
@@ -131,7 +135,8 @@ class InitiatePaymentUseCase(
             phoneNumber = phoneNumber.normalizePhone(),
             amount = order.subtotal,
             accountReference = orderId,  // Pass orderId (UUID) — backend /payments/initiate expects this
-            transactionDesc = "Payment for order ${order.orderNumber}"
+            transactionDesc = "Payment for order ${order.orderNumber}",
+            accountType = accountType
         )
         return paymentRepo.initiateSTKPush(request)
     }
