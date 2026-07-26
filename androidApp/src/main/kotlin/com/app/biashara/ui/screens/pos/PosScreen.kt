@@ -33,6 +33,7 @@ import com.app.biashara.domain.usecase.generateId
 import com.app.biashara.presentation.viewmodel.CustomersViewModel
 import com.app.biashara.presentation.viewmodel.InventoryViewModel
 import com.app.biashara.ui.kmpViewModel
+import com.app.biashara.ui.LocalNetworkAvailable
 import com.app.biashara.ui.theme.*
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -234,6 +235,7 @@ fun PosScreen(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val businessId = remember { UserSession.getBusinessId() }
+    val networkAvailable = LocalNetworkAvailable.current
 
     LaunchedEffect(Unit) {
         inventoryViewModel.loadProducts(businessId)
@@ -684,6 +686,10 @@ fun PosScreen(
 
                     Button(
                         onClick = {
+                            if (!networkAvailable) {
+                                errorMessage = "You’re offline. Reconnect before creating an order or collecting payment."
+                                return@Button
+                            }
                             isCheckingOut = true; errorMessage = null
                             coroutineScope.launch {
                                 val order = Order(
@@ -739,10 +745,14 @@ fun PosScreen(
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                         shape = RoundedCornerShape(24.dp),
-                        enabled = !isCheckingOut && cart.isNotEmpty()
+                        enabled = !isCheckingOut && cart.isNotEmpty() && networkAvailable
                     ) {
                         if (isCheckingOut) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                        else Text("Complete POS Checkout", color = Color.White, fontWeight = FontWeight.Bold)
+                        else Text(
+                            if (networkAvailable) "Complete POS Checkout" else "Reconnect to Checkout",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

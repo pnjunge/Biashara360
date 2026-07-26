@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,6 +50,7 @@ fun Biashara360App() {
     val authRepository = koinInject<AuthRepository>()
     val coroutineScope = rememberCoroutineScope()
     var sessionWarningSeconds by remember { mutableStateOf<Int?>(null) }
+    val networkAvailable = rememberNetworkAvailable()
 
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -105,7 +108,27 @@ fun Biashara360App() {
         currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
     }
 
+    CompositionLocalProvider(LocalNetworkAvailable provides networkAvailable) {
     Scaffold(
+        topBar = {
+            if (!networkAvailable) {
+                Surface(color = Color(0xFFFEF3C7), modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Filled.CloudOff, contentDescription = null, tint = Color(0xFF92400E))
+                        Text(
+                            "Offline — showing cached data. Saving and payments are unavailable.",
+                            color = Color(0xFF92400E),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        },
         bottomBar = {
             if (showBottomBar) {
                 CustomBottomNavigation(
@@ -245,6 +268,7 @@ fun Biashara360App() {
                 )
             }
         }
+    }
     }
 }
 
