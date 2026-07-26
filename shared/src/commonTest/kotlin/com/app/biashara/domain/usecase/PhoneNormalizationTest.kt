@@ -18,4 +18,11 @@ class PhoneNormalizationTest {
         assertNull("12345".normalizeKenyanMobile())
         assertNull("+255712345678".normalizeKenyanMobile())
     }
+
+    @Test
+    fun mpesaNormalizationAcceptsBothKenyanMobilePrefixes() {
+        assertEquals("254712345678", "0712345678".normalizePhone())
+        assertEquals("254112345678", "0112345678".normalizePhone())
+        assertEquals("254712345678", "+254712345678".normalizePhone())
+    }
 }

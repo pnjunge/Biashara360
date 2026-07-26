@@ -36,4 +36,10 @@ class ProductTest {
         assertTrue(product.isOutOfStock)
         assertFalse(product.isLowStock)
     }
+
+    @Test
+    fun zeroMinimumOnlyTreatsZeroAsOutOfStock() {
+        assertFalse(product(stock = 1, minimumStock = 0).isLowStock)
+        assertTrue(product(stock = 0, minimumStock = 0).isOutOfStock)
+    }
 }
