@@ -39,15 +39,12 @@ fun DesktopPaymentConfigurationScreen(
 
     LaunchedEffect(Unit) { refresh() }
 
-    val configuredCount = listOf(mpesa.config, cyberSource.config).count { it != null }
-    val productionCount = listOf(
-        mpesa.config?.environment,
-        cyberSource.config?.environment
-    ).count { it.equals("production", ignoreCase = true) }
-    val credentialsReady = listOf(
-        mpesa.config?.passkeyConfigured == true,
-        cyberSource.config?.secretConfigured == true
-    ).count { it }
+    val configuredCount = mpesa.configs.size + if (cyberSource.config != null) 1 else 0
+    val serviceCount = 3
+    val productionCount = mpesa.configs.count { it.environment.equals("production", true) } +
+        if (cyberSource.config?.environment.equals("production", true)) 1 else 0
+    val credentialsReady = mpesa.configs.count { it.passkeyConfigured } +
+        if (cyberSource.config?.secretConfigured == true) 1 else 0
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(PaymentSurface),
@@ -87,7 +84,7 @@ fun DesktopPaymentConfigurationScreen(
                 SummaryCard(
                     Modifier.weight(1f),
                     "Payment Services",
-                    "$configuredCount / 2",
+                    "$configuredCount / $serviceCount",
                     "Configured for this business",
                     Icons.Default.AccountBalanceWallet,
                     PaymentGreen,
@@ -105,7 +102,7 @@ fun DesktopPaymentConfigurationScreen(
                 SummaryCard(
                     Modifier.weight(1f),
                     "Credentials Ready",
-                    "$credentialsReady / 2",
+                    "$credentialsReady / $serviceCount",
                     "Required secrets configured",
                     Icons.Default.Key,
                     Color(0xFF7C3AED),
@@ -154,16 +151,17 @@ fun DesktopPaymentConfigurationScreen(
                     subtitle = "Safaricom Daraja",
                     icon = Icons.Default.PhoneAndroid,
                     iconColor = PaymentGreen,
-                    configured = mpesa.config != null,
+                    configured = mpesa.configs.isNotEmpty(),
                     loading = mpesa.isLoading,
                     error = mpesa.error,
-                    rows = listOf(
-                        "Business Shortcode" to (mpesa.config?.shortCode ?: "—"),
-                        "Account Type" to mpesa.config?.accountType.displayValue(),
-                        "Environment" to mpesa.config?.environment.displayValue(),
-                        "Passkey" to if (mpesa.config?.passkeyConfigured == true) "Configured" else "Not configured",
-                        "Callback URL" to (mpesa.config?.callbackUrl ?: "—")
-                    )
+                    rows = mpesa.configs.flatMap { config ->
+                        val channel = config.accountType.displayValue()
+                        listOf(
+                            "$channel Shortcode" to config.shortCode,
+                            "$channel Environment" to config.environment.displayValue(),
+                            "$channel Passkey" to if (config.passkeyConfigured) "Configured" else "Not configured"
+                        )
+                    }.ifEmpty { listOf("Channels" to "None configured") }
                 )
                 PaymentServiceCard(
                     modifier = Modifier.weight(1f),

@@ -23,6 +23,7 @@ data class BusinessProfileState(
 data class MpesaConfigState(
     val isLoading: Boolean = false,
     val config: MpesaConfig? = null,
+    val configs: List<MpesaConfig> = emptyList(),
     val error: String? = null,
     val isSaving: Boolean = false,
     val saveSuccess: Boolean = false
@@ -87,9 +88,11 @@ class BusinessViewModel(
     fun loadMpesaConfig() {
         scope.launch {
             _mpesaState.update { it.copy(isLoading = true, error = null) }
-            repository.getMpesaConfig()
-                .onSuccess { config ->
-                    _mpesaState.update { it.copy(isLoading = false, config = config) }
+            repository.getMpesaConfigs()
+                .onSuccess { configs ->
+                    _mpesaState.update {
+                        it.copy(isLoading = false, config = configs.firstOrNull(), configs = configs)
+                    }
                 }
                 .onFailure { exception ->
                     _mpesaState.update { it.copy(isLoading = false, error = exception.message) }

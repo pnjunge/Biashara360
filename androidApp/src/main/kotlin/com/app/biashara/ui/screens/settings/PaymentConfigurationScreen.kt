@@ -3,6 +3,7 @@ package com.app.biashara.ui.screens.settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -64,15 +65,23 @@ fun PaymentConfigurationScreen(
                     color = Color(0xFF64748B)
                 )
             }
-            item {
-                MobileConfigCard("M-Pesa") {
-                    val config = mpesa.config
-                    MobileConfigRow("Status", if (config == null) "Not configured" else "Configured")
-                    MobileConfigRow("Shortcode", config?.shortCode ?: "—")
-                    MobileConfigRow("Account type", config?.accountType ?: "—")
-                    MobileConfigRow("Environment", config?.environment ?: "—")
-                    MobileConfigRow("Passkey", if (config?.passkeyConfigured == true) "Configured" else "Not configured")
+            if (mpesa.configs.isEmpty()) {
+                item {
+                    MobileConfigCard("M-Pesa") {
+                        MobileConfigRow("Status", "Not configured")
+                        mpesa.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    }
+                }
+            } else {
+                items(mpesa.configs, key = { it.accountType }) { config ->
+                    MobileConfigCard("M-Pesa ${config.accountType.displayAccountType()}") {
+                    MobileConfigRow("Status", "Configured")
+                    MobileConfigRow("Shortcode", config.shortCode)
+                    MobileConfigRow("Account type", config.accountType.displayAccountType())
+                    MobileConfigRow("Environment", config.environment)
+                    MobileConfigRow("Passkey", if (config.passkeyConfigured) "Configured" else "Not configured")
                     mpesa.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    }
                 }
             }
             item {
@@ -98,6 +107,9 @@ fun PaymentConfigurationScreen(
         }
     }
 }
+
+private fun String.displayAccountType(): String =
+    lowercase().replaceFirstChar { it.uppercase() }
 
 @Composable
 private fun MobileConfigCard(title: String, content: @Composable ColumnScope.() -> Unit) {
