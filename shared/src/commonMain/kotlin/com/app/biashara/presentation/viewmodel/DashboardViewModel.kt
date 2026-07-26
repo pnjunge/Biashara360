@@ -30,8 +30,16 @@ data class DashboardState(
     val topCustomers: List<Pair<Customer, CustomerStats>> = emptyList(),
     val weeklyRevenue: List<Pair<String, Double>> = emptyList(),
     val error: String? = null,
-    val isSyncing: Boolean = false
+    val isSyncing: Boolean = false,
+    val selectedPeriod: DashboardPeriod = DashboardPeriod.MONTH,
+    val lastUpdatedAt: Instant? = null
 )
+
+enum class DashboardPeriod(val label: String) {
+    TODAY("Today"),
+    LAST_7_DAYS("7 Days"),
+    MONTH("This Month")
+}
 
 class DashboardViewModel(
     private val getDashboardSummaryUseCase: GetDashboardSummaryUseCase,
@@ -78,7 +86,7 @@ class DashboardViewModel(
                 paymentRepository?.syncPaymentsFromApi(businessId)
             } catch (_: Exception) {}
             
-            _state.update { it.copy(isSyncing = false) }
+            _state.update { it.copy(isSyncing = false, lastUpdatedAt = Clock.System.now()) }
             
             // Reload financial stats now that local cache is fresh
             loadFinancialSummary(businessId)
@@ -158,8 +166,13 @@ class DashboardViewModel(
         scope.launch {
             try {
                 val today = Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
-                val monthStart = LocalDate(today.year, today.month, 1)
-                val period = ReportPeriod(monthStart, today, "This Month")
+                val selected = state.value.selectedPeriod
+                val start = when (selected) {
+                    DashboardPeriod.TODAY -> today
+                    DashboardPeriod.LAST_7_DAYS -> today.minus(6, DateTimeUnit.DAY)
+                    DashboardPeriod.MONTH -> LocalDate(today.year, today.month, 1)
+                }
+                val period = ReportPeriod(start, today, selected.label)
 
                 val summary = getDashboardSummaryUseCase(businessId, period)
                 _state.update {
@@ -176,5 +189,11 @@ class DashboardViewModel(
 
     fun dismissError() {
         _state.update { it.copy(error = null) }
+    }
+
+    fun selectPeriod(period: DashboardPeriod) {
+        if (period == state.value.selectedPeriod) return
+        _state.update { it.copy(selectedPeriod = period) }
+        loadFinancialSummary(UserSession.getBusinessId())
     }
 }

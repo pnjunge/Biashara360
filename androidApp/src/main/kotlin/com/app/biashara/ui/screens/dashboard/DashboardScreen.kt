@@ -23,6 +23,7 @@ import androidx.navigation.NavController
 import com.app.biashara.domain.model.Order
 import com.app.biashara.domain.model.Product
 import com.app.biashara.presentation.viewmodel.DashboardViewModel
+import com.app.biashara.presentation.viewmodel.DashboardPeriod
 import com.app.biashara.ui.navigation.Screen
 import com.app.biashara.ui.theme.*
 import com.app.biashara.ui.kmpViewModel
@@ -155,17 +156,57 @@ fun DashboardScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Overview", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        IconButton(
+                            onClick = { viewModel.loadDashboard() },
+                            enabled = !state.isSyncing
+                        ) {
+                            if (state.isSyncing) {
+                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Filled.Refresh, contentDescription = "Refresh dashboard")
+                            }
+                        }
+                    }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(DashboardPeriod.entries.size) { index ->
+                            val period = DashboardPeriod.entries[index]
+                            FilterChip(
+                                selected = state.selectedPeriod == period,
+                                onClick = { viewModel.selectPeriod(period) },
+                                label = { Text(period.label) }
+                            )
+                        }
+                    }
+                    state.lastUpdatedAt?.let {
+                        Text(
+                            "Last updated ${it.toString().substring(11, 16)}",
+                            color = Color(0xFF64748B),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+
             // KPI Grid Row 1
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     KpiCard(
                         modifier = Modifier.weight(1f),
-                        title = "Monthly Revenue",
+                        title = "${state.selectedPeriod.label} Revenue",
                         value = "KES ${"%,.0f".format(state.monthRevenue)}",
                         change = "↑ 12% from last month",
                         icon = Icons.Filled.TrendingUp,
                         color = B360Green,
-                        bgColor = B360Green.copy(0.12f)
+                        bgColor = B360Green.copy(0.12f),
+                        onClick = { navController.navigate(Screen.Reports.route) }
                     )
                     KpiCard(
                         modifier = Modifier.weight(1f),
@@ -174,7 +215,8 @@ fun DashboardScreen(
                         change = "↑ 8% from last month",
                         icon = Icons.Filled.Business,
                         color = B360Blue,
-                        bgColor = B360Blue.copy(0.12f)
+                        bgColor = B360Blue.copy(0.12f),
+                        onClick = { navController.navigate(Screen.Reports.route) }
                     )
                 }
             }
@@ -189,7 +231,8 @@ fun DashboardScreen(
                         change = "↑ 3 from yesterday",
                         icon = Icons.Filled.ShoppingCart,
                         color = B360Amber,
-                        bgColor = B360Amber.copy(0.12f)
+                        bgColor = B360Amber.copy(0.12f),
+                        onClick = { navController.navigate(Screen.Orders.route) }
                     )
                     KpiCard(
                         modifier = Modifier.weight(1f),
@@ -198,7 +241,8 @@ fun DashboardScreen(
                         change = "orders pending",
                         icon = Icons.Filled.AccessTime,
                         color = B360Red,
-                        bgColor = B360Red.copy(0.12f)
+                        bgColor = B360Red.copy(0.12f),
+                        onClick = { navController.navigate(Screen.Payments.route) }
                     )
                 }
             }
@@ -360,18 +404,18 @@ fun KpiCard(
     change: String,
     icon: ImageVector,
     color: Color,
-    bgColor: Color
+    bgColor: Color,
+    onClick: () -> Unit = {}
 ) {
     val points = when (title) {
-        "Monthly Revenue" -> listOf(0.15f, 0.35f, 0.2f, 0.45f, 0.3f, 0.5f, 0.4f, 0.65f)
         "Net Profit" -> listOf(0.25f, 0.15f, 0.4f, 0.3f, 0.55f, 0.35f, 0.45f, 0.6f)
         "Orders Today" -> listOf(0.35f, 0.25f, 0.5f, 0.4f, 0.3f, 0.45f, 0.35f, 0.4f)
         "Pending Payments" -> listOf(0.2f, 0.3f, 0.15f, 0.25f, 0.2f, 0.35f, 0.25f, 0.2f)
-        else -> listOf(0.2f, 0.4f, 0.3f, 0.5f, 0.4f, 0.6f)
+        else -> listOf(0.15f, 0.35f, 0.2f, 0.45f, 0.3f, 0.5f, 0.4f, 0.65f)
     }
 
     Card(
-        modifier = modifier.clip(RoundedCornerShape(20.dp)),
+        modifier = modifier.clip(RoundedCornerShape(20.dp)).clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
