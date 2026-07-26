@@ -31,6 +31,8 @@ class ExpensesViewModel(
 
     private val _saveResult = MutableSharedFlow<Result<Expense>>()
     val saveResult: SharedFlow<Result<Expense>> = _saveResult.asSharedFlow()
+    private val _deleteResult = MutableSharedFlow<Result<Unit>>()
+    val deleteResult: SharedFlow<Result<Unit>> = _deleteResult.asSharedFlow()
 
     fun loadExpenses() {
         val businessId = UserSession.getBusinessId()
@@ -72,6 +74,7 @@ class ExpensesViewModel(
     fun deleteExpense(id: String) {
         scope.launch {
             val result = deleteExpenseUseCase(id)
+            _deleteResult.emit(result)
             if (result.isSuccess) {
                 loadExpenses()
             } else {

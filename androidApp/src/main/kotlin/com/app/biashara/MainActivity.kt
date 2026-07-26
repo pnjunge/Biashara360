@@ -9,10 +9,12 @@ import androidx.compose.runtime.getValue
 import com.app.biashara.ui.Biashara360App
 import com.app.biashara.ui.theme.Biashara360Theme
 import com.app.biashara.ui.theme.ThemeState
+import com.app.biashara.ui.darkModeEnabled
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ThemeState.setDarkMode(darkModeEnabled())
         enableEdgeToEdge()
         setContent {
             val isDarkMode by ThemeState.isDarkMode.collectAsState()

@@ -48,8 +48,60 @@ fun ExpensesScreen(
     viewModel: ExpensesViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    var selectedCategory by remember { mutableStateOf<ExpenseCategory?>(null) }
+    var currentMonthOnly by remember { mutableStateOf(true) }
+    var categoryMenuOpen by remember { mutableStateOf(false) }
+    var expenseToDelete by remember { mutableStateOf<Expense?>(null) }
+    var deleting by remember { mutableStateOf(false) }
+    val today = remember { Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date }
+    val filteredExpenses = remember(state.expenses, selectedCategory, currentMonthOnly) {
+        state.expenses.filter { expense ->
+            (selectedCategory == null || expense.category == selectedCategory) &&
+                (!currentMonthOnly ||
+                    (expense.expenseDate.year == today.year && expense.expenseDate.month == today.month))
+        }
+    }
+    val filteredTotal = filteredExpenses.sumOf { it.amount }
+    val deleteResult by viewModel.deleteResult.collectAsState(initial = null)
+
+    LaunchedEffect(deleteResult) {
+        deleteResult?.let {
+            deleting = false
+            if (it.isSuccess) expenseToDelete = null
+        }
+    }
 
     LaunchedEffect(Unit) { viewModel.loadExpenses() }
+
+    expenseToDelete?.let { expense ->
+        AlertDialog(
+            onDismissRequest = { if (!deleting) expenseToDelete = null },
+            title = { Text("Delete expense?", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${expense.description} — KES ${"%,.0f".format(expense.amount)}")
+                    Text("This action cannot be undone.", color = B360Red)
+                    state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !deleting,
+                    onClick = {
+                        deleting = true
+                        viewModel.deleteExpense(expense.id)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Red)
+                ) {
+                    if (deleting) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    else Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !deleting, onClick = { expenseToDelete = null }) { Text("Cancel") }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -92,7 +144,7 @@ fun ExpensesScreen(
                         Text("Total Expenses – This Month", fontSize = 13.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "KES ${"%,.0f".format(state.totalAmount)}",
+                            "KES ${"%,.0f".format(filteredTotal)}",
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 24.sp,
                             color = B360Red
@@ -101,12 +153,45 @@ fun ExpensesScreen(
                 }
             }
 
-            if (state.expenses.isEmpty()) {
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = currentMonthOnly,
+                        onClick = { currentMonthOnly = !currentMonthOnly },
+                        label = { Text(if (currentMonthOnly) "This Month" else "All Dates") }
+                    )
+                    Box {
+                        FilterChip(
+                            selected = selectedCategory != null,
+                            onClick = { categoryMenuOpen = true },
+                            label = { Text(selectedCategory?.displayName() ?: "All Categories") },
+                            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, null) }
+                        )
+                        DropdownMenu(expanded = categoryMenuOpen, onDismissRequest = { categoryMenuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("All Categories") },
+                                onClick = { selectedCategory = null; categoryMenuOpen = false }
+                            )
+                            ExpenseCategory.entries.forEach { category ->
+                                DropdownMenuItem(
+                                    text = { Text(category.displayName()) },
+                                    onClick = { selectedCategory = category; categoryMenuOpen = false }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (filteredExpenses.isEmpty()) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Filled.Receipt, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
-                            Text("No expenses recorded", color = Color.Gray)
+                            Text(
+                                if (state.expenses.isEmpty()) "No expenses recorded" else "No expenses match these filters",
+                                color = Color.Gray
+                            )
                             Button(
                                 onClick = onAddExpense,
                                 colors = ButtonDefaults.buttonColors(containerColor = B360Green),
@@ -118,7 +203,7 @@ fun ExpensesScreen(
                     }
                 }
             } else {
-                items(state.expenses) { expense ->
+                items(filteredExpenses, key = { it.id }) { expense ->
                     val color = categoryColors[expense.category] ?: Color.Gray
                     Card(
                         Modifier.fillMaxWidth(),
@@ -156,7 +241,7 @@ fun ExpensesScreen(
                                 Text("KES ${"%,.0f".format(expense.amount)}", fontWeight = FontWeight.ExtraBold, color = B360Red, fontSize = 15.sp)
                                 Spacer(Modifier.height(4.dp))
                                 IconButton(
-                                    onClick = { viewModel.deleteExpense(expense.id) },
+                                    onClick = { expenseToDelete = expense; viewModel.dismissError() },
                                     modifier = Modifier.size(28.dp)
                                 ) {
                                     Icon(Icons.Filled.Delete, null, tint = B360Red.copy(0.6f), modifier = Modifier.size(16.dp))

@@ -36,6 +36,9 @@ import com.app.biashara.ui.kmpViewModel
 import com.app.biashara.ui.biometricEnrollmentIntent
 import com.app.biashara.ui.isBiometricLoginEnabled
 import com.app.biashara.ui.setBiometricLoginEnabled
+import com.app.biashara.ui.notificationsEnabled
+import com.app.biashara.ui.setNotificationsEnabled
+import com.app.biashara.ui.setDarkModeEnabled
 import org.koin.compose.koinInject
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -62,7 +65,7 @@ fun SettingsScreen(
     }
 
     val authState by authViewModel.state.collectAsState()
-    var notificationsEnabled by remember { mutableStateOf(true) }
+    var notificationsEnabled by remember { mutableStateOf(context.notificationsEnabled()) }
     // Dark mode reads/writes from the process-scoped ThemeState
     val darkMode by ThemeState.isDarkMode.collectAsState()
     var biometricEnabled by remember { mutableStateOf(context.isBiometricLoginEnabled()) }
@@ -443,8 +446,14 @@ fun SettingsScreen(
             }
             item {
                 SettingsSection("Preferences") {
-                    SettingsToggleItem("Push Notifications", Icons.Filled.Notifications, notificationsEnabled) { notificationsEnabled = it }
-                    SettingsToggleItem("Dark Mode", Icons.Filled.DarkMode, darkMode) { ThemeState.setDarkMode(it) }
+                    SettingsToggleItem("Push Notifications", Icons.Filled.Notifications, notificationsEnabled) {
+                        notificationsEnabled = it
+                        context.setNotificationsEnabled(it)
+                    }
+                    SettingsToggleItem("Dark Mode", Icons.Filled.DarkMode, darkMode) {
+                        ThemeState.setDarkMode(it)
+                        context.setDarkModeEnabled(it)
+                    }
                     SettingsToggleItem("Biometric Login", Icons.Filled.Fingerprint, biometricEnabled) { enabled ->
                         if (enabled) {
                             val biometricManager = BiometricManager.from(context)
