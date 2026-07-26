@@ -91,6 +91,30 @@ class AuthRepositoryImpl(
         authData.accessToken
     }
 
+    override suspend fun resendOtp(userId: String, channel: String): Result<Unit> = runCatching {
+        val response: ApiResponse<Unit> = client.post("$BASE_URL/auth/resend-otp") {
+            contentType(ContentType.Application.Json)
+            setBody(ResendOtpRequest(userId, channel.uppercase()))
+        }.body()
+        if (!response.success) throw Exception(response.message.ifBlank { "Could not resend OTP" })
+    }
+
+    override suspend fun requestPasswordReset(email: String): Result<Unit> = runCatching {
+        val response: ApiResponse<Unit> = client.post("$BASE_URL/auth/forgot-password") {
+            contentType(ContentType.Application.Json)
+            setBody(PasswordResetRequest(email.trim()))
+        }.body()
+        if (!response.success) throw Exception(response.message.ifBlank { "Could not request password reset" })
+    }
+
+    override suspend fun confirmPasswordReset(token: String, newPassword: String): Result<Unit> = runCatching {
+        val response: ApiResponse<Unit> = client.post("$BASE_URL/auth/reset-password") {
+            contentType(ContentType.Application.Json)
+            setBody(PasswordResetConfirmRequest(token.trim(), newPassword))
+        }.body()
+        if (!response.success) throw Exception(response.message.ifBlank { "Could not reset password" })
+    }
+
     override suspend fun logout(): Result<Unit> = runCatching {
         try {
             client.post("$BASE_URL/auth/logout")

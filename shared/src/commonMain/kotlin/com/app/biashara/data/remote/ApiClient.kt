@@ -11,6 +11,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 var BASE_URL = "https://api.biashara360.co.ke/v1"
@@ -126,6 +127,15 @@ data class LoginResponse(
 
 @kotlinx.serialization.Serializable
 data class OtpVerifyRequest(val userId: String, val otp: String, val channel: String)
+
+@Serializable
+data class ResendOtpRequest(val userId: String, val channel: String)
+
+@Serializable
+data class PasswordResetRequest(val email: String)
+
+@Serializable
+data class PasswordResetConfirmRequest(val token: String, val newPassword: String)
 
 @kotlinx.serialization.Serializable
 data class AuthResponse(

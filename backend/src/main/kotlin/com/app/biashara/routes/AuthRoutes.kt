@@ -3,6 +3,8 @@ package com.app.biashara.routes
 import com.app.biashara.constants.Constants
 import com.app.biashara.exceptions.UnauthorizedException
 import com.app.biashara.models.*
+import com.app.biashara.dto.ResetPasswordRequestDTO
+import com.app.biashara.dto.ResetPasswordConfirmDTO
 import com.app.biashara.services.AuthService
 import com.app.biashara.validation.Validator
 import io.ktor.http.*
@@ -175,6 +177,29 @@ fun Route.authRoutesValidated() {
                     if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest,
                     result
                 )
+            }
+
+            post("/forgot-password") {
+                val req = call.receive<ResetPasswordRequestDTO>()
+                Validator.validate {
+                    field("email", req.email) { required(); email() }
+                }
+                call.respond(HttpStatusCode.OK, authService.requestPasswordReset(req.email))
+            }
+
+            post("/reset-password") {
+                val req = call.receive<ResetPasswordConfirmDTO>()
+                Validator.validate {
+                    field("token", req.token) {
+                        required()
+                        custom("Reset code must be 6 digits", "INVALID_RESET_CODE") {
+                            it is String && it.matches(Regex("^\\d{6}\$"))
+                        }
+                    }
+                    field("newPassword", req.newPassword) { required(); password() }
+                }
+                val result = authService.confirmPasswordReset(req.token, req.newPassword)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
             }
         }
     }

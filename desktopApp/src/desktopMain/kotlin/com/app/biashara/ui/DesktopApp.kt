@@ -943,7 +943,7 @@ fun DesktopOtpCard(viewModel: AuthViewModel, state: com.app.biashara.presentatio
 
             val cooldown = state.otpCooldownSeconds
             TextButton(
-                onClick = { if (cooldown == 0) viewModel.resendOtp() },
+                onClick = { if (cooldown == 0) viewModel.resendOtp(selectedChannel) },
                 enabled = cooldown == 0 && !state.isLoading
             ) {
                 Text(

@@ -67,6 +67,9 @@ val coreModule = module {
     // Use Cases — Auth
     factory { LoginUseCase(get()) }
     factory { VerifyOtpUseCase(get()) }
+    factory { ResendOtpUseCase(get()) }
+    factory { RequestPasswordResetUseCase(get()) }
+    factory { ConfirmPasswordResetUseCase(get()) }
     factory { RegisterUseCase(get()) }
     factory { LogoutUseCase(get()) }
     factory { ChangePasswordUseCase(get()) }
@@ -90,7 +93,7 @@ val coreModule = module {
         get<ExpenseRepository>() as? ExpenseRepositoryImpl,
         get<PaymentRepository>() as? PaymentRepositoryImpl
     ) }
-    factory { AuthViewModel(get(), get(), get(), get(), get(), get()) }
+    factory { AuthViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     factory { BusinessViewModel(get()) }
     factory { SocialViewModel(get()) }
 }

@@ -66,6 +66,9 @@ interface PaymentRepository {
 interface AuthRepository {
     suspend fun login(email: String, password: String): Result<User>
     suspend fun verifyOtp(userId: String, otp: String, channel: String): Result<String> // Returns JWT
+    suspend fun resendOtp(userId: String, channel: String): Result<Unit>
+    suspend fun requestPasswordReset(email: String): Result<Unit>
+    suspend fun confirmPasswordReset(token: String, newPassword: String): Result<Unit>
     suspend fun logout(): Result<Unit>
     suspend fun getCurrentUser(): User?
     suspend fun refreshToken(): Result<String>

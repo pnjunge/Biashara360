@@ -329,6 +329,113 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var showPasswordReset by remember { mutableStateOf(false) }
+    var resetEmail by remember { mutableStateOf("") }
+    var resetCode by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+
+    if (showPasswordReset) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!state.isLoading) {
+                    showPasswordReset = false
+                    viewModel.clearPasswordResetState()
+                }
+            },
+            title = {
+                Text(
+                    when {
+                        state.passwordResetCompleted -> "Password Reset"
+                        state.passwordResetRequested -> "Enter Reset Code"
+                        else -> "Forgot Password"
+                    },
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    when {
+                        state.passwordResetCompleted -> {
+                            Text("Your password was changed. Sign in using your new password.")
+                        }
+                        state.passwordResetRequested -> {
+                            Text("Enter the 6-digit code sent to your email.")
+                            OutlinedTextField(
+                                value = resetCode,
+                                onValueChange = { resetCode = it.filter(Char::isDigit).take(6) },
+                                label = { Text("Reset code") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                enabled = !state.isLoading
+                            )
+                            OutlinedTextField(
+                                value = newPassword,
+                                onValueChange = { newPassword = it },
+                                label = { Text("New password") },
+                                visualTransformation = PasswordVisualTransformation(),
+                                singleLine = true,
+                                enabled = !state.isLoading
+                            )
+                            Text("Use at least 8 characters.", color = Color(0xFF64748B), fontSize = 12.sp)
+                        }
+                        else -> {
+                            Text("Enter your account email. If it exists, we’ll send a reset code.")
+                            OutlinedTextField(
+                                value = resetEmail,
+                                onValueChange = { resetEmail = it },
+                                label = { Text("Email") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                singleLine = true,
+                                enabled = !state.isLoading
+                            )
+                        }
+                    }
+                    state.error?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !state.isLoading,
+                    onClick = {
+                        when {
+                            state.passwordResetCompleted -> {
+                                showPasswordReset = false
+                                viewModel.clearPasswordResetState()
+                            }
+                            state.passwordResetRequested ->
+                                viewModel.confirmPasswordReset(resetCode, newPassword)
+                            else -> viewModel.requestPasswordReset(resetEmail)
+                        }
+                    }
+                ) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator(Modifier.size(18.dp), color = Color.White)
+                    } else {
+                        Text(
+                            when {
+                                state.passwordResetCompleted -> "Back to Login"
+                                state.passwordResetRequested -> "Reset Password"
+                                else -> "Send Code"
+                            }
+                        )
+                    }
+                }
+            },
+            dismissButton = {
+                if (!state.passwordResetCompleted) {
+                    TextButton(
+                        enabled = !state.isLoading,
+                        onClick = {
+                            showPasswordReset = false
+                            viewModel.clearPasswordResetState()
+                        }
+                    ) { Text("Cancel") }
+                }
+            }
+        )
+    }
 
     AuthBackground {
         Column(
@@ -381,6 +488,18 @@ fun LoginScreen(
                             leadingIcon = Icons.Filled.Person,
                             enabled = !state.isLoading
                         )
+
+                        TextButton(
+                            onClick = {
+                                resetEmail = email
+                                viewModel.dismissError()
+                                showPasswordReset = true
+                            },
+                            enabled = !state.isLoading,
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Forgot password?", color = B360Green, fontWeight = FontWeight.SemiBold)
+                        }
 
                         AndroidCustomLoginTextField(
                             value = password,
@@ -772,7 +891,7 @@ fun OtpScreen(
                         Text("Enter the OTP sent to your phone/email", color = Color(0xFF64748B), fontSize = 13.sp, textAlign = TextAlign.Center)
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("SMS", "Email", "App").forEach { ch ->
+                            listOf("SMS", "EMAIL", "WHATSAPP").forEach { ch ->
                                 val isSelected = selectedChannel == ch
                                 FilterChip(
                                     selected = isSelected,
@@ -839,7 +958,7 @@ fun OtpScreen(
 
                         val cooldown = state.otpCooldownSeconds
                         TextButton(
-                            onClick = { if (cooldown == 0) viewModel.resendOtp() },
+                            onClick = { if (cooldown == 0) viewModel.resendOtp(selectedChannel) },
                             enabled = cooldown == 0 && !state.isLoading
                         ) {
                             Text(

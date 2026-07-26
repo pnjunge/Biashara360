@@ -19,7 +19,9 @@ data class AuthState(
     val otpCooldownSeconds: Int = 0,
     val passwordChangeSuccess: Boolean = false,
     val passwordChangeError: String? = null,
-    val isChangingPassword: Boolean = false
+    val isChangingPassword: Boolean = false,
+    val passwordResetRequested: Boolean = false,
+    val passwordResetCompleted: Boolean = false
 )
 
 class AuthViewModel(
@@ -28,7 +30,10 @@ class AuthViewModel(
     private val registerUseCase: RegisterUseCase,
     private val logoutUseCase: LogoutUseCase,
     private val changePasswordUseCase: ChangePasswordUseCase,
-    private val loginWithBiometricUseCase: LoginWithBiometricUseCase
+    private val loginWithBiometricUseCase: LoginWithBiometricUseCase,
+    private val resendOtpUseCase: ResendOtpUseCase,
+    private val requestPasswordResetUseCase: RequestPasswordResetUseCase,
+    private val confirmPasswordResetUseCase: ConfirmPasswordResetUseCase
 ) : KmpViewModel() {
 
     private val _state = MutableStateFlow(AuthState())
@@ -142,13 +147,63 @@ class AuthViewModel(
         }
     }
 
-    fun resendOtp() {
+    fun resendOtp(channel: String) {
         if (state.value.otpCooldownSeconds > 0) return
         if (state.value.step !is AuthStep.Otp) return
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            _state.update { it.copy(isLoading = false) }
-            startOtpCooldown()
+            val step = state.value.step as AuthStep.Otp
+            resendOtpUseCase(step.userId, channel.uppercase()).fold(
+                onSuccess = {
+                    _state.update { it.copy(isLoading = false) }
+                    startOtpCooldown()
+                },
+                onFailure = { error ->
+                    _state.update { it.copy(isLoading = false, error = error.message) }
+                }
+            )
+        }
+    }
+
+    fun requestPasswordReset(email: String) {
+        if (email.isBlank()) {
+            _state.update { it.copy(error = "Email is required") }
+            return
+        }
+        scope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            requestPasswordResetUseCase(email).fold(
+                onSuccess = { _state.update { it.copy(isLoading = false, passwordResetRequested = true) } },
+                onFailure = { error ->
+                    _state.update { it.copy(isLoading = false, error = error.message) }
+                }
+            )
+        }
+    }
+
+    fun confirmPasswordReset(token: String, newPassword: String) {
+        if (token.length != 6 || newPassword.length < 8) {
+            _state.update { it.copy(error = "Enter the 6-digit code and a password of at least 8 characters") }
+            return
+        }
+        scope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            confirmPasswordResetUseCase(token, newPassword).fold(
+                onSuccess = {
+                    _state.update {
+                        it.copy(isLoading = false, passwordResetCompleted = true, passwordResetRequested = false)
+                    }
+                },
+                onFailure = { error ->
+                    _state.update { it.copy(isLoading = false, error = error.message) }
+                }
+            )
+        }
+    }
+
+    fun clearPasswordResetState() {
+        _state.update {
+            it.copy(passwordResetRequested = false, passwordResetCompleted = false, error = null)
         }
     }
 

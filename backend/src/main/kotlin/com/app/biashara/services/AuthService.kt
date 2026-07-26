@@ -228,6 +228,54 @@ class AuthService(
         return ApiResponse(success = true, message = "OTP resent via ${req.channel}")
     }
 
+    fun requestPasswordReset(email: String): ApiResponse<Unit> {
+        data class ResetDispatch(val email: String, val name: String, val code: String)
+        val dispatch = transaction {
+            val user = UsersTable.select { UsersTable.email eq email.trim() }.firstOrNull()
+                ?: return@transaction null
+            val code = OtpUtils.generate()
+            val now = Clock.System.now()
+            OtpTable.deleteWhere {
+                (OtpTable.userId eq user[UsersTable.id]) and (OtpTable.channel eq "PASSWORD_RESET")
+            }
+            OtpTable.insert {
+                it[id] = generateId()
+                it[OtpTable.userId] = user[UsersTable.id]
+                it[OtpTable.code] = code
+                it[channel] = "PASSWORD_RESET"
+                it[used] = false
+                it[expiresAt] = now + 600.seconds
+                it[createdAt] = now
+            }
+            ResetDispatch(user[UsersTable.email], user[UsersTable.name], code)
+        }
+        dispatch?.let {
+            emailService.sendOtpEmail(it.email, it.code, it.name)
+        }
+        return ApiResponse(
+            success = true,
+            message = "If an account exists for that email, a reset code has been sent."
+        )
+    }
+
+    fun confirmPasswordReset(token: String, newPassword: String): ApiResponse<Unit> = transaction {
+        val now = Clock.System.now()
+        val reset = OtpTable.select {
+            (OtpTable.code eq token) and
+                (OtpTable.channel eq "PASSWORD_RESET") and
+                (OtpTable.used eq false) and
+                (OtpTable.expiresAt greaterEq now)
+        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Invalid or expired reset code")
+        val userId = reset[OtpTable.userId]
+        UsersTable.update({ UsersTable.id eq userId }) {
+            it[passwordHash] = PasswordUtils.hash(newPassword)
+            it[updatedAt] = now
+        }
+        OtpTable.update({ OtpTable.id eq reset[OtpTable.id] }) { it[used] = true }
+        RefreshTokensTable.deleteWhere { RefreshTokensTable.userId eq userId }
+        ApiResponse(success = true, message = "Password reset successfully. Sign in with your new password.")
+    }
+
     fun changePassword(userId: String, req: ChangePasswordRequest): ApiResponse<Unit> = transaction {
         if (req.newPassword.length < 8) {
             return@transaction ApiResponse(false, message = "New password must be at least 8 characters")
