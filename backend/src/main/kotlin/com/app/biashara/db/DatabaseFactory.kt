@@ -123,7 +123,7 @@ object DatabaseFactory {
                           FROM unnest(con.conkey) WITH ORDINALITY AS key_columns(attnum, ordinality)
                           JOIN pg_attribute att
                             ON att.attrelid = rel.oid AND att.attnum = key_columns.attnum
-                      ) = ARRAY['business_id']
+                      ) = ARRAY['business_id']::name[]
                 LOOP
                     EXECUTE format('ALTER TABLE mpesa_configs DROP CONSTRAINT %I', constraint_name);
                 END LOOP;
