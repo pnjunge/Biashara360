@@ -59,7 +59,7 @@ object DatabaseFactory {
                 .dataSource(dataSource)
                 .locations("classpath:db/migration")
                 .baselineOnMigrate(true)
-                .baselineVersion("2")
+                .baselineVersion("002")
                 .validateMigrationNaming(true)
                 .load()
                 .migrate()
