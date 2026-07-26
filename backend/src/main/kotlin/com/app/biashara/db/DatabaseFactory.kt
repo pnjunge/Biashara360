@@ -119,11 +119,11 @@ object DatabaseFactory {
                       AND rel.relname = 'mpesa_configs'
                       AND con.contype = 'u'
                       AND (
-                          SELECT array_agg(att.attname ORDER BY key_columns.ordinality)
+                          SELECT array_agg(CAST(att.attname AS text) ORDER BY key_columns.ordinality)
                           FROM unnest(con.conkey) WITH ORDINALITY AS key_columns(attnum, ordinality)
                           JOIN pg_attribute att
                             ON att.attrelid = rel.oid AND att.attnum = key_columns.attnum
-                      ) = ARRAY['business_id']::name[]
+                      ) = ARRAY['business_id']
                 LOOP
                     EXECUTE format('ALTER TABLE mpesa_configs DROP CONSTRAINT %I', constraint_name);
                 END LOOP;
