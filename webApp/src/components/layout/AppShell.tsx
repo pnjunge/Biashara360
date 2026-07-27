@@ -17,13 +17,11 @@ const navItems = [
   { to: '/expenses',      icon: Receipt,         label: 'Expenses' },
   { to: '/payments',      icon: CreditCard,      label: 'Mpesa Payments' },
   { to: '/card-payments', icon: Shield,          label: 'Card / CyberSource' },
-  { to: '/cybersource-settings', icon: Settings,  label: 'CyberSource Config' },
   { to: '/tax',           icon: Receipt,          label: 'Tax' },
   { to: '/kra',           icon: FileCheck,        label: 'KRA iTax' },
   { to: '/social',        icon: MessageSquare,    label: 'Social Inbox' },
   { to: '/social-onboarding', icon: Link,         label: 'Social Setup' },
   { to: '/users',         icon: UserPlus,         label: 'User Creation' },
-  { to: '/business',      icon: Building2,        label: 'Business' },
   { to: '/reports',       icon: BarChart3,        label: 'Reports' },
   { to: '/downloads',     icon: Download,         label: 'Download Apps' },
 ]
