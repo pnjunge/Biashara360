@@ -13,51 +13,22 @@ import io.ktor.server.plugins.ratelimit.rateLimit
 import org.koin.ktor.ext.inject
 
 // ─── CyberSource Public Routes (no JWT required) ──────────────────────────────
-// GET /v1/payments/card/capture-context — returns Flex JWT for Unified Checkout widget
 
 fun Route.cyberSourcePublicRoutes() {
     val csService: CyberSourcePaymentService by inject()
-    val orderService: OrderService by inject()
+    val saService: SecureAcceptanceService   by inject()
+    val orderService: OrderService           by inject()
 
     route("/payments/card") {
-        /**
-         * GET /v1/payments/card/capture-context?origin=https://yoursite.com
-         *
-         * Returns a short-lived Flex capture context JWT.
-         * The web frontend passes this JWT to the Unified Checkout widget to
-         * initialize the PCI-compliant hosted card entry fields.
-         * No auth required — called before the customer logs in.
-         */
-        rateLimit(RateLimitName("public-payment-limiter")) {
-        get("/capture-context") {
-            val origin = call.request.queryParameters["origin"]
-                ?: call.request.headers["Origin"]
-                ?: "https://biashara360.co.ke"
-            val rawBusinessId = call.request.queryParameters["businessId"]
-            // Validate UUID format to reject obviously invalid values; an unrecognised
-            // but well-formed ID will simply fall back to the global config in the service.
-            val uuidRegex = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-            val businessId = rawBusinessId?.takeIf { uuidRegex.matches(it) }
-            val allowedOrigins = call.application.environment.config.propertyOrNull("payments.allowedOrigins")
-                ?.getList()
-                ?: listOf("https://app.biashara360.co.ke", "https://biashara360.co.ke")
-            if (origin !in allowedOrigins || businessId == null || !csService.hasTenantConfiguration(businessId)) {
-                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Invalid checkout origin or business"))
-                return@get
-            }
-            val jwt = csService.getCaptureContext(origin, businessId)
-            if (jwt != null) {
-                call.respond(ApiResponse(true, data = mapOf("captureContextJwt" to jwt)))
-            } else {
-                call.respond(
-                    HttpStatusCode.ServiceUnavailable,
-                    ApiResponse<Unit>(false, message = "Could not generate capture context from CyberSource")
-                )
-            }
-        }
 
+        /**
+         * GET /v1/payments/card/public-order?orderId=...&businessId=...
+         *
+         * Returns order details for the checkout page (unauthenticated).
+         * If no order exists, returns a synthetic stub so ad-hoc payment links work.
+         */
         get("/public-order") {
-            val orderId = call.request.queryParameters["orderId"]
+            val orderId    = call.request.queryParameters["orderId"]
             val businessId = call.request.queryParameters["businessId"]
             if (orderId.isNullOrBlank() || businessId.isNullOrBlank()) {
                 call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Missing orderId or businessId"))
@@ -69,109 +40,148 @@ fun Route.cyberSourcePublicRoutes() {
             } else {
                 val now = kotlinx.datetime.Clock.System.now().toString()
                 val adHoc = OrderResponse(
-                    id = orderId,
-                    orderNumber = orderId,
-                    businessId = businessId,
-                    customerId = null,
-                    customerName = "",
-                    customerPhone = "",
-                    deliveryLocation = "",
-                    items = emptyList(),
-                    paymentStatus = "PENDING",
-                    deliveryStatus = "PENDING",
-                    paymentMethod = "CARD",
-                    mpesaTransactionCode = null,
-                    subtotal = 0.0,
-                    notes = "Card Payment Link",
-                    createdAt = now,
-                    updatedAt = now
+                    id = orderId, orderNumber = orderId, businessId = businessId,
+                    customerId = null, customerName = "", customerPhone = "",
+                    deliveryLocation = "", items = emptyList(),
+                    paymentStatus = "PENDING", deliveryStatus = "PENDING",
+                    paymentMethod = "CARD", mpesaTransactionCode = null,
+                    subtotal = 0.0, notes = "Card Payment Link",
+                    createdAt = now, updatedAt = now
                 )
                 call.respond(ApiResponse(true, data = adHoc))
             }
         }
 
         /**
-         * POST /v1/payments/card/guest-charge
+         * POST /v1/payments/card/sa-initiate
          *
-         * Guest charge for shared payment links. Accepts businessId in the request.
+         * Builds and signs a Secure Acceptance Hosted Checkout form.
+         * The frontend auto-submits the returned fields to CyberSource's hosted payment page.
+         * No card data ever touches our server — PCI scope is entirely CyberSource's.
+         *
+         * Body: { businessId, orderId, amount, customerName?, customerEmail?, customerPhone? }
+         * Response: { actionUrl, fields: { access_key, profile_id, signature, ... } }
          */
-        post("/guest-charge") {
-            val req = call.receive<CsGuestChargeRequest>()
-            if (req.businessId.isBlank()) {
-                call.respond(
-                    HttpStatusCode.BadRequest,
-                    ApiResponse<Unit>(false, message = "businessId is required")
-                )
-                return@post
-            }
-            if (req.transientToken.isNullOrBlank() && req.cardNumber.isNullOrBlank()) {
-                call.respond(
-                    HttpStatusCode.BadRequest,
-                    ApiResponse<Unit>(false, message = "A CyberSource transient token or card number is required")
-                )
-                return@post
-            }
-            val order = orderService.getById(req.orderId, req.businessId)
-            if (order != null) {
-                if (order.paymentStatus == "PAID") {
-                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "This order has already been paid"))
+        rateLimit(RateLimitName("public-payment-limiter")) {
+            post("/sa-initiate") {
+                val req = call.receive<SaInitiateRequest>()
+                if (req.businessId.isBlank() || req.orderId.isBlank() || req.amount <= 0) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ApiResponse<Unit>(false, message = "businessId, orderId, and a positive amount are required")
+                    )
                     return@post
                 }
-                if (kotlin.math.abs(order.subtotal - req.amount) > 0.001) {
-                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Invalid payment order amount"))
+                // Check order isn't already paid
+                val order = orderService.getById(req.orderId, req.businessId)
+                if (order?.paymentStatus == "PAID") {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ApiResponse<Unit>(false, message = "This order has already been paid")
+                    )
                     return@post
                 }
+
+                val result = saService.buildSaForm(
+                    SaFormRequest(
+                        businessId    = req.businessId,
+                        orderId       = req.orderId,
+                        amount        = req.amount,
+                        customerName  = req.customerName,
+                        customerEmail = req.customerEmail,
+                        customerPhone = req.customerPhone
+                    )
+                )
+
+                if (!result.success) {
+                    call.respond(
+                        HttpStatusCode.ServiceUnavailable,
+                        ApiResponse<Unit>(false, message = result.error ?: "Could not build Secure Acceptance form")
+                    )
+                    return@post
+                }
+
+                call.respond(
+                    ApiResponse(
+                        true,
+                        data = SaInitiateResponse(actionUrl = result.actionUrl, fields = result.fields)
+                    )
+                )
+            }
+        }
+
+        /**
+         * POST /v1/payments/card/sa-notify
+         *
+         * Silent server-to-server POST from CyberSource after payment.
+         * CyberSource sends all transaction fields as application/x-www-form-urlencoded.
+         * We verify the HMAC-SHA256 signature and update the order status.
+         *
+         * Configure this URL in Business Center → Secure Acceptance → Merchant Notification URL.
+         */
+        post("/sa-notify") {
+            val params = call.receiveParameters()
+            val fields = params.entries().associate { it.key to (it.value.firstOrNull() ?: "") }
+
+            val notifyResult = saService.verifyAndProcess(fields)
+
+            if (!notifyResult.verified) {
+                call.respond(HttpStatusCode.BadRequest, "Signature verification failed")
+                return@post
             }
 
-            val chargeReq = CsChargeRequest(
-                orderId = req.orderId,
-                amount = req.amount,
-                currency = req.currency,
-                transientToken = req.transientToken,
-                cardNumber = req.cardNumber,
-                cardExpiryMonth = req.cardExpiryMonth,
-                cardExpiryYear = req.cardExpiryYear,
-                cardCvv = req.cardCvv,
-                cardholderName = req.cardholderName,
-                billingEmail = req.billingEmail,
-                billingPhone = req.billingPhone,
-                saveCard = false,
-                savedCardId = null,
-                captureImmediately = true
-            )
-            val result = csService.charge(req.businessId, chargeReq)
-            val success = result.status in listOf("AUTHORIZED", "CAPTURED")
-            if (success) {
-                if (order != null) {
-                    orderService.updatePaymentStatus(
-                        req.orderId,
-                        req.businessId,
-                        UpdatePaymentStatusRequest("PAID", result.transactionId)
-                    )
-                } else {
-                    orderService.create(
-                        req.businessId,
-                        CreateOrderRequest(
-                            clientReference = req.orderId,
-                            customerId = null,
-                            customerName = req.cardholderName?.ifBlank { "Card Customer" } ?: "Card Customer",
-                            customerPhone = req.billingPhone ?: "",
-                            deliveryLocation = "",
-                            items = emptyList(),
-                            paymentMethod = "CARD",
-                            paymentStatus = "PAID",
-                            deliveryStatus = "DELIVERED",
-                            notes = "Card Payment Link (${result.transactionId})"
-                        )
-                    )
-                }
-            }
-            val status = if (success) HttpStatusCode.OK else HttpStatusCode.PaymentRequired
-            call.respond(status, ApiResponse(success, data = result, message = result.errorMessage ?: ""))
+            // SA-notify expects HTTP 200 with no body on success
+            call.respond(HttpStatusCode.OK, "")
         }
+
+        /**
+         * GET /v1/payments/card/sa-return
+         *
+         * Browser redirect from CyberSource after the customer completes (or cancels) payment.
+         * Also handles the silent POST for some SA profiles that combine notify + return.
+         * Redirects the customer to the web checkout page with result parameters.
+         *
+         * Configure as both "Customer Response Page" and "Customer Decline Page" in Business Center.
+         */
+        get("/sa-return") {
+            val decision   = call.request.queryParameters["decision"] ?: "ERROR"
+            val orderId    = call.request.queryParameters["req_reference_number"] ?: ""
+            val businessId = call.request.queryParameters["req_merchant_defined_data1"] ?: ""
+            val csTransId  = call.request.queryParameters["transaction_id"] ?: ""
+
+            val webBase = "https://app.biashara360.co.ke"
+
+            val redirectUrl = when (decision) {
+                "ACCEPT" -> "$webBase/card-checkout?status=success&orderId=$orderId&businessId=$businessId&txnId=$csTransId"
+                "CANCEL" -> "$webBase/card-checkout?status=cancelled&orderId=$orderId&businessId=$businessId"
+                else     -> "$webBase/card-checkout?status=declined&orderId=$orderId&businessId=$businessId"
+            }
+            call.respondRedirect(redirectUrl, permanent = false)
+        }
+
+        // Also handle POST sa-return (some SA profiles POST instead of redirect)
+        post("/sa-return") {
+            val params     = call.receiveParameters()
+            val decision   = params["decision"] ?: "ERROR"
+            val orderId    = params["req_reference_number"] ?: params["req_merchant_defined_data2"] ?: ""
+            val businessId = params["req_merchant_defined_data1"] ?: ""
+            val csTransId  = params["transaction_id"] ?: ""
+
+            // Process the notification in case sa-notify wasn't called
+            val fields = params.entries().associate { it.key to (it.value.firstOrNull() ?: "") }
+            saService.verifyAndProcess(fields)
+
+            val webBase = "https://app.biashara360.co.ke"
+            val redirectUrl = when (decision) {
+                "ACCEPT" -> "$webBase/card-checkout?status=success&orderId=$orderId&businessId=$businessId&txnId=$csTransId"
+                "CANCEL" -> "$webBase/card-checkout?status=cancelled&orderId=$orderId&businessId=$businessId"
+                else     -> "$webBase/card-checkout?status=declined&orderId=$orderId&businessId=$businessId"
+            }
+            call.respondRedirect(redirectUrl, permanent = false)
         }
     }
 }
+
 
 // ─── CyberSource Protected Routes (JWT required) ──────────────────────────────
 

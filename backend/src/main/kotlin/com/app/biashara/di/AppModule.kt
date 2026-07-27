@@ -67,6 +67,7 @@ fun appModule(config: ApplicationConfig) = module {
     }
     single { CyberSourceService(get(), get()) }
     single { CyberSourcePaymentService(get(), get()) }
+    single { SecureAcceptanceService(get()) }
     single { TaxService() }
     single { KraService() }
     single { EtimsService(get()) }

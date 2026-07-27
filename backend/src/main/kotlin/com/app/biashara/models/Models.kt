@@ -518,6 +518,24 @@ data class CyberSourceConfigResponse(
     val updatedAt: String
 )
 
+// ─── Secure Acceptance Hosted Checkout ────────────────────────────────────────
+
+@Serializable
+data class SaInitiateRequest(
+    val businessId    : String,
+    val orderId       : String,
+    val amount        : Double,
+    val customerName  : String? = null,
+    val customerEmail : String? = null,
+    val customerPhone : String? = null
+)
+
+@Serializable
+data class SaInitiateResponse(
+    val actionUrl : String,
+    val fields    : Map<String, String>   // All signed hidden form fields to auto-submit
+)
+
 @Serializable
 data class CsPaymentLinkRequest(
     val orderId: String,
