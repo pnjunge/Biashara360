@@ -17,6 +17,7 @@ function getCurrentMonthRange() {
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const [dashboardPeriod, setDashboardPeriod] = useState<string>('This Month')
   const [profitSummary, setProfitSummary] = useState<ProfitSummaryResponse | null>(null)
   const [recentOrders, setRecentOrders] = useState<OrderResponse[]>([])
   const [lowStockProducts, setLowStockProducts] = useState<ProductResponse[]>([])
@@ -38,8 +39,22 @@ export default function DashboardPage() {
       .catch(() => {})
   }, [user?.businessName])
 
-  useEffect(() => {
-    const { startDate, endDate } = getCurrentMonthRange()
+  const getDashboardDates = (period: string) => {
+    const now = new Date()
+    const fmt = (d: Date) => d.toISOString().slice(0, 10)
+    if (period === 'Today') {
+      const todayStr = fmt(now)
+      return { startDate: todayStr, endDate: todayStr }
+    } else if (period === '7 Days') {
+      const start = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
+      return { startDate: fmt(start), endDate: fmt(now) }
+    } else {
+      return getCurrentMonthRange()
+    }
+  }
+
+  const fetchDashboardData = (period: string) => {
+    const { startDate, endDate } = getDashboardDates(period)
     Promise.all([
       reportApi.profitSummary(startDate, endDate),
       orderApi.list(undefined, undefined, 5),
@@ -55,7 +70,11 @@ export default function DashboardPage() {
       if (topCusts.success && topCusts.data) setTopCustomers(topCusts.data)
       if (soc && soc.success && soc.data) setSocialChannels(soc.data)
     }).catch(() => {}).finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => {
+    fetchDashboardData(dashboardPeriod)
+  }, [dashboardPeriod])
 
   const fmt = (v: number) => `KES ${v.toLocaleString()}`
 
@@ -175,12 +194,29 @@ export default function DashboardPage() {
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
                 <div>
                   <h3 style={{ fontWeight:700, fontSize:15, color:'var(--b360-text)' }}>Revenue Trend</h3>
-                  <span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Last 7 days</span>
+                  <span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Period: {dashboardPeriod}</span>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:4, border:'1px solid var(--b360-border)', borderRadius:20, padding:'6px 12px', fontSize:12, fontWeight:600, color:'var(--b360-green)', background:'white', cursor:'pointer' }}>
-                  <span>7 Days</span>
-                  <ChevronDown size={14} />
-                </div>
+                <select
+                  value={dashboardPeriod}
+                  onChange={e => setDashboardPeriod(e.target.value)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    border: '1px solid var(--b360-border)',
+                    borderRadius: 20,
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--b360-green)',
+                    background: 'white',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="Today">Today</option>
+                  <option value="7 Days">7 Days</option>
+                  <option value="This Month">This Month</option>
+                </select>
               </div>
 
               {/* Custom SVG Bar Chart */}

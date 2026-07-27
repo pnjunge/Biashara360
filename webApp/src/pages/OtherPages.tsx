@@ -306,26 +306,77 @@ export function PaymentsPage() {
   )
 }
 
+function getPeriodRange(period: string) {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const fmtDate = (d: Date) => d.toISOString().slice(0, 10)
+
+  if (period === 'Today') {
+    const todayStr = fmtDate(now)
+    return { startDate: todayStr, endDate: todayStr }
+  } else if (period === 'This Week') {
+    const day = now.getDay()
+    const diffToMon = now.getDate() - day + (day === 0 ? -6 : 1)
+    const start = new Date(now.setDate(diffToMon))
+    return { startDate: fmtDate(start), endDate: fmtDate(new Date()) }
+  } else if (period === 'This Quarter') {
+    const qMonth = Math.floor(month / 3) * 3
+    const start = new Date(year, qMonth, 1)
+    return { startDate: fmtDate(start), endDate: fmtDate(now) }
+  } else if (period === 'This Year') {
+    const start = new Date(year, 0, 1)
+    return { startDate: fmtDate(start), endDate: fmtDate(now) }
+  } else {
+    return getCurrentMonthRange()
+  }
+}
+
 // ── Reports ───────────────────────────────────────────────────────────────────
 export function ReportsPage() {
   const [profitSummary, setProfitSummary] = useState<ProfitSummaryResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<string>('This Month')
 
-  useEffect(() => {
-    const { startDate, endDate } = getCurrentMonthRange()
+  const loadReport = (selectedPeriod: string) => {
+    setLoading(true)
+    const { startDate, endDate } = getPeriodRange(selectedPeriod)
     reportApi.profitSummary(startDate, endDate).then(res => {
       if (res.success && res.data) setProfitSummary(res.data)
+      else setProfitSummary(null)
     }).finally(() => setLoading(false))
-  }, [])
+  }
 
-  const now = new Date()
-  const monthLabel = now.toLocaleString('en-KE', { month: 'long', year: 'numeric' })
+  useEffect(() => {
+    loadReport(period)
+  }, [period])
 
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
       <PageHeader title="Reports"
         action={
-          <div style={{ display:'flex', gap:8 }}>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <select
+              value={period}
+              onChange={e => setPeriod(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                border: '1px solid var(--b360-border)',
+                borderRadius: 8,
+                fontSize: 13,
+                fontFamily: 'inherit',
+                background: 'white',
+                fontWeight: 600,
+                color: 'var(--b360-green)',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="Today">Today</option>
+              <option value="This Week">This Week</option>
+              <option value="This Month">This Month</option>
+              <option value="This Quarter">This Quarter</option>
+              <option value="This Year">This Year</option>
+            </select>
             <Btn variant="secondary" icon={<Download size={14}/>}
               onClick={() => alert('PDF export will be available once data is available from the backend.')}>Export PDF</Btn>
             <Btn variant="secondary" icon={<Table size={14}/>}
@@ -342,7 +393,7 @@ export function ReportsPage() {
         <div className="responsive-grid responsive-grid-2" style={{ gap:16 }}>
           {/* P&L */}
           <Card style={{ padding:20 }}>
-            <h3 style={{ fontWeight:700, marginBottom:16 }}>Profit & Loss — {monthLabel}</h3>
+            <h3 style={{ fontWeight:700, marginBottom:16 }}>Profit & Loss — {period}</h3>
             {profitSummary ? (
               <>
                 {[
@@ -374,7 +425,7 @@ export function ReportsPage() {
 
           {/* Summary KPIs */}
           <Card style={{ padding:20 }}>
-            <h3 style={{ fontWeight:700, marginBottom:16 }}>Current Month Summary</h3>
+            <h3 style={{ fontWeight:700, marginBottom:16 }}>{period} Summary</h3>
             {profitSummary ? (
               <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                 {[

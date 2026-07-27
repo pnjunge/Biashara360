@@ -436,6 +436,8 @@ fun DesktopDashboardScreen(
     }
     var toastMessage by remember { mutableStateOf<String?>(null) }
 
+    var periodMenuExpanded by remember { mutableStateOf(false) }
+
     val scrollState = rememberScrollState()
     Box(Modifier.fillMaxSize().background(Color(0xFFF8FAFC))) {
         Column(
@@ -455,9 +457,9 @@ fun DesktopDashboardScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             KpiCard(
                 modifier = Modifier.weight(1f),
-                title = "Monthly Revenue",
+                title = "Revenue (${state.selectedPeriod.label})",
                 value = "KES ${String.format("%,.0f", state.monthRevenue)}",
-                change = "↑ 12% from last month",
+                change = "↑ 12% from last period",
                 icon = Icons.Default.TrendingUp,
                 color = B360Green,
                 bgColor = Color(0xFFE6F7F0)
@@ -466,7 +468,7 @@ fun DesktopDashboardScreen(
                 modifier = Modifier.weight(1f),
                 title = "Net Profit",
                 value = "KES ${String.format("%,.0f", state.netProfit)}",
-                change = "↑ 8% from last month",
+                change = "↑ 8% from last period",
                 icon = Icons.Default.AccountBalance,
                 color = B360Blue,
                 bgColor = Color(0xFFE0F2FE)
@@ -512,22 +514,38 @@ fun DesktopDashboardScreen(
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = Color(0xFF1E293B)
                             )
-                            Text("Last 7 days", fontSize = 12.sp, color = Color(0xFF64748B))
+                            Text("Period: ${state.selectedPeriod.label}", fontSize = 12.sp, color = Color(0xFF64748B))
                         }
                         
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            color = Color.White,
-                            modifier = Modifier.clickable {}
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        Box {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                color = Color.White,
+                                modifier = Modifier.clickable { periodMenuExpanded = true }
                             ) {
-                                Text("7 Days", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = B360Green)
-                                Icon(Icons.Default.ArrowDropDown, null, tint = B360Green, modifier = Modifier.size(16.dp))
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(state.selectedPeriod.label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = B360Green)
+                                    Icon(Icons.Default.ArrowDropDown, null, tint = B360Green, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = periodMenuExpanded,
+                                onDismissRequest = { periodMenuExpanded = false }
+                            ) {
+                                com.app.biashara.presentation.viewmodel.DashboardPeriod.values().forEach { period ->
+                                    DropdownMenuItem(
+                                        text = { Text(period.label, fontSize = 13.sp) },
+                                        onClick = {
+                                            periodMenuExpanded = false
+                                            viewModel.selectPeriod(period)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -2603,6 +2621,9 @@ fun DesktopReportsScreen(
         viewModel.loadReport("This Month")
     }
     var toastMessage by remember { mutableStateOf<String?>(null) }
+    var reportPeriodMenuExpanded by remember { mutableStateOf(false) }
+    var chartPeriodMenuExpanded by remember { mutableStateOf(false) }
+    val periodOptions = remember { listOf("Today", "This Week", "This Month", "This Quarter", "This Year") }
 
     val summary = state.profitSummary
     val scrollState = rememberScrollState()
@@ -2615,11 +2636,45 @@ fun DesktopReportsScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        // Screen Header
-        ScreenHeader(
-            title = "Reports",
-            subtitle = "Overview of your business performance and insights."
-        )
+        // Screen Header with Period Filter
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ScreenHeader(
+                title = "Reports",
+                subtitle = "Overview of business performance for ${state.selectedPeriodLabel}."
+            )
+            Box {
+                Button(
+                    onClick = { reportPeriodMenuExpanded = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.size(16.dp), tint = B360Green)
+                    Spacer(Modifier.width(8.dp))
+                    Text(state.selectedPeriodLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF64748B))
+                }
+                DropdownMenu(
+                    expanded = reportPeriodMenuExpanded,
+                    onDismissRequest = { reportPeriodMenuExpanded = false }
+                ) {
+                    periodOptions.forEach { period ->
+                        DropdownMenuItem(
+                            text = { Text(period, fontSize = 13.sp, fontWeight = if (period == state.selectedPeriodLabel) FontWeight.Bold else FontWeight.Normal) },
+                            onClick = {
+                                reportPeriodMenuExpanded = false
+                                viewModel.loadReport(period)
+                            }
+                        )
+                    }
+                }
+            }
+        }
 
         // KPI cards row
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -2627,7 +2682,7 @@ fun DesktopReportsScreen(
                 modifier = Modifier.weight(1f),
                 title = "Total Revenue",
                 value = "KES ${String.format("%,.0f", summary?.totalRevenue ?: 0.0)}",
-                change = "↑ 12% from last month",
+                change = "Period: ${state.selectedPeriodLabel}",
                 icon = Icons.Default.MonetizationOn,
                 color = B360Green,
                 bgColor = Color(0xFFE6F7F0)
@@ -2635,8 +2690,8 @@ fun DesktopReportsScreen(
             KpiCard(
                 modifier = Modifier.weight(1f),
                 title = "Total Expenses",
-                value = "KES ${String.format("%,.0f", summary?.totalExpenses ?: 100.0)}",
-                change = "↓ 8% from last month",
+                value = "KES ${String.format("%,.0f", summary?.totalExpenses ?: 0.0)}",
+                change = "Period: ${state.selectedPeriodLabel}",
                 icon = Icons.Default.ShoppingBag,
                 color = B360Red,
                 bgColor = Color(0xFFFEE2E2),
@@ -2645,8 +2700,8 @@ fun DesktopReportsScreen(
             KpiCard(
                 modifier = Modifier.weight(1f),
                 title = "Net Profit",
-                value = "KES ${String.format("%,.0f", summary?.netProfit ?: -100.0)}",
-                change = "↑ 15% from last month",
+                value = "KES ${String.format("%,.0f", summary?.netProfit ?: 0.0)}",
+                change = "Period: ${state.selectedPeriodLabel}",
                 icon = Icons.Default.TrendingUp,
                 color = B360Blue,
                 bgColor = Color(0xFFE0F2FE)
@@ -2655,7 +2710,7 @@ fun DesktopReportsScreen(
                 modifier = Modifier.weight(1f),
                 title = "Gross Profit Margin",
                 value = "${String.format("%.1f", (summary?.netMargin ?: 0.0) * 100)}%",
-                change = "↑ 3% from last month",
+                change = "Period: ${state.selectedPeriodLabel}",
                 icon = Icons.Default.PieChart,
                 color = B360Amber,
                 bgColor = Color(0xFFFEF3C7)
@@ -2683,19 +2738,35 @@ fun DesktopReportsScreen(
                             color = Color(0xFF1E293B)
                         )
                         
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            color = Color.White,
-                            modifier = Modifier.clickable {}
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        Box {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                color = Color.White,
+                                modifier = Modifier.clickable { chartPeriodMenuExpanded = true }
                             ) {
-                                Text("Daily", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
-                                Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(state.selectedPeriodLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = B360Green)
+                                    Icon(Icons.Default.ArrowDropDown, null, tint = B360Green, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = chartPeriodMenuExpanded,
+                                onDismissRequest = { chartPeriodMenuExpanded = false }
+                            ) {
+                                periodOptions.forEach { period ->
+                                    DropdownMenuItem(
+                                        text = { Text(period, fontSize = 13.sp) },
+                                        onClick = {
+                                            chartPeriodMenuExpanded = false
+                                            viewModel.loadReport(period)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
