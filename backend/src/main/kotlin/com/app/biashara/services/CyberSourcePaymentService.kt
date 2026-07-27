@@ -347,6 +347,10 @@ class CyberSourcePaymentService(
                 it[PaymentsTable.notes]           = "CyberSource txn: $txnId"
                 it[PaymentsTable.transactionDate] = Clock.System.now()
             }
+            com.app.biashara.db.OrdersTable.update({ com.app.biashara.db.OrdersTable.id eq orderId }) {
+                it[paymentStatus] = "PAID"
+                it[updatedAt] = Clock.System.now()
+            }
         }
     }
 

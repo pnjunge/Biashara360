@@ -6,7 +6,7 @@ import axios, { AxiosInstance } from 'axios'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://sddgmezqj2.us-east-1.awsapprunner.com/v1'
 const LAST_ACTIVITY_KEY = 'sessionLastActivity'
 
-const client: AxiosInstance = axios.create({
+export const client: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',

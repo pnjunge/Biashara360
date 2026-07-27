@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { PageHeader, Card, Btn, Input, Select } from '../components/ui'
 import { Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard, CheckCircle, Store, Smartphone } from 'lucide-react'
-import { orderApi, productApi, customerApi, paymentApi, settingsApi, ProductResponse, CustomerResponse, MpesaConfigResponse } from '../services/api'
+import { orderApi, productApi, customerApi, paymentApi, settingsApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse } from '../services/api'
 
 interface CartItem {
   product: ProductResponse
@@ -40,6 +40,23 @@ export function PosPage() {
   const [cartBackup, setCartBackup] = useState<CartItem[]>([])
   const [mpesaChannels, setMpesaChannels] = useState<MpesaConfigResponse[]>([])
   const [mpesaAccountType, setMpesaAccountType] = useState('')
+
+  // Card Payment link modal state
+  const [cardModalOrder, setCardModalOrder] = useState<OrderResponse | null>(null)
+  const [cardPaid, setCardPaid] = useState(false)
+
+  useEffect(() => {
+    if (!cardModalOrder || cardPaid) return
+    const timer = setInterval(async () => {
+      try {
+        const res = await orderApi.get(cardModalOrder.id)
+        if (res.success && res.data && res.data.paymentStatus === 'PAID') {
+          setCardPaid(true)
+        }
+      } catch (e) { /* ignore */ }
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [cardModalOrder, cardPaid])
 
   useEffect(() => {
     setLoading(true)
@@ -221,6 +238,9 @@ export function PosPage() {
           setStkOrderId(res.data.id)
           setStkPhone(customerPhone.startsWith('+254') ? customerPhone : customerPhone)
           setStkStep('confirm_phone')
+        } else if (paymentMethod === 'CARD') {
+          setCardModalOrder(res.data)
+          setCardPaid(false)
         } else {
           setCheckoutSuccess(true)
         }
@@ -238,6 +258,86 @@ export function PosPage() {
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, height: 'calc(100vh - 120px)' }}>
       <PageHeader title="Point of Sale" />
       <p style={{ color: 'var(--b360-text-secondary)', fontSize: 13, marginTop: -15, marginBottom: 10 }}>Process in-store checkout orders instantly</p>
+
+      {/* ── Card Payment Link Modal ── */}
+      {cardModalOrder && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'white', borderRadius: 16, padding: 32, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative' }}>
+            <button
+              onClick={() => {
+                setCardModalOrder(null)
+                setCheckoutSuccess(true)
+              }}
+              style={{ position: 'absolute', right: 20, top: 16, border: 'none', background: 'none', fontSize: 24, cursor: 'pointer', color: 'var(--b360-text-secondary)', fontWeight: 'bold' }}
+            >
+              ×
+            </button>
+
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 56, height: 56, background: cardPaid ? '#DCFCE7' : '#EFF6FF', borderRadius: '50%', marginBottom: 12 }}>
+                <CreditCard size={28} color={cardPaid ? 'var(--b360-green)' : '#2563EB'} />
+              </div>
+              <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>
+                {cardPaid ? 'Card Payment Received!' : 'Card Payment Link Generated'}
+              </h3>
+              <p style={{ fontSize: 13, color: 'var(--b360-text-secondary)' }}>
+                {cardPaid ? 'Payment callback received and verified via CyberSource.' : 'Send this payment link to the customer to complete card payment.'}
+              </p>
+            </div>
+
+            <div style={{ background: 'var(--b360-surface)', borderRadius: 10, padding: 14, marginBottom: 16, fontSize: 13 }}>
+              <strong>📋 Order:</strong> {cardModalOrder.orderNumber}<br />
+              <strong>💰 Amount:</strong> KES {cardModalOrder.subtotal.toLocaleString()}<br />
+              <strong>👤 Customer:</strong> {cardModalOrder.customerName} ({cardModalOrder.customerPhone})
+            </div>
+
+            {!cardPaid ? (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--b360-text-secondary)', display: 'block', marginBottom: 4 }}>Customer Payment Link</label>
+                  <input
+                    readOnly
+                    value={`${window.location.origin}/pay/card?orderId=${cardModalOrder.id}&businessId=${cardModalOrder.businessId}`}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: 12, fontFamily: 'monospace', borderRadius: 8, border: '1px solid var(--b360-border)', background: '#F8FAFC' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <Btn small onClick={() => {
+                      const url = `${window.location.origin}/pay/card?orderId=${cardModalOrder.id}&businessId=${cardModalOrder.businessId}`
+                      navigator.clipboard.writeText(url)
+                      alert('Card payment link copied to clipboard!')
+                    }}>📋 Copy Link</Btn>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <Btn small variant="secondary" onClick={() => {
+                      const url = `${window.location.origin}/pay/card?orderId=${cardModalOrder.id}&businessId=${cardModalOrder.businessId}`
+                      window.open(`https://wa.me/${cardModalOrder.customerPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Please complete your card payment for Order ${cardModalOrder.orderNumber}: ${url}`)}`, '_blank')
+                    }}>💬 WhatsApp</Btn>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#2563EB', background: '#EFF6FF', padding: 10, borderRadius: 8, fontWeight: 600 }}>
+                  ⏳ Waiting for customer card payment callback...
+                </div>
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: 12, background: '#DCFCE7', color: '#15803D', borderRadius: 8, fontWeight: 700, fontSize: 14 }}>
+                ✓ Order status automatically updated to PAID!
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setCardModalOrder(null)
+                setCheckoutSuccess(true)
+              }}
+              style={{ width: '100%', padding: '12px 0', background: 'var(--b360-green)', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer', marginTop: 16 }}
+            >
+              ✓ Done — Return to POS
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── M-Pesa STK Push Modal ── */}
       {stkStep !== 'idle' && (

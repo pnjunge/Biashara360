@@ -27,6 +27,8 @@ const UserCreationPage = lazy(() => import('./pages/UserCreationPage'))
 const BusinessPage = lazy(() => import('./pages/BusinessPage'))
 const DownloadsPage = lazy(() => import('./pages/DownloadsPage'))
 
+const CardCheckoutPage = lazy(() => import('./pages/CardCheckoutPage'))
+
 // ── Auth Context ──────────────────────────────────────────────────────────────
 interface AuthUser {
   id: string

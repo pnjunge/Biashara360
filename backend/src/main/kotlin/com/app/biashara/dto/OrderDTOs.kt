@@ -16,6 +16,8 @@ data class CreateOrderRequestDTO(
     val deliveryLocation: String = "",
     val items: List<OrderItemRequestDTO>,
     val paymentMethod: String = "MPESA",  // CASH, MPESA, CARD, BANK_TRANSFER
+    val paymentStatus: String? = null,
+    val deliveryStatus: String? = null,
     val notes: String = "",
     val discountAmount: Double = 0.0,
     val taxAmount: Double = 0.0

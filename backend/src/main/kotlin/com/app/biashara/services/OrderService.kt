@@ -124,11 +124,11 @@ class OrderService {
         val requestedPaymentStatus = req.paymentStatus?.uppercase()
         val initialPaymentStatus = when {
             requestedPaymentStatus in listOf("PAID", "COMPLETED") -> "PAID"
-            req.paymentMethod.uppercase() in listOf("CASH", "CARD") -> "PAID"
+            req.paymentMethod.uppercase() == "CASH" -> "PAID"
             requestedPaymentStatus != null -> requestedPaymentStatus
             else -> "PENDING"
         }
-        val initialDeliveryStatus = if (initialPaymentStatus == "PAID") "DELIVERED" else "PENDING"
+        val initialDeliveryStatus = req.deliveryStatus?.uppercase() ?: "PENDING"
 
         OrdersTable.insert {
             it[id] = orderId

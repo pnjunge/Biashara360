@@ -184,6 +184,61 @@ export function OrdersPage() {
               </div>
             </div>
             {viewOrder.notes && <div style={{ fontSize:13, color:'var(--b360-text-secondary)' }}>Notes: {viewOrder.notes}</div>}
+            
+            {/* Merchant Delivery Status Override */}
+            <div style={{ borderTop:'1px solid var(--b360-border)', paddingTop:12, marginTop:4 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)', display:'block', marginBottom:6 }}>
+                Update Delivery Status
+              </label>
+              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                <select
+                  value={viewOrder.deliveryStatus}
+                  onChange={async e => {
+                    const newStatus = e.target.value
+                    try {
+                      await orderApi.updateDeliveryStatus(viewOrder.id, { status: newStatus })
+                      setViewOrder(prev => prev ? { ...prev, deliveryStatus: newStatus } : null)
+                      loadOrders()
+                    } catch (err) {
+                      alert('Failed to update delivery status')
+                    }
+                  }}
+                  style={{ padding:'8px 12px', borderRadius:8, border:'1px solid var(--b360-border)', fontSize:13, fontWeight:600 }}
+                >
+                  <option value="PENDING">PENDING (Awaiting Dispatch)</option>
+                  <option value="PROCESSING">PROCESSING (Packing)</option>
+                  <option value="SHIPPED">SHIPPED (In Transit)</option>
+                  <option value="DELIVERED">DELIVERED (Fulfilled)</option>
+                  <option value="CANCELLED">CANCELLED</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Card Payment Link if pending */}
+            {viewOrder.paymentMethod === 'CARD' && viewOrder.paymentStatus === 'PENDING' && (
+              <div style={{ background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:14, marginTop:8 }}>
+                <div style={{ fontWeight:700, fontSize:13, color:'#1D4ED8', marginBottom:4 }}>💳 Card Payment Link</div>
+                <p style={{ fontSize:12, color:'#3B82F6', margin:0, marginBottom:8 }}>
+                  Send this link to the customer to complete their card payment via CyberSource.
+                </p>
+                <div style={{ display:'flex', gap:8 }}>
+                  <input
+                    readOnly
+                    value={`${window.location.origin}/pay/card?orderId=${viewOrder.id}&businessId=${viewOrder.businessId}`}
+                    style={{ flex:1, padding:'6px 10px', fontSize:12, fontFamily:'monospace', borderRadius:6, border:'1px solid #93C5FD' }}
+                  />
+                  <Btn small onClick={() => {
+                    const url = `${window.location.origin}/pay/card?orderId=${viewOrder.id}&businessId=${viewOrder.businessId}`
+                    navigator.clipboard.writeText(url)
+                    alert('Card payment link copied to clipboard!')
+                  }}>Copy</Btn>
+                  <Btn small variant="secondary" onClick={() => {
+                    const url = `${window.location.origin}/pay/card?orderId=${viewOrder.id}&businessId=${viewOrder.businessId}`
+                    window.open(`https://wa.me/${viewOrder.customerPhone.replace(/[^0-9]/g,'')}?text=${encodeURIComponent(`Please complete your card payment for Order ${viewOrder.orderNumber}: ${url}`)}`, '_blank')
+                  }}>WhatsApp</Btn>
+                </div>
+              </div>
+            )}
           </div>
         </Modal>
       )}
@@ -205,7 +260,7 @@ export function OrdersPage() {
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No orders yet. Click "New Order" to get started.</div>
         ) : (
           <DataTable
-            headers={['Order #', 'Customer', 'Items', 'Total', 'Payment', 'Delivery', 'Date', 'Actions']}
+            headers={['Order #', 'Customer', 'Items', 'Total', 'Payment', 'Delivery Status', 'Date', 'Actions']}
             rows={orders.map(o => [
               <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{o.orderNumber}</span>,
               <span style={{ fontWeight: 600 }}>{o.customerName}</span>,
@@ -219,9 +274,36 @@ export function OrdersPage() {
                   </div>
                 )}
               </div>,
-              <StatusBadge status={o.deliveryStatus} />,
+              <select
+                value={o.deliveryStatus}
+                onChange={async e => {
+                  const newStatus = e.target.value
+                  try {
+                    await orderApi.updateDeliveryStatus(o.id, { status: newStatus })
+                    setOrders(prev => prev.map(item => item.id === o.id ? { ...item, deliveryStatus: newStatus } : item))
+                  } catch (err) {
+                    alert('Failed to update delivery status')
+                  }
+                }}
+                style={{ padding:'4px 8px', borderRadius:6, border:'1px solid var(--b360-border)', fontSize:12, fontWeight:600, background:'white' }}
+              >
+                <option value="PENDING">PENDING</option>
+                <option value="PROCESSING">PROCESSING</option>
+                <option value="SHIPPED">SHIPPED</option>
+                <option value="DELIVERED">DELIVERED</option>
+                <option value="CANCELLED">CANCELLED</option>
+              </select>,
               <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>{new Date(o.createdAt).toLocaleDateString('en-KE')}</span>,
-              <Btn small icon={<Eye size={12}/>} onClick={() => setViewOrder(o)}>View</Btn>,
+              <div style={{ display:'flex', gap:6 }}>
+                <Btn small icon={<Eye size={12}/>} onClick={() => setViewOrder(o)}>View</Btn>
+                {o.paymentMethod === 'CARD' && o.paymentStatus === 'PENDING' && (
+                  <Btn small variant="secondary" onClick={() => {
+                    const url = `${window.location.origin}/pay/card?orderId=${o.id}&businessId=${o.businessId}`
+                    navigator.clipboard.writeText(url)
+                    alert(`Card payment link copied for Order ${o.orderNumber}!`)
+                  }}>💳 Link</Btn>
+                )}
+              </div>,
             ])}
           />
         )}

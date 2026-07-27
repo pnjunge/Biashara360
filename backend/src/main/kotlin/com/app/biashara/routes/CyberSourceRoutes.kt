@@ -56,6 +56,21 @@ fun Route.cyberSourcePublicRoutes() {
             }
         }
 
+        get("/public-order") {
+            val orderId = call.request.queryParameters["orderId"]
+            val businessId = call.request.queryParameters["businessId"]
+            if (orderId.isNullOrBlank() || businessId.isNullOrBlank()) {
+                call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Missing orderId or businessId"))
+                return@get
+            }
+            val order = orderService.getById(orderId, businessId)
+            if (order != null) {
+                call.respond(ApiResponse(true, data = order))
+            } else {
+                call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(false, message = "Order not found"))
+            }
+        }
+
         /**
          * POST /v1/payments/card/guest-charge
          *
@@ -70,10 +85,10 @@ fun Route.cyberSourcePublicRoutes() {
                 )
                 return@post
             }
-            if (req.transientToken.isNullOrBlank()) {
+            if (req.transientToken.isNullOrBlank() && req.cardNumber.isNullOrBlank()) {
                 call.respond(
                     HttpStatusCode.BadRequest,
-                    ApiResponse<Unit>(false, message = "A CyberSource transient token is required")
+                    ApiResponse<Unit>(false, message = "A CyberSource transient token or card number is required")
                 )
                 return@post
             }
@@ -88,11 +103,11 @@ fun Route.cyberSourcePublicRoutes() {
                 amount = req.amount,
                 currency = req.currency,
                 transientToken = req.transientToken,
-                cardNumber = null,
-                cardExpiryMonth = null,
-                cardExpiryYear = null,
-                cardCvv = null,
-                cardholderName = null,
+                cardNumber = req.cardNumber,
+                cardExpiryMonth = req.cardExpiryMonth,
+                cardExpiryYear = req.cardExpiryYear,
+                cardCvv = req.cardCvv,
+                cardholderName = req.cardholderName,
                 billingEmail = req.billingEmail,
                 billingPhone = req.billingPhone,
                 saveCard = false,

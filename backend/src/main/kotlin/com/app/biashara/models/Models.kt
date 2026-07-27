@@ -120,6 +120,7 @@ data class CreateOrderRequest(
     val items: List<OrderItemRequest>,
     val paymentMethod: String = "MPESA",
     val paymentStatus: String? = null,
+    val deliveryStatus: String? = null,
     val notes: String = ""
 )
 
