@@ -30,27 +30,16 @@ class AuthRepositoryImpl(
         if (!loginData.requiresOtp) {
             tokenStorage.saveTokens(loginData.accessToken ?: "", loginData.refreshToken ?: "")
             refreshSessionTimeoutPolicy()
-            loginData.user?.let { user ->
-                UserSession.setUser(
-                    User(
-                        id = user.id,
-                        email = user.email,
-                        phone = user.phone,
-                        name = user.name,
-                        role = runCatching { UserRole.valueOf(user.role) }.getOrDefault(UserRole.STAFF),
-                        businessId = user.businessId,
-                        createdAt = Clock.System.now()
-                    )
-                )
-            }
+            loginData.user?.let { user -> setSessionUser(user) }
         }
+        val resolvedBizId = loginData.user?.let { resolveBusinessId(it) }
         User(
             id = loginData.userId,
             email = email,
             phone = loginData.user?.phone ?: "",
             name = loginData.user?.name ?: "",
             role = loginData.user?.let { runCatching { UserRole.valueOf(it.role) }.getOrDefault(UserRole.STAFF) } ?: UserRole.ADMIN,
-            businessId = loginData.user?.businessId,
+            businessId = resolvedBizId,
             createdAt = Clock.System.now(),
             twoFactorEnabled = loginData.requiresOtp
         )
@@ -75,18 +64,7 @@ class AuthRepositoryImpl(
         refreshSessionTimeoutPolicy()
 
         // Populate UserSession with the full user
-        val user = authData.user
-        UserSession.setUser(
-            User(
-                id = user.id,
-                email = user.email,
-                phone = user.phone,
-                name = user.name,
-                role = runCatching { UserRole.valueOf(user.role) }.getOrDefault(UserRole.STAFF),
-                businessId = user.businessId,
-                createdAt = Clock.System.now()
-            )
-        )
+        setSessionUser(authData.user)
 
         authData.accessToken
     }
@@ -194,10 +172,28 @@ class AuthRepositoryImpl(
         tokenStorage.getAccessToken()
             ?: throw Exception("No saved session. Please sign in with your password first.")
         if (UserSession.isLoggedIn()) return@runCatching
-        refreshToken().getOrThrow()
+        refreshToken().fold(
+            onSuccess = { },
+            onFailure = {
+                tokenStorage.clearTokens()
+                throw Exception("Your saved session has expired. Please sign in again.")
+            }
+        )
     }
 
-    private fun setSessionUser(user: UserDto) {
+    @kotlinx.serialization.Serializable
+    private data class AdminBusinessItemDto(val id: String)
+
+    private suspend fun resolveBusinessId(user: UserDto?): String? {
+        if (user?.businessId?.isNotBlank() == true) return user.businessId
+        return runCatching {
+            val response: ApiResponse<List<AdminBusinessItemDto>> = client.get("$BASE_URL/admin/businesses").body()
+            response.data?.firstOrNull()?.id
+        }.getOrNull()
+    }
+
+    private suspend fun setSessionUser(user: UserDto) {
+        val resolvedBusinessId = resolveBusinessId(user)
         UserSession.setUser(
             User(
                 id = user.id,
@@ -205,7 +201,7 @@ class AuthRepositoryImpl(
                 phone = user.phone,
                 name = user.name,
                 role = runCatching { UserRole.valueOf(user.role) }.getOrDefault(UserRole.STAFF),
-                businessId = user.businessId,
+                businessId = resolvedBusinessId,
                 createdAt = Clock.System.now()
             )
         )

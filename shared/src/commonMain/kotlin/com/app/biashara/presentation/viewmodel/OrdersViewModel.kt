@@ -31,6 +31,7 @@ data class OrderOperationResult(
     val message: String? = null
 )
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class OrdersViewModel(
     private val getOrdersUseCase: GetOrdersUseCase,
     private val cancelOrderUseCase: CancelOrderUseCase,
@@ -39,25 +40,35 @@ class OrdersViewModel(
     private val _state = MutableStateFlow(OrdersState(isLoading = true))
     val state: StateFlow<OrdersState> = _state.asStateFlow()
 
-    fun loadOrders() {
-        val businessId = UserSession.getBusinessId()
+    init {
         scope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
-            try {
-                getOrdersUseCase(businessId).collect { orders ->
+            UserSession.currentUser
+                .map { UserSession.getBusinessId() }
+                .distinctUntilChanged()
+                .flatMapLatest { businessId ->
+                    val effectiveId = businessId.ifBlank { UserSession.getBusinessId() }
+                    syncOrders(effectiveId)
+                    getOrdersUseCase(effectiveId)
+                }
+                .collect { orders ->
                     _state.update { it.copy(isLoading = false, orders = orders) }
                 }
-            } catch (e: Exception) {
-                _state.update { it.copy(isLoading = false, error = e.message) }
-            }
         }
-        syncOrders(businessId)
     }
 
-    fun syncOrders(businessId: String) {
+    fun loadOrders() {
+        scope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            val businessId = UserSession.getBusinessId()
+            syncOrders(businessId)
+        }
+    }
+
+    fun syncOrders(businessId: String = UserSession.getBusinessId()) {
         scope.launch {
             _state.update { it.copy(isSyncing = true, error = null) }
-            val result = orderRepository?.syncOrdersFromApi(businessId)
+            val effectiveBusinessId = businessId.ifBlank { UserSession.getBusinessId() }
+            val result = orderRepository?.syncOrdersFromApi(effectiveBusinessId)
                 ?: Result.failure(IllegalStateException("Order repository unavailable"))
             _state.update { it.copy(isSyncing = false, error = result.exceptionOrNull()?.message) }
         }

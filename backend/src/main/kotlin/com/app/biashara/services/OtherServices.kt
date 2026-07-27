@@ -55,7 +55,9 @@ class CustomerService {
         val existing = CustomersTable.select {
             (CustomersTable.businessId eq businessId) and (CustomersTable.phone eq normalizedPhone)
         }.firstOrNull()
-        if (existing != null) return@transaction ApiResponse(false, message = "Customer with this phone already exists")
+        if (existing != null) {
+            return@transaction ApiResponse(true, data = existing.toResponse(businessId), message = "Customer already exists")
+        }
 
         val id = generateId()
         val now = Clock.System.now()

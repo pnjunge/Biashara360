@@ -39,7 +39,7 @@ data class OrderItem(
 
 @Serializable
 enum class PaymentStatus {
-    PAID, PENDING, COD, FAILED, REFUNDED;
+    PAID, PENDING, COD, FAILED, REFUNDED, CANCELLED, VOIDED;
 
     fun displayLabel(): String = when (this) {
         PAID -> "Paid"
@@ -47,6 +47,8 @@ enum class PaymentStatus {
         COD -> "Cash on Delivery"
         FAILED -> "Failed"
         REFUNDED -> "Refunded"
+        CANCELLED -> "Cancelled"
+        VOIDED -> "Voided"
     }
 }
 

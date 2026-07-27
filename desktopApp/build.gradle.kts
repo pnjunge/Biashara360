@@ -7,7 +7,11 @@ plugins {
 }
 
 kotlin {
-    jvm("desktop")
+    jvm("desktop") {
+        compilations.all {
+            kotlinOptions.jvmTarget = "17"
+        }
+    }
     sourceSets {
         val desktopMain by getting {
             dependencies {

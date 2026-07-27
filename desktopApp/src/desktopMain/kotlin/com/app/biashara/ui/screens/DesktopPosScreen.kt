@@ -46,10 +46,11 @@ fun DesktopPosScreen(
     initiatePaymentUseCase: InitiatePaymentUseCase = remember { inject() }
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val businessId = remember { UserSession.getBusinessId() }
+    val currentUserSession by UserSession.currentUser.collectAsState()
+    val businessId = currentUserSession?.businessId ?: UserSession.getBusinessId()
 
     // Load inventory and customers
-    LaunchedEffect(Unit) {
+    LaunchedEffect(currentUserSession?.businessId) {
         inventoryViewModel.loadProducts(businessId)
         customersViewModel.loadCustomers()
         businessViewModel.loadMpesaConfig()
@@ -865,7 +866,7 @@ fun DesktopPosScreen(
                                             )
                                         },
                                         paymentStatus = when (paymentMethod) {
-                                            PaymentMethod.CASH -> PaymentStatus.PAID
+                                            PaymentMethod.CASH, PaymentMethod.CARD -> PaymentStatus.PAID
                                             PaymentMethod.COD -> PaymentStatus.COD
                                             else -> PaymentStatus.PENDING
                                         },

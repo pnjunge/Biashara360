@@ -10,7 +10,12 @@ import com.app.biashara.domain.model.*
 import com.app.biashara.domain.repository.ExpenseRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -27,6 +32,15 @@ data class ExpenseDto(
     val receiptUrl: String? = null,
     val recordedAt: String,
     val expenseDate: String
+)
+
+@kotlinx.serialization.Serializable
+private data class ExpenseRequestDto(
+    val category: String,
+    val amount: Double,
+    val description: String,
+    val expenseDate: String,
+    val receiptUrl: String? = null
 )
 
 class ExpenseRepositoryImpl(
@@ -62,20 +76,42 @@ class ExpenseRepositoryImpl(
             .map { it.map { entity -> entity.toDomain() } }
 
     override suspend fun saveExpense(expense: Expense): Result<Expense> = runCatching {
+        val httpClient = client ?: throw IllegalStateException("HTTP client not configured")
+        val response: ApiResponse<ExpenseDto> = httpClient.post("$BASE_URL/expenses") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                ExpenseRequestDto(
+                    category = expense.category.name,
+                    amount = expense.amount,
+                    description = expense.description,
+                    expenseDate = expense.expenseDate.toString(),
+                    receiptUrl = expense.receiptUrl
+                )
+            )
+        }.body()
+        if (!response.success || response.data == null) {
+            throw Exception(response.message.ifBlank { "Failed to save expense on backend" })
+        }
+        val saved = response.data
         queries.insertExpense(
-            id = expense.id,
-            business_id = expense.businessId,
-            category = expense.category.name,
-            amount = expense.amount,
-            description = expense.description,
-            receipt_url = expense.receiptUrl,
-            recorded_at = expense.recordedAt.toString(),
-            expense_date = expense.expenseDate.toString()
+            id = saved.id,
+            business_id = saved.businessId,
+            category = saved.category,
+            amount = saved.amount,
+            description = saved.description,
+            receipt_url = saved.receiptUrl,
+            recorded_at = saved.recordedAt,
+            expense_date = saved.expenseDate
         )
-        expense
+        saved.toDomain()
     }
 
     override suspend fun deleteExpense(id: String): Result<Unit> = runCatching {
+        val httpClient = client ?: throw IllegalStateException("HTTP client not configured")
+        val response: ApiResponse<Unit> = httpClient.delete("$BASE_URL/expenses/$id").body()
+        if (!response.success) {
+            throw Exception(response.message.ifBlank { "Failed to delete expense on backend" })
+        }
         queries.deleteExpense(id)
     }
 
@@ -134,6 +170,11 @@ class ExpenseRepositoryImpl(
         if (!response.success || response.data == null) {
             throw Exception(response.message.ifBlank { "Failed to fetch expenses" })
         }
+
+        val remoteIds = response.data.map { it.id }.toSet()
+        queries.selectAllExpenses(businessId).executeAsList()
+            .filter { it.id !in remoteIds }
+            .forEach { queries.deleteExpense(it.id) }
 
         // Update local cache
         response.data.forEach { dto ->

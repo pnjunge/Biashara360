@@ -20,7 +20,7 @@
 		B3600011 /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600111 /* SharedComponents.swift */; };
 		B3600012 /* B360Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600112 /* B360Theme.swift */; };
 		B3600013 /* ViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600113 /* ViewModels.swift */; };
-		B3600014 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B3600114 /* Info.plist */; };
+		B3600015 /* BiometricAuthentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600115 /* BiometricAuthentication.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +39,7 @@
 		B3600112 /* B360Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Theme/B360Theme.swift"; sourceTree = "<group>"; };
 		B3600113 /* ViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewModels/ViewModels.swift"; sourceTree = "<group>"; };
 		B3600114 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B3600115 /* BiometricAuthentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Security/BiometricAuthentication.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,6 +77,7 @@
 				B3600111 /* SharedComponents.swift */,
 				B3600112 /* B360Theme.swift */,
 				B3600113 /* ViewModels.swift */,
+				B3600115 /* BiometricAuthentication.swift */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
@@ -141,7 +143,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B3600014 /* Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -165,6 +166,7 @@
 				B3600011 /* SharedComponents.swift in Sources */,
 				B3600012 /* B360Theme.swift in Sources */,
 				B3600013 /* ViewModels.swift in Sources */,
+				B3600015 /* BiometricAuthentication.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

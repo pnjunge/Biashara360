@@ -51,11 +51,15 @@ class ExpensesViewModel(
 
     fun syncExpenses(businessId: String) {
         scope.launch {
-            _state.update { it.copy(isSyncing = true) }
-            try {
-                expenseRepository?.syncExpensesFromApi(businessId)
-            } catch (_: Exception) { }
-            _state.update { it.copy(isSyncing = false) }
+            _state.update { it.copy(isSyncing = true, error = null) }
+            val result = expenseRepository?.syncExpensesFromApi(businessId)
+                ?: Result.failure(IllegalStateException("Expense repository unavailable"))
+            _state.update {
+                it.copy(
+                    isSyncing = false,
+                    error = result.exceptionOrNull()?.message
+                )
+            }
         }
     }
 

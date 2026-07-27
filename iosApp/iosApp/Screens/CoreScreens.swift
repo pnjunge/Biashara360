@@ -132,7 +132,17 @@ struct InventoryView: View {
                 }
             }
             .sheet(isPresented: $showAddSheet) {
-                AddProductSheet()
+                AddProductSheet { name, sku, category, buy, sell, stock, minimumStock in
+                    vm.addProduct(
+                        name: name,
+                        sku: sku,
+                        category: category,
+                        buyingPrice: buy,
+                        sellingPrice: sell,
+                        stock: stock,
+                        threshold: minimumStock
+                    )
+                }
             }
         }
     }
@@ -182,9 +192,27 @@ struct ProductRow: View {
 
 struct AddProductSheet: View {
     @Environment(\.dismiss) var dismiss
+    let onSave: (String, String, String, Double, Double, Int, Int) -> Void
     @State private var name = ""; @State private var sku = ""
     @State private var buyPrice = ""; @State private var sellPrice = ""
-    @State private var stock = ""; @State private var category = ""
+    @State private var stock = ""; @State private var minimumStock = ""
+    @State private var category = ""; @State private var errorMessage: String?
+
+    private func save() {
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !sku.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = "Product name and SKU are required."
+            return
+        }
+        guard let buy = Double(buyPrice), let sell = Double(sellPrice),
+              let quantity = Int(stock), let threshold = Int(minimumStock),
+              buy >= 0, sell > 0, quantity >= 0, threshold >= 0 else {
+            errorMessage = "Selling price must be greater than zero; other values must be non-negative."
+            return
+        }
+        onSave(name, sku, category, buy, sell, quantity, threshold)
+        dismiss()
+    }
 
     var body: some View {
         NavigationStack {
@@ -200,6 +228,12 @@ struct AddProductSheet: View {
                 }
                 Section("Stock") {
                     TextField("Initial stock quantity", text: $stock).keyboardType(.numberPad)
+                    TextField("Minimum stock alert", text: $minimumStock).keyboardType(.numberPad)
+                }
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage).foregroundColor(.b360Red)
+                    }
                 }
             }
             .navigationTitle("Add Product")
@@ -209,7 +243,7 @@ struct AddProductSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { dismiss() }
+                    Button("Save", action: save)
                         .fontWeight(.semibold)
                         .foregroundColor(.b360Green)
                 }
@@ -256,6 +290,56 @@ struct OrdersView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showCreateSheet = true } label: {
                         Image(systemName: "plus.circle.fill").foregroundColor(.b360Green)
+                    }
+                }
+            }
+            .sheet(isPresented: $showCreateSheet) {
+                CreateOrderSheet { customer, phone, amount in
+                    vm.addOrder(customerName: customer, phone: phone, amount: amount)
+                }
+            }
+        }
+    }
+}
+
+struct CreateOrderSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let onSave: (String, String, Double) -> Void
+    @State private var customer = ""
+    @State private var phone = ""
+    @State private var amount = ""
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Customer") {
+                    TextField("Customer name", text: $customer)
+                    TextField("Phone number", text: $phone).keyboardType(.phonePad)
+                }
+                Section("Order") {
+                    TextField("Total amount (KES)", text: $amount).keyboardType(.decimalPad)
+                }
+                if let errorMessage {
+                    Text(errorMessage).foregroundColor(.b360Red)
+                }
+            }
+            .navigationTitle("New Order")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        guard !customer.trimmingCharacters(in: .whitespaces).isEmpty,
+                              !phone.trimmingCharacters(in: .whitespaces).isEmpty,
+                              let value = Double(amount), value > 0 else {
+                            errorMessage = "Enter a customer, phone number, and an amount greater than zero."
+                            return
+                        }
+                        onSave(customer, phone, value)
+                        dismiss()
                     }
                 }
             }
@@ -436,6 +520,52 @@ struct MpesaPaymentSheet: View {
     }
 }
 
+struct AddCustomerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let onSave: (String, String, String?, String) -> Void
+    @State private var name = ""
+    @State private var phone = ""
+    @State private var email = ""
+    @State private var location = ""
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Customer") {
+                    TextField("Full name", text: $name)
+                    TextField("Phone number", text: $phone).keyboardType(.phonePad)
+                    TextField("Email (optional)", text: $email)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                    TextField("Location", text: $location)
+                }
+                if let errorMessage {
+                    Text(errorMessage).foregroundColor(.b360Red)
+                }
+            }
+            .navigationTitle("New Customer")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        guard !name.trimmingCharacters(in: .whitespaces).isEmpty,
+                              !phone.trimmingCharacters(in: .whitespaces).isEmpty else {
+                            errorMessage = "Customer name and phone number are required."
+                            return
+                        }
+                        onSave(name, phone, email, location)
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ── Customers ─────────────────────────────────────────────────────────────────
 struct CustomersView: View {
     @StateObject private var vm = CustomersViewModel()
@@ -473,6 +603,11 @@ struct CustomersView: View {
                     Button { showAdd = true } label: {
                         Image(systemName: "person.badge.plus").foregroundColor(.b360Green)
                     }
+                }
+            }
+            .sheet(isPresented: $showAdd) {
+                AddCustomerSheet { name, phone, email, location in
+                    vm.addCustomer(name: name, phone: phone, email: email, location: location)
                 }
             }
         }

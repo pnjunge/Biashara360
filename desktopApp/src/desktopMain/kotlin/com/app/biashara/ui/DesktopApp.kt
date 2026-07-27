@@ -124,7 +124,13 @@ fun Biashara360DesktopApp() {
     val authViewModel: AuthViewModel = remember { inject() }
     val userSessionState by UserSession.currentUser.collectAsState()
 
-
+    LaunchedEffect(Unit) {
+        if (!UserSession.isLoggedIn()) {
+            // Restore the persisted refresh-token session before deciding which
+            // authenticated screens and tenant-scoped data to display.
+            authViewModel.loginWithBiometric(onSuccess = {})
+        }
+    }
 
     Biashara360DesktopTheme {
         if (userSessionState == null) {

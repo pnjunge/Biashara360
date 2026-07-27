@@ -25,6 +25,7 @@ const SocialPage = lazy(() => import('./pages/SocialPage'))
 const SocialOnboardingPage = lazy(() => import('./pages/SocialOnboardingPage'))
 const UserCreationPage = lazy(() => import('./pages/UserCreationPage'))
 const BusinessPage = lazy(() => import('./pages/BusinessPage'))
+const DownloadsPage = lazy(() => import('./pages/DownloadsPage'))
 
 // ── Auth Context ──────────────────────────────────────────────────────────────
 interface AuthUser {
@@ -135,6 +136,7 @@ export default function App() {
             <Route path="expenses"   element={<ExpensesPage />} />
             <Route path="payments"   element={<PaymentsPage />} />
             <Route path="reports"    element={<ReportsPage />} />
+            <Route path="downloads"  element={<DownloadsPage />} />
             <Route path="settings"   element={<RoleProtectedRoute blockedRoles={["STAFF"]}><SettingsPage /></RoleProtectedRoute>} />
             <Route path="card-payments" element={<CyberSourcePage />} />
             <Route path="cybersource-settings" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><CyberSourceSettingsPage /></RoleProtectedRoute>} />

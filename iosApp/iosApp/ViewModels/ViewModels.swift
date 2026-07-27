@@ -9,6 +9,7 @@ class AuthViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
     @Published var currentUserId: String = ""
+    let biometrics = BiometricAuthentication()
 
     func login(email: String, password: String) async {
         isLoading = true; errorMessage = nil
@@ -33,6 +34,22 @@ class AuthViewModel: ObservableObject {
     func logout() {
         isAuthenticated = false
         requiresOtp = false
+    }
+
+    func loginWithBiometrics() async {
+        guard biometrics.isEnabled else {
+            errorMessage = "Enable biometric login in Settings after signing in."
+            return
+        }
+        do {
+            currentUserId = try await biometrics.authenticateAndRestoreAccount(
+                reason: "Sign in to Biashara360."
+            )
+            isAuthenticated = true
+            errorMessage = nil
+        } catch {
+            errorMessage = "Biometric authentication was not completed."
+        }
     }
 }
 
@@ -77,7 +94,7 @@ class InventoryViewModel: ObservableObject {
         let threshold: Int
         var stockStatus: String { stock == 0 ? "OUT" : stock <= threshold ? "LOW" : "OK" }
         var profit: Double { sellingPrice - buyingPrice }
-        var margin: Double { profit / sellingPrice * 100 }
+        var margin: Double { sellingPrice > 0 ? profit / sellingPrice * 100 : 0 }
     }
 
     @Published var products: [Product] = [
@@ -100,6 +117,29 @@ class InventoryViewModel: ObservableObject {
     }
 
     var lowStockProducts: [Product] { products.filter { $0.stockStatus != "OK" } }
+
+    func addProduct(
+        name: String,
+        sku: String,
+        category: String,
+        buyingPrice: Double,
+        sellingPrice: Double,
+        stock: Int,
+        threshold: Int
+    ) {
+        products.insert(
+            Product(
+                name: name,
+                sku: sku,
+                category: category,
+                buyingPrice: buyingPrice,
+                sellingPrice: sellingPrice,
+                stock: stock,
+                threshold: threshold
+            ),
+            at: 0
+        )
+    }
 }
 
 // ── Orders ────────────────────────────────────────────────────────────────────
@@ -121,6 +161,23 @@ class OrdersViewModel: ObservableObject {
 
     var filtered: [Order] {
         filterStatus == "All" ? orders : orders.filter { $0.paymentStatus == filterStatus }
+    }
+
+    func addOrder(customerName: String, phone: String, amount: Double) {
+        orders.insert(
+            Order(
+                number: "B360-IOS-\(String(UUID().uuidString.prefix(8)).uppercased())",
+                customerName: customerName,
+                customerPhone: phone,
+                deliveryLocation: "Pickup",
+                paymentStatus: "PENDING",
+                deliveryStatus: "NEW",
+                amount: amount,
+                date: "Today",
+                items: 1
+            ),
+            at: 0
+        )
     }
 }
 
@@ -146,6 +203,21 @@ class CustomersViewModel: ObservableObject {
         searchText.isEmpty ? customers : customers.filter {
             $0.name.localizedCaseInsensitiveContains(searchText) || $0.phone.contains(searchText)
         }
+    }
+
+    func addCustomer(name: String, phone: String, email: String?, location: String) {
+        customers.insert(
+            Customer(
+                name: name,
+                phone: phone,
+                email: email?.isEmpty == true ? nil : email,
+                location: location,
+                totalOrders: 0,
+                totalSpent: 0,
+                loyaltyPoints: 0
+            ),
+            at: 0
+        )
     }
 }
 

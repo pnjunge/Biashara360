@@ -4,7 +4,7 @@ import { useAuth } from '../../App'
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
   CreditCard, BarChart3, Settings, LogOut, Bell, Search,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, Shield, FileCheck, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Link
+  ChevronLeft, ChevronRight, ChevronDown, Menu, Shield, FileCheck, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Link, Download
 } from 'lucide-react'
 import styles from './AppShell.module.css'
 
@@ -25,6 +25,7 @@ const navItems = [
   { to: '/users',         icon: UserPlus,         label: 'User Creation' },
   { to: '/business',      icon: Building2,        label: 'Business' },
   { to: '/reports',       icon: BarChart3,        label: 'Reports' },
+  { to: '/downloads',     icon: Download,         label: 'Download Apps' },
 ]
 
 export default function AppShell() {

@@ -253,10 +253,12 @@ struct ExportButton: View {
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 struct SettingsView: View {
+    @EnvironmentObject private var authVM: AuthViewModel
     @State private var twoFA = true
     @State private var smsAlerts = true
     @State private var emailNotifs = false
     @State private var language = "English"
+    @State private var biometricError: String?
 
     var body: some View {
         Form {
@@ -271,6 +273,33 @@ struct SettingsView: View {
                 Toggle("Two-Factor Auth (2FA)", isOn: $twoFA)
                     .tint(.b360Green)
                 LabeledContent("2FA Method", value: "SMS OTP")
+                Toggle(
+                    "\(authVM.biometrics.displayName) Login",
+                    isOn: Binding(
+                        get: { authVM.biometrics.isEnabled },
+                        set: { enabled in
+                            if enabled {
+                                Task {
+                                    do {
+                                        try await authVM.biometrics.enable(
+                                            accountIdentifier: authVM.currentUserId
+                                        )
+                                        biometricError = nil
+                                    } catch {
+                                        biometricError = "Biometric enrollment was not completed."
+                                    }
+                                }
+                            } else {
+                                authVM.biometrics.disable()
+                            }
+                        }
+                    )
+                )
+                .disabled(!authVM.biometrics.isAvailable)
+                .tint(.b360Green)
+                if let biometricError {
+                    Text(biometricError).foregroundColor(.b360Red)
+                }
             }
 
             Section("Notifications") {

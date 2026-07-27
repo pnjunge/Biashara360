@@ -27,6 +27,7 @@ data class InventoryState(
 
 enum class InventoryFilter { ALL, LOW_STOCK, OUT_OF_STOCK }
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class InventoryViewModel(
     private val getProductsUseCase: GetProductsUseCase,
     private val getLowStockAlertsUseCase: GetLowStockAlertsUseCase,
@@ -35,6 +36,31 @@ class InventoryViewModel(
 ) : KmpViewModel() {
     private val _state = MutableStateFlow(InventoryState(isLoading = true))
     val state: StateFlow<InventoryState> = _state.asStateFlow()
+
+    init {
+        scope.launch {
+            UserSession.currentUser
+                .map { UserSession.getBusinessId() }
+                .distinctUntilChanged()
+                .flatMapLatest { businessId ->
+                    syncProducts(businessId)
+                    getProductsUseCase(businessId)
+                }
+                .collect { products ->
+                    val lowStockCount = products.count { it.isLowStock }
+                    val totalValue = products.sumOf { it.sellingPrice * it.currentStock }
+                    _state.update { state ->
+                        state.copy(
+                            isLoading = false,
+                            products = products,
+                            filteredProducts = applyFilter(products, state.searchQuery, state.selectedFilter),
+                            lowStockCount = lowStockCount,
+                            totalStockValue = totalValue
+                        )
+                    }
+                }
+        }
+    }
 
     fun loadProducts(businessId: String) {
         scope.launch {
@@ -57,6 +83,8 @@ class InventoryViewModel(
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
         }
+        // Show cached data immediately, then reconcile it with the same backend
+        // used by the web application. Failed requests leave the cache intact.
         syncProducts(businessId)
     }
 

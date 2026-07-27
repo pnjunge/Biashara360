@@ -263,8 +263,8 @@ fun Route.productRoutesValidated() {
                     }
                     field("quantity", req.quantity) {
                         required()
-                        positive()
-                        range(1.0, Constants.Business.MAX_STOCK_QUANTITY.toDouble())
+                        nonNegative()
+                        range(0.0, Constants.Business.MAX_STOCK_QUANTITY.toDouble())
                     }
                     field("note", req.note) {
                         maxLength(500)

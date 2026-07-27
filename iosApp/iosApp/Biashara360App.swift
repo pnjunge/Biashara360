@@ -6,13 +6,9 @@ struct Biashara360App: App {
 
     var body: some Scene {
         WindowGroup {
-            if authVM.isAuthenticated {
-                MainTabView()
-                    .environmentObject(authVM)
-            } else {
-                LoginView()
-                    .environmentObject(authVM)
-            }
+            ContentView()
+                .environmentObject(authVM)
+                .tint(.b360Green)
         }
     }
 }

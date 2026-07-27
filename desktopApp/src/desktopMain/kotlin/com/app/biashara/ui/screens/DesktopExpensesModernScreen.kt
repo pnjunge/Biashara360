@@ -42,7 +42,13 @@ fun DesktopExpensesModernScreen(
     var selectedCategory by remember { mutableStateOf<ExpenseCategory?>(null) }
     var categoryMenuOpen by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { viewModel.loadExpenses() }
+    LaunchedEffect(Unit) {
+        viewModel.loadExpenses()
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            viewModel.syncExpenses(UserSession.getBusinessId())
+        }
+    }
 
     val visibleExpenses = remember(state.expenses, selectedCategory) {
         selectedCategory?.let { category -> state.expenses.filter { it.category == category } } ?: state.expenses

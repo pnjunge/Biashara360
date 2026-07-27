@@ -38,6 +38,7 @@ data class CustomerDetailState(
     val error: String? = null
 )
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CustomersViewModel(
     private val getCustomersUseCase: GetCustomersUseCase,
     private val saveCustomerUseCase: SaveCustomerUseCase,
@@ -54,34 +55,37 @@ class CustomersViewModel(
     private val _saveResult = MutableSharedFlow<Result<Customer>>()
     val saveResult: SharedFlow<Result<Customer>> = _saveResult.asSharedFlow()
 
-    fun loadCustomers() {
-        val businessId = UserSession.getBusinessId()
+    init {
         scope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
-            try {
-                getCustomersUseCase(businessId).collect { customers ->
+            UserSession.currentUser
+                .map { UserSession.getBusinessId() }
+                .distinctUntilChanged()
+                .flatMapLatest { businessId ->
+                    syncCustomers(businessId)
+                    getCustomersUseCase(businessId)
+                }
+                .collect { customers ->
                     _state.update { it.copy(isLoading = false, customers = customers) }
                 }
-            } catch (e: Exception) {
-                _state.update { it.copy(isLoading = false, error = e.message) }
-            }
         }
-        syncCustomers()
+    }
+
+    fun loadCustomers(businessId: String = UserSession.getBusinessId()) {
+        syncCustomers(businessId)
     }
 
     /** Sync customers from API and update local cache **/
-    fun syncCustomers() {
-        val businessId = UserSession.getBusinessId()
+    fun syncCustomers(businessId: String = UserSession.getBusinessId()) {
+        val effectiveId = businessId.ifBlank { UserSession.getBusinessId() }
         scope.launch {
             _state.update { it.copy(isSyncing = true, error = null) }
             try {
                 if (customerRepository != null) {
-                    customerRepository.syncCustomersFromApi(businessId)
+                    customerRepository.syncCustomersFromApi(effectiveId)
                         .onSuccess { customers ->
                             _state.update { state ->
                                 state.copy(
                                     isSyncing = false,
-                                    customers = customers,
                                     lastSyncTime = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
                                 )
                             }

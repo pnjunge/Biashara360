@@ -1005,6 +1005,10 @@ fun DesktopInventoryScreen(
     val state by viewModel.state.collectAsState()
     LaunchedEffect(Unit) {
         viewModel.loadProducts(UserSession.getBusinessId())
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            viewModel.syncProducts(UserSession.getBusinessId())
+        }
     }
 
     var showAddProductDialog by remember { mutableStateOf(false) }
@@ -1439,8 +1443,13 @@ fun DesktopOrdersScreen(
     navigationViewModel: DesktopNavigationViewModel = remember { inject() }
 ) {
     val state by viewModel.state.collectAsState()
-    LaunchedEffect(Unit) {
+    val currentUserSession by UserSession.currentUser.collectAsState()
+    LaunchedEffect(currentUserSession?.businessId) {
         viewModel.loadOrders()
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            viewModel.syncOrders(UserSession.getBusinessId())
+        }
     }
     var selectedOrder by remember { mutableStateOf<Order?>(null) }
     var orderToCancel by remember { mutableStateOf<Order?>(null) }
@@ -1933,7 +1942,8 @@ fun DesktopCustomersScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val ordersState by ordersViewModel.state.collectAsState()
-    LaunchedEffect(Unit) {
+    val currentUserSession by UserSession.currentUser.collectAsState()
+    LaunchedEffect(currentUserSession?.businessId) {
         viewModel.loadCustomers()
         ordersViewModel.loadOrders()
     }

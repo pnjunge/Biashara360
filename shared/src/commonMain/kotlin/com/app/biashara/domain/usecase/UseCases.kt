@@ -299,8 +299,9 @@ class LoginWithBiometricUseCase(private val repo: AuthRepository) {
 // --- Helpers ---
 
 fun generateId(): String {
-    val chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    return (1..20).map { chars.random() }.joinToString("")
+    val hex = "0123456789abcdef"
+    fun rHex(len: Int) = (1..len).map { hex.random() }.joinToString("")
+    return "${rHex(8)}-${rHex(4)}-4${rHex(3)}-a${rHex(3)}-${rHex(12)}"
 }
 
 internal fun String.normalizePhone(): String {

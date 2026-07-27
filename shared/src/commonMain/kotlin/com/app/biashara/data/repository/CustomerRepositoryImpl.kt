@@ -55,19 +55,27 @@ class CustomerRepositoryImpl(
 
     private val queries = database.biashara360DatabaseQueries
 
-    override fun getCustomers(businessId: String): Flow<List<Customer>> =
-        queries.selectAllCustomers(businessId)
+    private fun resolveBusinessId(id: String): String =
+        id.ifBlank { com.app.biashara.UserSession.getBusinessId() }
+
+    override fun getCustomers(businessId: String): Flow<List<Customer>> {
+        val effectiveId = resolveBusinessId(businessId)
+        return queries.selectAllCustomers(effectiveId)
             .asFlow()
             .mapToList(Dispatchers.Default)
             .map { it.map { entity -> entity.toDomain() } }
+    }
 
-    override fun getTopCustomers(businessId: String, limit: Int): Flow<List<Customer>> =
-        getCustomers(businessId).map { customers -> customers.take(limit) }
+    override fun getTopCustomers(businessId: String, limit: Int): Flow<List<Customer>> {
+        val effectiveId = resolveBusinessId(businessId)
+        return getCustomers(effectiveId).map { customers -> customers.take(limit) }
+    }
 
     override fun getTopCustomersWithStats(businessId: String, limit: Int): Flow<List<Pair<Customer, CustomerStats>>> {
+        val effectiveId = resolveBusinessId(businessId)
         return combine(
-            getCustomers(businessId),
-            queries.selectAllOrders(businessId).asFlow().mapToList(Dispatchers.Default)
+            getCustomers(effectiveId),
+            queries.selectAllOrders(effectiveId).asFlow().mapToList(Dispatchers.Default)
         ) { customers, orders ->
             val ordersByCustomer = orders.filter { it.customer_id != null }.groupBy { it.customer_id!! }
             customers.map { customer ->
@@ -91,14 +99,14 @@ class CustomerRepositoryImpl(
     }
 
     override fun getRepeatCustomers(businessId: String): Flow<List<Customer>> =
-        getCustomers(businessId)
+        getCustomers(resolveBusinessId(businessId))
 
     override suspend fun getCustomer(id: String): Customer? =
         queries.selectCustomerById(id).executeAsOneOrNull()?.toDomain()
 
     override suspend fun getCustomerByPhone(phone: String): Customer? {
         val normalized = phone.normalizeKenyanMobile() ?: return null
-        return queries.selectAllCustomers(com.app.biashara.UserSession.getBusinessId())
+        return queries.selectAllCustomers(resolveBusinessId(""))
             .executeAsList()
             .firstOrNull { it.phone == normalized }
             ?.toDomain()
@@ -107,6 +115,7 @@ class CustomerRepositoryImpl(
     override suspend fun saveCustomer(customer: Customer): Result<Customer> = runCatching {
         val normalizedPhone = customer.phone.normalizeKenyanMobile()
             ?: throw IllegalArgumentException("Enter a valid Kenyan mobile number")
+        val effectiveBusinessId = resolveBusinessId(customer.businessId)
         val request = CustomerRequestDto(
             name = customer.name.trim(),
             phone = normalizedPhone,
@@ -114,21 +123,44 @@ class CustomerRepositoryImpl(
             location = customer.location.trim(),
             notes = customer.notes.trim()
         )
-        var response: ApiResponse<CustomerDto> = client.put("$BASE_URL/customers/${customer.id}") {
-            contentType(ContentType.Application.Json)
-            setBody(request)
-        }.body()
-        if (!response.success && response.message.contains("not found", ignoreCase = true)) {
-            response = client.post("$BASE_URL/customers") {
+        // Try POST first for customer creation
+        var apiResponse: ApiResponse<CustomerDto>? = runCatching {
+            val res: io.ktor.client.statement.HttpResponse = client.post("$BASE_URL/customers") {
+                url { parameters.append("businessId", effectiveBusinessId) }
                 contentType(ContentType.Application.Json)
                 setBody(request)
-            }.body()
+            }
+            res.body<ApiResponse<CustomerDto>>()
+        }.getOrNull()
+
+        // If POST failed or customer exists, try PUT or fallback to local matching
+        if (apiResponse == null || !apiResponse.success) {
+            val putRes: io.ktor.client.statement.HttpResponse? = runCatching {
+                client.put("$BASE_URL/customers/${customer.id}") {
+                    url { parameters.append("businessId", effectiveBusinessId) }
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }
+            }.getOrNull()
+
+            val putApiResponse = putRes?.let { runCatching { it.body<ApiResponse<CustomerDto>>() }.getOrNull() }
+            if (putApiResponse != null && putApiResponse.success) {
+                apiResponse = putApiResponse
+            } else {
+                syncCustomersFromApi(effectiveBusinessId)
+                val existingLocal = getCustomerByPhone(normalizedPhone)
+                if (existingLocal != null) {
+                    return@runCatching existingLocal
+                }
+            }
         }
-        val saved = response.data
-            ?: throw Exception(response.message.ifBlank { "Failed to save customer" })
+
+        val saved = apiResponse?.data
+            ?: throw Exception(apiResponse?.message?.ifBlank { null } ?: "Failed to save customer")
+        val finalBusinessId = saved.businessId.ifBlank { effectiveBusinessId }
         queries.insertCustomer(
             id = saved.id,
-            business_id = saved.businessId,
+            business_id = finalBusinessId,
             name = saved.name,
             phone = saved.phone,
             email = saved.email,
@@ -139,7 +171,7 @@ class CustomerRepositoryImpl(
             created_at = saved.createdAt,
             updated_at = saved.updatedAt
         )
-        saved.toDomain()
+        saved.copy(businessId = finalBusinessId).toDomain()
     }
 
     override suspend fun getCustomerStats(customerId: String): CustomerStats {
@@ -164,7 +196,7 @@ class CustomerRepositoryImpl(
     }
 
     override fun searchCustomers(businessId: String, query: String): Flow<List<Customer>> =
-        queries.searchCustomers(businessId, query)
+        queries.searchCustomers(resolveBusinessId(businessId), query)
             .asFlow()
             .mapToList(Dispatchers.Default)
             .map { it.map { entity -> entity.toDomain() } }
@@ -183,8 +215,9 @@ class CustomerRepositoryImpl(
 
     /** Sync customers from API and update local cache **/
     suspend fun syncCustomersFromApi(businessId: String): Result<List<Customer>> = runCatching {
+        val effectiveId = resolveBusinessId(businessId)
         val response: ApiResponse<List<CustomerDto>> = client.get("$BASE_URL/customers") {
-            url { parameters.append("businessId", businessId) }
+            url { parameters.append("businessId", effectiveId) }
         }.body()
 
         if (!response.success || response.data == null) {
@@ -192,23 +225,25 @@ class CustomerRepositoryImpl(
         }
 
         // Update local cache
-        response.data.forEach { dto ->
-            queries.insertCustomer(
-                id = dto.id,
-                business_id = dto.businessId,
-                name = dto.name,
-                phone = dto.phone,
-                email = dto.email,
-                location = dto.location,
-                notes = dto.notes,
-                loyalty_points = dto.loyaltyPoints.toLong(),
-                is_active = if (dto.isActive) 1L else 0L,
-                created_at = dto.createdAt,
-                updated_at = dto.updatedAt
-            )
+        database.transaction {
+            response.data.forEach { dto ->
+                queries.insertCustomer(
+                    id = dto.id,
+                    business_id = dto.businessId.ifBlank { effectiveId },
+                    name = dto.name,
+                    phone = dto.phone,
+                    email = dto.email,
+                    location = dto.location,
+                    notes = dto.notes,
+                    loyalty_points = dto.loyaltyPoints.toLong(),
+                    is_active = if (dto.isActive) 1L else 0L,
+                    created_at = dto.createdAt,
+                    updated_at = dto.updatedAt
+                )
+            }
         }
 
-        response.data.map { it.toDomain() }
+        response.data.map { it.copy(businessId = it.businessId.ifBlank { effectiveId }).toDomain() }
     }
 
     private fun CustomerDto.toDomain() = Customer(

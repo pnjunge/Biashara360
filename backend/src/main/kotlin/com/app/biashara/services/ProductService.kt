@@ -77,6 +77,7 @@ class ProductService {
                     (req.barcode?.let { ProductsTable.barcode eq it } ?: Op.FALSE))
         }.any()
         if (duplicate) return@transaction ApiResponse(false, message = "SKU or barcode already exists")
+        val previousStock = current[ProductsTable.currentStock]
         val updated = ProductsTable.update({
             (ProductsTable.id eq id) and (ProductsTable.businessId eq businessId)
         }) {
@@ -85,6 +86,7 @@ class ProductService {
             it[description] = req.description
             it[buyingPrice] = req.buyingPrice
             it[sellingPrice] = req.sellingPrice
+            it[currentStock] = req.currentStock
             it[lowStockThreshold] = req.lowStockThreshold
             it[category] = req.category
             it[barcode] = req.barcode?.trim()?.ifBlank { null }
@@ -92,6 +94,18 @@ class ProductService {
             it[updatedAt] = Clock.System.now()
         }
         if (updated == 0) return@transaction ApiResponse(false, message = "Product not found")
+        if (req.currentStock != previousStock) {
+            val diff = req.currentStock - previousStock
+            StockMovementsTable.insert {
+                it[StockMovementsTable.id] = generateId()
+                it[StockMovementsTable.productId] = id
+                it[StockMovementsTable.businessId] = businessId
+                it[StockMovementsTable.type] = if (diff > 0) "STOCK_IN" else if (diff < 0) "STOCK_OUT" else "ADJUSTMENT"
+                it[StockMovementsTable.quantity] = kotlin.math.abs(diff)
+                it[StockMovementsTable.note] = "Product update adjustment"
+                it[StockMovementsTable.recordedAt] = Clock.System.now()
+            }
+        }
         val product = ProductsTable.select { ProductsTable.id eq id }.first().toResponse()
         ApiResponse(true, data = product)
     }

@@ -25,19 +25,6 @@ struct MainTabView: View {
             MoreView()
                 .tabItem { Label("More", systemImage: "ellipsis.circle.fill") }
                 .tag(4)
-
-            CyberSourceView()
-                .tabItem { Label("Card Pay", systemImage: "creditcard.and.123") }
-                .tag(5)
-            TaxView()
-                .tabItem { Label("Tax", systemImage: "percent") }
-                .tag(6)
-            KraView()
-                .tabItem { Label("KRA iTax", systemImage: "doc.badge.checkmark") }
-                .tag(7)
-            SocialView()
-                .tabItem { Label("Social", systemImage: "message.badge") }
-                .tag(8)
         }
         .accentColor(.b360Green)
     }
@@ -52,6 +39,9 @@ struct MoreView: View {
         NavigationStack(path: $path) {
             List {
                 Section("Business") {
+                    NavigationLink(destination: SocialView()) {
+                        Label("Social Inbox", systemImage: "message.badge.fill")
+                    }
                     NavigationLink(destination: ExpensesView()) {
                         Label("Expenses & Profit", systemImage: "receipt.fill")
                     }
@@ -60,6 +50,15 @@ struct MoreView: View {
                     }
                     NavigationLink(destination: ReportsView()) {
                         Label("Reports", systemImage: "chart.bar.fill")
+                    }
+                    NavigationLink(destination: TaxView()) {
+                        Label("Tax", systemImage: "percent")
+                    }
+                    NavigationLink(destination: KraView()) {
+                        Label("KRA iTax", systemImage: "doc.badge.checkmark")
+                    }
+                    NavigationLink(destination: CyberSourceView()) {
+                        Label("Card Payments", systemImage: "creditcard.and.123")
                     }
                 }
 

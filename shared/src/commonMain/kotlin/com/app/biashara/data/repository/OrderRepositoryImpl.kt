@@ -1,5 +1,6 @@
 package com.app.biashara.data.repository
 
+import com.app.biashara.UserSession
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import app.cash.sqldelight.coroutines.mapToOneOrNull
@@ -65,6 +66,7 @@ private data class CreateOrderRequestDto(
     val deliveryLocation: String,
     val items: List<CreateOrderItemRequestDto>,
     val paymentMethod: String,
+    val paymentStatus: String? = null,
     val notes: String
 )
 
@@ -100,17 +102,21 @@ class OrderRepositoryImpl(
 
     private val queries = database.biashara360DatabaseQueries
 
-    override fun getOrders(businessId: String): Flow<List<Order>> =
-        queries.selectAllOrders(businessId)
+    override fun getOrders(businessId: String): Flow<List<Order>> {
+        val effectiveId = businessId.ifBlank { UserSession.getBusinessId() }
+        return queries.selectAllOrders(effectiveId)
             .asFlow()
             .mapToList(Dispatchers.Default)
             .map { entities -> entities.map { it.toDomainWithItems() } }
+    }
 
-    override fun getOrdersByStatus(businessId: String, status: PaymentStatus): Flow<List<Order>> =
-        queries.selectOrdersByStatus(businessId, status.name)
+    override fun getOrdersByStatus(businessId: String, status: PaymentStatus): Flow<List<Order>> {
+        val effectiveId = businessId.ifBlank { UserSession.getBusinessId() }
+        return queries.selectOrdersByStatus(effectiveId, status.name)
             .asFlow()
             .mapToList(Dispatchers.Default)
             .map { entities -> entities.map { it.toDomainWithItems() } }
+    }
 
     override suspend fun getOrder(id: String): Order? =
         queries.selectOrderById(id).executeAsOneOrNull()?.toDomainWithItems()
@@ -121,12 +127,13 @@ class OrderRepositoryImpl(
             setBody(
                 CreateOrderRequestDto(
                     clientReference = order.id,
-                    customerId = order.customerId,
-                    customerName = order.customerName,
-                    customerPhone = order.customerPhone,
+                    customerId = order.customerId?.ifBlank { null },
+                    customerName = order.customerName.ifBlank { "Walk-in Customer" },
+                    customerPhone = order.customerPhone.ifBlank { "0700000000" },
                     deliveryLocation = order.deliveryLocation,
                     items = order.items.map { CreateOrderItemRequestDto(it.productId, it.quantity, it.unitPrice) },
                     paymentMethod = order.paymentMethod.name,
+                    paymentStatus = order.paymentStatus.name,
                     notes = order.notes
                 )
             )
@@ -135,6 +142,10 @@ class OrderRepositoryImpl(
             throw Exception(response.message.ifBlank { "Failed to create order on backend" })
         }
         val saved = requireNotNull(response.data)
+        if (saved.id != order.id) {
+            queries.deleteItemsByOrder(order.id)
+            queries.deleteOrder(order.id)
+        }
         queries.insertOrder(
             id = saved.id, order_number = saved.orderNumber, business_id = saved.businessId,
             customer_id = saved.customerId, customer_name = saved.customerName,
@@ -274,23 +285,28 @@ class OrderRepositoryImpl(
 
     /** Sync orders from API and update local cache **/
     suspend fun syncOrdersFromApi(businessId: String): Result<List<Order>> = runCatching {
+        val effectiveId = businessId.ifBlank { UserSession.getBusinessId() }
         val remoteOrders = mutableListOf<OrderDto>()
         var page = 1
         var hasMore: Boolean
         do {
             val response: ApiResponse<PagedOrdersDto> = client.get("$BASE_URL/orders") {
                 url {
+                    if (effectiveId.isNotBlank()) {
+                        parameters.append("businessId", effectiveId)
+                    }
                     parameters.append("page", page.toString())
                     parameters.append("pageSize", "100")
                 }
             }.body()
 
-            if (!response.success || response.data == null) {
-                throw Exception(response.message.ifBlank { "Failed to fetch orders" })
+            val paged = response.data
+            if (paged != null) {
+                remoteOrders += paged.data
+                hasMore = paged.hasMore
+            } else {
+                hasMore = false
             }
-            val paged = requireNotNull(response.data)
-            remoteOrders += paged.data
-            hasMore = paged.hasMore
             page += 1
         } while (hasMore)
 
@@ -298,7 +314,7 @@ class OrderRepositoryImpl(
         // one transaction so observers never see a partially-synced order list.
         queries.transaction {
             val remoteIds = remoteOrders.mapTo(mutableSetOf()) { it.id }
-            queries.selectAllOrders(businessId).executeAsList()
+            queries.selectAllOrders(effectiveId).executeAsList()
                 .filter { it.id !in remoteIds }
                 .forEach { stale ->
                     queries.deleteItemsByOrder(stale.id)
@@ -387,8 +403,10 @@ class OrderRepositoryImpl(
              customerPhone = customer_phone,
              deliveryLocation = delivery_location,
              items = items,
-             paymentStatus = PaymentStatus.valueOf(payment_status),
-             deliveryStatus = DeliveryStatus.valueOf(delivery_status),
+             paymentStatus = runCatching { PaymentStatus.valueOf(payment_status) }
+                 .getOrDefault(PaymentStatus.PENDING),
+             deliveryStatus = runCatching { DeliveryStatus.valueOf(delivery_status) }
+                 .getOrDefault(DeliveryStatus.PENDING),
              paymentMethod = runCatching { PaymentMethod.valueOf(payment_method) }
                  .getOrDefault(PaymentMethod.MPESA),
              mpesaTransactionCode = mpesa_transaction_code,

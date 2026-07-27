@@ -121,6 +121,15 @@ class OrderService {
         val now = Clock.System.now()
         val subtotal = req.items.sumOf { it.quantity * it.unitPrice }
 
+        val requestedPaymentStatus = req.paymentStatus?.uppercase()
+        val initialPaymentStatus = when {
+            requestedPaymentStatus in listOf("PAID", "COMPLETED") -> "PAID"
+            req.paymentMethod.uppercase() in listOf("CASH", "CARD") -> "PAID"
+            requestedPaymentStatus != null -> requestedPaymentStatus
+            else -> "PENDING"
+        }
+        val initialDeliveryStatus = if (initialPaymentStatus == "PAID") "DELIVERED" else "PENDING"
+
         OrdersTable.insert {
             it[id] = orderId
             it[OrdersTable.orderNumber] = orderNumber
@@ -130,8 +139,8 @@ class OrderService {
             it[customerName] = req.customerName
             it[customerPhone] = req.customerPhone
             it[deliveryLocation] = req.deliveryLocation
-            it[paymentStatus] = "PENDING"
-            it[deliveryStatus] = "PENDING"
+            it[paymentStatus] = initialPaymentStatus
+            it[deliveryStatus] = initialDeliveryStatus
             it[paymentMethod] = req.paymentMethod
             it[notes] = req.notes
             it[OrdersTable.subtotal] = subtotal

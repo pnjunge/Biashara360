@@ -50,6 +50,21 @@ struct LoginView: View {
                             Task { await authVM.login(email: email, password: password) }
                         }
 
+                        if authVM.biometrics.isAvailable && authVM.biometrics.isEnabled {
+                            Button {
+                                Task { await authVM.loginWithBiometrics() }
+                            } label: {
+                                Label(
+                                    "Sign in with \(authVM.biometrics.displayName)",
+                                    systemImage: "faceid"
+                                )
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.b360Green)
+                        }
+
                         Button("Forgot password?") {}
                             .font(.b360Caption)
                             .foregroundColor(.b360Green)

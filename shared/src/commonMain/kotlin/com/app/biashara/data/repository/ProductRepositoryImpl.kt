@@ -1,5 +1,6 @@
 package com.app.biashara.data.repository
 
+import com.app.biashara.UserSession
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import com.app.biashara.data.remote.ApiResponse
@@ -72,17 +73,21 @@ class ProductRepositoryImpl(
 
     private val queries = database.biashara360DatabaseQueries
 
-    override fun getProducts(businessId: String): Flow<List<Product>> =
-        queries.selectAllProducts(businessId)
+    override fun getProducts(businessId: String): Flow<List<Product>> {
+        val effectiveId = businessId.ifBlank { UserSession.getBusinessId() }
+        return queries.selectAllProducts(effectiveId)
             .asFlow()
             .mapToList(Dispatchers.Default)
             .map { entities -> entities.map { it.toDomain() } }
+    }
 
-    override fun getLowStockProducts(businessId: String): Flow<List<Product>> =
-        queries.selectLowStockProducts(businessId)
+    override fun getLowStockProducts(businessId: String): Flow<List<Product>> {
+        val effectiveId = businessId.ifBlank { UserSession.getBusinessId() }
+        return queries.selectLowStockProducts(effectiveId)
             .asFlow()
             .mapToList(Dispatchers.Default)
             .map { entities -> entities.map { it.toDomain() } }
+    }
 
     override suspend fun getProduct(id: String): Product? =
         queries.selectProductById(id).executeAsOneOrNull()?.toDomain()
@@ -99,38 +104,43 @@ class ProductRepositoryImpl(
             category = product.category,
             imageUrl = product.imageUrl,
             barcode = product.barcode,
-            expectedUpdatedAt = product.updatedAt.toString()
+            expectedUpdatedAt = null
         )
-        var response: ApiResponse<ProductDto> = client.put("$BASE_URL/products/${product.id}") {
-            contentType(ContentType.Application.Json)
-            setBody(request)
-        }.body()
-        if (!response.success && response.message.contains("not found", ignoreCase = true)) {
-            response = client.post("$BASE_URL/products") {
+        var response: ApiResponse<ProductDto>? = runCatching {
+            client.put("$BASE_URL/products/${product.id}") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }.body<ApiResponse<ProductDto>>()
+        }.getOrNull()
+
+        val finalResponse: ApiResponse<ProductDto> = if (response != null && response.success && response.data != null) {
+            response
+        } else {
+            client.post("$BASE_URL/products") {
                 contentType(ContentType.Application.Json)
                 setBody(request)
             }.body()
         }
-        if (!response.success || response.data == null) {
-            val details = response.errors.filter { it.isNotBlank() }.joinToString("; ")
+
+        if (!finalResponse.success || finalResponse.data == null) {
+            val details = finalResponse.errors.filter { it.isNotBlank() }.joinToString("; ")
             throw Exception(
-                listOf(response.message, details)
+                listOf(finalResponse.message, details)
                     .filter { it.isNotBlank() }
                     .joinToString(": ")
                     .ifBlank { "Failed to save product on backend" }
             )
         }
 
-        var savedDto = requireNotNull(response.data)
+        var savedDto = requireNotNull(finalResponse.data)
         if (savedDto.currentStock != product.currentStock) {
             val stockResponse: ApiResponse<ProductDto> = client.post("$BASE_URL/products/${savedDto.id}/stock") {
                 contentType(ContentType.Application.Json)
                 setBody(StockUpdateRequest("ADJUSTMENT", product.currentStock, "Desktop inventory adjustment"))
             }.body()
-            if (!stockResponse.success || stockResponse.data == null) {
-                throw Exception(stockResponse.message.ifBlank { "Product saved but stock adjustment failed" })
+            if (stockResponse.success && stockResponse.data != null) {
+                savedDto = stockResponse.data
             }
-            savedDto = requireNotNull(stockResponse.data)
         }
 
         val now = Clock.System.now().toString()
@@ -235,8 +245,13 @@ class ProductRepositoryImpl(
 
     /** Sync products from API and update local cache **/
     suspend fun syncProductsFromApi(businessId: String): Result<List<Product>> = runCatching {
+        val effectiveId = businessId.ifBlank { UserSession.getBusinessId() }
         val response: ApiResponse<List<ProductDto>> = client.get("$BASE_URL/products") {
-            url { parameters.append("businessId", businessId) }
+            url {
+                if (effectiveId.isNotBlank()) {
+                    parameters.append("businessId", effectiveId)
+                }
+            }
         }.body()
 
         if (!response.success || response.data == null) {
@@ -246,7 +261,7 @@ class ProductRepositoryImpl(
         // The backend is authoritative. Hide stale desktop-only records that
         // are no longer returned for this business.
         val remoteIds = response.data.map { it.id }.toSet()
-        queries.selectAllProducts(businessId).executeAsList()
+        queries.selectAllProducts(effectiveId).executeAsList()
             .filter { it.id !in remoteIds }
             .forEach { queries.deleteProduct(Clock.System.now().toString(), it.id) }
 
