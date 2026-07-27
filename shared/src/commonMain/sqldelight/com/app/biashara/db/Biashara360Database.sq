@@ -263,12 +263,12 @@ lastOrderDateForCustomer:
 SELECT MAX(created_at) AS last_date FROM OrderEntity WHERE customer_id = :customerId;
 
 sumOrderRevenueByPeriod:
-SELECT COALESCE(SUM(subtotal), 0.0) AS total_revenue FROM OrderEntity WHERE business_id = :businessId AND created_at >= :start AND created_at <= :end;
+SELECT COALESCE(SUM(subtotal), 0.0) AS total_revenue FROM OrderEntity WHERE business_id = :businessId AND payment_status = 'PAID' AND created_at >= :start AND created_at < :end;
 
 selectItemsByOrders:
 SELECT oi.* FROM OrderItemEntity oi
 JOIN OrderEntity o ON oi.order_id = o.id
-WHERE o.business_id = :businessId AND o.created_at >= :start AND o.created_at <= :end;
+WHERE o.business_id = :businessId AND o.payment_status = 'PAID' AND o.created_at >= :start AND o.created_at < :end;
 
 sumExpensesByPeriodAll:
 SELECT COALESCE(SUM(amount), 0.0) AS total_amount FROM ExpenseEntity WHERE business_id = :businessId AND expense_date >= :start AND expense_date <= :end;

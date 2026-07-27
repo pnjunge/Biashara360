@@ -124,7 +124,7 @@ class ExpenseRepositoryImpl(
 
         // Revenue: sum of order subtotals in the period (orders use ISO datetime, compare date prefix)
         val startInstant = period.startDate.atStartOfDayIn(TimeZone.of("Africa/Nairobi")).toString()
-        val endInstant = period.endDate.atStartOfDayIn(TimeZone.of("Africa/Nairobi")).toString()
+        val endInstant = period.endDate.plus(1, DateTimeUnit.DAY).atStartOfDayIn(TimeZone.of("Africa/Nairobi")).toString()
         val totalRevenue = queries.sumOrderRevenueByPeriod(businessId, startInstant, endInstant)
             .executeAsOne().total_revenue ?: 0.0
 
