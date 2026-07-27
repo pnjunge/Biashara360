@@ -1,42 +1,88 @@
-name: Deploy Ktor Backend to AWS
+name: Automated AWS Deployment
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'shared/**'
+      - 'webApp/**'
+      - 'Dockerfile'
+      - 'webApp/Dockerfile'
+      - '.github/workflows/deploy-aws.yml'
   workflow_dispatch:
 
+concurrency:
+  group: aws-deployment-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  deploy:
-    name: Build & Push to Amazon ECR
+  deploy-backend:
+    name: Build & Deploy Backend API
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Build, Tag, and Push Image to ECR
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-        IMAGE_TAG: latest
-      run: |
-        # Build optimized fat jar container using the root Dockerfile
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        # Push image to ECR
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      - name: Build, Tag, and Push Backend Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: biashara360-api
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f Dockerfile .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-    - name: Trigger App Runner Deployment (Manual Deploy trigger)
-      if: env.APP_RUNNER_SERVICE_ARN != ''
-      env:
-        APP_RUNNER_SERVICE_ARN: ${{ secrets.APP_RUNNER_SERVICE_ARN }}
-      run: |
-        aws apprunner start-deployment --service-arn $APP_RUNNER_SERVICE_ARN
+      - name: Trigger Backend App Runner Deployment
+        env:
+          SERVICE_ARN: ${{ secrets.APP_RUNNER_BACKEND_ARN || 'arn:aws:apprunner:us-east-1:403460914856:service/biashara360-api-service/2df2a68ea4e5430b913d1cc650b5e33b' }}
+        run: |
+          aws apprunner start-deployment --service-arn $SERVICE_ARN --region us-east-1 || true
+
+  deploy-frontend:
+    name: Build & Deploy Web App
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Web Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: biashara360-web
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./webApp
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Trigger Web App Runner Deployment
+        env:
+          SERVICE_ARN: ${{ secrets.APP_RUNNER_WEB_ARN || 'arn:aws:apprunner:us-east-1:403460914856:service/biashara360-web-service/4639ba6f29344d74b95f46560fd0617e' }}
+        run: |
+          aws apprunner start-deployment --service-arn $SERVICE_ARN --region us-east-1 || true
+
