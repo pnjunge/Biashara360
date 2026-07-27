@@ -22,7 +22,7 @@ WEB_ECR_REPOSITORY="biashara360-web"
 API_DOCKER_CONTEXT="."
 API_DOCKERFILE="./Dockerfile"
 
-WEB_DOCKER_CONTEXT="./web"
+WEB_DOCKER_CONTEXT="./webApp"
 WEB_DOCKERFILE="./webApp/Dockerfile"
 
 DEFAULT_AWS_REGION="us-east-1"
