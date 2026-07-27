@@ -6,6 +6,8 @@ export default function CyberSourceSettingsPage() {
   const [merchantId, setMerchantId] = useState('')
   const [merchantKeyId, setMerchantKeyId] = useState('')
   const [merchantSecretKey, setMerchantSecretKey] = useState('')
+  const [profileId, setProfileId] = useState('')
+  const [accessKey, setAccessKey] = useState('')
   const [isSandbox, setIsSandbox] = useState(true)
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
@@ -18,6 +20,8 @@ export default function CyberSourceSettingsPage() {
         if (res.success && res.data) {
           setMerchantId(res.data.merchantId)
           setMerchantKeyId(res.data.merchantKeyId)
+          setProfileId(res.data.profileId || '')
+          setAccessKey(res.data.accessKey || '')
           setMerchantSecretKey('')
           setIsSandbox(res.data.environment === 'sandbox')
         }
@@ -35,6 +39,8 @@ export default function CyberSourceSettingsPage() {
       const res = await settingsApi.updateCyberSource({
         merchantId,
         merchantKeyId,
+        profileId,
+        accessKey,
         ...(merchantSecretKey.trim() ? { merchantSecretKey: merchantSecretKey.trim() } : {}),
         environment: isSandbox ? 'sandbox' : 'production'
       })
@@ -80,7 +86,7 @@ export default function CyberSourceSettingsPage() {
         </div>
       )}
 
-      <Section title="API Configuration">
+      <Section title="REST API Credentials">
         <Input
           label="Merchant ID (Organization ID) *"
           value={merchantId}
@@ -99,6 +105,21 @@ export default function CyberSourceSettingsPage() {
           onChange={setMerchantSecretKey}
           type="password"
           placeholder="Leave blank to keep the current secret"
+        />
+      </Section>
+
+      <Section title="Hosted Checkout & Secure Acceptance">
+        <Input
+          label="Secure Acceptance Profile ID"
+          value={profileId}
+          onChange={setProfileId}
+          placeholder="e.g. CS_SA_PROFILE_01"
+        />
+        <Input
+          label="Secure Acceptance Access Key"
+          value={accessKey}
+          onChange={setAccessKey}
+          placeholder="e.g. a1b2c3d4e5f6..."
         />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>

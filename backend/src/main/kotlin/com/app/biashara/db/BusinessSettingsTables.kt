@@ -38,6 +38,8 @@ object CyberSourceConfigsTable : Table("cybersource_configs") {
     val merchantKeyId     = varchar("merchant_key_id", 255)
     // 🔒 SECURITY FIX: Increased field size for encrypted values (base64 encoded)
     val merchantSecretKey = text("merchant_secret_key") // Encrypted
+    val profileId         = varchar("profile_id", 255).default("")
+    val accessKey         = varchar("access_key", 255).default("")
     val environment       = varchar("environment", 20).default("sandbox")  // sandbox | production
     // 🔒 SECURITY: Track encryption version for key rotation
     val encryptionVersion = integer("encryption_version").default(1)

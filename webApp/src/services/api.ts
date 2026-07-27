@@ -661,6 +661,10 @@ export const cyberSourceApi = {
     const res = await client.post<ApiResponse<CsChargeResponse>>('/payments/card/guest-charge', req)
     return res.data
   },
+  generatePaymentLink: async (req: { orderId: string; amount: number; description?: string; customerName?: string; customerEmail?: string; customerPhone?: string; expiryHours?: number }) => {
+    const res = await client.post<ApiResponse<{ linkUrl: string; orderId: string; amount: number; clientReference: string; expiresAt: string }>>('/payments/card/generate-link', req)
+    return res.data
+  },
 }
 
 export const authApi = {
@@ -786,6 +790,8 @@ export interface CyberSourceConfigResponse {
   businessId: string
   merchantId: string
   merchantKeyId: string
+  profileId?: string
+  accessKey?: string
   environment: string
   secretConfigured: boolean
   updatedAt: string
@@ -795,6 +801,8 @@ export interface CyberSourceConfigRequest {
   merchantId: string
   merchantKeyId: string
   merchantSecretKey?: string
+  profileId?: string
+  accessKey?: string
   environment: string
 }
 

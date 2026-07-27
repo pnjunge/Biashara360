@@ -278,10 +278,37 @@ function PaymentLinkTab() {
   const [expiry, setExpiry] = useState('24')
   const [generatedLink, setGeneratedLink] = useState('')
   const [copied, setCopied] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState('')
 
-  const generateLink = () => {
-    setError('Payment links are temporarily unavailable until the backend can issue a signed, expiring checkout token.')
+  const generateLink = async () => {
+    if (!linkAmount || Number(linkAmount) <= 0) {
+      setError('Please enter a valid payment amount.')
+      return
+    }
+    setError('')
+    setIsGenerating(true)
+    try {
+      const orderId = 'ORD-' + Math.random().toString(36).substring(2, 9).toUpperCase()
+      const res = await cyberSourceApi.generatePaymentLink({
+        orderId,
+        amount: Number(linkAmount),
+        description: linkDesc || 'Card Payment Invoice',
+        customerName: custName,
+        customerEmail: custEmail,
+        customerPhone: custPhone,
+        expiryHours: Number(expiry)
+      })
+      if (res.success && res.data) {
+        setGeneratedLink(res.data.linkUrl)
+      } else {
+        setError(res.message || 'Failed to generate payment link.')
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Network error while generating payment link.')
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   const copyLink = () => {
@@ -290,13 +317,13 @@ function PaymentLinkTab() {
     setTimeout(() => setCopied(false), 2500)
   }
 
-  const amount  = generatedLink ? new URLSearchParams(new URL(generatedLink).search).get('amount') : ''
-  const ref     = generatedLink ? new URLSearchParams(new URL(generatedLink).search).get('ref')    : ''
-  const message = `Hi${custName ? ' ' + custName : ''},\n\nYou have a pending payment of KES ${amount} for: ${linkDesc}.\n\nClick the secure link below to pay by card:\n${generatedLink}\n\nThis link expires in ${expiry} hours.\n\nRef: ${ref}\nPowered by Biashara360`
+  const amount  = linkAmount || '0'
+  const ref     = generatedLink ? 'REF-LINK-' + linkAmount : ''
+  const message = `Hi${custName ? ' ' + custName : ''},\n\nYou have a pending payment of KES ${Number(amount).toLocaleString()} for: ${linkDesc || 'Payment Invoice'}.\n\nClick the secure link below to pay by card:\n${generatedLink}\n\nThis link expires in ${expiry} hours.\nPowered by Biashara360`
 
   const shareEmail    = () => window.open(`mailto:${custEmail}?subject=${encodeURIComponent(`Payment Request — KES ${amount}`)}&body=${encodeURIComponent(message)}`, '_blank')
   const shareWhatsApp = () => window.open(`https://wa.me/${(custPhone||'').replace(/[^0-9]/g,'')}?text=${encodeURIComponent(message)}`, '_blank')
-  const shareSMS      = () => window.open(`sms:${custPhone}?body=${encodeURIComponent(`Pay KES ${amount} for ${linkDesc}: ${generatedLink}`)}`, '_blank')
+  const shareSMS      = () => window.open(`sms:${custPhone}?body=${encodeURIComponent(`Pay KES ${amount} for ${linkDesc || 'Invoice'}: ${generatedLink}`)}`, '_blank')
 
   const InputF = ({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) => (
     <div>
@@ -345,12 +372,13 @@ function PaymentLinkTab() {
 
           {error && <p style={{ color: 'var(--b360-red)', fontSize: 12 }}>{error}</p>}
 
-          <button onClick={generateLink} style={{
+          <button onClick={generateLink} disabled={isGenerating} style={{
             padding: '13px 0', background: 'var(--b360-green)', color: 'white', border: 'none',
-            borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: isGenerating ? 'not-allowed' : 'pointer',
+            opacity: isGenerating ? 0.7 : 1,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
           }}>
-            <Link size={16} /> Generate Payment Link
+            <Link size={16} /> {isGenerating ? 'Generating Link...' : 'Generate Payment Link'}
           </button>
         </div>
       </Card>

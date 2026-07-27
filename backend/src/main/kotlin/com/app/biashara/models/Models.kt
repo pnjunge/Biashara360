@@ -501,6 +501,8 @@ data class CyberSourceConfigRequest(
     val merchantId: String,
     val merchantKeyId: String,
     val merchantSecretKey: String? = null,
+    val profileId: String? = null,
+    val accessKey: String? = null,
     val environment: String = "sandbox"
 )
 
@@ -509,9 +511,31 @@ data class CyberSourceConfigResponse(
     val businessId: String,
     val merchantId: String,
     val merchantKeyId: String,
+    val profileId: String = "",
+    val accessKey: String = "",
     val environment: String,
     val secretConfigured: Boolean,
     val updatedAt: String
+)
+
+@Serializable
+data class CsPaymentLinkRequest(
+    val orderId: String,
+    val amount: Double,
+    val description: String = "",
+    val customerName: String? = null,
+    val customerEmail: String? = null,
+    val customerPhone: String? = null,
+    val expiryHours: Int = 24
+)
+
+@Serializable
+data class CsPaymentLinkResponse(
+    val linkUrl: String,
+    val orderId: String,
+    val amount: Double,
+    val clientReference: String,
+    val expiresAt: String
 )
 
 // ─── CyberSource ──────────────────────────────────────────────────────────────

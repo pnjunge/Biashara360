@@ -116,6 +116,13 @@ fun Route.cyberSourcePublicRoutes() {
             )
             val result = csService.charge(req.businessId, chargeReq)
             val success = result.status in listOf("AUTHORIZED", "CAPTURED")
+            if (success) {
+                orderService.updatePaymentStatus(
+                    req.orderId,
+                    req.businessId,
+                    UpdatePaymentStatusRequest("PAID", result.transactionId)
+                )
+            }
             val status = if (success) HttpStatusCode.OK else HttpStatusCode.PaymentRequired
             call.respond(status, ApiResponse(success, data = result, message = result.errorMessage ?: ""))
         }
@@ -127,8 +134,26 @@ fun Route.cyberSourcePublicRoutes() {
 
 fun Route.cyberSourceRoutes() {
     val csService: CyberSourcePaymentService by inject()
+    val orderService: OrderService by inject()
 
     route("/payments/card") {
+
+        /**
+         * POST /v1/payments/card/generate-link
+         *
+         * Generates a hosted payment link to send to a customer via Email, WhatsApp, or SMS.
+         */
+        post("/generate-link") {
+            val businessId = call.businessId()
+            val req = call.receive<CsPaymentLinkRequest>()
+            if (req.orderId.isBlank() || req.amount <= 0) {
+                call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Valid orderId and positive amount are required"))
+                return@post
+            }
+            val origin = call.request.headers["Origin"] ?: "https://app.biashara360.co.ke"
+            val response = csService.generatePaymentLink(businessId, req, origin)
+            call.respond(ApiResponse(true, data = response, message = "Payment link generated successfully"))
+        }
 
         /**
          * POST /v1/payments/card/charge
@@ -158,6 +183,13 @@ fun Route.cyberSourceRoutes() {
 
             val result = csService.charge(businessId, req)
             val success = result.status in listOf("AUTHORIZED", "CAPTURED")
+            if (success && !req.orderId.isNullOrBlank()) {
+                orderService.updatePaymentStatus(
+                    req.orderId,
+                    businessId,
+                    UpdatePaymentStatusRequest("PAID", result.transactionId)
+                )
+            }
             val status = if (success) HttpStatusCode.OK else HttpStatusCode.PaymentRequired
             call.respond(status, ApiResponse(success, data = result, message = result.errorMessage ?: ""))
         }

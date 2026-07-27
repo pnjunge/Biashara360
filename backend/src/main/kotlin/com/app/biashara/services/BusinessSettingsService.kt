@@ -161,12 +161,14 @@ class BusinessSettingsService {
             .firstOrNull()
             ?.let {
                 CyberSourceConfigResponse(
-                    businessId   = businessId,
-                    merchantId   = it[CyberSourceConfigsTable.merchantId],
-                    merchantKeyId = it[CyberSourceConfigsTable.merchantKeyId],
-                    environment  = it[CyberSourceConfigsTable.environment],
+                    businessId       = businessId,
+                    merchantId       = it[CyberSourceConfigsTable.merchantId],
+                    merchantKeyId    = it[CyberSourceConfigsTable.merchantKeyId],
+                    profileId        = it[CyberSourceConfigsTable.profileId],
+                    accessKey        = it[CyberSourceConfigsTable.accessKey],
+                    environment      = it[CyberSourceConfigsTable.environment],
                     secretConfigured = it[CyberSourceConfigsTable.merchantSecretKey].isNotBlank(),
-                    updatedAt    = it[CyberSourceConfigsTable.updatedAt].toString()
+                    updatedAt        = it[CyberSourceConfigsTable.updatedAt].toString()
                 )
             }
     }
@@ -186,11 +188,16 @@ class BusinessSettingsService {
             return@transaction ApiResponse(false, message = "merchantSecretKey is required for initial configuration")
         }
 
+        val profId = req.profileId ?: ""
+        val accKey = req.accessKey ?: ""
+
         if (exists) {
             CyberSourceConfigsTable.update({ CyberSourceConfigsTable.businessId eq businessId }) {
                 it[merchantId]        = req.merchantId
                 it[merchantKeyId]     = req.merchantKeyId
                 if (!req.merchantSecretKey.isNullOrBlank()) it[merchantSecretKey] = req.merchantSecretKey
+                it[profileId]         = profId
+                it[accessKey]         = accKey
                 it[environment]       = env
                 it[updatedAt]         = now
             }
@@ -201,6 +208,8 @@ class BusinessSettingsService {
                 it[merchantId]                         = req.merchantId
                 it[merchantKeyId]                      = req.merchantKeyId
                 it[merchantSecretKey]                  = req.merchantSecretKey!!
+                it[profileId]                          = profId
+                it[accessKey]                          = accKey
                 it[environment]                        = env
                 it[createdAt]                          = now
                 it[updatedAt]                          = now
@@ -211,6 +220,8 @@ class BusinessSettingsService {
             businessId    = businessId,
             merchantId    = req.merchantId,
             merchantKeyId = req.merchantKeyId,
+            profileId     = profId,
+            accessKey     = accKey,
             environment   = env,
             secretConfigured = exists || !req.merchantSecretKey.isNullOrBlank(),
             updatedAt     = now.toString()

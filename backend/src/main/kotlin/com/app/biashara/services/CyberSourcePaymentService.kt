@@ -215,6 +215,22 @@ class CyberSourcePaymentService(
         }
     }
 
+    // ── Generate Hosted Payment Link ──────────────────────────────────────────
+    fun generatePaymentLink(businessId: String, req: CsPaymentLinkRequest, baseUrl: String = "https://app.biashara360.co.ke"): CsPaymentLinkResponse {
+        val clientRef = "CS-LINK-${req.orderId.take(8).uppercase()}"
+        val expiresAt = Clock.System.now().plus(kotlin.time.Duration.parse("${req.expiryHours}h")).toString()
+        val cleanBaseUrl = baseUrl.trimEnd('/')
+        val linkUrl = "$cleanBaseUrl/card-checkout?orderId=${req.orderId}&businessId=$businessId"
+        
+        return CsPaymentLinkResponse(
+            linkUrl = linkUrl,
+            orderId = req.orderId,
+            amount = req.amount,
+            clientReference = clientRef,
+            expiresAt = expiresAt
+        )
+    }
+
     // ── Capture Context for Unified Checkout widget ───────────────────────────
     // When businessId is supplied, the tenant's DB-stored credentials are used.
     // If no tenant config is found for that businessId, csFor() falls back to
