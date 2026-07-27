@@ -67,7 +67,26 @@ fun Route.cyberSourcePublicRoutes() {
             if (order != null) {
                 call.respond(ApiResponse(true, data = order))
             } else {
-                call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(false, message = "Order not found"))
+                val now = kotlinx.datetime.Clock.System.now().toString()
+                val adHoc = OrderResponse(
+                    id = orderId,
+                    orderNumber = orderId,
+                    businessId = businessId,
+                    customerId = null,
+                    customerName = "",
+                    customerPhone = "",
+                    deliveryLocation = "",
+                    items = emptyList(),
+                    paymentStatus = "PENDING",
+                    deliveryStatus = "PENDING",
+                    paymentMethod = "CARD",
+                    mpesaTransactionCode = null,
+                    subtotal = 0.0,
+                    notes = "Card Payment Link",
+                    createdAt = now,
+                    updatedAt = now
+                )
+                call.respond(ApiResponse(true, data = adHoc))
             }
         }
 
@@ -93,9 +112,15 @@ fun Route.cyberSourcePublicRoutes() {
                 return@post
             }
             val order = orderService.getById(req.orderId, req.businessId)
-            if (order == null || order.paymentStatus != "PENDING" || kotlin.math.abs(order.subtotal - req.amount) > 0.001) {
-                call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Invalid payment order or amount"))
-                return@post
+            if (order != null) {
+                if (order.paymentStatus == "PAID") {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "This order has already been paid"))
+                    return@post
+                }
+                if (kotlin.math.abs(order.subtotal - req.amount) > 0.001) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Invalid payment order amount"))
+                    return@post
+                }
             }
 
             val chargeReq = CsChargeRequest(
@@ -117,11 +142,29 @@ fun Route.cyberSourcePublicRoutes() {
             val result = csService.charge(req.businessId, chargeReq)
             val success = result.status in listOf("AUTHORIZED", "CAPTURED")
             if (success) {
-                orderService.updatePaymentStatus(
-                    req.orderId,
-                    req.businessId,
-                    UpdatePaymentStatusRequest("PAID", result.transactionId)
-                )
+                if (order != null) {
+                    orderService.updatePaymentStatus(
+                        req.orderId,
+                        req.businessId,
+                        UpdatePaymentStatusRequest("PAID", result.transactionId)
+                    )
+                } else {
+                    orderService.create(
+                        req.businessId,
+                        CreateOrderRequest(
+                            clientReference = req.orderId,
+                            customerId = null,
+                            customerName = req.cardholderName?.ifBlank { "Card Customer" } ?: "Card Customer",
+                            customerPhone = req.billingPhone ?: "",
+                            deliveryLocation = "",
+                            items = emptyList(),
+                            paymentMethod = "CARD",
+                            paymentStatus = "PAID",
+                            deliveryStatus = "DELIVERED",
+                            notes = "Card Payment Link (${result.transactionId})"
+                        )
+                    )
+                }
             }
             val status = if (success) HttpStatusCode.OK else HttpStatusCode.PaymentRequired
             call.respond(status, ApiResponse(success, data = result, message = result.errorMessage ?: ""))

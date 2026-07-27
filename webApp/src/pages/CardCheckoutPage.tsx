@@ -38,10 +38,22 @@ export default function CardCheckoutPage() {
       params: { orderId, businessId }
     }).then(res => {
       if (res.data.success && res.data.data) {
-        setOrder(res.data.data)
-        if (res.data.data.customerName) setCardholderName(res.data.data.customerName)
-        if (res.data.data.customerPhone) setBillingPhone(res.data.data.customerPhone)
-        if (res.data.data.paymentStatus === 'PAID') {
+        let fetchedOrder = res.data.data
+        const searchAmount = searchParams.get('amount')
+        if ((!fetchedOrder.subtotal || fetchedOrder.subtotal === 0) && searchAmount && !isNaN(Number(searchAmount))) {
+          fetchedOrder = { ...fetchedOrder, subtotal: Number(searchAmount) }
+        }
+        setOrder(fetchedOrder)
+        
+        const searchName = searchParams.get('name')
+        const searchPhone = searchParams.get('phone')
+        if (fetchedOrder.customerName) setCardholderName(fetchedOrder.customerName)
+        else if (searchName) setCardholderName(searchName)
+        
+        if (fetchedOrder.customerPhone) setBillingPhone(fetchedOrder.customerPhone)
+        else if (searchPhone) setBillingPhone(searchPhone)
+
+        if (fetchedOrder.paymentStatus === 'PAID') {
           setPaymentSuccess(true)
         }
       } else {
@@ -50,7 +62,7 @@ export default function CardCheckoutPage() {
     }).catch(err => {
       setOrderError(err.response?.data?.message || 'Failed to load order details.')
     }).finally(() => setLoadingOrder(false))
-  }, [orderId, businessId])
+  }, [orderId, businessId, searchParams])
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault()
