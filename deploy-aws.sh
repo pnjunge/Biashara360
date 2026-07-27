@@ -23,7 +23,7 @@ API_DOCKER_CONTEXT="."
 API_DOCKERFILE="./Dockerfile"
 
 WEB_DOCKER_CONTEXT="./web"
-WEB_DOCKERFILE="./web/Dockerfile"
+WEB_DOCKERFILE="./webApp/Dockerfile"
 
 DEFAULT_AWS_REGION="us-east-1"
 
