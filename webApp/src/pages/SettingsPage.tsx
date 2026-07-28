@@ -366,7 +366,7 @@ export function SettingsPage() {
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading CyberSource settings…</div>
           ) : (
             <>
-              <Section title="CyberSource Secure Acceptance & Gateway Credentials">
+              <Section title="CyberSource Secure Acceptance Hosted Checkout Configuration">
                 <Input
                   label="Merchant ID (Organization ID) *"
                   value={csMerchantId}
@@ -374,10 +374,16 @@ export function SettingsPage() {
                   placeholder="e.g. biashara360_merchant"
                 />
                 <Input
-                  label="REST API Key ID (Optional — for direct REST API)"
-                  value={csMerchantKeyId}
-                  onChange={setCsMerchantKeyId}
-                  placeholder="e.g. 9c7c25eb-xxxx-xxxx-xxxx-xxxxxxx (Optional)"
+                  label="Secure Acceptance Profile ID *"
+                  value={csProfileId}
+                  onChange={setCsProfileId}
+                  placeholder="e.g. 3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F"
+                />
+                <Input
+                  label="Secure Acceptance Access Key *"
+                  value={csAccessKey}
+                  onChange={setCsAccessKey}
+                  placeholder="e.g. 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"
                 />
                 <Input
                   label="Shared Secret Key (HMAC Signing Secret) *"
@@ -385,21 +391,6 @@ export function SettingsPage() {
                   onChange={setCsMerchantSecretKey}
                   type="password"
                   placeholder="Leave blank to keep current secret key"
-                />
-              </Section>
-
-              <Section title="Secure Acceptance Hosted Checkout Parameters">
-                <Input
-                  label="Secure Acceptance Profile ID"
-                  value={csProfileId}
-                  onChange={setCsProfileId}
-                  placeholder="e.g. 3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F"
-                />
-                <Input
-                  label="Secure Acceptance Access Key"
-                  value={csAccessKey}
-                  onChange={setCsAccessKey}
-                  placeholder="e.g. 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"
                 />
 
                 <div style={{ padding: 14, background: 'rgba(59, 130, 246, 0.08)', borderRadius: 10, border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: 12, lineHeight: 1.6, color: 'var(--b360-text-secondary)', marginTop: 8 }}>
