@@ -5,6 +5,6 @@ RUN ./gradlew installDist -x test
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=builder /app/build/install/backend /app
+COPY --from=builder /app/backend/build/install/backend /app
 EXPOSE 8080
 ENTRYPOINT ["/app/bin/backend"]
