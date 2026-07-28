@@ -15,22 +15,18 @@ import org.koin.ktor.ext.inject
 // ─── CyberSource Public Routes (no JWT required) ──────────────────────────────
 
 fun Route.cyberSourcePublicRoutes() {
-    get("/payments/card/public-order") { handlePublicOrder(call) }
-    get("/public/payments/card/public-order") { handlePublicOrder(call) }
+    route("/public/payments/card") {
+        get("/public-order") { handlePublicOrder(call) }
 
-    rateLimit(RateLimitName("public-payment-limiter")) {
-        post("/payments/card/sa-initiate") { handleSaInitiate(call) }
-        post("/public/payments/card/sa-initiate") { handleSaInitiate(call) }
+        rateLimit(RateLimitName("public-payment-limiter")) {
+            post("/sa-initiate") { handleSaInitiate(call) }
+        }
+
+        post("/sa-notify") { handleSaNotify(call) }
+
+        get("/sa-return") { handleSaReturnGet(call) }
+        post("/sa-return") { handleSaReturnPost(call) }
     }
-
-    post("/payments/card/sa-notify") { handleSaNotify(call) }
-    post("/public/payments/card/sa-notify") { handleSaNotify(call) }
-
-    get("/payments/card/sa-return") { handleSaReturnGet(call) }
-    get("/public/payments/card/sa-return") { handleSaReturnGet(call) }
-
-    post("/payments/card/sa-return") { handleSaReturnPost(call) }
-    post("/public/payments/card/sa-return") { handleSaReturnPost(call) }
 }
 
 private suspend fun handlePublicOrder(call: ApplicationCall) {
