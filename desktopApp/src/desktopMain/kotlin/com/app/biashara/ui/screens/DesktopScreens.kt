@@ -3604,12 +3604,14 @@ fun DesktopSocialScreen() {
 
 // ─── CyberSource Settings Screen ──────────────────────────────────────────────
 @Composable
-fun DesktopCyberSourceSettingsScreen() {
-    var merchantId by remember { mutableStateOf("WanFashion_CS_098") }
-    var merchantKeyId by remember { mutableStateOf("9c7c25eb-42f8-4a52-b8bb-69d2d0c2e39b") }
-    var merchantSecretKey by remember { mutableStateOf("••••••••••••••••••••••••••••••••") }
-    var isSandbox by remember { mutableStateOf(true) }
-    var showSuccessMessage by remember { mutableStateOf(false) }
+fun DesktopCyberSourceSettingsScreen(
+    viewModel: BusinessViewModel = remember { inject() }
+) {
+    val cyberSource by viewModel.cyberSourceState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadCyberSourceConfig()
+    }
 
     val scrollState = rememberScrollState()
 
@@ -3620,108 +3622,111 @@ fun DesktopCyberSourceSettingsScreen() {
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Text("CyberSource Configuration", fontWeight = FontWeight.Bold, fontSize = 22.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("CyberSource Secure Acceptance Configuration", fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            IconButton(onClick = { viewModel.loadCyberSourceConfig() }) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+            }
+        }
 
         Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("API Credentials", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Secure Acceptance Credentials", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 HorizontalDivider()
 
-                // Merchant ID
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Merchant ID (Organization ID)", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color.Gray)
-                    OutlinedTextField(
-                        value = merchantId,
-                        onValueChange = { merchantId = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        singleLine = true,
-                        placeholder = { Text("e.g. wanfashion_cs_098") }
-                    )
-                }
-
-                // Key ID
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Active Key ID (REST API JWT/P12 Key ID)", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color.Gray)
-                    OutlinedTextField(
-                        value = merchantKeyId,
-                        onValueChange = { merchantKeyId = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        singleLine = true,
-                        placeholder = { Text("e.g. 9c7c25eb-xxxx-xxxx-xxxx-xxxxxxx") }
-                    )
-                }
-
-                // Secret Key
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Shared Secret Key (Rest API Shared Secret)", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color.Gray)
-                    OutlinedTextField(
-                        value = merchantSecretKey,
-                        onValueChange = { merchantSecretKey = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        singleLine = true,
-                        placeholder = { Text("Enter your secure merchant shared secret key") }
-                    )
-                }
-
-                // Environment toggle
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Active Sandbox Environment", fontWeight = FontWeight.Medium)
-                        Text("Toggle off to deploy credentials on live CyberSource production rails", color = Color.Gray, fontSize = 12.sp)
+                if (cyberSource.isLoading) {
+                    Box(modifier = Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = B360Green)
                     }
-                    Switch(
-                        checked = isSandbox,
-                        onCheckedChange = { isSandbox = it },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = B360Green
+                } else {
+                    val config = cyberSource.config
+
+                    // Merchant ID
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Merchant ID (Organization ID)", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color.Gray)
+                        OutlinedTextField(
+                            value = config?.merchantId ?: "—",
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            singleLine = true
                         )
-                    )
-                }
+                    }
 
-                HorizontalDivider()
+                    // Profile ID
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Secure Acceptance Profile ID", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color.Gray)
+                        OutlinedTextField(
+                            value = config?.profileId ?: "—",
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            singleLine = true
+                        )
+                    }
 
-                if (showSuccessMessage) {
+                    // Access Key
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Secure Acceptance Access Key", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color.Gray)
+                        OutlinedTextField(
+                            value = config?.accessKey ?: "—",
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            singleLine = true
+                        )
+                    }
+
+                    // Secret Key Status
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Shared Secret Key", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color.Gray)
+                        OutlinedTextField(
+                            value = if (config?.secretConfigured == true) "•••••••• (Configured on backend)" else "Not configured",
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            singleLine = true
+                        )
+                    }
+
+                    // Environment
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Active Environment", fontWeight = FontWeight.Medium)
+                            Text(if (config?.environment == "production") "Production Rails" else "Sandbox Rail", color = Color.Gray, fontSize = 12.sp)
+                        }
+                        Text(
+                            text = (config?.environment ?: "sandbox").uppercase(),
+                            fontWeight = FontWeight.Bold,
+                            color = if (config?.environment == "production") B360Green else Color(0xFFD97706),
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    cyberSource.error?.let { err ->
+                        Text(err, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(B360Green.copy(0.15f))
+                            .background(B360Green.copy(0.12f))
                             .padding(14.dp)
                     ) {
-                        Text("✓ CyberSource configuration validated and saved successfully!", color = B360Green, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Button(
-                        onClick = {
-                            try {
-                                val configDir = java.io.File(System.getProperty("user.home"), ".biashara360")
-                                if (!configDir.exists()) configDir.mkdirs()
-                                val configFile = java.io.File(configDir, "cybersource_config.json")
-                                configFile.writeText(
-                                    "{\"merchantId\":\"$merchantId\",\"merchantKeyId\":\"$merchantKeyId\",\"sandbox\":$isSandbox}"
-                                )
-                            } catch (_: Exception) { /* best-effort */ }
-                            showSuccessMessage = true
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.width(180.dp)
-                    ) {
-                        Text("Save Configuration", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("🔐 CyberSource credentials are managed centrally on the Biashara360 web application and synchronized securely with the backend API.", color = Color(0xFF166534), fontSize = 13.sp)
                     }
                 }
             }

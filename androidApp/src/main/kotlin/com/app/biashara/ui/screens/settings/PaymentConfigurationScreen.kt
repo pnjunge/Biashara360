@@ -85,11 +85,12 @@ fun PaymentConfigurationScreen(
                 }
             }
             item {
-                MobileConfigCard("CyberSource") {
+                MobileConfigCard("CyberSource Secure Acceptance") {
                     val config = cyberSource.config
                     MobileConfigRow("Status", if (config == null) "Not configured" else "Configured")
                     MobileConfigRow("Merchant ID", config?.merchantId ?: "—")
-                    MobileConfigRow("Key ID", config?.merchantKeyId ?: "—")
+                    MobileConfigRow("Profile ID", config?.profileId ?: "—")
+                    MobileConfigRow("Access Key", config?.accessKey ?: "—")
                     MobileConfigRow("Environment", config?.environment ?: "—")
                     MobileConfigRow("Shared secret", if (config?.secretConfigured == true) "Configured" else "Not configured")
                     cyberSource.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

@@ -15,9 +15,11 @@ data class MpesaConfig(
 
 @Serializable
 data class CyberSourceConfig(
-    val businessId: String,
-    val merchantId: String,
-    val merchantKeyId: String,
+    val businessId: String = "",
+    val merchantId: String = "",
+    val merchantKeyId: String = "",
+    val profileId: String = "",
+    val accessKey: String = "",
     val environment: String = "sandbox",
     val secretConfigured: Boolean = false,
     val updatedAt: String = ""

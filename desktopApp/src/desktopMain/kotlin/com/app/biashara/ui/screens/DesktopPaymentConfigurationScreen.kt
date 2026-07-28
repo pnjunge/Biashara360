@@ -165,7 +165,7 @@ fun DesktopPaymentConfigurationScreen(
                 )
                 PaymentServiceCard(
                     modifier = Modifier.weight(1f),
-                    title = "CyberSource",
+                    title = "CyberSource Secure Acceptance",
                     subtitle = "Card payments",
                     icon = Icons.Default.CreditCard,
                     iconColor = Color(0xFF7C3AED),
@@ -174,7 +174,8 @@ fun DesktopPaymentConfigurationScreen(
                     error = cyberSource.error,
                     rows = listOf(
                         "Merchant ID" to (cyberSource.config?.merchantId ?: "—"),
-                        "Active Key ID" to (cyberSource.config?.merchantKeyId ?: "—"),
+                        "Profile ID" to (cyberSource.config?.profileId ?: "—"),
+                        "Access Key" to (cyberSource.config?.accessKey ?: "—"),
                         "Environment" to cyberSource.config?.environment.displayValue(),
                         "Shared Secret" to if (cyberSource.config?.secretConfigured == true) "Configured" else "Not configured",
                         "Last Updated" to (cyberSource.config?.updatedAt?.take(19)?.replace('T', ' ') ?: "—")
