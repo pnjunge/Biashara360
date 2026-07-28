@@ -28,6 +28,7 @@ class BusinessProfileService {
                     paybillNumber   = it[BusinessesTable.paybillNumber] ?: "",
                     accountNumber   = it[BusinessesTable.accountNumber] ?: "",
                     subscriptionTier = it[BusinessesTable.subscriptionTier],
+                    subscriptionEnabled = it[BusinessesTable.subscriptionEnabled],
                     receiptHeader   = it[BusinessesTable.receiptHeader],
                     receiptFooter   = it[BusinessesTable.receiptFooter],
                     receiptShowTax  = it[BusinessesTable.receiptShowTax],

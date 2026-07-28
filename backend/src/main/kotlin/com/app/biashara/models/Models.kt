@@ -396,6 +396,7 @@ data class BusinessProfileResponse(
     val paybillNumber: String,
     val accountNumber: String,
     val subscriptionTier: String,
+    val subscriptionEnabled: Boolean,
     val receiptHeader: String = "Welcome to our store!",
     val receiptFooter: String = "Thank you for shopping with us!",
     val receiptShowTax: Boolean = true,
@@ -429,6 +430,7 @@ data class BusinessResponse(
     val ownerPhone: String,
     val ownerEmail: String,
     val subscriptionTier: String,
+    val subscriptionEnabled: Boolean,
     val isActive: Boolean,
     val createdAt: String
 )
@@ -447,6 +449,12 @@ data class LinkUserToBusinessRequest(
 
 @Serializable
 data class UpdateBusinessStatusRequest(val isActive: Boolean)
+
+@Serializable
+data class UpdateSubscriptionRequest(
+    val enabled: Boolean,
+    val tier: String? = null
+)
 
 // ─── System Settings ─────────────────────────────────────────────────────────
 

@@ -8,6 +8,40 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 import kotlinx.datetime.Clock
 
+internal data class InitialOrderStatuses(
+    val payment: String,
+    val delivery: String
+)
+
+internal fun resolveInitialOrderStatuses(
+    paymentMethod: String,
+    requestedPaymentStatus: String?,
+    requestedDeliveryStatus: String?,
+    deliveryLocation: String
+): InitialOrderStatuses {
+    val method = paymentMethod.trim().uppercase()
+    val requestedPayment = requestedPaymentStatus?.trim()?.uppercase()
+    val requestedDelivery = requestedDeliveryStatus?.trim()?.uppercase()
+    val allowedPaymentStatuses = setOf("PAID", "PENDING", "COD", "FAILED")
+    val allowedDeliveryStatuses = setOf("PENDING", "PROCESSING", "SHIPPED", "DELIVERED")
+
+    val payment = when {
+        requestedPayment in setOf("PAID", "COMPLETED") -> "PAID"
+        method == "CASH" -> "PAID"
+        method == "COD" -> "COD"
+        requestedPayment in allowedPaymentStatuses -> requestedPayment!!
+        else -> "PENDING"
+    }
+    val isInStoreSale = deliveryLocation.trim().isEmpty() ||
+        deliveryLocation.trim().lowercase() in setOf("pos", "in-store pos", "in store pos")
+    val delivery = when {
+        requestedDelivery in allowedDeliveryStatuses -> requestedDelivery!!
+        method == "CASH" && isInStoreSale -> "DELIVERED"
+        else -> "PENDING"
+    }
+    return InitialOrderStatuses(payment, delivery)
+}
+
 class OrderService {
 
     fun getAll(businessId: String, paymentStatus: String? = null, page: Int = 1, pageSize: Int = 20): PagedResponse<OrderResponse> = transaction {
@@ -121,14 +155,12 @@ class OrderService {
         val now = Clock.System.now()
         val subtotal = req.items.sumOf { it.quantity * it.unitPrice }
 
-        val requestedPaymentStatus = req.paymentStatus?.uppercase()
-        val initialPaymentStatus = when {
-            requestedPaymentStatus in listOf("PAID", "COMPLETED") -> "PAID"
-            req.paymentMethod.uppercase() == "CASH" -> "PAID"
-            requestedPaymentStatus != null -> requestedPaymentStatus
-            else -> "PENDING"
-        }
-        val initialDeliveryStatus = req.deliveryStatus?.uppercase() ?: "PENDING"
+        val initialStatuses = resolveInitialOrderStatuses(
+            req.paymentMethod,
+            req.paymentStatus,
+            req.deliveryStatus,
+            req.deliveryLocation
+        )
 
         OrdersTable.insert {
             it[id] = orderId
@@ -139,8 +171,8 @@ class OrderService {
             it[customerName] = req.customerName
             it[customerPhone] = req.customerPhone
             it[deliveryLocation] = req.deliveryLocation
-            it[paymentStatus] = initialPaymentStatus
-            it[deliveryStatus] = initialDeliveryStatus
+            it[paymentStatus] = initialStatuses.payment
+            it[deliveryStatus] = initialStatuses.delivery
             it[paymentMethod] = req.paymentMethod
             it[notes] = req.notes
             it[OrdersTable.subtotal] = subtotal

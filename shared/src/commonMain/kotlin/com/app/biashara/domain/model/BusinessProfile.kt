@@ -16,6 +16,7 @@ data class BusinessProfile(
     val paybillNumber: String,
     val accountNumber: String,
     val subscriptionTier: String,
+    val subscriptionEnabled: Boolean = true,
     val receiptHeader: String = "Welcome to our store!",
     val receiptFooter: String = "Thank you for shopping with us!",
     val receiptShowTax: Boolean = true,

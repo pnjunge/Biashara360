@@ -3,6 +3,7 @@ package com.app.biashara.plugins
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.app.biashara.auth.JwtUtils
+import com.app.biashara.db.BusinessesTable
 import com.app.biashara.models.ApiResponse
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
@@ -18,6 +19,8 @@ import io.ktor.server.plugins.*
 import io.ktor.server.plugins.ratelimit.*
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.transactions.transaction
 
 fun Application.configureSerialization() {
     install(ContentNegotiation) {
@@ -46,7 +49,17 @@ fun Application.configureSecurity() {
                 val type = credential.payload.getClaim("type").asString()
                 val businessId = credential.payload.getClaim("businessId").asString()
                 val role = credential.payload.getClaim("role").asString()
-                if (type == "access" && (!businessId.isNullOrBlank() || role == "SUPERADMIN")) {
+                val businessCanAccess = role == "SUPERADMIN" || (!businessId.isNullOrBlank() && transaction {
+                    BusinessesTable
+                        .slice(BusinessesTable.isActive, BusinessesTable.subscriptionEnabled)
+                        .select { BusinessesTable.id eq businessId }
+                        .firstOrNull()
+                        ?.let {
+                            it[BusinessesTable.isActive] &&
+                                it[BusinessesTable.subscriptionEnabled]
+                        } == true
+                })
+                if (type == "access" && businessCanAccess) {
                     JWTPrincipal(credential.payload)
                 } else null
             }

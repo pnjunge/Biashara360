@@ -705,12 +705,18 @@ export interface BusinessResponse {
   ownerPhone: string
   ownerEmail: string
   subscriptionTier: string
+  subscriptionEnabled: boolean
   isActive: boolean
   createdAt: string
 }
 
 export interface UpdateBusinessStatusRequest {
   isActive: boolean
+}
+
+export interface UpdateSubscriptionRequest {
+  enabled: boolean
+  tier?: 'FREEMIUM' | 'PREMIUM'
 }
 
 export interface CreateBusinessWithAdminRequest {
@@ -762,6 +768,7 @@ export interface BusinessProfileResponse {
   paybillNumber: string
   accountNumber: string
   subscriptionTier: string
+  subscriptionEnabled: boolean
   receiptHeader?: string
   receiptFooter?: string
   receiptShowTax?: boolean
@@ -867,6 +874,10 @@ export const superAdminApi = {
   },
   setBusinessStatus: async (businessId: string, data: UpdateBusinessStatusRequest) => {
     const res = await client.patch<ApiResponse<BusinessResponse>>(`/admin/businesses/${businessId}/status`, data)
+    return res.data
+  },
+  updateSubscription: async (businessId: string, data: UpdateSubscriptionRequest) => {
+    const res = await client.patch<ApiResponse<BusinessResponse>>(`/admin/businesses/${businessId}/subscription`, data)
     return res.data
   },
   getMpesaCallbackUrl: async () => {

@@ -578,9 +578,21 @@ export function UserCreationPage() {
   }
 
   const handleToggleBusinessStatus = async (id: string, isActive: boolean) => {
+    if (!isActive && !window.confirm('Disable this business account? All merchant access will stop immediately.')) return
     const res = await superAdminApi.setBusinessStatus(id, { isActive })
     if (res.success && res.data) {
       setBusinesses(prev => prev.map(b => (b.id === id ? res.data! : b)))
+    }
+  }
+
+  const handleSubscriptionChange = async (business: BusinessResponse, enabled: boolean, tier = business.subscriptionTier) => {
+    if (!enabled && !window.confirm(`Disable ${business.name}'s subscription? Existing sessions will stop working immediately.`)) return
+    const res = await superAdminApi.updateSubscription(business.id, {
+      enabled,
+      tier: tier === 'PREMIUM' ? 'PREMIUM' : 'FREEMIUM',
+    })
+    if (res.success && res.data) {
+      setBusinesses(prev => prev.map(b => (b.id === business.id ? res.data! : b)))
     }
   }
 
@@ -656,18 +668,30 @@ export function UserCreationPage() {
               <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Create one above.</div>
             ) : (
               <DataTable
-                headers={['Business Name', 'Type', 'Owner Email', 'Owner Phone', 'Tier', 'Status', 'Created', 'Action']}
+                headers={['Business Name', 'Type', 'Tier', 'Subscription', 'Business', 'Created', 'Actions']}
                 rows={businesses.map(b => [
                   b.name,
                   b.type,
-                  b.ownerEmail,
-                  b.ownerPhone,
-                  <StatusBadge key="tier" status={b.subscriptionTier === 'FREEMIUM' ? 'COD' : 'PAID'} />,
-                  <StatusBadge key="status" status={b.isActive ? 'PAID' : 'FAILED'} />,
+                  <select
+                    key="tier"
+                    value={b.subscriptionTier}
+                    onChange={event => handleSubscriptionChange(b, b.subscriptionEnabled, event.target.value)}
+                    style={{ padding: '6px 8px', borderRadius: 7, fontSize: 12 }}
+                  >
+                    <option value="FREEMIUM">Freemium</option>
+                    <option value="PREMIUM">Premium</option>
+                  </select>,
+                  <StatusBadge key="subscription" status={b.subscriptionEnabled ? 'ACTIVE' : 'INACTIVE'} />,
+                  <StatusBadge key="status" status={b.isActive ? 'ACTIVE' : 'INACTIVE'} />,
                   new Date(b.createdAt).toLocaleDateString(),
-                  <Btn key="biz-status" variant={b.isActive ? 'danger' : 'secondary'} small onClick={() => handleToggleBusinessStatus(b.id, !b.isActive)}>
-                    {b.isActive ? 'Disable' : 'Enable'}
-                  </Btn>,
+                  <div key="actions" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <Btn variant={b.subscriptionEnabled ? 'danger' : 'secondary'} small onClick={() => handleSubscriptionChange(b, !b.subscriptionEnabled)}>
+                      {b.subscriptionEnabled ? 'Disable subscription' : 'Enable subscription'}
+                    </Btn>
+                    <Btn variant={b.isActive ? 'danger' : 'secondary'} small onClick={() => handleToggleBusinessStatus(b.id, !b.isActive)}>
+                      {b.isActive ? 'Disable business' : 'Enable business'}
+                    </Btn>
+                  </div>,
                 ])}
               />
             )}
@@ -749,9 +773,21 @@ export function BusinessPage() {
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const handleToggleBusinessStatus = async (id: string, isActive: boolean) => {
+    if (!isActive && !window.confirm('Disable this business account? All merchant access will stop immediately.')) return
     const res = await superAdminApi.setBusinessStatus(id, { isActive })
     if (res.success && res.data) {
       setBusinesses(prev => prev.map(b => (b.id === id ? res.data! : b)))
+    }
+  }
+
+  const handleSubscriptionChange = async (business: BusinessResponse, enabled: boolean, tier = business.subscriptionTier) => {
+    if (!enabled && !window.confirm(`Disable ${business.name}'s subscription? Existing sessions will stop working immediately.`)) return
+    const res = await superAdminApi.updateSubscription(business.id, {
+      enabled,
+      tier: tier === 'PREMIUM' ? 'PREMIUM' : 'FREEMIUM',
+    })
+    if (res.success && res.data) {
+      setBusinesses(prev => prev.map(b => (b.id === business.id ? res.data! : b)))
     }
   }
 
@@ -875,18 +911,30 @@ export function BusinessPage() {
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Click "Add Business" to create one.</div>
           ) : (
             <DataTable
-              headers={['Business Name', 'Type', 'Owner Email', 'Owner Phone', 'Tier', 'Status', 'Created', 'Action']}
+              headers={['Business Name', 'Type', 'Tier', 'Subscription', 'Business', 'Created', 'Actions']}
               rows={businesses.map(b => [
                 b.name,
                 b.type,
-                b.ownerEmail,
-                b.ownerPhone,
-                <StatusBadge key="tier" status={b.subscriptionTier === 'FREEMIUM' ? 'COD' : 'PAID'} />,
-                <StatusBadge key="status" status={b.isActive ? 'PAID' : 'FAILED'} />,
+                <select
+                  key="tier"
+                  value={b.subscriptionTier}
+                  onChange={event => handleSubscriptionChange(b, b.subscriptionEnabled, event.target.value)}
+                  style={{ padding: '6px 8px', borderRadius: 7, fontSize: 12 }}
+                >
+                  <option value="FREEMIUM">Freemium</option>
+                  <option value="PREMIUM">Premium</option>
+                </select>,
+                <StatusBadge key="subscription" status={b.subscriptionEnabled ? 'ACTIVE' : 'INACTIVE'} />,
+                <StatusBadge key="status" status={b.isActive ? 'ACTIVE' : 'INACTIVE'} />,
                 new Date(b.createdAt).toLocaleDateString(),
-                <Btn key="biz-status" variant={b.isActive ? 'danger' : 'secondary'} small onClick={() => handleToggleBusinessStatus(b.id, !b.isActive)}>
-                  {b.isActive ? 'Disable' : 'Enable'}
-                </Btn>,
+                <div key="actions" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <Btn variant={b.subscriptionEnabled ? 'danger' : 'secondary'} small onClick={() => handleSubscriptionChange(b, !b.subscriptionEnabled)}>
+                    {b.subscriptionEnabled ? 'Disable subscription' : 'Enable subscription'}
+                  </Btn>
+                  <Btn variant={b.isActive ? 'danger' : 'secondary'} small onClick={() => handleToggleBusinessStatus(b.id, !b.isActive)}>
+                    {b.isActive ? 'Disable business' : 'Enable business'}
+                  </Btn>
+                </div>,
               ])}
             />
           )}

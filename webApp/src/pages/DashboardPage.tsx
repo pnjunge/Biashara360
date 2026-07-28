@@ -179,7 +179,7 @@ export default function DashboardPage() {
             />
             <KpiCard
               title="Pending Payments"
-              value={String(recentOrders.filter(o => o.paymentStatus === 'PENDING').length || 3)}
+              value={String(recentOrders.filter(o => o.paymentStatus === 'PENDING').length)}
               change="orders pending"
               icon={<Clock size={22}/>}
               color="var(--b360-red)"
@@ -259,7 +259,7 @@ export default function DashboardPage() {
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {[
                   { msg: `${lowStockProducts.length || 2} products low stock`, icon: AlertTriangle, color: 'var(--b360-amber)', bg: 'var(--b360-amber-bg)' },
-                  { msg: `${recentOrders.filter(o => o.paymentStatus === 'PENDING').length || 3} unpaid orders`, icon: Clock, color: 'var(--b360-red)', bg: 'var(--b360-red-bg)' },
+                  { msg: `${recentOrders.filter(o => o.paymentStatus === 'PENDING').length} unpaid orders`, icon: Clock, color: 'var(--b360-red)', bg: 'var(--b360-red-bg)' },
                   { msg: '5 new customers this week', icon: UserPlus, color: 'var(--b360-green)', bg: 'var(--b360-green-bg)' },
                   { msg: 'Mpesa: 2 unreconciled', icon: Activity, color: 'var(--b360-blue)', bg: 'var(--b360-blue-bg)' }
                 ].map((a, i) => {
@@ -535,5 +535,4 @@ export function InventoryPage() {
     </div>
   )
 }
-
 

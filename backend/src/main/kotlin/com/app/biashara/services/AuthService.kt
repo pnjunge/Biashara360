@@ -79,6 +79,10 @@ class AuthService(
             RefreshTokensTable.deleteWhere { RefreshTokensTable.id eq stored[RefreshTokensTable.id] }
             return@transaction ApiResponse(false, message = "Account is deactivated")
         }
+        businessAccessError(user[UsersTable.businessId])?.let { message ->
+            RefreshTokensTable.deleteWhere { RefreshTokensTable.id eq stored[RefreshTokensTable.id] }
+            return@transaction ApiResponse(false, message = message)
+        }
         // Rotate atomically: a refresh token is single-use.
         RefreshTokensTable.deleteWhere { RefreshTokensTable.id eq stored[RefreshTokensTable.id] }
         val auth = issueTokens(userId, user[UsersTable.businessId], user[UsersTable.role])
@@ -130,6 +134,9 @@ class AuthService(
             return@transaction ApiResponse(false, message = "Invalid credentials")
         if (!user[UsersTable.isActive])
             return@transaction ApiResponse(false, message = "Account is deactivated")
+        businessAccessError(user[UsersTable.businessId])?.let { message ->
+            return@transaction ApiResponse(false, message = message)
+        }
         val userId = user[UsersTable.id]
         if (user[UsersTable.twoFactorEnabled]) {
             val otp = OtpUtils.generate()
@@ -184,6 +191,12 @@ class AuthService(
         OtpTable.update({ OtpTable.id eq otpRow[OtpTable.id] }) { it[used] = true }
         val user = UsersTable.select { UsersTable.id eq req.userId }.firstOrNull()
             ?: return@transaction ApiResponse(false, message = "User not found")
+        if (!user[UsersTable.isActive]) {
+            return@transaction ApiResponse(false, message = "Account is deactivated")
+        }
+        businessAccessError(user[UsersTable.businessId])?.let { message ->
+            return@transaction ApiResponse(false, message = message)
+        }
         val auth = issueTokens(req.userId, user[UsersTable.businessId], user[UsersTable.role])
         ApiResponse(success = true, data = auth, message = "Login successful")
     }
@@ -319,6 +332,17 @@ class AuthService(
             } catch (e: Exception) {
                 println("[AuthService] Email dispatch failed")
             }
+        }
+    }
+
+    private fun businessAccessError(businessId: String?): String? {
+        if (businessId == null) return null
+        val business = BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull()
+            ?: return "Business account was not found"
+        return when {
+            !business[BusinessesTable.isActive] -> "Business account is disabled"
+            !business[BusinessesTable.subscriptionEnabled] -> "Subscription is disabled. Contact Biashara360 support."
+            else -> null
         }
     }
 

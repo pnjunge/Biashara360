@@ -73,6 +73,23 @@ fun Route.superAdminRoutes() {
                 val result = superAdminService.setBusinessActiveStatus(businessId, req)
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
             }
+
+            patch("/{id}/subscription") {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@patch
+                }
+                val businessId = call.parameters["id"]
+                if (businessId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Business id is required"))
+                    return@patch
+                }
+                val result = superAdminService.updateSubscription(
+                    businessId,
+                    call.receive<UpdateSubscriptionRequest>()
+                )
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
         }
 
         route("/users") {

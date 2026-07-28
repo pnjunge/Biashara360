@@ -197,10 +197,8 @@ enum class BusinessType(val value: String) {
 }
 
 enum class SubscriptionTier(val value: String) {
-    FREE("FREE"),
-    BASIC("BASIC"),
-    PREMIUM("PREMIUM"),
-    ENTERPRISE("ENTERPRISE");
+    FREEMIUM("FREEMIUM"),
+    PREMIUM("PREMIUM");
     
     companion object {
         fun from(value: String): SubscriptionTier? = entries.find { it.value == value.uppercase() }
@@ -210,9 +208,8 @@ enum class SubscriptionTier(val value: String) {
     fun allowsFeature(feature: String): Boolean {
         // Feature flag logic can be expanded
         return when (this) {
-            FREE -> feature in listOf("basic_pos", "basic_inventory")
-            BASIC -> feature in listOf("basic_pos", "basic_inventory", "reports", "mpesa")
-            PREMIUM, ENTERPRISE -> true  // All features
+            FREEMIUM -> feature in listOf("basic_pos", "basic_inventory")
+            PREMIUM -> true
         }
     }
 }

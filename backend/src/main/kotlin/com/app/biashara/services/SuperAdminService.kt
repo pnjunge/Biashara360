@@ -96,6 +96,7 @@ class SuperAdminService {
             ownerPhone       = ValidationUtils.normalizePhoneKE(req.adminPhone),
             ownerEmail       = req.adminEmail,
             subscriptionTier = "FREEMIUM",
+            subscriptionEnabled = true,
             isActive         = true,
             createdAt        = now.toString()
         )
@@ -144,6 +145,7 @@ class SuperAdminService {
                 ownerPhone       = "",
                 ownerEmail       = "",
                 subscriptionTier = "FREEMIUM",
+                subscriptionEnabled = true,
                 isActive         = true,
                 createdAt        = now.toString()
             ),
@@ -163,6 +165,7 @@ class SuperAdminService {
                     ownerPhone       = it[BusinessesTable.ownerPhone],
                     ownerEmail       = it[BusinessesTable.ownerEmail],
                     subscriptionTier = it[BusinessesTable.subscriptionTier],
+                    subscriptionEnabled = it[BusinessesTable.subscriptionEnabled],
                     isActive         = it[BusinessesTable.isActive],
                     createdAt        = it[BusinessesTable.createdAt].toString()
                 )
@@ -194,10 +197,49 @@ class SuperAdminService {
                 ownerPhone = updated[BusinessesTable.ownerPhone],
                 ownerEmail = updated[BusinessesTable.ownerEmail],
                 subscriptionTier = updated[BusinessesTable.subscriptionTier],
+                subscriptionEnabled = updated[BusinessesTable.subscriptionEnabled],
                 isActive = updated[BusinessesTable.isActive],
                 createdAt = updated[BusinessesTable.createdAt].toString()
             ),
             message = if (req.isActive) "Business activated" else "Business deactivated"
+        )
+    }
+
+    fun updateSubscription(
+        businessId: String,
+        req: UpdateSubscriptionRequest
+    ): ApiResponse<BusinessResponse> = transaction {
+        if (!ValidationUtils.isValidUUID(businessId)) {
+            return@transaction ApiResponse(false, message = "Invalid business ID format")
+        }
+        val normalizedTier = req.tier?.trim()?.uppercase()
+        if (normalizedTier != null && normalizedTier !in setOf("FREEMIUM", "PREMIUM")) {
+            return@transaction ApiResponse(false, message = "Subscription tier must be FREEMIUM or PREMIUM")
+        }
+        BusinessesTable.select {
+            (BusinessesTable.id eq businessId) and (BusinessesTable.type neq "SYSTEM")
+        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Business not found")
+
+        BusinessesTable.update({ BusinessesTable.id eq businessId }) {
+            it[subscriptionEnabled] = req.enabled
+            if (normalizedTier != null) it[subscriptionTier] = normalizedTier
+            it[updatedAt] = Clock.System.now()
+        }
+        val updated = BusinessesTable.select { BusinessesTable.id eq businessId }.first()
+        ApiResponse(
+            success = true,
+            data = BusinessResponse(
+                id = updated[BusinessesTable.id],
+                name = updated[BusinessesTable.name],
+                type = updated[BusinessesTable.type],
+                ownerPhone = updated[BusinessesTable.ownerPhone],
+                ownerEmail = updated[BusinessesTable.ownerEmail],
+                subscriptionTier = updated[BusinessesTable.subscriptionTier],
+                subscriptionEnabled = updated[BusinessesTable.subscriptionEnabled],
+                isActive = updated[BusinessesTable.isActive],
+                createdAt = updated[BusinessesTable.createdAt].toString()
+            ),
+            message = if (req.enabled) "Subscription enabled" else "Subscription disabled"
         )
     }
 

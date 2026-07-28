@@ -92,14 +92,18 @@ export function SettingsPage() {
   // ── 6. Notifications State ─────────────────────────────────────────────────
   const [smsAlerts, setSmsAlerts] = useState(true)
   const [emailAlerts, setEmailAlerts] = useState(false)
+  const [subscriptionTier, setSubscriptionTier] = useState('FREEMIUM')
+  const [subscriptionEnabled, setSubscriptionEnabled] = useState(true)
 
   // Load Tab-Specific Data
   useEffect(() => {
-    if (activeTab === 'general') {
+    if (activeTab === 'general' || activeTab === 'notifications') {
       setProfileLoading(true)
       businessApi.getProfile().then(res => {
         if (res.success && res.data) {
           const d = res.data
+          setSubscriptionTier(d.subscriptionTier || 'FREEMIUM')
+          setSubscriptionEnabled(d.subscriptionEnabled !== false)
           setProfile({
             name: d.name || '', owner: d.owner || '', phone: d.phone || '',
             email: d.email || '', type: d.type || '', county: d.county || '',
@@ -653,12 +657,33 @@ export function SettingsPage() {
           <Section title="Subscription Plan & Tier">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>Freemium Plan</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>
+                    {subscriptionTier === 'PREMIUM' ? 'Premium Plan' : 'Freemium Plan'}
+                  </div>
+                  <span style={{
+                    padding: '3px 8px',
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: subscriptionEnabled ? '#047857' : '#b91c1c',
+                    background: subscriptionEnabled ? '#d1fae5' : '#fee2e2',
+                  }}>
+                    {subscriptionEnabled ? 'Active' : 'Disabled'}
+                  </span>
+                </div>
                 <div style={{ fontSize: 12, color: 'var(--b360-text-secondary)', marginTop: 2 }}>
-                  Up to 100 products & 50 orders per month
+                  {subscriptionEnabled
+                    ? (subscriptionTier === 'PREMIUM'
+                      ? 'Premium features are enabled for this business.'
+                      : 'Up to 100 products & 50 orders per month.')
+                    : 'Access is disabled. Contact Biashara360 support to reactivate this subscription.'}
                 </div>
               </div>
-              <Btn onClick={() => window.open('mailto:sales@biashara360.co.ke?subject=Upgrade Biashara360 Plan', '_blank')}>
+              <Btn
+                disabled={!subscriptionEnabled || subscriptionTier === 'PREMIUM'}
+                onClick={() => window.open('mailto:sales@biashara360.co.ke?subject=Upgrade Biashara360 Plan', '_blank')}
+              >
                 Upgrade to Premium →
               </Btn>
             </div>

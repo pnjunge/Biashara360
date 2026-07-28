@@ -23,6 +23,7 @@ object BusinessesTable : Table("businesses") {
     val mpesaShortCode = varchar("mpesa_short_code", 20).nullable()
     val currency = varchar("currency", 10).default("KES")
     val subscriptionTier = varchar("subscription_tier", 20).default("FREEMIUM")
+    val subscriptionEnabled = bool("subscription_enabled").default(true)
     val enabledModules = text("enabled_modules").default("INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS")
     val isActive = bool("is_active").default(true)
     val receiptHeader = varchar("receipt_header", 255).default("Welcome to our store!")

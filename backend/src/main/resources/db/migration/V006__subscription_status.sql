@@ -1,0 +1,2 @@
+ALTER TABLE businesses
+    ADD COLUMN IF NOT EXISTS subscription_enabled BOOLEAN NOT NULL DEFAULT TRUE;

@@ -3095,7 +3095,8 @@ fun DesktopSettingsScreen(
                             kraPin = profile?.kraPin ?: "",
                             paybillNumber = shortCodeInput,
                             accountNumber = profile?.accountNumber ?: "",
-                            subscriptionTier = profile?.subscriptionTier ?: "Freemium"
+                            subscriptionTier = profile?.subscriptionTier ?: "FREEMIUM",
+                            subscriptionEnabled = profile?.subscriptionEnabled ?: true
                         )
                         when (fieldName) {
                             "name" -> {
@@ -3201,8 +3202,16 @@ fun DesktopSettingsScreen(
                                         fontSize = 14.sp
                                     )
                                     Text(
-                                        text = "Freemium",
-                                        color = Color.Gray,
+                                        text = buildString {
+                                            append(
+                                                profile?.subscriptionTier
+                                                    ?.lowercase()
+                                                    ?.replaceFirstChar { it.uppercase() }
+                                                    ?: "Freemium"
+                                            )
+                                            append(if (profile?.subscriptionEnabled == false) " · Disabled" else " · Active")
+                                        },
+                                        color = if (profile?.subscriptionEnabled == false) Color(0xFFDC2626) else Color.Gray,
                                         fontSize = 13.sp
                                     )
                                 }
@@ -3218,6 +3227,8 @@ fun DesktopSettingsScreen(
                                             }
                                         }
                                     },
+                                    enabled = profile?.subscriptionEnabled != false &&
+                                        profile?.subscriptionTier?.uppercase() != "PREMIUM",
                                     colors = ButtonDefaults.buttonColors(B360Green),
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
