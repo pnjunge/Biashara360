@@ -402,8 +402,8 @@ export function SettingsPage() {
                 <div style={{ padding: 14, background: 'rgba(59, 130, 246, 0.08)', borderRadius: 10, border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: 12, lineHeight: 1.6, color: 'var(--b360-text-secondary)', marginTop: 8 }}>
                   <strong style={{ color: 'var(--b360-text-primary)' }}>CyberSource Business Center Setup Checklist:</strong>
                   <ul style={{ margin: '6px 0 0 16px', padding: 0 }}>
-                    <li><strong>Merchant Notification URL (Webhook):</strong> <code>https://api.biashara360.co.ke/v1/payments/card/sa-notify</code></li>
-                    <li><strong>Customer Response & Cancel URL:</strong> <code>https://api.biashara360.co.ke/v1/payments/card/sa-return</code></li>
+                    <li><strong>Merchant Notification URL (Webhook):</strong> <code>https://api.biashara360.co.ke/v1/public/payments/card/sa-notify</code></li>
+                    <li><strong>Customer Response & Cancel URL:</strong> <code>https://api.biashara360.co.ke/v1/public/payments/card/sa-return</code></li>
                     <li><strong>Transaction Type:</strong> <code>sale</code></li>
                   </ul>
                 </div>

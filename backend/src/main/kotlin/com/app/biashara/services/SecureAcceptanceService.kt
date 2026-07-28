@@ -96,8 +96,8 @@ class SecureAcceptanceService(
 
         // Determine redirect URLs based on runtime API base
         val apiBase = "https://api.biashara360.co.ke/v1"
-        val receiptUrl = "$apiBase/payments/card/sa-return"
-        val cancelUrl  = "$apiBase/payments/card/sa-return"
+        val receiptUrl = "$apiBase/public/payments/card/sa-return"
+        val cancelUrl  = "$apiBase/public/payments/card/sa-return"
 
         val fields = linkedMapOf(
             "access_key"                      to config.accessKey,

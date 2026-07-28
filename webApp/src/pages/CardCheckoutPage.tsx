@@ -43,7 +43,7 @@ export default function CardCheckoutPage() {
       setLoadingOrder(false)
       return
     }
-    client.get<ApiResponse<OrderResponse>>('/payments/card/public-order', {
+    client.get<ApiResponse<OrderResponse>>('/public/payments/card/public-order', {
       params: { orderId, businessId }
     }).then(res => {
       if (res.data.success && res.data.data) {
@@ -71,7 +71,7 @@ export default function CardCheckoutPage() {
     if (!order) return
     setRedirecting(true)
     try {
-      const res = await client.post<ApiResponse<SaInitiateResponse>>('/payments/card/sa-initiate', {
+      const res = await client.post<ApiResponse<SaInitiateResponse>>('/public/payments/card/sa-initiate', {
         businessId,
         orderId: order.id,
         amount: order.subtotal,
