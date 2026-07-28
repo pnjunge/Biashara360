@@ -265,7 +265,7 @@ fun Route.cyberSourceRoutes() {
     val csService: CyberSourcePaymentService by inject()
     val orderService: OrderService by inject()
 
-    route("/payments/card") {
+    route("/payments/card/manage") {
 
         /**
          * POST /v1/payments/card/generate-link
