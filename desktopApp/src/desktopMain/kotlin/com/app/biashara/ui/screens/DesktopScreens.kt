@@ -3658,6 +3658,19 @@ fun DesktopCyberSourceSettingsScreen(
                         )
                     }
 
+                    // Merchant Key ID
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Merchant Key ID (REST API Key ID)", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color.Gray)
+                        OutlinedTextField(
+                            value = config?.merchantKeyId ?: "—",
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            singleLine = true
+                        )
+                    }
+
                     // Profile ID
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Secure Acceptance Profile ID", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color.Gray)

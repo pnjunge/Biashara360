@@ -374,6 +374,12 @@ export function SettingsPage() {
                   placeholder="e.g. biashara360_merchant"
                 />
                 <Input
+                  label="Merchant Key ID (REST API Key ID) *"
+                  value={csMerchantKeyId}
+                  onChange={setCsMerchantKeyId}
+                  placeholder="e.g. 9c7c25eb-xxxx-xxxx-xxxx-xxxxxxx"
+                />
+                <Input
                   label="Secure Acceptance Profile ID *"
                   value={csProfileId}
                   onChange={setCsProfileId}

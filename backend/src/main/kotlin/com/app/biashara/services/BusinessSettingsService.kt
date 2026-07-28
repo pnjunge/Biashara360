@@ -177,6 +177,9 @@ class BusinessSettingsService {
         if (req.merchantId.isBlank()) {
             return@transaction ApiResponse(false, message = "merchantId is required")
         }
+        if (req.merchantKeyId.isBlank()) {
+            return@transaction ApiResponse(false, message = "merchantKeyId is required")
+        }
         val env = req.environment.lowercase()
         if (env !in listOf("sandbox", "production")) {
             return@transaction ApiResponse(false, message = "Environment must be 'sandbox' or 'production'")

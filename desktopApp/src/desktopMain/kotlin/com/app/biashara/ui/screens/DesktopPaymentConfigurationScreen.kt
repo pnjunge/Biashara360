@@ -174,6 +174,7 @@ fun DesktopPaymentConfigurationScreen(
                     error = cyberSource.error,
                     rows = listOf(
                         "Merchant ID" to (cyberSource.config?.merchantId ?: "—"),
+                        "Merchant Key ID" to (cyberSource.config?.merchantKeyId ?: "—"),
                         "Profile ID" to (cyberSource.config?.profileId ?: "—"),
                         "Access Key" to (cyberSource.config?.accessKey ?: "—"),
                         "Environment" to cyberSource.config?.environment.displayValue(),

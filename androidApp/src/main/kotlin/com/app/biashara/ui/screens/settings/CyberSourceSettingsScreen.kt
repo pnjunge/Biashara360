@@ -91,6 +91,16 @@ fun CyberSourceSettingsScreen(
                         )
 
                         OutlinedTextField(
+                            value = config?.merchantKeyId ?: "—",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Merchant Key ID (REST API Key ID)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp)
+                        )
+
+                        OutlinedTextField(
                             value = config?.profileId ?: "—",
                             onValueChange = {},
                             readOnly = true,
