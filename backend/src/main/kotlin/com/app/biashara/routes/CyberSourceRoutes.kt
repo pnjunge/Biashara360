@@ -138,124 +138,123 @@ fun Route.cyberSourcePublicRoutes() {
         }
     }
 
-    route("/payments/card") {
-        get("/public-order") {
-            val orderId    = call.request.queryParameters["orderId"]
-            val businessId = call.request.queryParameters["businessId"]
-            if (orderId.isNullOrBlank() || businessId.isNullOrBlank()) {
-                call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Missing orderId or businessId"))
-                return@get
-            }
-            val order = orderService.getById(orderId, businessId)
-            if (order != null) {
-                call.respond(ApiResponse(true, data = order))
-            } else {
-                val now = kotlinx.datetime.Clock.System.now().toString()
-                val adHoc = OrderResponse(
-                    id = orderId, orderNumber = orderId, businessId = businessId,
-                    customerId = null, customerName = "", customerPhone = "",
-                    deliveryLocation = "", items = emptyList(),
-                    paymentStatus = "PENDING", deliveryStatus = "PENDING",
-                    paymentMethod = "CARD", mpesaTransactionCode = null,
-                    subtotal = 0.0, notes = "Card Payment Link",
-                    createdAt = now, updatedAt = now
-                )
-                call.respond(ApiResponse(true, data = adHoc))
-            }
+    // Direct path mappings for legacy unauthenticated /payments/card routes
+    get("/payments/card/public-order") {
+        val orderId    = call.request.queryParameters["orderId"]
+        val businessId = call.request.queryParameters["businessId"]
+        if (orderId.isNullOrBlank() || businessId.isNullOrBlank()) {
+            call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Missing orderId or businessId"))
+            return@get
         }
-
-        post("/sa-initiate") {
-            val req = call.receive<SaInitiateRequest>()
-            if (req.businessId.isBlank() || req.orderId.isBlank() || req.amount <= 0) {
-                call.respond(
-                    HttpStatusCode.BadRequest,
-                    ApiResponse<Unit>(false, message = "businessId, orderId, and a positive amount are required")
-                )
-                return@post
-            }
-            val order = orderService.getById(req.orderId, req.businessId)
-            if (order?.paymentStatus == "PAID") {
-                call.respond(
-                    HttpStatusCode.BadRequest,
-                    ApiResponse<Unit>(false, message = "This order has already been paid")
-                )
-                return@post
-            }
-
-            val result = saService.buildSaForm(
-                SaFormRequest(
-                    businessId    = req.businessId,
-                    orderId       = req.orderId,
-                    amount        = req.amount,
-                    customerName  = req.customerName,
-                    customerEmail = req.customerEmail,
-                    customerPhone = req.customerPhone
-                )
+        val order = orderService.getById(orderId, businessId)
+        if (order != null) {
+            call.respond(ApiResponse(true, data = order))
+        } else {
+            val now = kotlinx.datetime.Clock.System.now().toString()
+            val adHoc = OrderResponse(
+                id = orderId, orderNumber = orderId, businessId = businessId,
+                customerId = null, customerName = "", customerPhone = "",
+                deliveryLocation = "", items = emptyList(),
+                paymentStatus = "PENDING", deliveryStatus = "PENDING",
+                paymentMethod = "CARD", mpesaTransactionCode = null,
+                subtotal = 0.0, notes = "Card Payment Link",
+                createdAt = now, updatedAt = now
             )
+            call.respond(ApiResponse(true, data = adHoc))
+        }
+    }
 
-            if (!result.success) {
-                call.respond(
-                    HttpStatusCode.ServiceUnavailable,
-                    ApiResponse<Unit>(false, message = result.error ?: "Could not build Secure Acceptance form")
-                )
-                return@post
-            }
-
+    post("/payments/card/sa-initiate") {
+        val req = call.receive<SaInitiateRequest>()
+        if (req.businessId.isBlank() || req.orderId.isBlank() || req.amount <= 0) {
             call.respond(
-                ApiResponse(
-                    true,
-                    data = SaInitiateResponse(actionUrl = result.actionUrl, fields = result.fields)
-                )
+                HttpStatusCode.BadRequest,
+                ApiResponse<Unit>(false, message = "businessId, orderId, and a positive amount are required")
             )
+            return@post
+        }
+        val order = orderService.getById(req.orderId, req.businessId)
+        if (order?.paymentStatus == "PAID") {
+            call.respond(
+                HttpStatusCode.BadRequest,
+                ApiResponse<Unit>(false, message = "This order has already been paid")
+            )
+            return@post
         }
 
-        post("/sa-notify") {
-            val params = call.receiveParameters()
-            val fields = params.entries().associate { entry -> entry.key to (entry.value.firstOrNull() ?: "") }
+        val result = saService.buildSaForm(
+            SaFormRequest(
+                businessId    = req.businessId,
+                orderId       = req.orderId,
+                amount        = req.amount,
+                customerName  = req.customerName,
+                customerEmail = req.customerEmail,
+                customerPhone = req.customerPhone
+            )
+        )
 
-            val notifyResult = saService.verifyAndProcess(fields)
-
-            if (!notifyResult.verified) {
-                call.respond(HttpStatusCode.BadRequest, "Signature verification failed")
-                return@post
-            }
-            call.respond(HttpStatusCode.OK, "")
+        if (!result.success) {
+            call.respond(
+                HttpStatusCode.ServiceUnavailable,
+                ApiResponse<Unit>(false, message = result.error ?: "Could not build Secure Acceptance form")
+            )
+            return@post
         }
 
-        get("/sa-return") {
-            val decision   = call.request.queryParameters["decision"] ?: "ERROR"
-            val orderId    = call.request.queryParameters["req_reference_number"] ?: ""
-            val businessId = call.request.queryParameters["req_merchant_defined_data1"] ?: ""
-            val csTransId  = call.request.queryParameters["transaction_id"] ?: ""
+        call.respond(
+            ApiResponse(
+                true,
+                data = SaInitiateResponse(actionUrl = result.actionUrl, fields = result.fields)
+            )
+        )
+    }
 
-            val webBase = "https://app.biashara360.co.ke"
+    post("/payments/card/sa-notify") {
+        val params = call.receiveParameters()
+        val fields = params.entries().associate { entry -> entry.key to (entry.value.firstOrNull() ?: "") }
 
-            val redirectUrl = when (decision) {
-                "ACCEPT" -> "$webBase/pay/card?status=success&orderId=$orderId&businessId=$businessId&txnId=$csTransId"
-                "CANCEL" -> "$webBase/pay/card?status=cancelled&orderId=$orderId&businessId=$businessId"
-                else     -> "$webBase/pay/card?status=declined&orderId=$orderId&businessId=$businessId"
-            }
-            call.respondRedirect(redirectUrl, permanent = false)
+        val notifyResult = saService.verifyAndProcess(fields)
+
+        if (!notifyResult.verified) {
+            call.respond(HttpStatusCode.BadRequest, "Signature verification failed")
+            return@post
         }
+        call.respond(HttpStatusCode.OK, "")
+    }
 
-        post("/sa-return") {
-            val params     = call.receiveParameters()
-            val decision   = params["decision"] ?: "ERROR"
-            val orderId    = params["req_reference_number"] ?: params["req_merchant_defined_data2"] ?: ""
-            val businessId = params["req_merchant_defined_data1"] ?: ""
-            val csTransId  = params["transaction_id"] ?: ""
+    get("/payments/card/sa-return") {
+        val decision   = call.request.queryParameters["decision"] ?: "ERROR"
+        val orderId    = call.request.queryParameters["req_reference_number"] ?: ""
+        val businessId = call.request.queryParameters["req_merchant_defined_data1"] ?: ""
+        val csTransId  = call.request.queryParameters["transaction_id"] ?: ""
 
-            val fields = params.entries().associate { entry -> entry.key to (entry.value.firstOrNull() ?: "") }
-            saService.verifyAndProcess(fields)
+        val webBase = "https://app.biashara360.co.ke"
 
-            val webBase = "https://app.biashara360.co.ke"
-            val redirectUrl = when (decision) {
-                "ACCEPT" -> "$webBase/pay/card?status=success&orderId=$orderId&businessId=$businessId&txnId=$csTransId"
-                "CANCEL" -> "$webBase/pay/card?status=cancelled&orderId=$orderId&businessId=$businessId"
-                else     -> "$webBase/pay/card?status=declined&orderId=$orderId&businessId=$businessId"
-            }
-            call.respondRedirect(redirectUrl, permanent = false)
+        val redirectUrl = when (decision) {
+            "ACCEPT" -> "$webBase/pay/card?status=success&orderId=$orderId&businessId=$businessId&txnId=$csTransId"
+            "CANCEL" -> "$webBase/pay/card?status=cancelled&orderId=$orderId&businessId=$businessId"
+            else     -> "$webBase/pay/card?status=declined&orderId=$orderId&businessId=$businessId"
         }
+        call.respondRedirect(redirectUrl, permanent = false)
+    }
+
+    post("/payments/card/sa-return") {
+        val params     = call.receiveParameters()
+        val decision   = params["decision"] ?: "ERROR"
+        val orderId    = params["req_reference_number"] ?: params["req_merchant_defined_data2"] ?: ""
+        val businessId = params["req_merchant_defined_data1"] ?: ""
+        val csTransId  = params["transaction_id"] ?: ""
+
+        val fields = params.entries().associate { entry -> entry.key to (entry.value.firstOrNull() ?: "") }
+        saService.verifyAndProcess(fields)
+
+        val webBase = "https://app.biashara360.co.ke"
+        val redirectUrl = when (decision) {
+            "ACCEPT" -> "$webBase/pay/card?status=success&orderId=$orderId&businessId=$businessId&txnId=$csTransId"
+            "CANCEL" -> "$webBase/pay/card?status=cancelled&orderId=$orderId&businessId=$businessId"
+            else     -> "$webBase/pay/card?status=declined&orderId=$orderId&businessId=$businessId"
+        }
+        call.respondRedirect(redirectUrl, permanent = false)
     }
 }
 
