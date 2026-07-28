@@ -662,7 +662,7 @@ export const cyberSourceApi = {
     return res.data
   },
   generatePaymentLink: async (req: { orderId: string; amount: number; description?: string; customerName?: string; customerEmail?: string; customerPhone?: string; expiryHours?: number }) => {
-    const res = await client.post<ApiResponse<{ linkUrl: string; orderId: string; amount: number; clientReference: string; expiresAt: string }>>('/payments/card/generate-link', req)
+    const res = await client.post<ApiResponse<{ linkUrl: string; orderId: string; amount: number; clientReference: string; expiresAt: string }>>('/payments/card/manage/generate-link', req)
     return res.data
   },
 }

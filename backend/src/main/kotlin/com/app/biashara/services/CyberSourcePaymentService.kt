@@ -8,6 +8,8 @@ import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 class CyberSourcePaymentService(
@@ -220,7 +222,17 @@ class CyberSourcePaymentService(
         val clientRef = "CS-LINK-${req.orderId.take(8).uppercase()}"
         val expiresAt = Clock.System.now().plus(kotlin.time.Duration.parse("${req.expiryHours}h")).toString()
         val cleanBaseUrl = baseUrl.trimEnd('/')
-        val linkUrl = "$cleanBaseUrl/card-checkout?orderId=${req.orderId}&businessId=$businessId"
+        val queryParameters = buildList {
+            add("orderId" to req.orderId)
+            add("businessId" to businessId)
+            add("amount" to req.amount.toString())
+            req.customerName?.takeIf { it.isNotBlank() }?.let { add("name" to it) }
+            req.customerEmail?.takeIf { it.isNotBlank() }?.let { add("email" to it) }
+            req.customerPhone?.takeIf { it.isNotBlank() }?.let { add("phone" to it) }
+        }.joinToString("&") { (key, value) ->
+            "${urlEncode(key)}=${urlEncode(value)}"
+        }
+        val linkUrl = "$cleanBaseUrl/pay/card?$queryParameters"
         
         return CsPaymentLinkResponse(
             linkUrl = linkUrl,
@@ -230,6 +242,9 @@ class CyberSourcePaymentService(
             expiresAt = expiresAt
         )
     }
+
+    private fun urlEncode(value: String): String =
+        URLEncoder.encode(value, StandardCharsets.UTF_8.toString())
 
     // ── Capture Context for Unified Checkout widget ───────────────────────────
     // When businessId is supplied, the tenant's DB-stored credentials are used.
