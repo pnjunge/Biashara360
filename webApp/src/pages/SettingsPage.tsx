@@ -366,43 +366,52 @@ export function SettingsPage() {
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading CyberSource settings…</div>
           ) : (
             <>
-              <Section title="CyberSource REST API Credentials">
+              <Section title="CyberSource Secure Acceptance & Gateway Credentials">
                 <Input
                   label="Merchant ID (Organization ID) *"
                   value={csMerchantId}
                   onChange={setCsMerchantId}
-                  placeholder="e.g. wanfashion_cs_098"
+                  placeholder="e.g. biashara360_merchant"
                 />
                 <Input
-                  label="Active Key ID (REST API JWT/P12 Key ID) *"
+                  label="REST API Key ID / Merchant Key ID *"
                   value={csMerchantKeyId}
                   onChange={setCsMerchantKeyId}
                   placeholder="e.g. 9c7c25eb-xxxx-xxxx-xxxx-xxxxxxx"
                 />
                 <Input
-                  label="Replace Shared Secret Key"
+                  label="Shared Secret Key (HMAC Signing Secret) *"
                   value={csMerchantSecretKey}
                   onChange={setCsMerchantSecretKey}
                   type="password"
-                  placeholder="Leave blank to keep the current secret"
+                  placeholder="Leave blank to keep current secret key"
                 />
               </Section>
 
-              <Section title="Secure Acceptance & Hosted Checkout">
+              <Section title="Secure Acceptance Hosted Checkout Parameters">
                 <Input
                   label="Secure Acceptance Profile ID"
                   value={csProfileId}
                   onChange={setCsProfileId}
-                  placeholder="e.g. CS_SA_PROFILE_01"
+                  placeholder="e.g. 3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F"
                 />
                 <Input
                   label="Secure Acceptance Access Key"
                   value={csAccessKey}
                   onChange={setCsAccessKey}
-                  placeholder="e.g. a1b2c3d4e5f6..."
+                  placeholder="e.g. 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"
                 />
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                <div style={{ padding: 14, background: 'rgba(59, 130, 246, 0.08)', borderRadius: 10, border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: 12, lineHeight: 1.6, color: 'var(--b360-text-secondary)', marginTop: 8 }}>
+                  <strong style={{ color: 'var(--b360-text-primary)' }}>CyberSource Business Center Setup Checklist:</strong>
+                  <ul style={{ margin: '6px 0 0 16px', padding: 0 }}>
+                    <li><strong>Merchant Notification URL (Webhook):</strong> <code>https://api.biashara360.co.ke/v1/payments/card/sa-notify</code></li>
+                    <li><strong>Customer Response & Cancel URL:</strong> <code>https://api.biashara360.co.ke/v1/payments/card/sa-return</code></li>
+                    <li><strong>Transaction Type:</strong> <code>sale</code></li>
+                  </ul>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
                   <div>
                     <span style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>Active Sandbox Environment</span>
                     <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Toggle off to deploy credentials on live CyberSource production rails</span>
