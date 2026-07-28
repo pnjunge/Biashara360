@@ -401,5 +401,20 @@ echo
 echo "  Web service image:"
 echo "    $WEB_LATEST_IMAGE_URI"
 echo
-echo "Ensure the required environment variables are configured."
+echo -e "${BLUE}Triggering AWS App Runner deployments...${NC}"
+API_SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='biashara360-api-service'].ServiceArn" --output text --region "$AWS_REGION" || true)
+WEB_SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='biashara360-web-service'].ServiceArn" --output text --region "$AWS_REGION" || true)
+
+if [ -n "$API_SERVICE_ARN" ] && [ "$API_SERVICE_ARN" != "None" ]; then
+    echo "Deploying API service ($API_SERVICE_ARN)..."
+    aws apprunner start-deployment --service-arn "$API_SERVICE_ARN" --region "$AWS_REGION" >/dev/null || true
+    echo -e "${GREEN}✓ API service deployment initiated.${NC}"
+fi
+
+if [ -n "$WEB_SERVICE_ARN" ] && [ "$WEB_SERVICE_ARN" != "None" ]; then
+    echo "Deploying Web service ($WEB_SERVICE_ARN)..."
+    aws apprunner start-deployment --service-arn "$WEB_SERVICE_ARN" --region "$AWS_REGION" >/dev/null || true
+    echo -e "${GREEN}✓ Web service deployment initiated.${NC}"
+fi
+
 echo -e "${BLUE}===============================================${NC}"
