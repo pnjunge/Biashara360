@@ -17,13 +17,16 @@ import org.koin.ktor.ext.inject
 fun Route.cyberSourcePublicRoutes() {
     route("/public/payments/card") {
         get("/public-order") { handlePublicOrder(call) }
-
-        rateLimit(RateLimitName("public-payment-limiter")) {
-            post("/sa-initiate") { handleSaInitiate(call) }
-        }
-
+        post("/sa-initiate") { handleSaInitiate(call) }
         post("/sa-notify") { handleSaNotify(call) }
+        get("/sa-return") { handleSaReturnGet(call) }
+        post("/sa-return") { handleSaReturnPost(call) }
+    }
 
+    route("/payments/card") {
+        get("/public-order") { handlePublicOrder(call) }
+        post("/sa-initiate") { handleSaInitiate(call) }
+        post("/sa-notify") { handleSaNotify(call) }
         get("/sa-return") { handleSaReturnGet(call) }
         post("/sa-return") { handleSaReturnPost(call) }
     }

@@ -4,7 +4,7 @@ COPY backend/build.gradle.kts ./
 COPY backend/gradle.properties ./
 COPY gradle ./gradle
 COPY backend/src ./src
-RUN gradle buildFatJar --no-daemon -x test
+RUN gradle clean buildFatJar --no-daemon -x test
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
