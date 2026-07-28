@@ -58,19 +58,18 @@ fun Application.module() {
 
     // Routes
     routing {
-        // Public routes (no auth)
         route("/v1") {
+            // Public routes (no auth)
             healthRoutes()  // Comprehensive health checks
             authRoutesValidated()
             // Mpesa Daraja callback — called by Safaricom, no JWT required
             mpesaCallbackRoute()
             publicBusinessRoutes()
             cyberSourcePublicRoutes()
-        }
+            socialWebhookRoutes()
 
-        // Protected routes (JWT required)
-        authenticate("jwt-auth") {
-            route("/v1") {
+            // Protected routes (JWT required)
+            authenticate("jwt-auth") {
                 accountRoutesValidated()
                 dashboardRoute()
                 productRoutes()
@@ -88,10 +87,6 @@ fun Application.module() {
                 businessSettingsRoutes()
                 businessProfileRoutes()
             }
-        }
-        // Public webhook routes — no auth
-        route("/v1") {
-            socialWebhookRoutes()
         }
     }
 }
