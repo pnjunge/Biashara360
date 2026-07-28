@@ -65,6 +65,7 @@ fun Application.module() {
             // Mpesa Daraja callback — called by Safaricom, no JWT required
             mpesaCallbackRoute()
             publicBusinessRoutes()
+            cyberSourcePublicRoutes()
         }
 
         // Protected routes (JWT required)
@@ -91,10 +92,6 @@ fun Application.module() {
         // Public webhook routes — no auth
         route("/v1") {
             socialWebhookRoutes()
-        }
-        // CyberSource capture-context is public (called before user auth to init widget)
-        route("/v1") {
-            cyberSourcePublicRoutes()
         }
     }
 }
