@@ -374,10 +374,10 @@ export function SettingsPage() {
                   placeholder="e.g. biashara360_merchant"
                 />
                 <Input
-                  label="REST API Key ID / Merchant Key ID *"
+                  label="REST API Key ID (Optional — for direct REST API)"
                   value={csMerchantKeyId}
                   onChange={setCsMerchantKeyId}
-                  placeholder="e.g. 9c7c25eb-xxxx-xxxx-xxxx-xxxxxxx"
+                  placeholder="e.g. 9c7c25eb-xxxx-xxxx-xxxx-xxxxxxx (Optional)"
                 />
                 <Input
                   label="Shared Secret Key (HMAC Signing Secret) *"

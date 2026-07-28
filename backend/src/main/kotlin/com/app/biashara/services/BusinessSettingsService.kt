@@ -174,8 +174,8 @@ class BusinessSettingsService {
     }
 
     fun saveCyberSourceConfig(businessId: String, req: CyberSourceConfigRequest): ApiResponse<CyberSourceConfigResponse> = transaction {
-        if (req.merchantId.isBlank() || req.merchantKeyId.isBlank()) {
-            return@transaction ApiResponse(false, message = "merchantId and merchantKeyId are required")
+        if (req.merchantId.isBlank()) {
+            return@transaction ApiResponse(false, message = "merchantId is required")
         }
         val env = req.environment.lowercase()
         if (env !in listOf("sandbox", "production")) {
