@@ -11,13 +11,13 @@ class MpesaServiceTest {
     }
 
     @Test
-    fun `till uses CustomerBuyGoodsOnline`() {
-        assertEquals("CustomerBuyGoodsOnline", mpesaTransactionType("till"))
+    fun `till STK push uses CustomerPayBillOnline`() {
+        assertEquals("CustomerPayBillOnline", mpesaTransactionType("till"))
     }
 
     @Test
     fun `account type mapping is case and whitespace tolerant`() {
-        assertEquals("CustomerBuyGoodsOnline", mpesaTransactionType(" TILL "))
+        assertEquals("CustomerPayBillOnline", mpesaTransactionType(" TILL "))
     }
 
     @Test

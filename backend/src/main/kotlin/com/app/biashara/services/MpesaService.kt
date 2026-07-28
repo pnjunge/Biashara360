@@ -23,8 +23,10 @@ import org.slf4j.LoggerFactory
 internal val MPESA_ACCOUNT_TYPES = setOf("paybill", "till")
 
 internal fun mpesaTransactionType(accountType: String): String = when (accountType.trim().lowercase()) {
-    "paybill" -> "CustomerPayBillOnline"
-    "till" -> "CustomerBuyGoodsOnline"
+    // M-Pesa Express (STK Push) accepts CustomerPayBillOnline for both
+    // paybill and till shortcodes. CustomerBuyGoodsOnline belongs to the
+    // separate Buy Goods API and Daraja rejects it on the STK endpoint.
+    "paybill", "till" -> "CustomerPayBillOnline"
     else -> throw IllegalArgumentException("Unsupported M-Pesa account type: $accountType")
 }
 
