@@ -30,6 +30,22 @@ class EmailService(config: ApplicationConfig) {
      * Send an OTP verification email to the user.
      */
     fun sendOtpEmail(to: String, otp: String, userName: String): Result<Unit> {
+        return sendHtmlEmail(
+            to = to,
+            emailSubject = "Biashara360 — Verification Code",
+            html = buildOtpEmailHtml(otp, userName)
+        )
+    }
+
+    fun sendInvitationEmail(to: String, code: String, userName: String): Result<Unit> {
+        return sendHtmlEmail(
+            to = to,
+            emailSubject = "Set up your Biashara360 account",
+            html = buildInvitationEmailHtml(code, userName)
+        )
+    }
+
+    private fun sendHtmlEmail(to: String, emailSubject: String, html: String): Result<Unit> {
         if (!isConfigured()) {
             println("[EmailService] SMTP credentials not configured; email was not sent")
             return Result.failure(IllegalStateException("SMTP credentials not configured"))
@@ -52,8 +68,8 @@ class EmailService(config: ApplicationConfig) {
             val message = MimeMessage(session).apply {
                 setFrom(InternetAddress(fromEmail, fromName))
                 setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-                subject = "Biashara360 — Verification Code"
-                setContent(buildOtpEmailHtml(otp, userName), "text/html; charset=utf-8")
+                subject = emailSubject
+                setContent(html, "text/html; charset=utf-8")
             }
 
             Transport.send(message)
@@ -64,6 +80,25 @@ class EmailService(config: ApplicationConfig) {
             Result.failure(e)
         }
     }
+
+    private fun buildInvitationEmailHtml(code: String, userName: String): String = """
+        <!DOCTYPE html>
+        <html>
+        <body style="margin:0;padding:24px;font-family:Arial,sans-serif;background:#f4f7fa;color:#334155;">
+            <div style="max-width:480px;margin:auto;background:#ffffff;border-radius:12px;padding:32px;">
+                <h1 style="color:#16a34a;font-size:24px;">Welcome to Biashara360</h1>
+                <p>Hello <strong>$userName</strong>,</p>
+                <p>An administrator invited you to Biashara360. Use the one-time code below on the
+                   <strong>Forgot password</strong> screen to choose your own password.</p>
+                <div style="margin:24px 0;padding:16px;text-align:center;background:#f0fdf4;border-radius:10px;">
+                    <span style="font-size:32px;font-weight:800;letter-spacing:8px;color:#16a34a;">$code</span>
+                </div>
+                <p>This code expires in <strong>10 minutes</strong>. If you were not expecting this invitation,
+                   do not share the code and contact your administrator.</p>
+            </div>
+        </body>
+        </html>
+    """.trimIndent()
 
     /**
      * Build a branded HTML email body for OTP delivery.

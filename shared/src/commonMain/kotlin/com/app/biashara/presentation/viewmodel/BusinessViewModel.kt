@@ -140,7 +140,7 @@ class BusinessViewModel(
     fun inviteUser(name: String, email: String, phone: String, role: String) {
         scope.launch {
             _usersState.update { it.copy(isSaving = true, error = null, saveSuccess = false) }
-            repository.inviteUser(name, email, phone, "123456", role)
+            repository.inviteUser(name, email, phone, role)
                 .onSuccess {
                     _usersState.update { it.copy(isSaving = false, saveSuccess = true) }
                     loadUsers()

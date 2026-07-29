@@ -489,7 +489,7 @@ fun SettingsScreen(
             }
             item {
                 SettingsSection("Integrations") {
-                    SettingsNavItem("M-Pesa Configuration (Read-only)", Icons.Filled.PhoneAndroid) { onNavigateToCyberSourceSettings?.invoke() }
+                    SettingsNavItem("M-Pesa Configuration (Read-only)", Icons.Filled.PhoneAndroid) { onNavigateToPayments?.invoke() }
                     SettingsNavItem("CyberSource Configuration (Read-only)", Icons.Filled.CreditCard) { onNavigateToCyberSourceSettings?.invoke() }
                     SettingsNavItem("KRA eTIMS", Icons.Filled.Assignment) { onNavigateToKra?.invoke() }
                     SettingsNavItem("Social Channels", Icons.Filled.Share) { onNavigateToSocial?.invoke() }
@@ -498,13 +498,6 @@ fun SettingsScreen(
             item {
                 SettingsSection("Account") {
                     SettingsNavItem("Change Password", Icons.Filled.Lock) { showChangePasswordDialog = true }
-                    SettingsNavItem("Export Data", Icons.Filled.Download) {
-                        Toast.makeText(
-                            context,
-                            "Export coming soon — your data will be emailed to $userEmail",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
                     SettingsNavItem("Help & Support", Icons.Filled.Help) {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://biashara360.co.ke/support"))
                         context.startActivity(intent)

@@ -12,7 +12,9 @@ import org.jetbrains.exposed.sql.transactions.transaction
 // Roles that a business ADMIN is allowed to assign
 private val ASSIGNABLE_ROLES = setOf("ADMIN", "STAFF")
 
-class UserManagementService {
+class UserManagementService(
+    private val authService: AuthService
+) {
 
     fun listUsers(businessId: String): List<UserResponse> = transaction {
         UsersTable.select { UsersTable.businessId eq businessId }
@@ -20,45 +22,63 @@ class UserManagementService {
             .map { it.toUserResponse() }
     }
 
-    fun inviteUser(businessId: String, req: InviteUserRequest): ApiResponse<UserResponse> = transaction {
-        if (req.name.isBlank() || req.email.isBlank() || req.phone.isBlank()) {
-            return@transaction ApiResponse(false, message = "Name, email, and phone are required")
+    fun inviteUser(businessId: String, req: InviteUserRequest): ApiResponse<UserResponse> {
+        val result = transaction {
+            if (req.name.isBlank() || req.email.isBlank() || req.phone.isBlank()) {
+                return@transaction ApiResponse(false, message = "Name, email, and phone are required")
+            }
+            val normalizedRole = req.role.uppercase()
+            if (normalizedRole !in ASSIGNABLE_ROLES) {
+                return@transaction ApiResponse(false, message = "Role must be one of: ${ASSIGNABLE_ROLES.joinToString()}")
+            }
+
+            val emailExists = UsersTable.select { UsersTable.email eq req.email }.count() > 0
+            if (emailExists) return@transaction ApiResponse(false, message = "Email already registered")
+
+            val phoneExists = UsersTable.select { UsersTable.phone eq req.phone }.count() > 0
+            if (phoneExists) return@transaction ApiResponse(false, message = "Phone number already registered")
+
+            val now = Clock.System.now()
+            val userId = generateId()
+            val unguessablePassword = buildString(48) {
+                val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#%&*"
+                val random = java.security.SecureRandom()
+                repeat(48) { append(alphabet[random.nextInt(alphabet.length)]) }
+            }
+
+            UsersTable.insert {
+                it[id] = userId
+                it[UsersTable.businessId] = businessId
+                it[name] = req.name
+                it[email] = req.email
+                it[phone] = req.phone
+                it[passwordHash] = PasswordUtils.hash(unguessablePassword)
+                it[role] = normalizedRole
+                it[twoFactorEnabled] = false
+                it[preferredLanguage] = "ENGLISH"
+                it[isActive] = true
+                it[createdAt] = now
+                it[updatedAt] = now
+            }
+
+            val user = UserResponse(userId, req.name, req.email, req.phone, normalizedRole, businessId, "ENGLISH")
+            ApiResponse(success = true, data = user)
         }
-        if (req.password.length < 6) {
-            return@transaction ApiResponse(false, message = "Password must be at least 6 characters")
+
+        if (!result.success) return result
+        val invitation = authService.requestPasswordReset(req.email, invitation = true)
+        if (!invitation.success) {
+            result.data?.id?.let { userId ->
+                transaction {
+                    com.app.biashara.db.OtpTable.deleteWhere {
+                        com.app.biashara.db.OtpTable.userId eq userId
+                    }
+                    UsersTable.deleteWhere { UsersTable.id eq userId }
+                }
+            }
+            return ApiResponse(false, message = invitation.message)
         }
-        val normalizedRole = req.role.uppercase()
-        if (normalizedRole !in ASSIGNABLE_ROLES) {
-            return@transaction ApiResponse(false, message = "Role must be one of: ${ASSIGNABLE_ROLES.joinToString()}")
-        }
-
-        // Reject if email or phone already taken (globally)
-        val emailExists = UsersTable.select { UsersTable.email eq req.email }.count() > 0
-        if (emailExists) return@transaction ApiResponse(false, message = "Email already registered")
-
-        val phoneExists = UsersTable.select { UsersTable.phone eq req.phone }.count() > 0
-        if (phoneExists) return@transaction ApiResponse(false, message = "Phone number already registered")
-
-        val now = Clock.System.now()
-        val userId = generateId()
-
-        UsersTable.insert {
-            it[id]                       = userId
-            it[UsersTable.businessId]    = businessId
-            it[name]                     = req.name
-            it[email]                    = req.email
-            it[phone]                    = req.phone
-            it[passwordHash]             = PasswordUtils.hash(req.password)
-            it[role]                     = normalizedRole
-            it[twoFactorEnabled]         = false
-            it[preferredLanguage]        = "ENGLISH"
-            it[isActive]                 = true
-            it[createdAt]                = now
-            it[updatedAt]                = now
-        }
-
-        val user = UserResponse(userId, req.name, req.email, req.phone, normalizedRole, businessId, "ENGLISH")
-        ApiResponse(success = true, data = user, message = "User created successfully")
+        return result.copy(message = "Invitation sent. The reset code expires in 10 minutes.")
     }
 
     fun updateRole(userId: String, businessId: String, req: UpdateUserRoleRequest): ApiResponse<UserResponse> = transaction {

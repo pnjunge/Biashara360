@@ -12,6 +12,6 @@ interface BusinessRepository {
     suspend fun getMpesaConfigs(): Result<List<MpesaConfig>>
     suspend fun getCyberSourceConfig(): Result<CyberSourceConfig>
     suspend fun getUsers(): Result<List<UserDto>>
-    suspend fun inviteUser(name: String, email: String, phone: String, password: String, role: String): Result<UserDto>
+    suspend fun inviteUser(name: String, email: String, phone: String, role: String): Result<UserDto>
     suspend fun toggleUserStatus(userId: String, isActive: Boolean): Result<Unit>
 }

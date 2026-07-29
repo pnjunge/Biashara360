@@ -284,7 +284,7 @@ fun PosScreen(
     val cart = remember { mutableStateListOf<MobileCartItem>() }
     var selectedCustomer by remember { mutableStateOf<Customer?>(null) }
     var walkInName by remember { mutableStateOf("Walk-In Customer") }
-    var walkInPhone by remember { mutableStateOf("+254000000000") }
+    var walkInPhone by remember { mutableStateOf("") }
     var paymentMethod by remember { mutableStateOf(PaymentMethod.CASH) }
     var mpesaAccountType by remember { mutableStateOf<String?>(null) }
     var notes by remember { mutableStateOf("") }
@@ -673,7 +673,7 @@ fun PosScreen(
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = B360Green, unfocusedBorderColor = Color(0xFFE2E8F0))
                         )
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.fillMaxWidth(0.9f)) {
-                            DropdownMenuItem(text = { Text("Walk-In Customer") }, onClick = { selectedCustomer = null; walkInName = "Walk-In Customer"; walkInPhone = "+254000000000"; expanded = false })
+                            DropdownMenuItem(text = { Text("Walk-In Customer") }, onClick = { selectedCustomer = null; walkInName = "Walk-In Customer"; walkInPhone = ""; expanded = false })
                             customersState.customers.forEach { c ->
                                 DropdownMenuItem(text = { Text("${c.name} (${c.phone})") }, onClick = { selectedCustomer = c; walkInName = c.name; walkInPhone = c.phone; expanded = false })
                             }

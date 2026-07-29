@@ -169,7 +169,7 @@ class OrderService {
             it[OrdersTable.clientReference] = clientReference
             it[customerId] = req.customerId
             it[customerName] = req.customerName
-            it[customerPhone] = req.customerPhone
+            it[customerPhone] = req.customerPhone.orEmpty()
             it[deliveryLocation] = req.deliveryLocation
             it[paymentStatus] = initialStatuses.payment
             it[deliveryStatus] = initialStatuses.delivery

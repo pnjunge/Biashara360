@@ -156,7 +156,7 @@ export default function DashboardPage() {
             <KpiCard
               title="Monthly Revenue"
               value={profitSummary ? fmt(profitSummary.totalRevenue) : 'KES 0'}
-              change="↑ 12% from last month"
+              change="Current reporting period"
               icon={<TrendingUp size={22}/>}
               color="var(--b360-green)"
               bgColor="var(--b360-green-bg)"
@@ -164,15 +164,15 @@ export default function DashboardPage() {
             <KpiCard
               title="Net Profit"
               value={profitSummary ? fmt(profitSummary.netProfit) : 'KES 0'}
-              change="↑ 8% from last month"
+              change="Current net profit"
               icon={<Building size={22}/>}
               color="var(--b360-blue)"
               bgColor="var(--b360-blue-bg)"
             />
             <KpiCard
               title="Orders Today"
-              value={String(recentOrders.length || 14)}
-              change="↑ 3 from yesterday"
+              value={String(recentOrders.length)}
+              change="Loaded orders"
               icon={<ShoppingCart size={22}/>}
               color="var(--b360-amber)"
               bgColor="var(--b360-amber-bg)"
@@ -535,4 +535,3 @@ export function InventoryPage() {
     </div>
   )
 }
-

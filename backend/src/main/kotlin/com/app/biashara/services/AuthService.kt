@@ -241,7 +241,7 @@ class AuthService(
         return ApiResponse(success = true, message = "OTP resent via ${req.channel}")
     }
 
-    fun requestPasswordReset(email: String): ApiResponse<Unit> {
+    fun requestPasswordReset(email: String, invitation: Boolean = false): ApiResponse<Unit> {
         data class ResetDispatch(val email: String, val name: String, val code: String)
         val dispatch = transaction {
             val user = UsersTable.select { UsersTable.email eq email.trim() }.firstOrNull()
@@ -262,8 +262,18 @@ class AuthService(
             }
             ResetDispatch(user[UsersTable.email], user[UsersTable.name], code)
         }
-        dispatch?.let {
-            emailService.sendOtpEmail(it.email, it.code, it.name)
+        val delivery = dispatch?.let {
+            if (invitation) {
+                emailService.sendInvitationEmail(it.email, it.code, it.name)
+            } else {
+                emailService.sendOtpEmail(it.email, it.code, it.name)
+            }
+        }
+        if (invitation && (dispatch == null || delivery?.isFailure != false)) {
+            return ApiResponse(
+                success = false,
+                message = "The invitation email could not be delivered. No user account was created."
+            )
         }
         return ApiResponse(
             success = true,

@@ -21,7 +21,7 @@ export function PosPage() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [customerName, setCustomerName] = useState('Walk-In Customer')
-  const [customerPhone, setCustomerPhone] = useState('+254000000000')
+  const [customerPhone, setCustomerPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'MPESA' | 'CARD'>('CASH')
   const [notes, setNotes] = useState('')
   
@@ -89,7 +89,7 @@ export function PosPage() {
     setSelectedCustomerId(custId)
     if (custId === '') {
       setCustomerName('Walk-In Customer')
-      setCustomerPhone('+254000000000')
+      setCustomerPhone('')
     } else {
       const cust = customers.find(c => c.id === custId)
       if (cust) {

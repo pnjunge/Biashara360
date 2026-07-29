@@ -72,7 +72,6 @@ class BusinessRepositoryImpl(
         name: String,
         email: String,
         phone: String,
-        password: String,
         role: String
     ): Result<UserDto> = runCatching {
         val response: ApiResponse<UserDto> = client.post("$BASE_URL/users") {
@@ -81,7 +80,6 @@ class BusinessRepositoryImpl(
                 "name" to name,
                 "email" to email,
                 "phone" to phone,
-                "password" to password,
                 "role" to role
             ))
         }.body()

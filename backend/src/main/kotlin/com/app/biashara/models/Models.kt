@@ -115,7 +115,7 @@ data class CreateOrderRequest(
     val clientReference: String? = null,
     val customerId: String? = null,
     val customerName: String,
-    val customerPhone: String,
+    val customerPhone: String? = null,
     val deliveryLocation: String = "",
     val items: List<OrderItemRequest>,
     val paymentMethod: String = "MPESA",
@@ -333,7 +333,6 @@ data class InviteUserRequest(
     val name: String,
     val email: String,
     val phone: String,
-    val password: String,
     val role: String = "STAFF"   // ADMIN | STAFF
 )
 

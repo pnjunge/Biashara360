@@ -458,7 +458,7 @@ export function ReportsPage() {
 // ── Settings ──────────────────────────────────────────────────────────────────
 // ── User Creation ─────────────────────────────────────────────────────────────
 const emptyBusinessAdmin = { businessName: '', businessType: '', adminName: '', adminEmail: '', adminPhone: '', adminPassword: '' }
-const emptyUser: InviteUserRequest = { name: '', email: '', phone: '', role: 'STAFF', password: '' }
+const emptyUser: InviteUserRequest = { name: '', email: '', phone: '', role: 'STAFF' }
 
 export function UserCreationPage() {
   const { user: currentUser } = useAuth()
@@ -549,7 +549,7 @@ export function UserCreationPage() {
   const f = (k: keyof InviteUserRequest) => (v: string) => setForm(prev => ({ ...prev, [k]: v }))
 
   const handleAdd = async () => {
-    if (!form.name || !form.email || !form.phone || !form.password) { setError('All fields are required.'); return }
+    if (!form.name || !form.email || !form.phone) { setError('Name, email, and phone are required.'); return }
     if (isSuperAdmin && !selectedBusinessId) { setError('Please select a business.'); return }
     setSaving(true); setError('')
     try {
@@ -635,7 +635,9 @@ export function UserCreationPage() {
             <Input label="Full Name" value={form.name} onChange={f('name')} placeholder="e.g. Jane Mwangi" />
             <Input label="Email" value={form.email} onChange={f('email')} placeholder="jane@example.com" />
             <Input label="Phone" value={form.phone} onChange={f('phone')} placeholder="+254 7XX XXX XXX" />
-            <Input label="Password" value={form.password} onChange={f('password')} placeholder="Temporary password" />
+            <div style={{ color: 'var(--b360-text-secondary)', fontSize: 13 }}>
+              The user will receive a one-time password setup code by email. It expires after 10 minutes.
+            </div>
             <Select label="Role" value={form.role ?? 'STAFF'} onChange={f('role')} options={ROLES} />
             {isSuperAdmin && (
               <Select
@@ -647,7 +649,7 @@ export function UserCreationPage() {
               />
             )}
             {error && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{error}</div>}
-            <Btn onClick={handleAdd} disabled={saving}>{saving ? 'Creating...' : 'Create User'}</Btn>
+            <Btn onClick={handleAdd} disabled={saving}>{saving ? 'Sending...' : 'Send Invitation'}</Btn>
           </div>
         </Modal>
       )}

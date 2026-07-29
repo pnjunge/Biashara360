@@ -306,7 +306,6 @@ export interface InviteUserRequest {
   name: string
   email: string
   phone: string
-  password: string
   role?: string   // 'ADMIN' | 'STAFF', defaults to 'STAFF'
 }
 
