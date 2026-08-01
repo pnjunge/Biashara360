@@ -134,6 +134,7 @@ export interface OrderResponse {
   customerName: string; customerPhone: string; deliveryLocation: string
   items: OrderItemResponse[]; paymentStatus: string; deliveryStatus: string
   paymentMethod: string; mpesaTransactionCode: string | null; subtotal: number
+  baseAmount?: number; taxIncluded?: boolean; taxRate?: number; taxAmount?: number
   salesChannel: string
   serviceType?: string; hospitalityTableId?: string | null; serverUserId?: string | null
   guestCount?: number; tabStatus?: string
@@ -160,8 +161,10 @@ export interface ExpenseResponse {
 }
 
 export interface PaymentResponse {
-  id: string; mpesaTransactionCode: string; phoneNumber: string; amount: number
-  payerName: string; isReconciled: boolean; orderId: string | null; createdAt: string
+  id: string; businessId: string; orderId: string | null; transactionCode: string
+  amount: number; payerPhone: string; payerName: string; method: string
+  status: string; channel: string; reconciled: boolean; notes?: string
+  transactionDate: string
 }
 
 export interface ProfitSummaryResponse {
@@ -758,8 +761,10 @@ export const hospitalityApi = {
   dashboard: async () => (await client.get<ApiResponse<HospitalityDashboard>>('/hospitality')).data,
   setEnabled: async (enabled:boolean) => (await client.put<ApiResponse<HospitalityDashboard>>('/hospitality/enabled',{enabled})).data,
   createTable: async (data:{name:string;area:string;capacity:number}) => (await client.post<ApiResponse<HospitalityTable>>('/hospitality/tables',data)).data,
+  updateTable: async (id:string,data:{name:string;area:string;capacity:number}) => (await client.put<ApiResponse<HospitalityTable>>(`/hospitality/tables/${id}`,data)).data,
   createOrder: async (data:{tableId?:string;serviceType:string;guestCount:number;customerName:string;customerPhone:string;notes:string;items:Array<{productId:string;quantity:number;unitPrice:number}>}) => (await client.post<ApiResponse<OrderResponse>>('/hospitality/orders',data)).data,
   updateTicket: async (id:string,status:string) => (await client.patch<ApiResponse<KitchenTicket>>(`/hospitality/tickets/${id}`,{status})).data,
+  transferTab: async (orderId:string,tableId:string) => (await client.post<ApiResponse<OrderResponse>>(`/hospitality/tabs/${orderId}/transfer`,{tableId})).data,
   closeTab: async (orderId:string,paymentMethod:string) => (await client.post<ApiResponse<OrderResponse>>(`/hospitality/tabs/${orderId}/close`,{paymentMethod})).data,
 }
 
@@ -831,6 +836,7 @@ export interface BusinessResponse {
   ownerEmail: string
   subscriptionTier: string
   subscriptionEnabled: boolean
+  hospitalityEnabled: boolean
   isActive: boolean
   createdAt: string
 }
@@ -876,6 +882,7 @@ export interface BusinessProfileRequest {
   accountNumber: string
   receiptHeader?: string
   receiptFooter?: string
+  receiptLogo?: string | null
   receiptShowTax?: boolean
   receiptShowCustomer?: boolean
 }
@@ -895,8 +902,10 @@ export interface BusinessProfileResponse {
   accountNumber: string
   subscriptionTier: string
   subscriptionEnabled: boolean
+  hospitalityEnabled: boolean
   receiptHeader?: string
   receiptFooter?: string
+  receiptLogo?: string | null
   receiptShowTax?: boolean
   receiptShowCustomer?: boolean
 }

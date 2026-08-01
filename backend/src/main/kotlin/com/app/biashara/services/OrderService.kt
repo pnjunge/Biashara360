@@ -13,6 +13,17 @@ internal data class InitialOrderStatuses(
     val delivery: String
 )
 
+internal data class OrderTotals(val baseAmount: Double, val taxRate: Double, val taxAmount: Double, val total: Double)
+
+internal fun calculateOrderTotals(baseAmount: Double, includeTax: Boolean, requestedTaxRate: Double): OrderTotals {
+    require(baseAmount >= 0.0) { "Order amount cannot be negative" }
+    require(requestedTaxRate in 0.0..1.0) { "Tax rate must be between 0 and 1" }
+    val appliedRate = if (includeTax) requestedTaxRate else 0.0
+    val tax = kotlin.math.round(baseAmount * appliedRate * 100.0) / 100.0
+    val total = kotlin.math.round((baseAmount + tax) * 100.0) / 100.0
+    return OrderTotals(baseAmount, appliedRate, tax, total)
+}
+
 private class ConcurrentStockException(message: String) : RuntimeException(message)
 
 internal fun resolveInitialOrderStatuses(
@@ -184,7 +195,11 @@ class OrderService {
         val orderId = generateId()
         val orderNumber = generateOrderNumber(clientPlatform)
         val now = Clock.System.now()
-        val subtotal = req.items.sumOf { it.quantity * it.unitPrice }
+        val totals = calculateOrderTotals(req.items.sumOf { it.quantity * it.unitPrice }, req.includeTax, req.taxRate)
+        val baseAmount = totals.baseAmount
+        val appliedTaxRate = totals.taxRate
+        val taxAmount = totals.taxAmount
+        val subtotal = totals.total
 
         val initialStatuses = resolveInitialOrderStatuses(
             req.paymentMethod,
@@ -213,6 +228,10 @@ class OrderService {
             it[guestCount] = req.guestCount.coerceAtLeast(1)
             it[tabStatus] = req.tabStatus.trim().uppercase()
             it[notes] = req.notes
+            it[OrdersTable.baseAmount] = baseAmount
+            it[OrdersTable.taxIncluded] = req.includeTax
+            it[OrdersTable.taxRate] = appliedTaxRate
+            it[OrdersTable.taxAmount] = taxAmount
             it[OrdersTable.subtotal] = subtotal
             it[createdAt] = now
             it[updatedAt] = now
@@ -456,6 +475,10 @@ class OrderService {
             guestCount = this[OrdersTable.guestCount],
             tabStatus = this[OrdersTable.tabStatus],
             mpesaTransactionCode = this[OrdersTable.mpesaTransactionCode],
+            baseAmount = this[OrdersTable.baseAmount],
+            taxIncluded = this[OrdersTable.taxIncluded],
+            taxRate = this[OrdersTable.taxRate],
+            taxAmount = this[OrdersTable.taxAmount],
             subtotal = this[OrdersTable.subtotal],
             notes = this[OrdersTable.notes],
             createdAt = this[OrdersTable.createdAt].toString(),

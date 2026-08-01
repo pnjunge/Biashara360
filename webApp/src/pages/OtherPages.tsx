@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Plus, Download, Share2, FileText, Table, Building2, Copy, ExternalLink } from 'lucide-react'
+import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
-import { expenseApi, paymentApi, orderApi, reportApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, userApi, superAdminApi, businessApi, accessApi, AccessConfig, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest } from '../services/api'
+import { expenseApi, paymentApi, orderApi, reportApi, customerApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, CustomerResponse, userApi, superAdminApi, businessApi, accessApi, AccessConfig, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest } from '../services/api'
 import { useAuth } from '../App'
+import { ShareableReport, downloadReportCsv, emailReport, printReport, whatsappReport } from '../utils/reportShare'
 
 function getCurrentMonthRange() {
   const now = new Date()
@@ -214,8 +215,8 @@ export function PaymentsPage() {
     } finally { setQueryingId(null) }
   }
 
-  const unreconciled = payments.filter(p => !p.isReconciled)
-  const total = payments.filter(p => p.isReconciled).reduce((s, p) => s + p.amount, 0)
+  const unreconciled = payments.filter(p => !p.reconciled)
+  const total = payments.filter(p => p.status === 'SUCCESS').reduce((s, p) => s + p.amount, 0)
 
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
@@ -226,7 +227,7 @@ export function PaymentsPage() {
             {matchError && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{matchError}</p>}
             <div style={{ background:'var(--b360-surface)', borderRadius:8, padding:12 }}>
               <div style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Mpesa Transaction</div>
-              <div style={{ fontFamily:'monospace', fontWeight:700, color:'var(--b360-green)' }}>{matchPayment.mpesaTransactionCode}</div>
+              <div style={{ fontFamily:'monospace', fontWeight:700, color:'var(--b360-green)' }}>{matchPayment.transactionCode}</div>
               <div style={{ fontWeight:600 }}>{matchPayment.payerName} · KES {matchPayment.amount.toLocaleString()}</div>
             </div>
             <div>
@@ -267,10 +268,10 @@ export function PaymentsPage() {
                 {unreconciled.map(p => (
                   <div key={p.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'var(--b360-amber-bg)', borderRadius:10, border:'1px solid var(--b360-amber)' }}>
                     <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                      <div style={{ fontFamily:'monospace', fontWeight:700, color:'var(--b360-green)', fontSize:13 }}>{p.mpesaTransactionCode}</div>
+                      <div style={{ fontFamily:'monospace', fontWeight:700, color:'var(--b360-green)', fontSize:13 }}>{p.transactionCode}</div>
                       <div>
                         <div style={{ fontWeight:600 }}>{p.payerName}</div>
-                        <div style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>{p.phoneNumber} · Mpesa</div>
+                        <div style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>{p.payerPhone || 'Phone unavailable'} · {p.method}</div>
                       </div>
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:12 }}>
@@ -285,18 +286,21 @@ export function PaymentsPage() {
 
           <Card>
             <DataTable
-              headers={['Mpesa Code', 'Customer', 'Phone', 'Amount', 'Status', 'Date', 'Action']}
+              headers={['Transaction', 'Customer', 'Phone', 'Amount', 'Payment Status', 'Reconciliation', 'Date', 'Action']}
               rows={payments.map(p => [
-                <span style={{ fontFamily:'monospace', fontWeight:700, color:'var(--b360-green)', fontSize:12 }}>{p.mpesaTransactionCode}</span>,
-                <span style={{ fontWeight:600 }}>{p.payerName}</span>,
-                p.phoneNumber,
+                <span style={{ fontFamily:'monospace', fontWeight:700, color:'var(--b360-green)', fontSize:12 }}>{p.transactionCode || '—'}</span>,
+                <span style={{ fontWeight:600 }}>{p.payerName || 'Customer unavailable'}</span>,
+                p.payerPhone || '—',
                 <span style={{ fontWeight:700 }}>KES {p.amount.toLocaleString()}</span>,
-                <StatusBadge status={p.isReconciled ? 'MATCHED' : 'PENDING'} />,
-                new Date(p.createdAt).toLocaleDateString('en-KE'),
-                <Btn variant="secondary" small disabled={!p.mpesaTransactionCode || queryingId === p.mpesaTransactionCode}
-                  onClick={() => p.mpesaTransactionCode && queryTransaction(p.mpesaTransactionCode)}>
-                  {queryingId === p.mpesaTransactionCode ? 'Querying…' : 'Query status'}
-                </Btn>
+                <StatusBadge status={p.status} />,
+                <StatusBadge status={p.reconciled ? 'MATCHED' : 'PENDING'} />,
+                Number.isNaN(Date.parse(p.transactionDate)) ? 'Date unavailable' : new Date(p.transactionDate).toLocaleString('en-KE'),
+                p.method === 'MPESA' ? (
+                  <Btn variant="secondary" small disabled={!p.transactionCode || queryingId === p.transactionCode}
+                    onClick={() => p.transactionCode && queryTransaction(p.transactionCode)}>
+                    {queryingId === p.transactionCode ? 'Querying…' : 'Query M-Pesa'}
+                  </Btn>
+                ) : <span style={{ color:'var(--b360-text-secondary)' }}>—</span>
               ])}
             />
           </Card>
@@ -337,8 +341,12 @@ export function ReportsPage() {
   const [profitSummary, setProfitSummary] = useState<ProfitSummaryResponse | null>(null)
   const [paymentReport, setPaymentReport] = useState<PaymentReportResponse | null>(null)
   const [orderReport, setOrderReport] = useState<OrderReportResponse | null>(null)
+  const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
+  const [customers, setCustomers] = useState<CustomerResponse[]>([])
+  const [businessName, setBusinessName] = useState('Biashara360 Business')
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<string>('This Month')
+  const [reportType, setReportType] = useState('SALES')
 
   const loadReport = (selectedPeriod: string) => {
     setLoading(true)
@@ -347,12 +355,18 @@ export function ReportsPage() {
       reportApi.profitSummary(startDate, endDate),
       reportApi.payments(startDate, endDate),
       reportApi.orders(startDate, endDate),
-    ]).then(([profit, payments, orders]) => {
+      expenseApi.list(undefined, startDate, endDate),
+      customerApi.list(),
+      businessApi.getProfile(),
+    ]).then(([profit, payments, orders, expenseResult, customerResult, profileResult]) => {
       setProfitSummary(profit.success ? profit.data : null)
       setPaymentReport(payments.success ? payments.data : null)
       setOrderReport(orders.success ? orders.data : null)
+      setExpenses(expenseResult.success && expenseResult.data ? expenseResult.data : [])
+      setCustomers(customerResult.success && customerResult.data ? customerResult.data : [])
+      if (profileResult.success && profileResult.data) setBusinessName(profileResult.data.name)
     }).catch(() => {
-      setProfitSummary(null); setPaymentReport(null); setOrderReport(null)
+      setProfitSummary(null); setPaymentReport(null); setOrderReport(null); setExpenses([]); setCustomers([])
     }).finally(() => setLoading(false))
   }
 
@@ -360,11 +374,37 @@ export function ReportsPage() {
     loadReport(period)
   }, [period])
 
+  const selectedReport = useMemo<ShareableReport | null>(() => {
+    if (!profitSummary || !paymentReport || !orderReport) return null
+    const money = (value:number) => `KES ${value.toLocaleString('en-KE', {minimumFractionDigits:2,maximumFractionDigits:2})}`
+    const base = { period, businessName }
+    const paymentRows = (method:string) => paymentReport.payments.filter(payment => payment.method.toUpperCase() === method)
+    const paymentDocument = (method:string,title:string):ShareableReport => {
+      const rows=paymentRows(method); const amount=rows.filter(row=>row.status==='SUCCESS').reduce((sum,row)=>sum+row.amount,0)
+      return {...base,title,summary:[['Transactions',String(rows.length)],['Successful amount',money(amount)]],columns:['Transaction','Payer','Phone','Channel','Status','Amount','Date'],rows:rows.map(row=>[row.transactionCode,row.payerName,row.payerPhone,row.channel,row.status,row.amount,row.transactionDate])}
+    }
+    if(reportType==='MPESA')return paymentDocument('MPESA','M-Pesa Payment Report')
+    if(reportType==='CARD')return paymentDocument('CARD','Card Payment Report')
+    if(reportType==='CASH')return paymentDocument('CASH','Cash Payment Report')
+    if(reportType==='EXPENSES')return {...base,title:'Expense Report',summary:[['Expenses',String(expenses.length)],['Total',money(expenses.reduce((sum,item)=>sum+item.amount,0))]],columns:['Date','Category','Description','Amount'],rows:expenses.map(item=>[item.expenseDate,item.category,item.description,item.amount])}
+    if(reportType==='CUSTOMERS'){
+      const {startDate,endDate}=getPeriodRange(period); const rows=customers.filter(customer=>customer.createdAt.slice(0,10)>=startDate&&customer.createdAt.slice(0,10)<=endDate)
+      return {...base,title:'Customer Report',summary:[['New customers',String(rows.length)],['Total spent',money(rows.reduce((sum,item)=>sum+item.totalSpent,0))],['Repeat customers',String(rows.filter(item=>item.isRepeatCustomer).length)]],columns:['Customer','Phone','Email','Location','Orders','Total Spent','Loyalty Points','Joined'],rows:rows.map(item=>[item.name,item.phone,item.email,item.location,item.totalOrders,item.totalSpent,item.loyaltyPoints,item.createdAt])}
+    }
+    if(reportType==='ORDERS')return {...base,title:'Order Report',summary:[['Orders',String(orderReport.totalOrders)],['Order value',money(orderReport.totalValue)],['Paid value',money(orderReport.paidValue)]],columns:['Order','Customer','Method','Channel','Payment','Delivery','Value','Date'],rows:orderReport.orders.map(item=>[item.orderNumber,item.customerName,item.paymentMethod,item.salesChannel,item.paymentStatus,item.deliveryStatus,item.subtotal,item.createdAt])}
+    if(reportType==='REVENUE')return {...base,title:'Revenue & Profit Report',summary:[['Revenue',money(profitSummary.totalRevenue)],['Gross profit',money(profitSummary.grossProfit)],['Expenses',money(profitSummary.totalExpenses)],['Net profit',money(profitSummary.netProfit)]],columns:['Metric','Value'],rows:[['Revenue',profitSummary.totalRevenue],['Cost of goods',profitSummary.totalCostOfGoods],['Gross profit',profitSummary.grossProfit],['Expenses',profitSummary.totalExpenses],['Net profit',profitSummary.netProfit],['Net margin',`${profitSummary.netMargin.toFixed(1)}%`]]}
+    const sales=orderReport.orders.filter(item=>item.paymentStatus==='PAID')
+    return {...base,title:'Sales Report',summary:[['Paid sales',String(sales.length)],['Sales revenue',money(sales.reduce((sum,item)=>sum+item.subtotal,0))]],columns:['Sale','Customer','Method','Channel','Amount','Date'],rows:sales.map(item=>[item.orderNumber,item.customerName,item.paymentMethod,item.salesChannel,item.subtotal,item.createdAt])}
+  },[reportType,period,businessName,profitSummary,paymentReport,orderReport,expenses,customers])
+
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
       <PageHeader title="Reports"
         action={
-          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+            <select value={reportType} onChange={e=>setReportType(e.target.value)} aria-label="Report type" style={{padding:'8px 12px',border:'1px solid var(--b360-border)',borderRadius:8,fontSize:13,fontWeight:600,background:'white'}}>
+              <option value="SALES">Sales</option><option value="EXPENSES">Expenses</option><option value="CUSTOMERS">Customers</option><option value="MPESA">M-Pesa</option><option value="CARD">Card</option><option value="CASH">Cash</option><option value="ORDERS">Orders</option><option value="REVENUE">Revenue</option>
+            </select>
             <select
               value={period}
               onChange={e => setPeriod(e.target.value)}
@@ -386,12 +426,10 @@ export function ReportsPage() {
               <option value="This Quarter">This Quarter</option>
               <option value="This Year">This Year</option>
             </select>
-            <Btn variant="secondary" icon={<Download size={14}/>}
-              onClick={() => alert('PDF export will be available once data is available from the backend.')}>Export PDF</Btn>
-            <Btn variant="secondary" icon={<Table size={14}/>}
-              onClick={() => alert('Excel export will be available once data is available from the backend.')}>Export Excel</Btn>
-            <Btn variant="secondary" icon={<Share2 size={14}/>}
-              onClick={() => window.open('https://wa.me/?text=Biashara360+Report', '_blank')}>WhatsApp</Btn>
+            <Btn variant="secondary" icon={<Printer size={14}/>} disabled={!selectedReport||loading} onClick={()=>selectedReport&&printReport(selectedReport)}>Print</Btn>
+            <Btn variant="secondary" icon={<Table size={14}/>} disabled={!selectedReport||loading} onClick={()=>selectedReport&&downloadReportCsv(selectedReport)}>CSV</Btn>
+            <Btn variant="secondary" icon={<Mail size={14}/>} disabled={!selectedReport||loading} onClick={()=>selectedReport&&emailReport(selectedReport)}>Email</Btn>
+            <Btn variant="secondary" icon={<Share2 size={14}/>} disabled={!selectedReport||loading} onClick={()=>selectedReport&&whatsappReport(selectedReport)}>WhatsApp</Btn>
           </div>
         }
       />

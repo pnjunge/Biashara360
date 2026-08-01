@@ -270,7 +270,8 @@ class ExpenseService {
 class PaymentService {
 
     fun getAll(businessId: String, reconciledOnly: Boolean? = null): List<PaymentResponse> = transaction {
-        var stmt = PaymentsTable.select { PaymentsTable.businessId eq businessId }
+        var stmt = PaymentsTable.leftJoin(OrdersTable, { orderId }, { id })
+            .select { PaymentsTable.businessId eq businessId }
         if (reconciledOnly != null) stmt = stmt.andWhere { PaymentsTable.reconciled eq reconciledOnly }
         stmt.orderBy(PaymentsTable.transactionDate, SortOrder.DESC).map { it.toResponse() }
     }
@@ -309,11 +310,14 @@ class PaymentService {
         transactionCode = this[PaymentsTable.transactionCode],
         amount = this[PaymentsTable.amount],
         payerPhone = this[PaymentsTable.payerPhone],
-        payerName = this[PaymentsTable.payerName],
+        payerName = this[PaymentsTable.payerName].takeUnless { it.isBlank() || it.equals("Unknown", ignoreCase = true) }
+            ?: getOrNull(OrdersTable.customerName)
+            ?: "Customer unavailable",
         method = this[PaymentsTable.method],
         status = this[PaymentsTable.status],
         channel = this[PaymentsTable.channel],
         reconciled = this[PaymentsTable.reconciled],
+        notes = this[PaymentsTable.notes],
         transactionDate = this[PaymentsTable.transactionDate].toString()
     )
 }
@@ -324,7 +328,7 @@ data class PaymentResponse(
     val transactionCode: String, val amount: Double,
     val payerPhone: String, val payerName: String,
     val method: String, val status: String, val channel: String,
-    val reconciled: Boolean, val transactionDate: String
+    val reconciled: Boolean, val notes: String, val transactionDate: String
 )
 
 // ─── Dashboard Service ────────────────────────────────────────────────────────

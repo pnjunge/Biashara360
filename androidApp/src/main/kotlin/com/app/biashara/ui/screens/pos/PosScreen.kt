@@ -246,11 +246,13 @@ fun PosScreen(
         inventoryViewModel.loadProducts(businessId)
         customersViewModel.loadCustomers()
         businessViewModel.loadMpesaConfig()
+        businessViewModel.loadProfile()
     }
 
     val inventoryState by inventoryViewModel.state.collectAsState()
     val customersState by customersViewModel.state.collectAsState()
     val mpesaState by businessViewModel.mpesaState.collectAsState()
+    val businessProfileState by businessViewModel.profileState.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(PosFilter.ALL) }
@@ -316,7 +318,11 @@ fun PosScreen(
                     ) {
                         Column {
                             Text("Point of Sale", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = Color(0xFF0F172A))
-                            Text("Find and select products to start a sale", fontSize = 13.sp, color = Color(0xFF64748B))
+                            Text(
+                                if (businessProfileState.profile?.hospitalityEnabled == true) "Hospitality mode active · Retail sale" else "Find and select products to start a sale",
+                                fontSize = 13.sp,
+                                color = if (businessProfileState.profile?.hospitalityEnabled == true) B360Green else Color(0xFF64748B)
+                            )
                         }
                         Box(
                             modifier = Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFE8F5EE)),

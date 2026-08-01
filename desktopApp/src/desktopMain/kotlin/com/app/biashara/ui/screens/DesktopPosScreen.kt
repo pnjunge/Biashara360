@@ -54,11 +54,13 @@ fun DesktopPosScreen(
         inventoryViewModel.loadProducts(businessId)
         customersViewModel.loadCustomers()
         businessViewModel.loadMpesaConfig()
+        businessViewModel.loadProfile()
     }
 
     val inventoryState by inventoryViewModel.state.collectAsState()
     val customersState by customersViewModel.state.collectAsState()
     val mpesaState by businessViewModel.mpesaState.collectAsState()
+    val businessProfileState by businessViewModel.profileState.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("All") }
@@ -91,6 +93,7 @@ fun DesktopPosScreen(
     var walkInName by remember { mutableStateOf("Walk-In Customer") }
     var walkInPhone by remember { mutableStateOf("") }
     var paymentMethod by remember { mutableStateOf(PaymentMethod.CASH) }
+    var includeTax by remember { mutableStateOf(true) }
     var mpesaAccountType by remember { mutableStateOf<String?>(null) }
     var notes by remember { mutableStateOf("") }
 
@@ -108,7 +111,7 @@ fun DesktopPosScreen(
     }
 
     val subtotal = cart.sumOf { it.product.sellingPrice * it.qty }
-    val tax = subtotal * 0.16
+    val tax = if (includeTax) kotlin.math.round(subtotal * 0.16 * 100.0) / 100.0 else 0.0
     val grandTotal = subtotal + tax
 
     Row(
@@ -117,9 +120,19 @@ fun DesktopPosScreen(
         // Left Side: Product Selection Grid
         Column(
             modifier = Modifier.weight(1.3f).fillMaxHeight().padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Row 1: Search and Filter Actions
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        if (businessProfileState.profile?.hospitalityEnabled == true) {
+            Surface(color = Color(0xFFE8F5EE), shape = RoundedCornerShape(8.dp)) {
+                Text(
+                    "Hospitality mode active · This window records retail counter sales",
+                    color = B360Green,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
+        }
+        // Row 1: Search and Filter Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -808,6 +821,20 @@ fun DesktopPosScreen(
                             shape = RoundedCornerShape(8.dp)
                         )
 
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .background(if (includeTax) Color(0xFFE1F8EF) else Color.White, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Include VAT in payment", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text("Apply 16% VAT to this sale", fontSize = 11.sp, color = Color.Gray)
+                            }
+                            Switch(checked = includeTax, onCheckedChange = { includeTax = it })
+                        }
+
                         Spacer(Modifier.height(4.dp))
 
                         // Checkout calculations
@@ -820,7 +847,7 @@ fun DesktopPosScreen(
                                 Text("KES ${String.format("%,.0f", subtotal)}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("VAT (16%)", fontSize = 12.sp, color = Color.Gray)
+                                Text(if (includeTax) "VAT (16%)" else "VAT (16%) — excluded", fontSize = 12.sp, color = Color.Gray)
                                 Text("KES ${String.format("%,.0f", tax)}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                             HorizontalDivider(color = Color(0xFFE2E8F0), modifier = Modifier.padding(vertical = 4.dp))
@@ -872,6 +899,8 @@ fun DesktopPosScreen(
                                         },
                                         deliveryStatus = DeliveryStatus.DELIVERED,
                                         paymentMethod = paymentMethod,
+                                        includeTax = includeTax,
+                                        taxRate = 0.16,
                                         notes = notes,
                                         createdAt = Clock.System.now(),
                                         updatedAt = Clock.System.now()

@@ -58,7 +58,10 @@ fun Application.module() {
         format { call ->
             val requestId = call.callId ?: "unknown"
             val status = call.response.status()?.value ?: 0
-            """{"event":"http_request","request_id":"$requestId","method":"${call.request.httpMethod.value}","path":"${call.request.path()}","status":$status}"""
+            val platform = call.request.headers["X-Client-Platform"]
+                ?.take(20)?.filter { it.isLetterOrDigit() || it in "-_" }?.ifBlank { "unknown" }
+                ?: "unknown"
+            """{"event":"http_request","request_id":"$requestId","method":"${call.request.httpMethod.value}","path":"${call.request.path()}","status":$status,"duration_ms":${call.processingTimeMillis()},"client_platform":"$platform"}"""
         }
     }
 

@@ -126,7 +126,9 @@ data class CreateOrderRequest(
     val hospitalityTableId: String? = null,
     val serverUserId: String? = null,
     val guestCount: Int = 1,
-    val tabStatus: String = "CLOSED"
+    val tabStatus: String = "CLOSED",
+    val includeTax: Boolean = false,
+    val taxRate: Double = 0.16
 )
 
 @Serializable
@@ -156,6 +158,10 @@ data class OrderResponse(
     val guestCount: Int = 1,
     val tabStatus: String = "CLOSED",
     val mpesaTransactionCode: String?,
+    val baseAmount: Double = 0.0,
+    val taxIncluded: Boolean = false,
+    val taxRate: Double = 0.0,
+    val taxAmount: Double = 0.0,
     val subtotal: Double,
     val notes: String,
     val createdAt: String,
@@ -388,6 +394,7 @@ data class BusinessProfileRequest(
     val accountNumber: String = "",
     val receiptHeader: String = "Welcome to our store!",
     val receiptFooter: String = "Thank you for shopping with us!",
+    val receiptLogo: String? = null,
     val receiptShowTax: Boolean = true,
     val receiptShowCustomer: Boolean = true
 )
@@ -408,8 +415,10 @@ data class BusinessProfileResponse(
     val accountNumber: String,
     val subscriptionTier: String,
     val subscriptionEnabled: Boolean,
+    val hospitalityEnabled: Boolean = false,
     val receiptHeader: String = "Welcome to our store!",
     val receiptFooter: String = "Thank you for shopping with us!",
+    val receiptLogo: String? = null,
     val receiptShowTax: Boolean = true,
     val receiptShowCustomer: Boolean = true
 )

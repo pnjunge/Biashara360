@@ -382,6 +382,31 @@ fun Route.paymentRoutes() {
             val result = paymentService.reconcile(id, businessId, req)
             call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
         }
+
+        post("/mpesa/transaction-query") {
+            val businessId = call.businessId()
+            val req = call.receive<MpesaTransactionQueryRequest>()
+            if (req.transactionId.isBlank()) {
+                call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "M-Pesa transaction code is required"))
+                return@post
+            }
+            val ownsTransaction = transaction {
+                PaymentsTable.select {
+                    (PaymentsTable.businessId eq businessId) and
+                        (PaymentsTable.transactionCode eq req.transactionId.trim()) and
+                        (PaymentsTable.method eq "MPESA")
+                }.any()
+            }
+            if (!ownsTransaction) {
+                call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(false, message = "M-Pesa transaction not found"))
+                return@post
+            }
+            val result = mpesaService.queryTransaction(req.transactionId.trim(), businessId)
+            call.respond(
+                if (result.success) HttpStatusCode.OK else HttpStatusCode.BadGateway,
+                ApiResponse(result.success, message = result.message, data = result.response)
+            )
+        }
     }
 }
 

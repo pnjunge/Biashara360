@@ -52,6 +52,9 @@ data class OrderDto(
     val deliveryStatus: String,
     val paymentMethod: String = "MPESA",
     val mpesaTransactionCode: String? = null,
+    val taxIncluded: Boolean = false,
+    val taxRate: Double = 0.0,
+    val taxAmount: Double = 0.0,
     val notes: String = "",
     val createdAt: String,
     val updatedAt: String
@@ -67,6 +70,8 @@ private data class CreateOrderRequestDto(
     val items: List<CreateOrderItemRequestDto>,
     val paymentMethod: String,
     val paymentStatus: String? = null,
+    val includeTax: Boolean,
+    val taxRate: Double,
     val notes: String
 )
 
@@ -134,6 +139,8 @@ class OrderRepositoryImpl(
                     items = order.items.map { CreateOrderItemRequestDto(it.productId, it.quantity, it.unitPrice) },
                     paymentMethod = order.paymentMethod.name,
                     paymentStatus = order.paymentStatus.name,
+                    includeTax = order.includeTax,
+                    taxRate = order.taxRate,
                     notes = order.notes
                 )
             )
@@ -379,6 +386,8 @@ class OrderRepositoryImpl(
         deliveryStatus = runCatching { DeliveryStatus.valueOf(deliveryStatus) }.getOrDefault(DeliveryStatus.PENDING),
         paymentMethod = runCatching { PaymentMethod.valueOf(paymentMethod) }.getOrDefault(PaymentMethod.MPESA),
         mpesaTransactionCode = mpesaTransactionCode,
+        includeTax = taxIncluded,
+        taxRate = taxRate,
         notes = notes,
         createdAt = Instant.parse(createdAt),
         updatedAt = Instant.parse(updatedAt)

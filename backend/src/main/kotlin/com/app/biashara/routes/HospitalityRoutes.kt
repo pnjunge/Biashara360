@@ -24,11 +24,16 @@ fun Route.hospitalityRoutes() {
             if(!call.hasRole("ADMIN")) return@post call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Admin access required"))
             call.respondHospitality(HttpStatusCode.Created) { service.createTable(call.businessId(),call.receive()) }
         }
+        put("/tables/{id}") {
+            if(!call.hasRole("ADMIN")) return@put call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Admin access required"))
+            call.respondHospitality { service.updateTable(call.businessId(),call.parameters["id"].orEmpty(),call.receive()) }
+        }
         post("/orders") {
             val userId=call.principal<JWTPrincipal>()!!.payload.subject
             val result=service.createOrder(call.businessId(),userId,call.receive()); call.respond(if(result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest,result)
         }
         patch("/tickets/{id}") { call.respondHospitality { service.updateTicket(call.businessId(),call.parameters["id"].orEmpty(),call.receive()) } }
+        post("/tabs/{orderId}/transfer") { call.respondHospitality { service.transferTab(call.businessId(),call.parameters["orderId"].orEmpty(),call.receive()) } }
         post("/tabs/{orderId}/close") { call.respondHospitality { service.closeTab(call.businessId(),call.parameters["orderId"].orEmpty(),call.receive()) } }
     }
 }

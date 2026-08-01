@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Menu, Shield, FileCheck, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Link, Download
 } from 'lucide-react'
 import styles from './AppShell.module.css'
-import { accessApi } from '../../services/api'
+import { accessApi, businessApi } from '../../services/api'
 
 const navItems = [
   { key:'DASHBOARD', to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
@@ -18,7 +18,7 @@ const navItems = [
   { key:'CUSTOMERS', to: '/customers',     icon: Users,           label: 'Customers' },
   { key:'EXPENSES', to: '/expenses',      icon: Receipt,         label: 'Expenses' },
   { key:'PAYMENTS', to: '/payments',      icon: CreditCard,      label: 'Mpesa Payments' },
-  { key:'CARD_PAYMENTS', to: '/card-payments', icon: Shield,          label: 'Card / CyberSource' },
+  { key:'CARD_PAYMENTS', to: '/card-payments', icon: Shield,          label: 'Card Payment Report' },
   { key:'TAX', to: '/tax',           icon: Receipt,          label: 'Tax' },
   { key:'KRA', to: '/kra',           icon: FileCheck,        label: 'KRA iTax' },
   { key:'SOCIAL', to: '/social',        icon: MessageSquare,    label: 'Social Inbox' },
@@ -36,14 +36,19 @@ export default function AppShell() {
   const [search, setSearch] = useState('')
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [allowedMenus, setAllowedMenus] = useState<Set<string> | null>(null)
+  const [hospitalityEnabled, setHospitalityEnabled] = useState<boolean | null>(null)
   useEffect(() => {
     accessApi.me().then(result => {
       if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
     }).catch(() => setAllowedMenus(null))
+    businessApi.getProfile().then(result => {
+      if (result.success && result.data) setHospitalityEnabled(result.data.hospitalityEnabled)
+    }).catch(() => setHospitalityEnabled(null))
   }, [user?.id])
   const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
   const visibleNavItems = navItems.filter(item => {
     if (allowedMenus && !allowedMenus.has(item.key)) return false
+    if (item.key === 'HOSPITALITY' && hospitalityEnabled === false) return false
     if (!isStaff) return true
     return item.to !== '/users' && item.to !== '/business' && item.to !== '/cybersource-settings'
   })

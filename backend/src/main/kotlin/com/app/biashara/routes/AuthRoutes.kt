@@ -13,10 +13,14 @@ import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.callid.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.koin.ktor.ext.inject
+import org.slf4j.LoggerFactory
+
+private val authLogger = LoggerFactory.getLogger("AuthenticationAudit")
 
 /**
  * Authentication routes with comprehensive validation.
@@ -63,6 +67,7 @@ fun Route.authRoutesValidated() {
             }
             
             val result = authService.register(req)
+            authLogger.info("""{"event":"registration_attempt","success":${result.success},"request_id":"${call.callId ?: "unknown"}"}""")
             call.respond(
                 if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest,
                 result
@@ -90,6 +95,7 @@ fun Route.authRoutesValidated() {
                 }
                 
                 val result = authService.login(req)
+                authLogger.info("""{"event":"login_attempt","success":${result.success},"request_id":"${call.callId ?: "unknown"}"}""")
                 call.respond(
                     if (result.success) HttpStatusCode.OK else HttpStatusCode.Unauthorized,
                     result
@@ -122,6 +128,7 @@ fun Route.authRoutesValidated() {
                 }
                 
                 val result = authService.verifyOtp(req)
+                authLogger.info("""{"event":"otp_verification","success":${result.success},"user_id":"${req.userId}","channel":"${req.channel}","request_id":"${call.callId ?: "unknown"}"}""")
                 call.respond(
                     if (result.success) HttpStatusCode.OK else HttpStatusCode.Unauthorized,
                     result

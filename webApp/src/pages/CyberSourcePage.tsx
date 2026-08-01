@@ -1,759 +1,125 @@
-import React, { useState, useEffect } from 'react'
-import { CreditCard, Shield, CheckCircle, XCircle, Clock, RefreshCw, Trash2, Plus, ChevronRight, Link, Copy, Mail, MessageSquare, Send } from 'lucide-react'
-import { Card, PageHeader, StatusBadge, DataTable, Btn, KpiCard } from '../components/ui'
-import { cyberSourceApi, CsTransactionRecord, SavedCardResponse } from '../services/api'
-import { useAuth } from '../App'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { CheckCircle, Clock, CreditCard, RefreshCw, XCircle } from 'lucide-react'
+import { Btn, Card, DataTable, KpiCard, PageHeader } from '../components/ui'
+import { CsTransactionRecord, cyberSourceApi } from '../services/api'
 
-// ── Card brand logo ───────────────────────────────────────────────────────────
 function CardBrand({ type }: { type: string }) {
   const colors: Record<string, string> = { VISA: '#1A1F71', MASTERCARD: '#EB001B', AMEX: '#2E77BC' }
+  const color = colors[type] ?? '#64748B'
   return (
-    <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: 1, color: colors[type] ?? '#666',
-      background: `${colors[type] ?? '#666'}15`, padding: '2px 6px', borderRadius: 4 }}>
-      {type}
+    <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: 1, color, background: `${color}15`, padding: '2px 6px', borderRadius: 4 }}>
+      {type || 'CARD'}
     </span>
   )
 }
 
-// ── Transaction status helpers ────────────────────────────────────────────────
-function TxnStatus({ status }: { status: string }) {
-  const map: Record<string, [string, string, React.ReactNode]> = {
-    CAPTURED:    ['var(--b360-green)', 'var(--b360-green-bg)',  <CheckCircle size={12}/>],
-    AUTHORIZED:  ['var(--b360-blue)',  'var(--b360-blue-bg)',   <Clock size={12}/>],
-    REFUNDED:    ['var(--b360-amber)', 'var(--b360-amber-bg)',  <RefreshCw size={12}/>],
-    DECLINED:    ['var(--b360-red)',   'var(--b360-red-bg)',    <XCircle size={12}/>],
-    VOIDED:      ['#9E9E9E',           '#F5F5F5',               <XCircle size={12}/>],
-    ERROR:       ['var(--b360-red)',   'var(--b360-red-bg)',    <XCircle size={12}/>],
+function TransactionStatus({ status }: { status: string }) {
+  const styles: Record<string, [string, string, React.ReactNode]> = {
+    CAPTURED: ['var(--b360-green)', 'var(--b360-green-bg)', <CheckCircle size={12} />],
+    AUTHORIZED: ['var(--b360-blue)', 'var(--b360-blue-bg)', <Clock size={12} />],
+    REFUNDED: ['var(--b360-amber)', 'var(--b360-amber-bg)', <RefreshCw size={12} />],
+    DECLINED: ['var(--b360-red)', 'var(--b360-red-bg)', <XCircle size={12} />],
+    VOIDED: ['#64748B', '#F1F5F9', <XCircle size={12} />],
+    ERROR: ['var(--b360-red)', 'var(--b360-red-bg)', <XCircle size={12} />],
   }
-  const [color, bg, icon] = map[status] ?? ['#999', '#f5f5f5', null]
+  const [color, background, icon] = styles[status] ?? ['#64748B', '#F1F5F9', null]
   return (
-    <span style={{ display:'flex', alignItems:'center', gap:4, color, background:bg,
-      borderRadius:20, padding:'3px 8px', fontSize:11, fontWeight:700, width:'fit-content' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color, background, borderRadius: 20, padding: '3px 8px', fontSize: 11, fontWeight: 700 }}>
       {icon}{status}
     </span>
   )
 }
 
-// ── Unified Checkout Widget (simulated — in production loads CyberSource JS) ──
-function UnifiedCheckoutWidget({ orderId, amount, onSuccess, onCancel }:
-  { orderId: string; amount: number; onSuccess: (result: any) => void; onCancel: () => void }) {
-  const [cardNum, setCardNum] = useState('')
-  const [expiry, setExpiry] = useState('')
-  const [cvv, setCvv] = useState('')
-  const [name, setName] = useState('')
-  const [saveCard, setSaveCard] = useState(false)
-  const [processing, setProcessing] = useState(false)
-  const [error, setError] = useState('')
-
-  // Format card number with spaces
-  const fmtCard = (v: string) => v.replace(/\D/g, '').slice(0, 16).replace(/(\d{4})/g, '$1 ').trim()
-  const fmtExpiry = (v: string) => {
-    const d = v.replace(/\D/g, '').slice(0, 4)
-    return d.length > 2 ? `${d.slice(0,2)}/${d.slice(2)}` : d
-  }
-
-  const detectType = (n: string): string => {
-    if (n.startsWith('4')) return 'VISA'
-    if (n.startsWith('5') || n.startsWith('2')) return 'MASTERCARD'
-    if (n.startsWith('3')) return 'AMEX'
-    return ''
-  }
-
-  const cardType = detectType(cardNum.replace(/\s/g, ''))
-
-  const handlePay = () => {
-    setError('Hosted CyberSource checkout is not configured. No card details were submitted.')
-  }
-
-  return (
-    <div style={{ background:'white', borderRadius:16, padding:24, boxShadow:'var(--shadow-md)', maxWidth:480, margin:'0 auto' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:8, color:'var(--b360-green)', marginBottom:12 }}>
-        <Shield size={18}/> <strong>CyberSource Hosted Checkout</strong>
-      </div>
-      <p style={{ fontSize:13, lineHeight:1.6, color:'var(--b360-text-secondary)' }}>
-        Hosted checkout is not configured for this environment. Card details cannot be entered or processed here.
-      </p>
-      <button onClick={onCancel} style={{ marginTop:16, width:'100%', padding:12, border:'1px solid var(--b360-border)', borderRadius:8, background:'white', fontWeight:600 }}>
-        Close
-      </button>
-    </div>
-  )
-
-  return (
-    <div style={{ background:'white', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-md)', maxWidth:480, margin:'0 auto' }}>
-      {/* Header */}
-      <div style={{ background:'var(--b360-green)', padding:'20px 24px', color:'white' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <Shield size={18}/> <span style={{ fontWeight:700, fontSize:15 }}>Secure Card Payment</span>
-          </div>
-          <span style={{ fontSize:11, opacity:0.8 }}>Powered by CyberSource</span>
-        </div>
-        <div style={{ fontSize:13, opacity:0.9 }}>Order {orderId} · <strong>KES {amount.toLocaleString()}</strong></div>
-      </div>
-
-      <div style={{ padding:24, display:'flex', flexDirection:'column', gap:16 }}>
-        {/* Card number */}
-        <div>
-          <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)', display:'block', marginBottom:6 }}>
-            Card Number
-          </label>
-          <div style={{ position:'relative' }}>
-            <input
-              value={cardNum} onChange={e => setCardNum(fmtCard(e.target.value))}
-              placeholder="1234 5678 9012 3456" maxLength={19}
-              style={{ width:'100%', padding:'11px 44px 11px 12px', border:'1.5px solid var(--b360-border)',
-                borderRadius:8, fontSize:16, letterSpacing:2, fontFamily:'monospace', outline:'none',
-                transition:'border-color 0.15s', boxSizing:'border-box' }}
-              onFocus={e => e.target.style.borderColor = 'var(--b360-green)'}
-              onBlur={e => e.target.style.borderColor = 'var(--b360-border)'}
-            />
-            {cardType && (
-              <div style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)' }}>
-                <CardBrand type={cardType}/>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-          <div>
-            <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)', display:'block', marginBottom:6 }}>
-              Expiry (MM/YY)
-            </label>
-            <input value={expiry} onChange={e => setExpiry(fmtExpiry(e.target.value))}
-              placeholder="12/27" maxLength={5}
-              style={{ width:'100%', padding:'11px 12px', border:'1.5px solid var(--b360-border)', borderRadius:8,
-                fontSize:14, fontFamily:'monospace', outline:'none', boxSizing:'border-box' }}
-              onFocus={e => e.target.style.borderColor = 'var(--b360-green)'}
-              onBlur={e => e.target.style.borderColor = 'var(--b360-border)'} />
-          </div>
-          <div>
-            <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)', display:'block', marginBottom:6 }}>
-              CVV / CVC
-            </label>
-            <input value={cvv} onChange={e => setCvv(e.target.value.replace(/\D/,'').slice(0,4))}
-              placeholder="123" type="password" maxLength={4}
-              style={{ width:'100%', padding:'11px 12px', border:'1.5px solid var(--b360-border)', borderRadius:8,
-                fontSize:14, fontFamily:'monospace', outline:'none', boxSizing:'border-box' }}
-              onFocus={e => e.target.style.borderColor = 'var(--b360-green)'}
-              onBlur={e => e.target.style.borderColor = 'var(--b360-border)'} />
-          </div>
-        </div>
-
-        <div>
-          <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)', display:'block', marginBottom:6 }}>
-            Cardholder Name
-          </label>
-          <input value={name} onChange={e => setName(e.target.value)}
-            placeholder="AMINA HASSAN"
-            style={{ width:'100%', padding:'11px 12px', border:'1.5px solid var(--b360-border)', borderRadius:8,
-              fontSize:14, textTransform:'uppercase', outline:'none', boxSizing:'border-box' }}
-            onFocus={e => e.target.style.borderColor = 'var(--b360-green)'}
-            onBlur={e => e.target.style.borderColor = 'var(--b360-border)'} />
-        </div>
-
-        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
-          <input type="checkbox" checked={saveCard} onChange={e => setSaveCard(e.target.checked)}
-            style={{ accentColor:'var(--b360-green)' }}/>
-          Save card for future payments
-        </label>
-
-        {error && (
-          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px',
-            background:'var(--b360-red-bg)', borderRadius:8, color:'var(--b360-red)', fontSize:13 }}>
-            <XCircle size={15}/> {error}
-          </div>
-        )}
-
-        <div style={{ display:'flex', gap:10 }}>
-          <button onClick={onCancel} style={{ flex:1, padding:12, border:'1px solid var(--b360-border)',
-            borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', background:'white' }}>
-            Cancel
-          </button>
-          <button onClick={handlePay} disabled={processing} style={{
-            flex:2, padding:12, background: processing ? '#ccc' : 'var(--b360-green)',
-            color:'white', border:'none', borderRadius:8, fontSize:14, fontWeight:700,
-            cursor: processing ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8
-          }}>
-            {processing ? (
-              <><span style={{ animation:'spin 1s linear infinite', display:'inline-block' }}>⟳</span> Processing...</>
-            ) : (
-              <><Shield size={15}/> Pay KES {amount.toLocaleString()}</>
-            )}
-          </button>
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, fontSize:11, color:'var(--b360-text-secondary)' }}>
-          <Shield size={12}/> PCI DSS Level 1 · 256-bit TLS · CyberSource Unified Checkout
-        </div>
-        <div style={{ fontSize:11, color:'var(--b360-text-secondary)', textAlign:'center' }}>
-          🧪 Sandbox: use any number except <code>4111 1111 1111 1111</code> to approve
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Saved Card Picker ─────────────────────────────────────────────────────────
-function SavedCardPicker({ cards, onSelect, selectedId, onNew }:
-  { cards: SavedCardResponse[]; onSelect: (id: string) => void; selectedId: string; onNew: () => void }) {
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-      {cards.map(card => (
-        <div key={card.id} onClick={() => onSelect(card.id)} style={{
-          display:'flex', alignItems:'center', gap:12, padding:'12px 16px',
-          border:`2px solid ${selectedId === card.id ? 'var(--b360-green)' : 'var(--b360-border)'}`,
-          borderRadius:10, cursor:'pointer', background: selectedId === card.id ? 'var(--b360-green-bg)' : 'white',
-          transition:'all 0.15s'
-        }}>
-          <CreditCard size={20} color={selectedId === card.id ? 'var(--b360-green)' : 'var(--b360-text-secondary)'} />
-          <div style={{ flex:1 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <CardBrand type={card.type}/>
-              <span style={{ fontWeight:600, fontSize:13 }}>•••• {card.last4}</span>
-              {card.isDefault && <span style={{ fontSize:10, color:'var(--b360-green)', fontWeight:700 }}>DEFAULT</span>}
-            </div>
-            <div style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>{card.holder} · Exp {card.expiry}</div>
-          </div>
-          {selectedId === card.id && <CheckCircle size={18} color='var(--b360-green)'/>}
-        </div>
-      ))}
-      <button onClick={onNew} style={{
-        display:'flex', alignItems:'center', gap:8, padding:'12px 16px',
-        border:'2px dashed var(--b360-border)', borderRadius:10, cursor:'pointer',
-        background:'none', color:'var(--b360-text-secondary)', fontSize:13, fontWeight:500
-      }}>
-        <Plus size={16}/> Use a different card
-      </button>
-    </div>
-  )
-}
-
-// ── Payment Result Banner ─────────────────────────────────────────────────────
-function PaymentResult({ result, onClose }: { result: any; onClose: () => void }) {
-  const success = result.status === 'CAPTURED' || result.status === 'AUTHORIZED'
-  return (
-    <div style={{ textAlign:'center', padding:32, background:'white', borderRadius:16, boxShadow:'var(--shadow-md)' }}>
-      <div style={{ fontSize:56, marginBottom:16 }}>{success ? '✅' : '❌'}</div>
-      <h2 style={{ fontWeight:800, fontSize:20, marginBottom:8, color: success ? 'var(--b360-green)' : 'var(--b360-red)' }}>
-        {success ? 'Payment Successful!' : 'Payment Failed'}
-      </h2>
-      {success && (
-        <div style={{ display:'flex', flexDirection:'column', gap:8, margin:'16px auto', maxWidth:300,
-          padding:16, background:'var(--b360-surface)', borderRadius:10, textAlign:'left' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', fontSize:13 }}>
-            <span style={{ color:'var(--b360-text-secondary)' }}>Status</span>
-            <TxnStatus status={result.status}/>
-          </div>
-          <div style={{ display:'flex', justifyContent:'space-between', fontSize:13 }}>
-            <span style={{ color:'var(--b360-text-secondary)' }}>Approval Code</span>
-            <span style={{ fontWeight:700, fontFamily:'monospace' }}>{result.approvalCode}</span>
-          </div>
-          <div style={{ display:'flex', justifyContent:'space-between', fontSize:13 }}>
-            <span style={{ color:'var(--b360-text-secondary)' }}>Card</span>
-            <span style={{ fontWeight:600 }}><CardBrand type={result.cardType}/> •••• {result.cardLast4}</span>
-          </div>
-          <div style={{ display:'flex', justifyContent:'space-between', fontSize:13 }}>
-            <span style={{ color:'var(--b360-text-secondary)' }}>Reconciliation ID</span>
-            <span style={{ fontSize:11, fontFamily:'monospace', color:'var(--b360-text-secondary)' }}>{result.reconciliationId}</span>
-          </div>
-        </div>
-      )}
-      <button onClick={onClose} style={{ padding:'10px 24px', background:'var(--b360-green)', color:'white',
-        border:'none', borderRadius:8, fontWeight:700, cursor:'pointer', marginTop:8 }}>
-        Done
-      </button>
-    </div>
-  )
-}
-
-// ── Payment Link Generator ────────────────────────────────────────────────────
-function PaymentLinkTab() {
-  const [linkAmount, setLinkAmount] = useState('')
-  const [linkDesc, setLinkDesc] = useState('')
-  const [custName, setCustName] = useState('')
-  const [custEmail, setCustEmail] = useState('')
-  const [custPhone, setCustPhone] = useState('')
-  const [expiry, setExpiry] = useState('24')
-  const [generatedLink, setGeneratedLink] = useState('')
-  const [copied, setCopied] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [error, setError] = useState('')
-
-  const generateLink = async () => {
-    if (!linkAmount || Number(linkAmount) <= 0) {
-      setError('Please enter a valid payment amount.')
-      return
-    }
-    setError('')
-    setIsGenerating(true)
-    try {
-      const orderId = 'ORD-' + Math.random().toString(36).substring(2, 9).toUpperCase()
-      const res = await cyberSourceApi.generatePaymentLink({
-        orderId,
-        amount: Number(linkAmount),
-        description: linkDesc || 'Card Payment Invoice',
-        customerName: custName,
-        customerEmail: custEmail,
-        customerPhone: custPhone,
-        expiryHours: Number(expiry)
-      })
-      if (res.success && res.data) {
-        setGeneratedLink(res.data.linkUrl)
-      } else {
-        setError(res.message || 'Failed to generate payment link.')
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Network error while generating payment link.')
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
-  const copyLink = () => {
-    navigator.clipboard.writeText(generatedLink)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2500)
-  }
-
-  const amount  = linkAmount || '0'
-  const ref     = generatedLink ? 'REF-LINK-' + linkAmount : ''
-  const message = `Hi${custName ? ' ' + custName : ''},\n\nYou have a pending payment of KES ${Number(amount).toLocaleString()} for: ${linkDesc || 'Payment Invoice'}.\n\nClick the secure link below to pay by card:\n${generatedLink}\n\nThis link expires in ${expiry} hours.\nPowered by Biashara360`
-
-  const shareEmail    = () => window.open(`mailto:${custEmail}?subject=${encodeURIComponent(`Payment Request — KES ${amount}`)}&body=${encodeURIComponent(message)}`, '_blank')
-  const shareWhatsApp = () => window.open(`https://wa.me/${(custPhone||'').replace(/[^0-9]/g,'')}?text=${encodeURIComponent(message)}`, '_blank')
-  const shareSMS      = () => window.open(`sms:${custPhone}?body=${encodeURIComponent(`Pay KES ${amount} for ${linkDesc || 'Invoice'}: ${generatedLink}`)}`, '_blank')
-
-  const InputF = ({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) => (
-    <div>
-      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-text-secondary)', display: 'block', marginBottom: 5 }}>{label}</label>
-      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} type={type}
-        style={{ width: '100%', padding: '9px 12px', border: '1.5px solid var(--b360-border)', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
-        onFocus={e => e.target.style.borderColor = 'var(--b360-green)'}
-        onBlur={e  => e.target.style.borderColor = 'var(--b360-border)'} />
-    </div>
-  )
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
-
-      {/* ── Left: Link Builder ── */}
-      <Card style={{ padding: 24 }}>
-        <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Create Payment Link</h3>
-        <p style={{ fontSize: 12, color: 'var(--b360-text-secondary)', marginBottom: 20 }}>Generate a secure card payment link to share with your customer.</p>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <InputF label="Amount (KES) *" value={linkAmount} onChange={setLinkAmount} placeholder="e.g. 5000" type="number" />
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-text-secondary)', display: 'block', marginBottom: 5 }}>Link Expiry</label>
-              <select value={expiry} onChange={e => setExpiry(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid var(--b360-border)', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
-                <option value="1">1 hour</option>
-                <option value="6">6 hours</option>
-                <option value="24">24 hours</option>
-                <option value="48">48 hours</option>
-                <option value="168">7 days</option>
-              </select>
-            </div>
-          </div>
-
-          <InputF label="Description *" value={linkDesc} onChange={setLinkDesc} placeholder="e.g. Invoice #INV-042 — Web Design Services" />
-
-          <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 14 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>Customer Details (optional)</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <InputF label="Customer Name"  value={custName}  onChange={setCustName}  placeholder="e.g. Amina Hassan" />
-              <InputF label="Email Address"  value={custEmail} onChange={setCustEmail} placeholder="amina@example.com" type="email" />
-              <InputF label="Phone (WhatsApp / SMS)" value={custPhone} onChange={setCustPhone} placeholder="+254 7XX XXX XXX" />
-            </div>
-          </div>
-
-          {error && <p style={{ color: 'var(--b360-red)', fontSize: 12 }}>{error}</p>}
-
-          <button onClick={generateLink} disabled={isGenerating} style={{
-            padding: '13px 0', background: 'var(--b360-green)', color: 'white', border: 'none',
-            borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: isGenerating ? 'not-allowed' : 'pointer',
-            opacity: isGenerating ? 0.7 : 1,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-          }}>
-            <Link size={16} /> {isGenerating ? 'Generating Link...' : 'Generate Payment Link'}
-          </button>
-        </div>
-      </Card>
-
-      {/* ── Right: Share Panel ── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-        {!generatedLink ? (
-          <Card style={{ padding: 32, textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🔗</div>
-            <p style={{ color: 'var(--b360-text-secondary)', fontSize: 13 }}>Fill in the details and click <strong>Generate Payment Link</strong> to create a shareable card payment link.</p>
-          </Card>
-        ) : (
-          <>
-            {/* Link preview */}
-            <Card style={{ padding: 20 }}>
-              <h4 style={{ fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><Link size={15} /> Payment Link</h4>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'var(--b360-surface)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--b360-border)' }}>
-                <span style={{ flex: 1, fontSize: 11, fontFamily: 'monospace', color: 'var(--b360-text-secondary)', wordBreak: 'break-all' }}>{generatedLink}</span>
-                <button onClick={copyLink} style={{
-                  padding: '6px 12px', background: copied ? 'var(--b360-green)' : 'white',
-                  color: copied ? 'white' : 'var(--b360-text-secondary)',
-                  border: '1px solid var(--b360-border)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', transition: 'all 0.2s'
-                }}>
-                  <Copy size={12} />{copied ? 'Copied!' : 'Copy'}
-                </button>
-              </div>
-
-              {/* Summary badges */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                <span style={{ padding: '4px 10px', background: 'var(--b360-green-bg)', color: 'var(--b360-green)', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>
-                  KES {Number(linkAmount).toLocaleString()}
-                </span>
-                <span style={{ padding: '4px 10px', background: 'var(--b360-surface)', color: 'var(--b360-text-secondary)', borderRadius: 20, fontSize: 11 }}>
-                  ⏱ Expires in {expiry}h
-                </span>
-                <span style={{ padding: '4px 10px', background: 'var(--b360-surface)', color: 'var(--b360-text-secondary)', borderRadius: 20, fontSize: 11, fontFamily: 'monospace' }}>
-                  {ref}
-                </span>
-              </div>
-            </Card>
-
-            {/* Share options */}
-            <Card style={{ padding: 20 }}>
-              <h4 style={{ fontWeight: 700, marginBottom: 14 }}>Share With Customer</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-                {/* WhatsApp */}
-                <button onClick={shareWhatsApp}
-                  disabled={!custPhone}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
-                    background: '#25D366', color: 'white', border: 'none', borderRadius: 10,
-                    cursor: custPhone ? 'pointer' : 'not-allowed', opacity: custPhone ? 1 : 0.4,
-                    transition: 'transform 0.15s', fontFamily: 'inherit'
-                  }}
-                  onMouseEnter={e => { if (custPhone) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'none' }}
-                >
-                  <span style={{ fontSize: 22 }}>💬</span>
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>Share via WhatsApp</div>
-                    <div style={{ fontSize: 11, opacity: 0.85 }}>{custPhone || 'Add phone number to enable'}</div>
-                  </div>
-                  <Send size={16} style={{ marginLeft: 'auto' }} />
-                </button>
-
-                {/* Email */}
-                <button onClick={shareEmail}
-                  disabled={!custEmail}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
-                    background: '#4285F4', color: 'white', border: 'none', borderRadius: 10,
-                    cursor: custEmail ? 'pointer' : 'not-allowed', opacity: custEmail ? 1 : 0.4,
-                    transition: 'transform 0.15s', fontFamily: 'inherit'
-                  }}
-                  onMouseEnter={e => { if (custEmail) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'none' }}
-                >
-                  <Mail size={20} />
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>Send via Email</div>
-                    <div style={{ fontSize: 11, opacity: 0.85 }}>{custEmail || 'Add email address to enable'}</div>
-                  </div>
-                  <Send size={16} style={{ marginLeft: 'auto' }} />
-                </button>
-
-                {/* SMS */}
-                <button onClick={shareSMS}
-                  disabled={!custPhone}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
-                    background: 'var(--b360-blue)', color: 'white', border: 'none', borderRadius: 10,
-                    cursor: custPhone ? 'pointer' : 'not-allowed', opacity: custPhone ? 1 : 0.4,
-                    transition: 'transform 0.15s', fontFamily: 'inherit'
-                  }}
-                  onMouseEnter={e => { if (custPhone) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'none' }}
-                >
-                  <MessageSquare size={20} />
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>Send via SMS</div>
-                    <div style={{ fontSize: 11, opacity: 0.85 }}>{custPhone || 'Add phone number to enable'}</div>
-                  </div>
-                  <Send size={16} style={{ marginLeft: 'auto' }} />
-                </button>
-              </div>
-            </Card>
-
-            {/* Message preview */}
-            <Card style={{ padding: 20 }}>
-              <h4 style={{ fontWeight: 700, marginBottom: 10, fontSize: 13 }}>Message Preview</h4>
-              <pre style={{ fontSize: 12, color: 'var(--b360-text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                background: 'var(--b360-surface)', borderRadius: 8, padding: 12, margin: 0, fontFamily: 'inherit', lineHeight: 1.6 }}>
-                {message}
-              </pre>
-            </Card>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ── Main CyberSource Payments Page ────────────────────────────────────────────
 export default function CyberSourcePage() {
-  const [activeTab, setActiveTab] = useState<'charge' | 'link' | 'transactions' | 'saved'>('charge')
-  const [payMethod, setPayMethod] = useState<'new' | 'saved'>('saved')
-  const [selectedCard, setSelectedCard] = useState('')
-  const [amount, setAmount] = useState('')
-  const [orderId, setOrderId] = useState('')
-  const [showWidget, setShowWidget] = useState(false)
-  const [payResult, setPayResult] = useState<any>(null)
   const [transactions, setTransactions] = useState<CsTransactionRecord[]>([])
-  const [savedCards, setSavedCards] = useState<SavedCardResponse[]>([])
-  const [refundModal, setRefundModal] = useState<CsTransactionRecord | null>(null)
+  const [statusFilter, setStatusFilter] = useState('ALL')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  useEffect(() => {
-    Promise.all([
-      cyberSourceApi.getTransactions(),
-      cyberSourceApi.getSavedCards(),
-    ]).then(([txns, cards]) => {
-      if (txns.success && txns.data) setTransactions(txns.data)
-      if (cards.success && cards.data) {
-        setSavedCards(cards.data)
-        const def = cards.data.find(c => c.isDefault)
-        if (def) setSelectedCard(def.id)
-        else if (cards.data.length > 0) setSelectedCard(cards.data[0].id)
-      }
-    }).finally(() => setLoading(false))
+  const loadReport = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await cyberSourceApi.getTransactions()
+      if (!response.success) throw new Error(response.message || 'Unable to load card payments')
+      setTransactions(response.data ?? [])
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to load card payments')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  async function deleteCard(id: string) {
-    if (!window.confirm('Remove this saved card? This cannot be undone.')) return
-    try {
-      await cyberSourceApi.deleteSavedCard(id)
-      setSavedCards(prev => prev.filter(c => c.id !== id))
-    } catch (_) {
-      alert('Failed to remove card. Please try again.')
-    }
-  }
+  useEffect(() => { void loadReport() }, [loadReport])
 
-  const captured   = transactions.filter(t => t.status === 'CAPTURED').reduce((s, t) => s + t.amount, 0)
-  const authorized = transactions.filter(t => t.status === 'AUTHORIZED').reduce((s, t) => s + t.amount, 0)
-  const declined   = transactions.filter(t => t.status === 'DECLINED').length
-  const refunded   = transactions.filter(t => t.status === 'REFUNDED').reduce((s, t) => s + t.amount, 0)
-
-  const Tab = ({ id, label }: { id: typeof activeTab; label: string }) => (
-    <button onClick={() => setActiveTab(id)} style={{
-      padding:'8px 20px', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', border:'none',
-      background: activeTab === id ? 'var(--b360-green)' : 'white',
-      color: activeTab === id ? 'white' : 'var(--b360-text-secondary)',
-      boxShadow: activeTab === id ? 'var(--shadow-sm)' : 'none'
-    }}>{label}</button>
+  const visibleTransactions = useMemo(
+    () => statusFilter === 'ALL' ? transactions : transactions.filter(transaction => transaction.status === statusFilter),
+    [statusFilter, transactions],
   )
+  const captured = transactions.filter(transaction => transaction.status === 'CAPTURED').reduce((sum, transaction) => sum + transaction.amount, 0)
+  const authorized = transactions.filter(transaction => transaction.status === 'AUTHORIZED').reduce((sum, transaction) => sum + transaction.amount, 0)
+  const refunded = transactions.filter(transaction => transaction.status === 'REFUNDED').reduce((sum, transaction) => sum + transaction.amount, 0)
+  const declined = transactions.filter(transaction => transaction.status === 'DECLINED' || transaction.status === 'ERROR').length
+  const statuses = ['ALL', ...Array.from(new Set(transactions.map(transaction => transaction.status)))]
 
   return (
-    <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
-      <PageHeader title="Card Payments — CyberSource" />
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <PageHeader
+        title="Card Payment Report"
+        action={<Btn variant="secondary" icon={<RefreshCw size={14} />} onClick={() => void loadReport()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</Btn>}
+      />
 
-      {/* KPI Row */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
-        <KpiCard title="Captured (Settled)"  value={`KES ${captured.toLocaleString()}`}  change="Ready to withdraw"   icon={<CheckCircle size={18}/>} color="var(--b360-green)" />
-        <KpiCard title="Authorized (Pending)" value={`KES ${authorized.toLocaleString()}`} change="Awaiting capture"    icon={<Clock size={18}/>}       color="var(--b360-blue)" />
-        <KpiCard title="Refunded"            value={`KES ${refunded.toLocaleString()}`}   change="Returned to customers" icon={<RefreshCw size={18}/>}  color="var(--b360-amber)" />
-        <KpiCard title="Declined"            value={`${declined} txns`}                   change="Review with customers" icon={<XCircle size={18}/>}    color="var(--b360-red)" />
+      <div style={{ color: 'var(--b360-text-secondary)', fontSize: 13, marginTop: -24 }}>
+        CyberSource card transactions recorded for your business. Card collection is initiated from an order or POS checkout.
       </div>
 
-      {/* Tabs */}
-      <div style={{ display:'flex', gap:6, background:'var(--b360-surface)', padding:4, borderRadius:10, width:'fit-content', border:'1px solid var(--b360-border)' }}>
-        <Tab id="charge"       label="💳  Charge a Card"/>
-        <Tab id="link"         label="🔗  Payment Link"/>
-        <Tab id="transactions" label="📋  Transactions"/>
-        <Tab id="saved"        label="🔐  Saved Cards"/>
+      <div className="responsive-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 14 }}>
+        <KpiCard title="Captured" value={`KES ${captured.toLocaleString()}`} change="Successfully settled" icon={<CheckCircle size={18} />} color="var(--b360-green)" />
+        <KpiCard title="Authorized" value={`KES ${authorized.toLocaleString()}`} change="Awaiting capture" icon={<Clock size={18} />} color="var(--b360-blue)" />
+        <KpiCard title="Refunded" value={`KES ${refunded.toLocaleString()}`} change="Returned to customers" icon={<RefreshCw size={18} />} color="var(--b360-amber)" />
+        <KpiCard title="Declined / Errors" value={declined.toLocaleString()} change="Unsuccessful transactions" icon={<XCircle size={18} />} color="var(--b360-red)" />
       </div>
 
-      {/* ── Charge Tab ── */}
-      {activeTab === 'charge' && !showWidget && !payResult && (
-        <div style={{ maxWidth: 540, margin: '0 auto', width: '100%' }}>
-          {/* Order details */}
-          <Card style={{ padding:24 }}>
-            <h3 style={{ fontWeight:700, marginBottom:20 }}>Order Details</h3>
-            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-              <div>
-                <label style={{ fontSize:12, fontWeight:500, color:'var(--b360-text-secondary)', display:'block', marginBottom:5 }}>Order ID</label>
-                <input value={orderId} onChange={e => setOrderId(e.target.value)}
-                  style={{ width:'100%', padding:'9px 12px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, outline:'none', boxSizing:'border-box' }} />
-              </div>
-              <div>
-                <label style={{ fontSize:12, fontWeight:500, color:'var(--b360-text-secondary)', display:'block', marginBottom:5 }}>Amount (KES)</label>
-                <input value={amount} onChange={e => setAmount(e.target.value)} type="number"
-                  style={{ width:'100%', padding:'9px 12px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:18, fontWeight:700, outline:'none', boxSizing:'border-box' }} />
-              </div>
-
-              <div style={{ display:'flex', gap:8 }}>
-                <button onClick={() => setPayMethod('saved')} style={{
-                  flex:1, padding:10, border:`2px solid ${payMethod==='saved'?'var(--b360-green)':'var(--b360-border)'}`,
-                  borderRadius:8, background: payMethod==='saved'?'var(--b360-green-bg)':'white',
-                  color: payMethod==='saved'?'var(--b360-green)':'var(--b360-text)', cursor:'pointer', fontWeight:600, fontSize:12
-                }}>🔐 Saved Card</button>
-                <button onClick={() => setPayMethod('new')} style={{
-                  flex:1, padding:10, border:`2px solid ${payMethod==='new'?'var(--b360-green)':'var(--b360-border)'}`,
-                  borderRadius:8, background: payMethod==='new'?'var(--b360-green-bg)':'white',
-                  color: payMethod==='new'?'var(--b360-green)':'var(--b360-text)', cursor:'pointer', fontWeight:600, fontSize:12
-                }}>💳 New Card</button>
-              </div>
-
-              {payMethod === 'saved' && (
-                <SavedCardPicker cards={savedCards} selectedId={selectedCard}
-                  onSelect={setSelectedCard} onNew={() => setPayMethod('new')} />
-              )}
-
-              <button onClick={() => setShowWidget(true)} style={{
-                padding:'13px 0', background:'var(--b360-green)', color:'white', border:'none',
-                borderRadius:10, fontSize:15, fontWeight:700, cursor:'pointer',
-                display:'flex', alignItems:'center', justifyContent:'center', gap:8
-              }}>
-                <Shield size={16}/> {payMethod === 'saved' ? 'Charge Saved Card' : 'Open Secure Checkout'}
-                <ChevronRight size={16}/>
-              </button>
-            </div>
-          </Card>
+      <Card style={{ padding: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16 }}>CyberSource transactions</h3>
+            <span style={{ color: 'var(--b360-text-secondary)', fontSize: 12 }}>{visibleTransactions.length} transaction{visibleTransactions.length === 1 ? '' : 's'}</span>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--b360-text-secondary)' }}>
+            Status
+            <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--b360-border)', borderRadius: 8, background: 'white' }}>
+              {statuses.map(status => <option key={status} value={status}>{status === 'ALL' ? 'All statuses' : status}</option>)}
+            </select>
+          </label>
         </div>
-      )}
 
-      {/* Widget or result */}
-      {activeTab === 'charge' && showWidget && !payResult && (
-        <UnifiedCheckoutWidget
-          orderId={orderId} amount={parseFloat(amount) || 0}
-          onSuccess={r => { setShowWidget(false); setPayResult(r) }}
-          onCancel={() => setShowWidget(false)}
-        />
-      )}
-      {activeTab === 'charge' && payResult && (
-        <div style={{ maxWidth:500, margin:'0 auto' }}>
-          <PaymentResult result={payResult} onClose={() => { setPayResult(null); setShowWidget(false) }} />
-        </div>
-      )}
-
-      {/* ── Payment Link Tab ── */}
-      {activeTab === 'link' && <PaymentLinkTab />}
-
-      {/* ── Transaction History Tab ── */}
-      {activeTab === 'transactions' && (
-        <Card>
-          {loading ? (
-            <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
-          ) : transactions.length === 0 ? (
-            <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No transactions yet</div>
-          ) : (
+        {error ? (
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-red)', background: 'var(--b360-red-bg)', borderRadius: 8 }}>{error}</div>
+        ) : loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading card payment report…</div>
+        ) : visibleTransactions.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>
+            <CreditCard size={28} style={{ marginBottom: 8 }} />
+            <div>No card transactions found.</div>
+          </div>
+        ) : (
           <DataTable
-            headers={['CS Transaction ID', 'Order', 'Type', 'Card', 'Amount', 'Status', 'Approval', 'Reconciliation ID', 'Date', 'Actions']}
-            rows={transactions.map(t => [
-              <span style={{ fontFamily:'monospace', fontSize:11, color:'var(--b360-text-secondary)' }}>
-                {t.csTransactionId.slice(0, 14)}…
-              </span>,
-              <span style={{ fontWeight:700, color:'var(--b360-green)', fontSize:12 }}>{t.orderId}</span>,
-              <span style={{ fontSize:11, fontWeight:600, color:'var(--b360-text-secondary)' }}>{t.type}</span>,
-              <span style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <CardBrand type={t.cardType}/> <span style={{ fontSize:12 }}>••{t.cardLast4}</span>
-              </span>,
-              <span style={{ fontWeight:700 }}>KES {t.amount.toLocaleString()}</span>,
-              <TxnStatus status={t.status}/>,
-              <span style={{ fontFamily:'monospace', fontSize:12, fontWeight:600 }}>{t.approvalCode || '—'}</span>,
-              <span style={{ fontFamily:'monospace', fontSize:10, color:'var(--b360-text-secondary)' }}>
-                {t.reconciliationId ? t.reconciliationId.slice(0,16)+'…' : '—'}
-              </span>,
-              <span style={{ color:'var(--b360-text-secondary)', fontSize:12 }}>{new Date(t.createdAt).toLocaleDateString('en-KE')}</span>,
-              <div style={{ display:'flex', gap:4 }}>
-                {t.status === 'AUTHORIZED' && (
-                  <Btn variant="secondary" small icon={<CheckCircle size={11}/>}>Capture</Btn>
-                )}
-                {t.status === 'CAPTURED' && (
-                  <Btn variant="secondary" small icon={<RefreshCw size={11}/>} onClick={() => setRefundModal(t)}>Refund</Btn>
-                )}
-                {t.status === 'AUTHORIZED' && (
-                  <Btn variant="danger" small icon={<XCircle size={11}/>}>Void</Btn>
-                )}
-              </div>
+            headers={['CyberSource reference', 'Order', 'Type', 'Card', 'Amount', 'Status', 'Approval', 'Reconciliation', 'Date']}
+            rows={visibleTransactions.map(transaction => [
+              <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{transaction.csTransactionId || '—'}</span>,
+              <span style={{ fontWeight: 700, color: 'var(--b360-green)' }}>{transaction.orderId || '—'}</span>,
+              transaction.type || '—',
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><CardBrand type={transaction.cardType} /> ••{transaction.cardLast4 || '—'}</span>,
+              <span style={{ fontWeight: 700 }}>{transaction.currency || 'KES'} {transaction.amount.toLocaleString()}</span>,
+              <TransactionStatus status={transaction.status} />,
+              <span style={{ fontFamily: 'monospace' }}>{transaction.approvalCode || '—'}</span>,
+              <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{transaction.reconciliationId || '—'}</span>,
+              new Date(transaction.createdAt).toLocaleString('en-KE'),
             ])}
           />
-          )}
-        </Card>
-      )}
-
-      {/* Refund modal */}
-      {refundModal && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <Card style={{ padding:28, width:380 }}>
-            <h3 style={{ fontWeight:800, marginBottom:16 }}>Refund Payment</h3>
-            <div style={{ fontSize:13, marginBottom:16, color:'var(--b360-text-secondary)' }}>
-              Order <strong>{refundModal.orderId}</strong> · Card ••{refundModal.cardLast4}
-            </div>
-            <div style={{ marginBottom:16 }}>
-              <label style={{ fontSize:12, fontWeight:500, display:'block', marginBottom:5 }}>Refund Amount (KES)</label>
-              <input defaultValue={refundModal.amount} type="number"
-                style={{ width:'100%', padding:10, border:'1px solid var(--b360-border)', borderRadius:8, fontSize:14, fontWeight:700, outline:'none', boxSizing:'border-box' }}/>
-            </div>
-            <div style={{ display:'flex', gap:8 }}>
-              <Btn variant="secondary" onClick={() => setRefundModal(null)}>Cancel</Btn>
-              <Btn icon={<RefreshCw size={13}/>} onClick={() => setRefundModal(null)}>Process Refund</Btn>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* ── Saved Cards Tab ── */}
-      {activeTab === 'saved' && (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, alignItems:'start' }}>
-          <Card style={{ padding:20 }}>
-            <h3 style={{ fontWeight:700, marginBottom:16 }}>Tokenized Cards (CyberSource TMS)</h3>
-            {loading ? (
-              <div style={{ padding:30, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
-            ) : (
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {savedCards.length === 0 && (
-                <div style={{ padding:20, textAlign:'center', color:'var(--b360-text-secondary)', fontSize:13 }}>No saved cards yet</div>
-              )}
-              {savedCards.map(card => (
-                <div key={card.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px',
-                  border:'1px solid var(--b360-border)', borderRadius:10, background:'white' }}>
-                  <CreditCard size={20} color='var(--b360-text-secondary)'/>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <CardBrand type={card.type}/>
-                      <span style={{ fontWeight:700 }}>•••• •••• •••• {card.last4}</span>
-                      {card.isDefault && <span style={{ fontSize:10, color:'var(--b360-green)', fontWeight:700, background:'var(--b360-green-bg)', padding:'2px 6px', borderRadius:10 }}>DEFAULT</span>}
-                    </div>
-                    <div style={{ fontSize:12, color:'var(--b360-text-secondary)', marginTop:2 }}>{card.holder} · Exp {card.expiry}</div>
-                  </div>
-                  <button onClick={() => deleteCard(card.id)} style={{ color:'var(--b360-red)', background:'var(--b360-red-bg)', border:'none',
-                    borderRadius:6, padding:'6px 8px', cursor:'pointer' }}>
-                    <Trash2 size={13}/>
-                  </button>
-                </div>
-              ))}
-              <Btn variant="secondary" icon={<Plus size={14}/>}>Add New Card</Btn>
-            </div>
-            )}
-          </Card>
-          <Card style={{ padding:20 }}>
-            <h3 style={{ fontWeight:700, marginBottom:12 }}>About Card Tokenization</h3>
-            <div style={{ fontSize:13, color:'var(--b360-text-secondary)', lineHeight:1.7 }}>
-              <p style={{ marginBottom:10 }}>Card numbers are never stored on Biashara360 servers. CyberSource Token Management Service (TMS) securely stores card data and returns a customer token ID.</p>
-              <p style={{ marginBottom:10 }}>When charging a saved card, the backend sends the customer token to CyberSource — no raw card data is ever transmitted through your infrastructure.</p>
-              <p>This means you operate with <strong style={{ color:'var(--b360-green)' }}>zero PCI DSS scope</strong> for card storage.</p>
-            </div>
-            <div style={{ marginTop:16, padding:12, background:'var(--b360-green-bg)', borderRadius:8, fontSize:12, color:'var(--b360-green)' }}>
-              🔐 PCI DSS Level 1 Compliant · CyberSource Handles All Card Data
-            </div>
-          </Card>
-        </div>
-      )}
+        )}
+      </Card>
     </div>
   )
 }

@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { PageHeader, Card, Btn, Input } from '../components/ui'
 import { businessApi } from '../services/api'
+import { ImagePlus, Printer, Trash2 } from 'lucide-react'
+import { printOrderReceipt } from '../utils/receipt'
 
 export default function ReceiptTemplatePage() {
   const [header, setHeader] = useState('Welcome to our store!')
   const [footer, setFooter] = useState('Thank you for shopping with us!')
   const [showTax, setShowTax] = useState(true)
   const [showCustomer, setShowCustomer] = useState(true)
+  const [logo, setLogo] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -24,6 +27,7 @@ export default function ReceiptTemplatePage() {
           setFooter(res.data.receiptFooter || 'Thank you for shopping with us!')
           setShowTax(res.data.receiptShowTax !== false)
           setShowCustomer(res.data.receiptShowCustomer !== false)
+          setLogo(res.data.receiptLogo || null)
         }
       })
       .catch(() => {
@@ -41,6 +45,7 @@ export default function ReceiptTemplatePage() {
         ...profile,
         receiptHeader: header,
         receiptFooter: footer,
+        receiptLogo: logo,
         receiptShowTax: showTax,
         receiptShowCustomer: showCustomer
       })
@@ -57,6 +62,35 @@ export default function ReceiptTemplatePage() {
     }
   }
 
+  const handleLogo = (file?: File) => {
+    if (!file) return
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setErrorMsg('Logo must be a PNG, JPEG, or WebP image.')
+      return
+    }
+    if (file.size > 500 * 1024) {
+      setErrorMsg('Logo must be smaller than 500 KB.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => { setLogo(String(reader.result)); setErrorMsg('') }
+    reader.readAsDataURL(file)
+  }
+
+  const testPrint = () => {
+    if (!profile) return
+    printOrderReceipt({
+      id: 'preview', orderNumber: 'PREVIEW-001', businessId: profile.id, customerId: null,
+      customerName: 'John Doe', customerPhone: '+254 711 222 333', deliveryLocation: 'In-Store POS',
+      items: [
+        { id: '1', productId: '1', productName: "Men's Slim Fit Jeans", quantity: 1, unitPrice: 2500, buyingPrice: 0, lineTotal: 2500, lineProfit: 0 },
+        { id: '2', productId: '2', productName: 'Casual Cotton Shirt', quantity: 2, unitPrice: 1200, buyingPrice: 0, lineTotal: 2400, lineProfit: 0 },
+      ], paymentStatus: 'PAID', deliveryStatus: 'DELIVERED', paymentMethod: 'CASH', mpesaTransactionCode: null,
+      baseAmount: 4900, taxIncluded: true, taxRate: 0.16, taxAmount: 784, subtotal: 5684,
+      salesChannel: 'WEB', notes: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    }, { ...profile, receiptHeader: header, receiptFooter: footer, receiptLogo: logo, receiptShowTax: showTax, receiptShowCustomer: showCustomer })
+  }
+
   if (loading) {
     return <div style={{ padding: 32, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading settings…</div>
   }
@@ -68,6 +102,7 @@ export default function ReceiptTemplatePage() {
         action={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {saved && <span style={{ fontSize: 12, color: 'var(--b360-green)', fontWeight: 600 }}>✓ Saved successfully</span>}
+            <Btn variant="secondary" icon={<Printer size={14} />} onClick={testPrint} disabled={!profile}>Test Print</Btn>
             <Btn onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Template'}</Btn>
           </div>
         }
@@ -84,6 +119,21 @@ export default function ReceiptTemplatePage() {
         <Card style={{ padding: 24 }}>
           <h3 style={{ fontWeight: 700, marginBottom: 18, fontSize: 15 }}>Receipt Parameters</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-text-secondary)', display: 'block', marginBottom: 6 }}>Business Logo</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 88, height: 64, border: '1px dashed var(--b360-border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'var(--b360-surface)' }}>
+                  {logo ? <img src={logo} alt="Receipt logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <ImagePlus size={22} color="var(--b360-text-secondary)" />}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label className="btn" style={{ cursor: 'pointer', padding: '8px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
+                    Choose image<input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => handleLogo(event.target.files?.[0])} />
+                  </label>
+                  {logo && <button type="button" onClick={() => setLogo(null)} style={{ border: 0, background: 'transparent', color: 'var(--b360-red)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}><Trash2 size={12} /> Remove</button>}
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)', marginTop: 5 }}>PNG, JPEG, or WebP; maximum 500 KB.</div>
+            </div>
             <Input
               label="Header Message"
               value={header}
@@ -145,6 +195,7 @@ export default function ReceiptTemplatePage() {
             backgroundSize: '8px 8px'
           }}>
             <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              {logo && <img src={logo} alt="Business logo" style={{ display: 'block', maxWidth: 150, maxHeight: 72, objectFit: 'contain', margin: '0 auto 8px' }} />}
               <span style={{ fontWeight: 'bold', fontSize: 14, textTransform: 'uppercase' }}>{profile?.name || 'BIASHARA STORE'}</span>
               <div style={{ fontSize: 10, color: '#4A5568', marginTop: 2 }}>
                 <div>{profile?.address || '123 Tom Mboya St'}</div>

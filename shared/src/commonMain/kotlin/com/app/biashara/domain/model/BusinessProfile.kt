@@ -17,8 +17,10 @@ data class BusinessProfile(
     val accountNumber: String,
     val subscriptionTier: String,
     val subscriptionEnabled: Boolean = true,
+    val hospitalityEnabled: Boolean = false,
     val receiptHeader: String = "Welcome to our store!",
     val receiptFooter: String = "Thank you for shopping with us!",
+    val receiptLogo: String? = null,
     val receiptShowTax: Boolean = true,
     val receiptShowCustomer: Boolean = true
 )

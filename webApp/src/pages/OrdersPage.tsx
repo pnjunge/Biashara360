@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, KpiCard, Modal, Input, Select } from '../components/ui'
-import { ShoppingCart, Plus, Eye, RefreshCw } from 'lucide-react'
-import { orderApi, productApi, customerApi, paymentApi, OrderResponse, ProductResponse, CustomerResponse } from '../services/api'
+import { ShoppingCart, Plus, Eye, Printer, RefreshCw } from 'lucide-react'
+import { businessApi, orderApi, productApi, customerApi, paymentApi, BusinessProfileResponse, OrderResponse, ProductResponse, CustomerResponse } from '../services/api'
+import { printOrderReceipt } from '../utils/receipt'
 
 const PAYMENT_METHODS = ['CASH','MPESA','CARD','COD']
 
@@ -15,6 +16,7 @@ export function OrdersPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [retryingOrderId, setRetryingOrderId] = useState('')
+  const [receiptProfile, setReceiptProfile] = useState<BusinessProfileResponse | null>(null)
 
   const [showNew, setShowNew] = useState(false)
   const [viewOrder, setViewOrder] = useState<OrderResponse | null>(null)
@@ -31,7 +33,12 @@ export function OrdersPage() {
     }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { loadOrders() }, [])
+  useEffect(() => {
+    loadOrders()
+    businessApi.getProfile().then(response => {
+      if (response.success && response.data) setReceiptProfile(response.data)
+    }).catch(() => undefined)
+  }, [])
 
   const openNew = () => {
     setForm(emptyOrder)
@@ -170,7 +177,7 @@ export function OrdersPage() {
 
       {viewOrder && (
         <Modal title={`Order ${viewOrder.orderNumber}`} onClose={() => setViewOrder(null)} wide
-          footer={<Btn variant="secondary" onClick={() => setViewOrder(null)}>Close</Btn>}>
+          footer={<><Btn icon={<Printer size={14} />} onClick={() => printOrderReceipt(viewOrder, receiptProfile)}>Print Receipt</Btn><Btn variant="secondary" onClick={() => setViewOrder(null)}>Close</Btn></>}>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Customer</span><div style={{ fontWeight:600 }}>{viewOrder.customerName}</div></div>

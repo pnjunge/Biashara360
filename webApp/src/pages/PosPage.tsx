@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { PageHeader, Card, Btn, Input, Select } from '../components/ui'
-import { Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard, CheckCircle, Store, Smartphone } from 'lucide-react'
-import { orderApi, productApi, customerApi, paymentApi, settingsApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse } from '../services/api'
+import { Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard, CheckCircle, Store, Smartphone, Printer } from 'lucide-react'
+import { orderApi, productApi, customerApi, paymentApi, settingsApi, businessApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse, BusinessProfileResponse } from '../services/api'
+import { printOrderReceipt } from '../utils/receipt'
 
 interface CartItem {
   product: ProductResponse
@@ -23,6 +24,7 @@ export function PosPage() {
   const [customerName, setCustomerName] = useState('Walk-In Customer')
   const [customerPhone, setCustomerPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'MPESA' | 'CARD'>('CASH')
+  const [includeTax, setIncludeTax] = useState(true)
   const [notes, setNotes] = useState('')
   
   // Processing States
@@ -30,6 +32,8 @@ export function PosPage() {
   const [error, setError] = useState('')
   const [checkoutSuccess, setCheckoutSuccess] = useState(false)
   const [createdOrderNumber, setCreatedOrderNumber] = useState('')
+  const [completedOrder, setCompletedOrder] = useState<OrderResponse | null>(null)
+  const [receiptProfile, setReceiptProfile] = useState<BusinessProfileResponse | null>(null)
 
   // M-Pesa STK push states
   const [stkStep, setStkStep] = useState<'idle' | 'confirm_phone' | 'pushing' | 'pushed' | 'error'>('idle')
@@ -63,14 +67,16 @@ export function PosPage() {
     Promise.all([
       productApi.list(),
       customerApi.list(),
-      settingsApi.getMpesaChannels()
-    ]).then(([prodRes, custRes, mpesaRes]) => {
+      settingsApi.getMpesaChannels(),
+      businessApi.getProfile()
+    ]).then(([prodRes, custRes, mpesaRes, profileRes]) => {
       if (prodRes.success && prodRes.data) setProducts(prodRes.data)
       if (custRes.success && custRes.data) setCustomers(custRes.data)
       if (mpesaRes.success && mpesaRes.data) {
         setMpesaChannels(mpesaRes.data)
         setMpesaAccountType(mpesaRes.data[0]?.accountType || '')
       }
+      if (profileRes.success && profileRes.data) setReceiptProfile(profileRes.data)
     }).catch(err => {
       console.error("Failed to load POS resources", err)
     }).finally(() => setLoading(false))
@@ -144,7 +150,7 @@ export function PosPage() {
   }
 
   const subtotal = cart.reduce((sum, item) => sum + item.quantity * item.product.sellingPrice, 0)
-  const tax = subtotal * 0.16
+  const tax = includeTax ? Math.round(subtotal * 0.16 * 100) / 100 : 0
   const total = subtotal + tax
 
   // ── STK Push helpers ─────────────────────────────────────────────────────────
@@ -213,6 +219,8 @@ export function PosPage() {
         customerPhone,
         deliveryLocation: 'In-Store POS',
         paymentMethod,
+        includeTax,
+        taxRate: 0.16,
         notes: notes || 'POS Checkout Sale',
         customerId: selectedCustomerId || null,
         items: cart.map(item => ({
@@ -225,6 +233,7 @@ export function PosPage() {
       const res = await orderApi.create(payload)
       if (res.success && res.data) {
         setCreatedOrderNumber(res.data.orderNumber)
+        setCompletedOrder(res.data)
         setStkAmount(total)
         setCartBackup([...cart])
         clearCart()
@@ -464,7 +473,11 @@ export function PosPage() {
             Order: {createdOrderNumber}
           </div>
           <div>
-            <Btn onClick={() => setCheckoutSuccess(false)} icon={<Store size={14} />}>Open New Session</Btn>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <Btn variant="secondary" icon={<Printer size={14} />} disabled={!completedOrder || !receiptProfile}
+                onClick={() => completedOrder && receiptProfile && printOrderReceipt(completedOrder, receiptProfile)}>Print Receipt</Btn>
+              <Btn onClick={() => { setCheckoutSuccess(false); setCompletedOrder(null) }} icon={<Store size={14} />}>Open New Session</Btn>
+            </div>
           </div>
         </Card>
       ) : (
@@ -680,6 +693,14 @@ export function PosPage() {
                 </div>
 
                 <Input label="Sale Notes" placeholder="Optional notes..." value={notes} onChange={setNotes} />
+
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, cursor: 'pointer', background: includeTax ? 'var(--b360-green-bg)' : 'white' }}>
+                  <span>
+                    <strong style={{ display: 'block', fontSize: 13 }}>Include VAT in payment</strong>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--b360-text-secondary)', marginTop: 2 }}>Apply 16% VAT to this sale</span>
+                  </span>
+                  <input type="checkbox" checked={includeTax} onChange={event => setIncludeTax(event.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--b360-green)' }} />
+                </label>
               </div>
 
               <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -688,7 +709,7 @@ export function PosPage() {
                   <span>KES {subtotal.toLocaleString()}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--b360-text-secondary)' }}>
-                  <span>VAT (16%)</span>
+                  <span>VAT (16%){includeTax ? '' : ' — excluded'}</span>
                   <span>KES {tax.toLocaleString()}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800, color: 'var(--b360-sidebar-bg)', borderTop: '1px dashed var(--b360-border)', paddingTop: 8 }}>

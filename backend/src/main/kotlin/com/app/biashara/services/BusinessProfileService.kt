@@ -30,8 +30,10 @@ class BusinessProfileService {
                     accountNumber   = it[BusinessesTable.accountNumber] ?: "",
                     subscriptionTier = it[BusinessesTable.subscriptionTier],
                     subscriptionEnabled = it[BusinessesTable.subscriptionEnabled],
+                    hospitalityEnabled = it[BusinessesTable.hospitalityEnabled],
                     receiptHeader   = it[BusinessesTable.receiptHeader],
                     receiptFooter   = it[BusinessesTable.receiptFooter],
+                    receiptLogo     = it[BusinessesTable.receiptLogo],
                     receiptShowTax  = it[BusinessesTable.receiptShowTax],
                     receiptShowCustomer = it[BusinessesTable.receiptShowCustomer]
                 )
@@ -41,6 +43,16 @@ class BusinessProfileService {
     fun updateProfile(businessId: String, req: BusinessProfileRequest): ApiResponse<BusinessProfileResponse> = transaction {
         if (req.name.isBlank()) {
             return@transaction ApiResponse(false, message = "Business name is required")
+        }
+        val logo = req.receiptLogo?.trim()?.takeIf { it.isNotEmpty() }
+        if (logo != null && logo.length > 750_000) {
+            return@transaction ApiResponse(false, message = "Receipt logo must be smaller than 500 KB")
+        }
+        if (logo != null && !logo.startsWith("data:image/png;base64,") &&
+            !logo.startsWith("data:image/jpeg;base64,") &&
+            !logo.startsWith("data:image/webp;base64,") &&
+            !logo.startsWith("https://")) {
+            return@transaction ApiResponse(false, message = "Receipt logo must be a PNG, JPEG, WebP, or HTTPS image")
         }
 
         val exists = BusinessesTable.select { BusinessesTable.id eq businessId }.count() > 0
@@ -60,6 +72,7 @@ class BusinessProfileService {
             it[accountNumber] = req.accountNumber.takeIf { v -> v.isNotBlank() }
             it[receiptHeader] = req.receiptHeader
             it[receiptFooter] = req.receiptFooter
+            it[receiptLogo] = logo
             it[receiptShowTax] = req.receiptShowTax
             it[receiptShowCustomer] = req.receiptShowCustomer
             it[updatedAt]     = now
