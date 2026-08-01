@@ -176,6 +176,11 @@ export function PaymentsPage() {
   const [matchError, setMatchError] = useState('')
   const [queryingId, setQueryingId] = useState<string | null>(null)
   const [queryMessage, setQueryMessage] = useState('')
+  const initialRange = getCurrentMonthRange()
+  const [startDate, setStartDate] = useState(initialRange.startDate)
+  const [endDate, setEndDate] = useState(initialRange.endDate)
+  const [methodFilter, setMethodFilter] = useState('ALL')
+  const [channelFilter, setChannelFilter] = useState('ALL')
 
   const loadPayments = () => {
     setLoading(true)
@@ -215,8 +220,16 @@ export function PaymentsPage() {
     } finally { setQueryingId(null) }
   }
 
-  const unreconciled = payments.filter(p => !p.reconciled)
-  const total = payments.filter(p => p.status === 'SUCCESS').reduce((s, p) => s + p.amount, 0)
+  const paymentMethods = ['ALL', ...Array.from(new Set(payments.map(p => p.method).filter(Boolean))).sort()]
+  const paymentChannels = ['ALL', ...Array.from(new Set(payments.map(p => p.channel).filter(Boolean))).sort()]
+  const filteredPayments = payments.filter(p => {
+    const date = p.transactionDate?.slice(0, 10) || ''
+    return (!startDate || date >= startDate) && (!endDate || date <= endDate)
+      && (methodFilter === 'ALL' || p.method === methodFilter)
+      && (channelFilter === 'ALL' || p.channel === channelFilter)
+  })
+  const unreconciled = filteredPayments.filter(p => !p.reconciled)
+  const total = filteredPayments.filter(p => ['SUCCESS','COMPLETED','PAID'].includes(p.status)).reduce((s, p) => s + p.amount, 0)
 
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
@@ -245,20 +258,37 @@ export function PaymentsPage() {
         </Modal>
       )}
 
-      <PageHeader title="Payments / Mpesa" />
+      <PageHeader title="Payments" />
       {queryMessage && <div style={{ padding:12, background:'var(--b360-surface)', borderRadius:8, fontSize:13 }}>{queryMessage}</div>}
+
+      <Card style={{padding:16}}>
+        <div className="responsive-grid responsive-grid-4" style={{gap:12,alignItems:'end'}}>
+          <label style={{display:'grid',gap:5,fontSize:12,color:'var(--b360-text-secondary)'}}>From
+            <input type="date" value={startDate} max={endDate || undefined} onChange={e=>setStartDate(e.target.value)} style={{padding:'9px 10px',border:'1px solid var(--b360-border)',borderRadius:8}} />
+          </label>
+          <label style={{display:'grid',gap:5,fontSize:12,color:'var(--b360-text-secondary)'}}>To
+            <input type="date" value={endDate} min={startDate || undefined} onChange={e=>setEndDate(e.target.value)} style={{padding:'9px 10px',border:'1px solid var(--b360-border)',borderRadius:8}} />
+          </label>
+          <Select label="Payment type" value={methodFilter} onChange={setMethodFilter} options={paymentMethods.map(value=>({value,label:value === 'ALL' ? 'All payment types' : value.replace(/_/g,' ')}))} />
+          <Select label="Channel" value={channelFilter} onChange={setChannelFilter} options={paymentChannels.map(value=>({value,label:value === 'ALL' ? 'All channels' : value.replace(/_/g,' ')}))} />
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:12,fontSize:12,color:'var(--b360-text-secondary)'}}>
+          <span>{filteredPayments.length} of {payments.length} payments</span>
+          <Btn small variant="secondary" onClick={()=>{const range=getCurrentMonthRange();setStartDate(range.startDate);setEndDate(range.endDate);setMethodFilter('ALL');setChannelFilter('ALL')}}>Reset filters</Btn>
+        </div>
+      </Card>
 
       <div className="responsive-grid responsive-grid-4" style={{ gap:12 }}>
         <KpiCard title="Total Collected"    value={`KES ${total.toLocaleString()}`} change="Reconciled payments" icon={<FileText size={18}/>} color="var(--b360-green)" />
         <KpiCard title="Unreconciled"       value={`${unreconciled.length} txns`}   change="Need matching"      icon={<FileText size={18}/>} color="var(--b360-amber)" />
-        <KpiCard title="Mpesa Transactions" value={`${payments.length}`}             change="All time"           icon={<FileText size={18}/>} color="var(--b360-blue)" />
+        <KpiCard title="Transactions"       value={`${filteredPayments.length}`}     change="Filtered period"    icon={<FileText size={18}/>} color="var(--b360-blue)" />
         <KpiCard title="Pending"            value={`${unreconciled.length}`}         change="Awaiting reconciliation" icon={<FileText size={18}/>} color="var(--b360-red)" />
       </div>
 
       {loading ? (
         <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
-      ) : payments.length === 0 ? (
-        <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No payments yet</div>
+      ) : filteredPayments.length === 0 ? (
+        <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No payments match the selected filters</div>
       ) : (
         <>
           {unreconciled.length > 0 && (
@@ -286,11 +316,13 @@ export function PaymentsPage() {
 
           <Card>
             <DataTable
-              headers={['Transaction', 'Customer', 'Phone', 'Amount', 'Payment Status', 'Reconciliation', 'Date', 'Action']}
-              rows={payments.map(p => [
+              headers={['Transaction', 'Customer', 'Phone', 'Type', 'Channel', 'Amount', 'Payment Status', 'Reconciliation', 'Date', 'Action']}
+              rows={filteredPayments.map(p => [
                 <span style={{ fontFamily:'monospace', fontWeight:700, color:'var(--b360-green)', fontSize:12 }}>{p.transactionCode || '—'}</span>,
                 <span style={{ fontWeight:600 }}>{p.payerName || 'Customer unavailable'}</span>,
                 p.payerPhone || '—',
+                <span style={{fontWeight:700}}>{p.method || '—'}</span>,
+                (p.channel || '—').replace(/_/g,' '),
                 <span style={{ fontWeight:700 }}>KES {p.amount.toLocaleString()}</span>,
                 <StatusBadge status={p.status} />,
                 <StatusBadge status={p.reconciled ? 'MATCHED' : 'PENDING'} />,

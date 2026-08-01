@@ -4,7 +4,7 @@ import { useAuth } from '../../App'
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
   CreditCard, BarChart3, Settings, LogOut, Bell, Search,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, Shield, FileCheck, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Link, Download
+  ChevronLeft, ChevronRight, ChevronDown, Menu, FileCheck, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Link, Download
 } from 'lucide-react'
 import styles from './AppShell.module.css'
 import { accessApi, businessApi } from '../../services/api'
@@ -13,12 +13,13 @@ const navItems = [
   { key:'DASHBOARD', to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
   { key:'POS', to: '/pos',           icon: Store,           label: 'Point of Sale' },
   { key:'HOSPITALITY', to: '/hospitality', icon: Receipt, label: 'Bar & Restaurant' },
+  { key:'HOSPITALITY_OPS', to: '/hospitality-operations', icon: Building2, label: 'Hospitality Operations' },
+  { key:'OPEN_TABS', to: '/open-tabs', icon: ShoppingCart, label: 'Open Tabs' },
   { key:'INVENTORY', to: '/inventory',     icon: Package,         label: 'Inventory' },
   { key:'ORDERS', to: '/orders',        icon: ShoppingCart,    label: 'Orders' },
   { key:'CUSTOMERS', to: '/customers',     icon: Users,           label: 'Customers' },
   { key:'EXPENSES', to: '/expenses',      icon: Receipt,         label: 'Expenses' },
-  { key:'PAYMENTS', to: '/payments',      icon: CreditCard,      label: 'Mpesa Payments' },
-  { key:'CARD_PAYMENTS', to: '/card-payments', icon: Shield,          label: 'Card Payment Report' },
+  { key:'PAYMENTS', to: '/payments',      icon: CreditCard,      label: 'Payments' },
   { key:'TAX', to: '/tax',           icon: Receipt,          label: 'Tax' },
   { key:'KRA', to: '/kra',           icon: FileCheck,        label: 'KRA iTax' },
   { key:'SOCIAL', to: '/social',        icon: MessageSquare,    label: 'Social Inbox' },
@@ -47,8 +48,8 @@ export default function AppShell() {
   }, [user?.id])
   const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
   const visibleNavItems = navItems.filter(item => {
-    if (allowedMenus && !allowedMenus.has(item.key)) return false
-    if (item.key === 'HOSPITALITY' && hospitalityEnabled === false) return false
+    if (allowedMenus && !allowedMenus.has(item.key) && !(item.key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS'))) return false
+    if ((item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS') && hospitalityEnabled !== true) return false
     if (!isStaff) return true
     return item.to !== '/users' && item.to !== '/business' && item.to !== '/cybersource-settings'
   })

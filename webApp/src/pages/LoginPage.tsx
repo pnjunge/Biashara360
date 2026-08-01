@@ -108,6 +108,8 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [pin, setPin] = useState('')
+  const [loginMode, setLoginMode] = useState<'PASSWORD'|'PIN'>('PASSWORD')
   const [otp, setOtp] = useState('')
   const [userId, setUserId] = useState('')
   const [step, setStep] = useState<'login' | 'otp'>('login')
@@ -117,11 +119,11 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email.trim() || !password) { setError('Email and password are required'); return }
+    if (!email.trim() || (loginMode === 'PASSWORD' ? !password : pin.length !== 6)) { setError(loginMode === 'PASSWORD' ? 'Email and password are required' : 'Email and a 6-digit PIN are required'); return }
     setLoading(true)
     setError('')
     try {
-      const result = await authApi.login({ email, password })
+      const result = loginMode === 'PASSWORD' ? await authApi.login({ email, password }) : await authApi.loginWithPin({ email, pin })
       if (result.success && result.data) {
         setUserId(result.data.userId)
         if (result.data.requiresOtp) {
@@ -266,7 +268,11 @@ export default function LoginPage() {
                   }
                 />
 
-                <CustomLoginTextField
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',padding:3,borderRadius:9,background:'#F1F5F9'}}>
+                  {(['PASSWORD','PIN'] as const).map(mode=><button key={mode} type="button" onClick={()=>{setLoginMode(mode);setError('')}} style={{border:0,borderRadius:7,padding:9,background:loginMode===mode ? 'white' : 'transparent',color:loginMode===mode ? 'var(--b360-green)' : '#64748B',fontWeight:700,cursor:'pointer',boxShadow:loginMode===mode ? '0 1px 3px #0001' : 'none'}}>{mode === 'PASSWORD' ? 'Password' : '6-digit PIN'}</button>)}
+                </div>
+
+                {loginMode === 'PASSWORD' ? <CustomLoginTextField
                   value={password}
                   onChange={v => { setPassword(v); setError('') }}
                   placeholder="Password"
@@ -275,7 +281,7 @@ export default function LoginPage() {
                   icon={
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                   }
-                />
+                /> : <CustomLoginTextField value={pin} onChange={v=>{setPin(v.replace(/\D/g,'').slice(0,6));setError('')}} placeholder="6-digit PIN" type="password" disabled={loading} icon={<span style={{fontWeight:900,color:'var(--b360-green)'}}>••</span>} />}
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: '#475569' }}>
@@ -310,7 +316,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || !email.trim() || !password}
+                  disabled={loading || !email.trim() || (loginMode === 'PASSWORD' ? !password : pin.length !== 6)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -323,8 +329,8 @@ export default function LoginPage() {
                     borderRadius: 8,
                     fontSize: 14,
                     fontWeight: 'bold',
-                    cursor: (loading || !email.trim() || !password) ? 'not-allowed' : 'pointer',
-                    opacity: (loading || !email.trim() || !password) ? 0.6 : 1,
+                    cursor: (loading || !email.trim() || (loginMode === 'PASSWORD' ? !password : pin.length !== 6)) ? 'not-allowed' : 'pointer',
+                    opacity: (loading || !email.trim() || (loginMode === 'PASSWORD' ? !password : pin.length !== 6)) ? 0.6 : 1,
                     width: '100%',
                     transition: 'opacity 0.15s ease-in-out'
                   }}

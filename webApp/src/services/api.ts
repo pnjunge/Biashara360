@@ -60,6 +60,7 @@ export interface LoginRequest {
   email: string
   password: string
 }
+export interface PinLoginRequest { email: string; pin: string }
 
 export interface LoginResponse {
   userId: string
@@ -141,8 +142,18 @@ export interface OrderResponse {
   notes: string; createdAt: string; updatedAt: string
 }
 
-export interface HospitalityTable { id:string; name:string; area:string; capacity:number; status:string; openOrderId:string|null; openAmount:number; openOrderCount:number }
+export interface HospitalityTable { id:string; name:string; area:string; capacity:number; status:string; openOrderId:string|null; openAmount:number; openOrderCount:number; waiterUserId?:string|null; mergedIntoTableId?:string|null; positionX?:number; positionY?:number; shape?:string }
 export interface KitchenTicket { id:string; orderId:string; orderNumber:string; tableName:string|null; station:string; status:string; notes:string; items:OrderItemResponse[]; createdAt:string }
+export interface MenuOption { name:string; priceDelta:number }
+export interface HospitalityOperations {
+  reservations:Array<{id:string;tableId:string|null;customerName:string;customerPhone:string;guestCount:number;reservedAt:string;durationMinutes:number;status:string;notes:string}>
+  menuProfiles:Array<{productId:string;preparationStation:string|null;mealPeriods:string[];sizes:MenuOption[];extras:MenuOption[];variants:MenuOption[];comboProductIds:string[];soldOut:boolean;happyHourPrice:number|null;happyHourStart:string|null;happyHourEnd:string|null;ageRestricted:boolean;minimumAge:number|null}>
+  ingredients:Array<{id:string;name:string;unit:string;quantity:number;reorderLevel:number;unitCost:number;isLowStock:boolean}>
+  shifts:Array<{id:string;openedBy:string;openedAt:string;closedAt:string|null;openingFloat:number;expectedCash:number|null;actualCash:number|null;mpesaTotal:number|null;cardTotal:number|null;tipsTotal:number;expensesTotal:number;status:string;variance:number|null}>
+  suppliers:Array<{id:string;name:string;phone:string;email:string|null;address:string|null;isActive:boolean}>
+  purchaseOrders:Array<{id:string;orderNumber:string;supplierId:string;status:string;totalCost:number;orderedAt:string;receivedAt:string|null}>
+  approvals:Array<{id:string;actionType:string;entityType:string;entityId:string;requestedBy:string;approvedBy:string|null;status:string;reason:string;requestedAt:string}>
+}
 export interface HospitalityDashboard { enabled:boolean; tables:HospitalityTable[]; openTabs:OrderResponse[]; tickets:KitchenTicket[] }
 
 export interface PagedResponse<T> {
@@ -280,6 +291,7 @@ export interface StorefrontCheckoutResult {
   clientReference: string
   amount: number
   paymentStatus: string
+  paymentMethod: 'MPESA' | 'COD' | 'CARD'
   customerMessage: string | null
   checkoutRequestId: string | null
 }
@@ -302,6 +314,7 @@ export const storefrontApi = {
     customerName: string
     customerPhone: string
     deliveryLocation: string
+    paymentMethod: 'MPESA' | 'COD' | 'CARD'
     notes?: string
     items: Array<{ productId: string; quantity: number }>
   }) => {
@@ -414,6 +427,7 @@ export interface MenuDefinition { key: string; label: string }
 export interface AccessRole { id: string; name: string; description: string; allowedMenus: string[]; isActive: boolean }
 export interface AccessGroup { id: string; name: string; description: string; roleIds: string[]; userIds: string[]; isActive: boolean }
 export interface AccessConfig { menus: MenuDefinition[]; enabledMenus: string[]; roles: AccessRole[]; groups: AccessGroup[] }
+export interface InventoryCategory { id: string; name: string; isActive: boolean; productCount: number; imageUrl?: string | null }
 
 // ── API Service Objects ───────────────────────────────────────────────────────
 
@@ -443,6 +457,18 @@ export const productApi = {
   },
   updateStock: async (id: string, data: any) => {
     const res = await client.post<ApiResponse<ProductResponse>>(`/products/${id}/stock`, data)
+    return res.data
+  },
+  listCategories: async () => {
+    const res = await client.get<ApiResponse<InventoryCategory[]>>('/products/categories')
+    return res.data
+  },
+  createCategory: async (name: string, imageUrl?: string) => {
+    const res = await client.post<ApiResponse<InventoryCategory>>('/products/categories', { name, imageUrl: imageUrl || null })
+    return res.data
+  },
+  updateCategory: async (id: string, data: { name?: string; isActive?: boolean; imageUrl?: string }) => {
+    const res = await client.put<ApiResponse<InventoryCategory>>(`/products/categories/${id}`, data)
     return res.data
   },
 }
@@ -773,6 +799,26 @@ export const hospitalityApi = {
   closeTab: async (orderId:string,paymentMethod:string) => (await client.post<ApiResponse<OrderResponse>>(`/hospitality/tabs/${orderId}/close`,{paymentMethod})).data,
 }
 
+export const hospitalityOpsApi = {
+  dashboard: async () => (await client.get<ApiResponse<HospitalityOperations>>('/hospitality/operations')).data,
+  reservation: async (data:any) => (await client.post('/hospitality/operations/reservations',data)).data,
+  reservationStatus: async (id:string,status:string) => (await client.patch(`/hospitality/operations/reservations/${id}/${status}`)).data,
+  table: async (id:string,data:any) => (await client.put(`/hospitality/operations/tables/${id}`,data)).data,
+  menu: async (productId:string,data:any) => (await client.put(`/hospitality/operations/menu/${productId}`,data)).data,
+  ingredient: async (data:any) => (await client.post('/hospitality/operations/ingredients',data)).data,
+  recipe: async (productId:string,lines:any[]) => (await client.put(`/hospitality/operations/recipes/${productId}`,{lines})).data,
+  barStock: async (data:any) => (await client.post('/hospitality/operations/bar-stock',data)).data,
+  openShift: async (data:any) => (await client.post('/hospitality/operations/shifts/open',data)).data,
+  closeShift: async (id:string,data:any) => (await client.post(`/hospitality/operations/shifts/${id}/close`,data)).data,
+  supplier: async (data:any) => (await client.post('/hospitality/operations/suppliers',data)).data,
+  purchaseOrder: async (data:any) => (await client.post('/hospitality/operations/purchase-orders',data)).data,
+  receivePurchaseOrder: async (id:string) => (await client.post(`/hospitality/operations/purchase-orders/${id}/receive`)).data,
+  approval: async (data:any) => (await client.post('/hospitality/operations/approvals',data)).data,
+  decideApproval: async (id:string,approved:boolean) => (await client.post(`/hospitality/operations/approvals/${id}/decision`,{approved})).data,
+  splitBill: async (orderId:string,payments:any[]) => (await client.post(`/hospitality/operations/tabs/${orderId}/split`,{payments})).data,
+  report: async (startDate:string,endDate:string) => (await client.get(`/hospitality/operations/report`,{params:{startDate,endDate}})).data,
+}
+
 export const cyberSourceApi = {
   getTransactions: async () => {
     const res = await client.get<ApiResponse<CsTransactionRecord[]>>('/payments/card/manage/transactions')
@@ -805,6 +851,14 @@ export const cyberSourceApi = {
 export const authApi = {
   login: async (req: LoginRequest) => {
     const res = await client.post<ApiResponse<LoginResponse>>('/auth/login', req)
+    return res.data
+  },
+  loginWithPin: async (req: PinLoginRequest) => {
+    const res = await client.post<ApiResponse<LoginResponse>>('/auth/pin-login', req)
+    return res.data
+  },
+  setLoginPin: async (data: { currentPassword: string; pin?: string; disable?: boolean }) => {
+    const res = await client.post<ApiResponse<null>>('/auth/login-pin', data)
     return res.data
   },
 
@@ -895,6 +949,8 @@ export interface BusinessProfileRequest {
   storefrontDescription?: string
   storefrontBannerUrl?: string | null
   storefrontLayout?: 'GRID' | 'LIST'
+  dayStartTime?: string
+  dayCloseTime?: string
 }
 
 export interface BusinessProfileResponse {
@@ -923,6 +979,8 @@ export interface BusinessProfileResponse {
   storefrontDescription?: string
   storefrontBannerUrl?: string | null
   storefrontLayout?: 'GRID' | 'LIST'
+  dayStartTime?: string
+  dayCloseTime?: string
 }
 
 export interface MpesaConfigResponse {

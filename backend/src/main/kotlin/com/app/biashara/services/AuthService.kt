@@ -181,6 +181,72 @@ class AuthService(
         }
     }
 
+    fun loginWithPin(req: PinLoginRequest): ApiResponse<LoginResponse> = transaction {
+        val user = UsersTable.select { UsersTable.email eq req.email.trim() }.firstOrNull()
+            ?: return@transaction ApiResponse(false, message = "Invalid credentials")
+        val now = Clock.System.now()
+        val lockedUntil = user[UsersTable.pinLockedUntil]
+        if (lockedUntil != null && lockedUntil > now) {
+            return@transaction ApiResponse(false, message = "PIN login is temporarily locked. Use your password or try again later.")
+        }
+        val pinHash = user[UsersTable.loginPinHash]
+        if (pinHash == null || !PasswordUtils.verify(req.pin, pinHash)) {
+            val failures = user[UsersTable.pinFailedAttempts] + 1
+            UsersTable.update({ UsersTable.id eq user[UsersTable.id] }) {
+                it[pinFailedAttempts] = if (failures >= 5) 0 else failures
+                it[pinLockedUntil] = if (failures >= 5) now + 900.seconds else null
+                it[updatedAt] = now
+            }
+            return@transaction ApiResponse(false, message = "Invalid credentials")
+        }
+        if (!user[UsersTable.isActive]) return@transaction ApiResponse(false, message = "Account is deactivated")
+        businessAccessError(user[UsersTable.businessId])?.let { return@transaction ApiResponse(false, message = it) }
+        UsersTable.update({ UsersTable.id eq user[UsersTable.id] }) {
+            it[pinFailedAttempts] = 0; it[pinLockedUntil] = null; it[updatedAt] = now
+        }
+        completeLogin(user)
+    }
+
+    fun setLoginPin(userId: String, req: SetLoginPinRequest): ApiResponse<Unit> = transaction {
+        val user = UsersTable.select { UsersTable.id eq userId }.firstOrNull()
+            ?: return@transaction ApiResponse(false, message = "User not found")
+        if (!PasswordUtils.verify(req.currentPassword, user[UsersTable.passwordHash])) {
+            return@transaction ApiResponse(false, message = "Current password is incorrect")
+        }
+        if (!req.disable && req.pin == null) return@transaction ApiResponse(false, message = "PIN is required")
+        if (!req.disable && !isAcceptableLoginPin(req.pin!!)) {
+            return@transaction ApiResponse(false, message = "Choose a less predictable 6-digit PIN")
+        }
+        UsersTable.update({ UsersTable.id eq userId }) {
+            it[loginPinHash] = if (req.disable) null else PasswordUtils.hash(req.pin!!)
+            it[pinFailedAttempts] = 0; it[pinLockedUntil] = null; it[updatedAt] = Clock.System.now()
+        }
+        ApiResponse(true, message = if (req.disable) "PIN login disabled" else "PIN login enabled")
+    }
+
+    private fun completeLogin(user: ResultRow): ApiResponse<LoginResponse> {
+        val userId = user[UsersTable.id]
+        return if (user[UsersTable.twoFactorEnabled]) {
+            val otp = OtpUtils.generate(); val now = Clock.System.now()
+            OtpTable.deleteWhere { OtpTable.userId eq userId }
+            OtpTable.insert {
+                it[id] = generateId(); it[OtpTable.userId] = userId; it[code] = otp; it[channel] = "SMS"
+                it[used] = false; it[expiresAt] = now + 600.seconds; it[createdAt] = now
+            }
+            dispatchOtp(user[UsersTable.phone], user[UsersTable.email], user[UsersTable.name], otp)
+            ApiResponse(true, LoginResponse(userId, true, buildList { if (whatsappOtpService.isConfigured()) add("WHATSAPP"); add("SMS"); add("EMAIL") }), "OTP sent")
+        } else {
+            val auth = issueTokens(userId, user[UsersTable.businessId], user[UsersTable.role])
+            ApiResponse(true, LoginResponse(userId, false, emptyList(), auth.accessToken, auth.refreshToken, auth.user), "Login successful")
+        }
+    }
+
+    companion object {
+        internal fun isAcceptableLoginPin(pin: String): Boolean =
+            pin.matches(Regex("^\\d{6}$")) && pin.toSet().size > 1 &&
+                pin !in setOf("123456", "654321", "111111", "000000")
+    }
+
     fun verifyOtp(req: OtpVerifyRequest): ApiResponse<AuthResponse> = transaction {
         val now = Clock.System.now()
         val otpRow = OtpTable.select {

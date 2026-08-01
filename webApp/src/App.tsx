@@ -1,7 +1,7 @@
 import React, { Suspense, createContext, lazy, useContext, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
-import { settingsApi } from './services/api'
+import { businessApi, settingsApi } from './services/api'
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
@@ -14,7 +14,6 @@ const ExpensesPage = lazy(() => import('./pages/ExpensesPage'))
 const PaymentsPage = lazy(() => import('./pages/PaymentsPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
-const CyberSourcePage = lazy(() => import('./pages/CyberSourcePage'))
 const CyberSourceSettingsPage = lazy(() => import('./pages/CyberSourceSettingsPage'))
 const MpesaSettingsPage = lazy(() => import('./pages/MpesaSettingsPage'))
 const ReceiptTemplatePage = lazy(() => import('./pages/ReceiptTemplatePage'))
@@ -30,6 +29,8 @@ const DownloadsPage = lazy(() => import('./pages/DownloadsPage'))
 const CardCheckoutPage = lazy(() => import('./pages/CardCheckoutPage'))
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage'))
 const HospitalityPage = lazy(() => import('./pages/HospitalityPage'))
+const HospitalityOperationsPage = lazy(() => import('./pages/HospitalityOperationsPage'))
+const OpenTabsPage = lazy(() => import('./pages/OpenTabsPage'))
 
 // ── Auth Context ──────────────────────────────────────────────────────────────
 interface AuthUser {
@@ -57,6 +58,17 @@ function RoleProtectedRoute({ children, blockedRoles }: { children: React.ReactN
   const { user } = useAuth()
   const role = (user?.role || '').toUpperCase()
   return blockedRoles.includes(role) ? <Navigate to="/dashboard" replace /> : <>{children}</>
+}
+
+function HospitalityProtectedRoute({ children }: { children: React.ReactNode }) {
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  useEffect(() => {
+    businessApi.getProfile()
+      .then(result => setEnabled(result.success && result.data?.hospitalityEnabled === true))
+      .catch(() => setEnabled(false))
+  }, [])
+  if (enabled === null) return <div style={{ padding: 32, textAlign: 'center' }}>Checking hospitality settings…</div>
+  return enabled ? <>{children}</> : <Navigate to="/dashboard" replace />
 }
 
 export default function App() {
@@ -138,7 +150,9 @@ export default function App() {
             <Route path="dashboard"  element={<DashboardPage />} />
             <Route path="inventory"  element={<InventoryPage />} />
             <Route path="pos"        element={<PosPage />} />
-            <Route path="hospitality" element={<HospitalityPage />} />
+            <Route path="hospitality" element={<HospitalityProtectedRoute><HospitalityPage /></HospitalityProtectedRoute>} />
+            <Route path="hospitality-operations" element={<HospitalityProtectedRoute><HospitalityOperationsPage /></HospitalityProtectedRoute>} />
+            <Route path="open-tabs" element={<HospitalityProtectedRoute><OpenTabsPage /></HospitalityProtectedRoute>} />
             <Route path="orders"     element={<OrdersPage />} />
             <Route path="customers"  element={<CustomersPage />} />
             <Route path="expenses"   element={<ExpensesPage />} />
@@ -146,7 +160,7 @@ export default function App() {
             <Route path="reports"    element={<ReportsPage />} />
             <Route path="downloads"  element={<DownloadsPage />} />
             <Route path="settings"   element={<RoleProtectedRoute blockedRoles={["STAFF"]}><SettingsPage /></RoleProtectedRoute>} />
-            <Route path="card-payments" element={<CyberSourcePage />} />
+            <Route path="card-payments" element={<Navigate to="/payments" replace />} />
             <Route path="cybersource-settings" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><CyberSourceSettingsPage /></RoleProtectedRoute>} />
             <Route path="tax"           element={<TaxPage />} />
             <Route path="kra"           element={<KraPage />} />

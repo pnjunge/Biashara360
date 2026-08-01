@@ -61,6 +61,7 @@ sealed class AppScreen(
     object Dashboard : AppScreen("dashboard", "Dashboard", Icons.Default.Dashboard)
     object Pos : AppScreen("pos", "Point of Sale", Icons.Default.Storefront)
     object Hospitality : AppScreen("hospitality", "Bar & Restaurant", Icons.Default.TableRestaurant)
+    object OpenTabs : AppScreen("open_tabs", "Open Tabs", Icons.Default.ReceiptLong)
     object Inventory : AppScreen("inventory", "Inventory", Icons.Default.Inventory)
     object Orders : AppScreen("orders", "Orders", Icons.Default.ShoppingCart)
     object Customers : AppScreen("customers", "Customers", Icons.Default.People)
@@ -80,6 +81,7 @@ private val appScreens = listOf(
     AppScreen.Dashboard,
     AppScreen.Pos,
     AppScreen.Hospitality,
+    AppScreen.OpenTabs,
     AppScreen.Inventory,
     AppScreen.Orders,
     AppScreen.Customers,
@@ -158,7 +160,7 @@ fun Biashara360DesktopAppContent(
         businessViewModel.loadProfile()
     }
     val visibleScreens = appScreens.filter { screen ->
-        screen != AppScreen.Hospitality || businessProfileState.profile?.hospitalityEnabled == true
+        screen !in setOf(AppScreen.Hospitality, AppScreen.OpenTabs) || businessProfileState.profile?.hospitalityEnabled == true
     }
     var isExpanded by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf("") }
@@ -482,6 +484,7 @@ fun Biashara360DesktopAppContent(
                         AppScreen.Dashboard -> DesktopDashboardScreen()
                         AppScreen.Pos -> DesktopPosScreen()
                         AppScreen.Hospitality -> DesktopHospitalityScreen()
+                        AppScreen.OpenTabs -> DesktopOpenTabsScreen()
                         AppScreen.Inventory -> DesktopInventoryScreen(searchQuery = searchQuery)
                         AppScreen.Orders -> DesktopOrdersScreen(searchQuery = searchQuery)
                         AppScreen.Customers -> DesktopCustomersScreen(searchQuery = searchQuery)

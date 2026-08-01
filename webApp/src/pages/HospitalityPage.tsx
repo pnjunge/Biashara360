@@ -2,11 +2,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ChefHat,
   Clock,
+  Minus,
   Pencil,
   Plus,
   Printer,
   RefreshCw,
   Search,
+  ShoppingBag,
+  Trash2,
   Users,
   UtensilsCrossed,
 } from "lucide-react";
@@ -796,24 +799,22 @@ export default function HospitalityPage() {
             </>
           }
         >
-          <div className="responsive-grid responsive-grid-2" style={{ gap: 18 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-              <Select
-                label="Service"
-                value={serviceType}
-                onChange={setServiceType}
-                options={[
-                  { value: "DINE_IN", label: "Dine in" },
-                  { value: "TAKEAWAY", label: "Takeaway" },
-                  { value: "DELIVERY", label: "Delivery" },
-                ]}
-              />
-              <Input
-                label="Guests"
-                type="number"
-                value={guests}
-                onChange={setGuests}
-              />
+          <div className="hospitality-sale-grid">
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingRight:22 }}>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,marginBottom:7}}>Service</div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',border:'1px solid var(--b360-border)',borderRadius:9,overflow:'hidden'}}>
+                  {[["DINE_IN","Dine in"],["TAKEAWAY","Take away"],["DELIVERY","Delivery"]].map(([value,label],index)=><button key={value} type="button" onClick={()=>setServiceType(value)} style={{padding:'11px 6px',border:0,borderLeft:index ? '1px solid var(--b360-border)' : 0,background:serviceType===value ? 'var(--b360-green)' : 'white',color:serviceType===value ? 'white' : 'var(--b360-text)',fontWeight:700,cursor:'pointer'}}>{label}</button>)}
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,marginBottom:7}}>Guests</div>
+                <div style={{display:'grid',gridTemplateColumns:'64px 1fr 64px',border:'1px solid var(--b360-border)',borderRadius:9,overflow:'hidden'}}>
+                  <button type="button" aria-label="Remove guest" onClick={()=>setGuests(String(Math.max(1,(Number(guests)||1)-1)))} style={{border:0,background:'white',padding:10,cursor:'pointer'}}><Minus size={15}/></button>
+                  <strong style={{display:'grid',placeItems:'center',borderLeft:'1px solid var(--b360-border)',borderRight:'1px solid var(--b360-border)'}}>{Math.max(1,Number(guests)||1)}</strong>
+                  <button type="button" aria-label="Add guest" onClick={()=>setGuests(String(Math.max(1,(Number(guests)||1)+1)))} style={{border:0,background:'white',padding:10,cursor:'pointer'}}><Plus size={15}/></button>
+                </div>
+              </div>
               <Input
                 label="Customer"
                 value={customerName}
@@ -824,46 +825,45 @@ export default function HospitalityPage() {
                 value={customerPhone}
                 onChange={setCustomerPhone}
               />
-              <Input
-                label="Kitchen/bar notes"
-                value={notes}
-                onChange={setNotes}
-              />
+              <label style={{display:'grid',gap:5,fontSize:12,fontWeight:600,color:'var(--b360-text-secondary)'}}>Kitchen / bar notes
+                <textarea value={notes} maxLength={200} onChange={event=>setNotes(event.target.value)} placeholder="Add any special instructions…" rows={3} style={{resize:'vertical',padding:'11px 13px',border:'1px solid var(--b360-border)',borderRadius:9,fontFamily:'inherit'}} />
+                <span style={{fontSize:10,textAlign:'right'}}>{notes.length} / 200</span>
+              </label>
               {cartProducts.length > 0 && (
                 <div
                   style={{
                     marginTop: 5,
-                    padding: 12,
+                    padding: 14,
                     border: "1px solid var(--b360-border)",
                     borderRadius: 10,
                   }}
                 >
-                  <b style={{ fontSize: 13 }}>Current order</b>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><b style={{ fontSize: 13,display:'flex',gap:7,alignItems:'center' }}><ShoppingBag size={15} color="var(--b360-green)"/>Current order</b><span style={{fontSize:11,fontWeight:700,color:'var(--b360-green)',background:'var(--b360-green-bg)',padding:'3px 8px',borderRadius:12}}>{cartProducts.reduce((sum,p)=>sum+cart[p.id],0)} items</span></div>
                   {cartProducts.map((product) => (
                     <div
                       key={product.id}
                       style={{
                         display: "flex",
-                        justifyContent: "space-between",
-                        fontSize: 12,
-                        marginTop: 7,
+                        alignItems:'center',gap:9,
+                        fontSize: 12,marginTop: 10,
                       }}
                     >
-                      <span>
-                        {cart[product.id]}× {product.name}
-                      </span>
-                      <b>
+                      {product.imageUrl ? <img src={product.imageUrl} alt="" style={{width:42,height:42,objectFit:'cover',borderRadius:7}}/> : <div style={{width:42,height:42,borderRadius:7,background:'var(--b360-bg)',display:'grid',placeItems:'center'}}><ShoppingBag size={15}/></div>}
+                      <span style={{flex:1}}><b style={{display:'block'}}>{product.name}</b>{cart[product.id]} × KES {product.sellingPrice.toLocaleString()}</span>
+                      <b style={{whiteSpace:'nowrap'}}>
                         KES{" "}
                         {(
                           cart[product.id] * product.sellingPrice
                         ).toLocaleString()}
                       </b>
+                      <button type="button" aria-label={`Remove ${product.name}`} onClick={()=>change(product.id,-cart[product.id])} style={{border:'1px solid var(--b360-border)',background:'white',borderRadius:7,padding:7,cursor:'pointer',color:'var(--b360-text-secondary)'}}><Trash2 size={14}/></button>
                     </div>
                   ))}
+                  <div style={{borderTop:'1px solid var(--b360-border)',marginTop:12,paddingTop:11,display:'flex',justifyContent:'space-between'}}><b>Total</b><strong style={{fontSize:18,color:'var(--b360-green)'}}>KES {total.toLocaleString()}</strong></div>
                 </div>
               )}
             </div>
-            <div>
+            <div className="hospitality-sale-catalog" style={{borderLeft:'1px solid var(--b360-border)',paddingLeft:22}}>
               <div style={{ position: "relative", marginBottom: 9 }}>
                 <Search
                   size={15}
@@ -919,8 +919,8 @@ export default function HospitalityPage() {
                 style={{
                   maxHeight: 390,
                   overflowY: "auto",
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill,minmax(155px,1fr))",
+                  display: "flex",
+                  flexDirection:'column',
                   gap: 8,
                 }}
               >
@@ -930,55 +930,18 @@ export default function HospitalityPage() {
                     onClick={() => change(product.id, 1)}
                     style={{
                       textAlign: "left",
-                      padding: 12,
+                      padding: 9,
                       border: `1px solid ${cart[product.id] ? "var(--b360-green)" : "var(--b360-border)"}`,
                       borderRadius: 10,
                       background: cart[product.id]
                         ? "var(--b360-green-bg)"
                         : "white",
-                      cursor: "pointer",
+                      cursor: "pointer",display:'flex',alignItems:'center',gap:12,width:'100%'
                     }}
                   >
-                    <b style={{ fontSize: 13, display: "block" }}>
-                      {product.name}
-                    </b>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: "var(--b360-text-secondary)",
-                      }}
-                    >
-                      {product.category || "Menu"} · Stock{" "}
-                      {product.currentStock}
-                    </span>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginTop: 9,
-                      }}
-                    >
-                      <strong>
-                        KES {product.sellingPrice.toLocaleString()}
-                      </strong>
-                      {cart[product.id] && (
-                        <span
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            change(product.id, -1);
-                          }}
-                          style={{
-                            padding: "2px 8px",
-                            borderRadius: 12,
-                            background: "white",
-                            border: "1px solid var(--b360-border)",
-                          }}
-                        >
-                          − {cart[product.id]} +
-                        </span>
-                      )}
-                    </div>
+                    {product.imageUrl ? <img src={product.imageUrl} alt="" style={{width:68,height:68,objectFit:'cover',borderRadius:8,background:'var(--b360-bg)'}}/> : <div style={{width:68,height:68,flexShrink:0,borderRadius:8,background:'var(--b360-bg)',display:'grid',placeItems:'center'}}><ShoppingBag size={22} color="var(--b360-text-secondary)"/></div>}
+                    <div style={{flex:1,minWidth:0}}><b style={{fontSize:14,display:'block'}}>{product.name}</b><span style={{fontSize:11,color:'var(--b360-text-secondary)'}}>{product.category || 'Menu'} · Stock {product.currentStock}</span><strong style={{display:'block',marginTop:7}}>KES {product.sellingPrice.toLocaleString()}</strong></div>
+                    {cart[product.id] ? <div onClick={event=>event.stopPropagation()} style={{display:'flex',alignItems:'center',border:'1px solid var(--b360-border)',borderRadius:8,overflow:'hidden',background:'white'}}><button type="button" onClick={()=>change(product.id,-1)} style={{border:0,background:'white',padding:'8px 10px',color:'var(--b360-green)',cursor:'pointer'}}>−</button><b style={{minWidth:24,textAlign:'center'}}>{cart[product.id]}</b><button type="button" onClick={()=>change(product.id,1)} style={{border:0,background:'white',padding:'8px 10px',color:'var(--b360-green)',cursor:'pointer'}}>+</button></div> : <span style={{border:'1px solid var(--b360-green)',color:'var(--b360-green)',borderRadius:8,padding:'7px 12px',fontWeight:700,whiteSpace:'nowrap'}}>+ Add</span>}
                   </button>
                 ))}
               </div>

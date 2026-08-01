@@ -11,4 +11,16 @@ class HospitalityServiceTest {
             HospitalityService.ACTIVE_TAB_STATUSES,
         )
     }
+
+    @Test
+    fun `retail products do not create preparation tickets`() {
+        assertEquals(null, hospitalityStationFor("Clothing"))
+        assertEquals(null, hospitalityStationFor("Electronics"))
+    }
+
+    @Test
+    fun `food and drink categories use their preparation stations`() {
+        assertEquals("KITCHEN", hospitalityStationFor("Food & Beverage"))
+        assertEquals("BAR", hospitalityStationFor("Beer & Wine"))
+    }
 }

@@ -19,6 +19,9 @@ internal fun normalizeStorefrontPhone(value: String): String? {
     return normalized?.takeUnless { it.drop(4).all { digit -> digit == '0' } }
 }
 
+internal fun normalizeStorefrontPaymentMethod(value: String): String? =
+    value.trim().uppercase().takeIf { it in setOf("MPESA", "COD", "CARD") }
+
 class StorefrontService(
     private val orderService: OrderService,
     private val mpesaService: MpesaService
@@ -67,6 +70,8 @@ class StorefrontService(
     suspend fun checkout(storeIdentifier: String, req: StorefrontCheckoutRequest): ApiResponse<StorefrontCheckoutResponse> {
         val validationError = validateCheckout(req)
         if (validationError != null) return ApiResponse(false, message = validationError)
+        val paymentMethod = normalizeStorefrontPaymentMethod(req.paymentMethod)
+            ?: return ApiResponse(false, message = "Payment method must be M-Pesa, card, or cash on delivery")
         val phone = normalizeStorefrontPhone(req.customerPhone)
             ?: return ApiResponse(false, message = "Enter a valid Kenyan mobile number")
         val businessId = resolveActiveBusinessId(storeIdentifier)
@@ -99,15 +104,28 @@ class StorefrontService(
                 customerPhone = phone,
                 deliveryLocation = req.deliveryLocation.trim(),
                 items = pricedItems,
-                paymentMethod = "MPESA",
-                paymentStatus = "PENDING",
+                paymentMethod = paymentMethod,
+                paymentStatus = if (paymentMethod == "COD") "COD" else "PENDING",
                 deliveryStatus = "PENDING",
                 notes = req.notes.trim().take(500)
             ),
             clientPlatform = "ECOMMERCE"
         )
         val order = orderResult.data ?: return ApiResponse(false, message = orderResult.message)
-        return initiatePayment(businessId, order.id, req.clientReference, phone)
+        if (paymentMethod == "MPESA") {
+            return initiatePayment(businessId, order.id, req.clientReference, phone)
+        }
+        return ApiResponse(true, data = StorefrontCheckoutResponse(
+            orderId = order.id,
+            orderNumber = order.orderNumber,
+            clientReference = req.clientReference,
+            amount = order.subtotal,
+            paymentStatus = order.paymentStatus,
+            paymentMethod = paymentMethod,
+            customerMessage = if (paymentMethod == "COD")
+                "Order placed. Pay when your order is delivered."
+            else "Continue to secure card payment."
+        ))
     }
 
     suspend fun retryPayment(
@@ -181,6 +199,7 @@ class StorefrontService(
                     clientReference = clientReference,
                     amount = order[OrdersTable.subtotal],
                     paymentStatus = order[OrdersTable.paymentStatus],
+                    paymentMethod = "MPESA",
                     customerMessage = result.customerMessage,
                     checkoutRequestId = result.checkoutRequestId
                 ))
@@ -192,7 +211,8 @@ class StorefrontService(
                     orderNumber = order[OrdersTable.orderNumber],
                     clientReference = clientReference,
                     amount = order[OrdersTable.subtotal],
-                    paymentStatus = order[OrdersTable.paymentStatus]
+                    paymentStatus = order[OrdersTable.paymentStatus],
+                    paymentMethod = "MPESA"
                 ),
                 message = result.message
             )

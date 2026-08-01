@@ -41,8 +41,10 @@ import com.app.biashara.ui.screens.tax.TaxScreen
 import com.app.biashara.ui.screens.kra.KraScreen
 import com.app.biashara.ui.screens.social.SocialScreen
 import com.app.biashara.ui.screens.pos.PosScreen
+import com.app.biashara.ui.screens.hospitality.HospitalityOperationsScreen
 import com.app.biashara.data.remote.TokenStorage
 import com.app.biashara.domain.repository.AuthRepository
+import com.app.biashara.presentation.viewmodel.BusinessViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -52,6 +54,8 @@ fun Biashara360App() {
     val startDestination = Screen.Login.route
     val tokenStorage = koinInject<TokenStorage>()
     val authRepository = koinInject<AuthRepository>()
+    val businessViewModel = koinInject<BusinessViewModel>()
+    val businessProfileState by businessViewModel.profileState.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     var sessionWarningSeconds by remember { mutableStateOf<Int?>(null) }
     val networkAvailable = rememberNetworkAvailable()
@@ -59,6 +63,16 @@ fun Biashara360App() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val hospitalityEnabled = businessProfileState.profile?.hospitalityEnabled == true
+    val visibleBottomNavItems = bottomNavItems.filter {
+        it.screen != Screen.HospitalityOperations || hospitalityEnabled
+    }
+
+    LaunchedEffect(currentDestination?.route) {
+        if (currentDestination?.route !in setOf(Screen.Login.route, Screen.Register.route, Screen.OtpVerify.route)) {
+            businessViewModel.loadProfile()
+        }
+    }
 
     LaunchedEffect(currentDestination?.route) {
         while (true) {
@@ -108,7 +122,7 @@ fun Biashara360App() {
         )
     }
 
-    val showBottomBar = bottomNavItems.any { item ->
+    val showBottomBar = visibleBottomNavItems.any { item ->
         currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
     }
 
@@ -137,7 +151,8 @@ fun Biashara360App() {
             if (showBottomBar) {
                 CustomBottomNavigation(
                     navController = navController,
-                    currentDestination = currentDestination
+                    currentDestination = currentDestination,
+                    items = visibleBottomNavItems
                 )
             }
         }
@@ -216,6 +231,10 @@ fun Biashara360App() {
             }
             composable(Screen.Kra.route) { KraScreen() }
             composable(Screen.Social.route) { SocialScreen() }
+            composable(Screen.HospitalityOperations.route) {
+                if (hospitalityEnabled) HospitalityOperationsScreen()
+                else LaunchedEffect(Unit) { navController.navigate(Screen.Dashboard.route) { popUpTo(Screen.HospitalityOperations.route) { inclusive = true } } }
+            }
             // Detail / sub-screens
             composable(Screen.AddProduct.route) { backStackEntry ->
                 val productId = backStackEntry.arguments?.getString("productId")
@@ -279,7 +298,8 @@ fun Biashara360App() {
 @Composable
 fun CustomBottomNavigation(
     navController: NavController,
-    currentDestination: NavDestination?
+    currentDestination: NavDestination?,
+    items: List<com.app.biashara.ui.navigation.BottomNavItem>
 ) {
     Surface(
         color = Color.White,
@@ -295,7 +315,7 @@ fun CustomBottomNavigation(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            bottomNavItems.forEach { item ->
+            items.forEach { item ->
                 val isSelected = currentDestination?.hierarchy?.any {
                     it.route == item.screen.route
                 } == true

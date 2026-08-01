@@ -11,6 +11,8 @@ import org.jetbrains.exposed.sql.transactions.transaction
 val BUSINESS_MENUS = listOf(
     MenuDefinition("DASHBOARD", "Dashboard"), MenuDefinition("POS", "Point of Sale"),
     MenuDefinition("HOSPITALITY", "Bar & Restaurant"),
+    MenuDefinition("HOSPITALITY_OPS", "Hospitality Operations"),
+    MenuDefinition("OPEN_TABS", "Open Tabs"),
     MenuDefinition("INVENTORY", "Inventory"), MenuDefinition("ORDERS", "Orders"),
     MenuDefinition("CUSTOMERS", "Customers"), MenuDefinition("EXPENSES", "Expenses"),
     MenuDefinition("PAYMENTS", "M-Pesa Payments"), MenuDefinition("CARD_PAYMENTS", "Card Payments"),

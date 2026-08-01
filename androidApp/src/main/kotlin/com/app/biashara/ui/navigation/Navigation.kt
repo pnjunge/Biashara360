@@ -35,6 +35,7 @@ sealed class Screen(val route: String) {
     object Tax : Screen("tax")
     object Kra    : Screen("kra")
     object Social : Screen("social")
+    object HospitalityOperations : Screen("hospitality_operations")
     object Reports : Screen("reports")
     object Settings : Screen("settings")
     object CyberSourceSettings : Screen("cybersource_settings")
@@ -53,5 +54,6 @@ val bottomNavItems = listOf(
     BottomNavItem(Screen.Orders, "Orders", Icons.Filled.Assignment, "Maagizo"),
     BottomNavItem(Screen.Inventory, "Stock", Icons.Filled.Archive, "Hifadhi"),
     BottomNavItem(Screen.Customers, "Customers", Icons.Filled.People, "Wateja"),
-    BottomNavItem(Screen.Social, "Social", Icons.Filled.Share, "Mitandao")
+    BottomNavItem(Screen.Social, "Social", Icons.Filled.Share, "Mitandao"),
+    BottomNavItem(Screen.HospitalityOperations, "Hospitality", Icons.Filled.Restaurant, "Mgahawa")
 )

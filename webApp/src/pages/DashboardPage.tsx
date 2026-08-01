@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building, ShoppingCart, Clock, UserPlus, HelpCircle, Activity, ChevronDown, CheckCircle, Smartphone, ExternalLink, Copy, Store } from 'lucide-react'
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
-import { productApi, orderApi, customerApi, reportApi, businessApi, socialApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse } from '../services/api'
+import { productApi, orderApi, customerApi, reportApi, businessApi, socialApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse, InventoryCategory } from '../services/api'
 import { useAuth } from '../App'
 
 function getCurrentMonthRange() {
@@ -378,18 +378,22 @@ export default function DashboardPage() {
 }
 
 // ── Inventory ─────────────────────────────────────────────────────────────────
-const CATEGORIES = ['Electronics','Clothing','Food & Beverage','Health & Beauty','Home & Garden','Stationery','Other']
-
-const emptyProduct = { name:'', sku:'', category:'Other', buyingPrice:'', sellingPrice:'', currentStock:'', lowStockThreshold:'10', description:'' }
+const emptyProduct = { name:'', sku:'', category:'Other', buyingPrice:'', sellingPrice:'', currentStock:'', lowStockThreshold:'10', description:'', imageUrl:'' }
 
 export function InventoryPage() {
+  const { user } = useAuth()
   const [search, setSearch] = useState('')
   const [lowOnly, setLowOnly] = useState(false)
   const [products, setProducts] = useState<ProductResponse[]>([])
+  const [categories, setCategories] = useState<InventoryCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   const [showAdd, setShowAdd] = useState(false)
+  const [showCategories, setShowCategories] = useState(false)
+  const [categoryName, setCategoryName] = useState('')
+  const [categoryImageUrl, setCategoryImageUrl] = useState('')
+  const [editingCategory, setEditingCategory] = useState<InventoryCategory | null>(null)
   const [editProduct, setEditProduct] = useState<ProductResponse | null>(null)
   const [stockProduct, setStockProduct] = useState<ProductResponse | null>(null)
   const [form, setForm] = useState(emptyProduct)
@@ -403,7 +407,11 @@ export function InventoryPage() {
     }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { loadProducts() }, [])
+  const loadCategories = () => productApi.listCategories().then(res => {
+    if (res.success && res.data) setCategories(res.data)
+  }).catch(() => {})
+
+  useEffect(() => { loadProducts(); loadCategories() }, [])
 
   const stockStatus = (p: ProductResponse) => p.isOutOfStock ? 'OUT' : p.isLowStock ? 'LOW' : 'OK'
   const stockColor = (s: string) => s === 'OUT' ? 'var(--b360-red)' : s === 'LOW' ? 'var(--b360-amber)' : 'var(--b360-green)'
@@ -413,11 +421,14 @@ export function InventoryPage() {
     && (!lowOnly || stockStatus(p) !== 'OK')
   )
 
-  const openAdd = () => { setForm(emptyProduct); setError(''); setShowAdd(true) }
+  const openAdd = () => {
+    const firstActive = categories.find(c => c.isActive)?.name || 'Other'
+    setForm({ ...emptyProduct, category:firstActive }); setError(''); setShowAdd(true)
+  }
   const openEdit = (p: ProductResponse) => {
     setForm({ name:p.name, sku:p.sku, category:p.category, buyingPrice:String(p.buyingPrice),
       sellingPrice:String(p.sellingPrice), currentStock:String(p.currentStock),
-      lowStockThreshold:String(p.lowStockThreshold), description:p.description })
+      lowStockThreshold:String(p.lowStockThreshold), description:p.description, imageUrl:p.imageUrl || '' })
     setError(''); setEditProduct(p)
   }
   const openStock = (p: ProductResponse) => { setStockQty(''); setError(''); setStockProduct(p) }
@@ -432,7 +443,7 @@ export function InventoryPage() {
         name: form.name, sku: form.sku, category: form.category,
         buyingPrice: Number(form.buyingPrice), sellingPrice: Number(form.sellingPrice),
         currentStock: Number(form.currentStock), lowStockThreshold: Number(form.lowStockThreshold) || 10,
-        description: form.description,
+        description: form.description, imageUrl:form.imageUrl.trim() || null,
       }
       const res = editProduct
         ? await productApi.update(editProduct.id, payload)
@@ -462,6 +473,29 @@ export function InventoryPage() {
 
   const f = (k: keyof typeof emptyProduct) => (v: string) => setForm(prev => ({ ...prev, [k]: v }))
 
+  const saveCategory = async () => {
+    if (!categoryName.trim()) { setError('Enter a category name.'); return }
+    setSaving(true); setError('')
+    try {
+      const res = editingCategory
+        ? await productApi.updateCategory(editingCategory.id, { name:categoryName, imageUrl:categoryImageUrl })
+        : await productApi.createCategory(categoryName, categoryImageUrl)
+      if (!res.success) { setError(res.message || 'Failed to save category.'); return }
+      setCategoryName(''); setCategoryImageUrl(''); setEditingCategory(null); await loadCategories(); loadProducts()
+    } catch (e: any) { setError(e.response?.data?.message || 'Failed to save category.') }
+    finally { setSaving(false) }
+  }
+
+  const toggleCategory = async (category: InventoryCategory) => {
+    setSaving(true); setError('')
+    try {
+      const res = await productApi.updateCategory(category.id, { isActive:!category.isActive })
+      if (!res.success) setError(res.message || 'Failed to update category.')
+      await loadCategories()
+    } catch (e: any) { setError(e.response?.data?.message || 'Failed to update category.') }
+    finally { setSaving(false) }
+  }
+
   const productModal = (title: string, onClose: () => void) => (
     <Modal title={title} onClose={onClose}
       footer={<><Btn variant="secondary" onClick={onClose}>Cancel</Btn><Btn onClick={handleSaveProduct} disabled={saving}>{saving ? 'Saving...' : 'Save Product'}</Btn></>}>
@@ -472,7 +506,7 @@ export function InventoryPage() {
           <Input label="SKU *" value={form.sku} onChange={f('sku')} placeholder="e.g. SHIRT-001" />
         </div>
         <Select label="Category" value={form.category} onChange={f('category')}
-          options={CATEGORIES.map(c => ({ value:c, label:c }))} />
+          options={categories.filter(c => c.isActive || c.name === form.category).map(c => ({ value:c.name, label:c.isActive ? c.name : `${c.name} (disabled)` }))} />
         <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
           <Input label="Buying Price (KES) *" value={form.buyingPrice} onChange={f('buyingPrice')} type="number" placeholder="0" />
           <Input label="Selling Price (KES) *" value={form.sellingPrice} onChange={f('sellingPrice')} type="number" placeholder="0" />
@@ -482,6 +516,8 @@ export function InventoryPage() {
           <Input label="Low Stock Threshold" value={form.lowStockThreshold} onChange={f('lowStockThreshold')} type="number" placeholder="10" />
         </div>
         <Input label="Description" value={form.description} onChange={f('description')} placeholder="Optional product description" />
+        <Input label="Product image URL" value={form.imageUrl} onChange={f('imageUrl')} placeholder="https://example.com/product.jpg" />
+        {form.imageUrl && <img src={form.imageUrl} alt="Product preview" style={{width:96,height:96,objectFit:'cover',borderRadius:10,border:'1px solid var(--b360-border)'}} onError={event => { event.currentTarget.style.display='none' }} />}
       </div>
     </Modal>
   )
@@ -490,6 +526,31 @@ export function InventoryPage() {
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
       {showAdd && productModal('Add Product', () => setShowAdd(false))}
       {editProduct && productModal('Edit Product', () => setEditProduct(null))}
+      {showCategories && (
+        <Modal title="Inventory Categories" onClose={() => { setShowCategories(false); setEditingCategory(null); setCategoryName(''); setCategoryImageUrl(''); setError('') }}
+          footer={<Btn variant="secondary" onClick={() => setShowCategories(false)}>Close</Btn>}>
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
+            <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
+              <div style={{ flex:1 }}><Input label={editingCategory ? 'Rename category' : 'New category'} value={categoryName} onChange={setCategoryName} placeholder="e.g. Beverages" /></div>
+              <Btn onClick={saveCategory} disabled={saving}>{editingCategory ? 'Save' : 'Add'}</Btn>
+              {editingCategory && <Btn variant="secondary" onClick={() => { setEditingCategory(null); setCategoryName(''); setCategoryImageUrl('') }}>Cancel</Btn>}
+            </div>
+            <Input label="Category image URL" value={categoryImageUrl} onChange={setCategoryImageUrl} placeholder="https://example.com/category.jpg" />
+            <div style={{ display:'flex', flexDirection:'column', border:'1px solid var(--b360-border)', borderRadius:10, overflow:'hidden' }}>
+              {categories.map((category, index) => (
+                <div key={category.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'11px 12px', borderTop:index ? '1px solid var(--b360-border)' : undefined, opacity:category.isActive ? 1 : .65 }}>
+                  {category.imageUrl ? <img src={category.imageUrl} alt="" style={{width:40,height:40,objectFit:'cover',borderRadius:8}} /> : <div style={{width:40,height:40,borderRadius:8,background:'var(--b360-bg)',display:'grid',placeItems:'center'}}><Package size={17}/></div>}
+                  <div style={{ flex:1 }}><strong style={{ fontSize:13 }}>{category.name}</strong><div style={{ fontSize:11, color:'var(--b360-text-secondary)' }}>{category.productCount} product{category.productCount === 1 ? '' : 's'} · {category.isActive ? 'Active' : 'Disabled'}</div></div>
+                  <Btn small variant="secondary" onClick={() => { setEditingCategory(category); setCategoryName(category.name); setCategoryImageUrl(category.imageUrl || '') }}>Edit</Btn>
+                  <Btn small variant="secondary" disabled={saving} onClick={() => toggleCategory(category)}>{category.isActive ? 'Disable' : 'Enable'}</Btn>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize:11, color:'var(--b360-text-secondary)' }}>Disabled categories are hidden when adding products. Existing products and reports keep their category.</p>
+          </div>
+        </Modal>
+      )}
       {stockProduct && (
         <Modal title={`Update Stock — ${stockProduct.name}`} onClose={() => setStockProduct(null)}
           footer={<><Btn variant="secondary" onClick={() => setStockProduct(null)}>Cancel</Btn><Btn onClick={handleUpdateStock} disabled={saving}>{saving ? 'Updating...' : 'Update Stock'}</Btn></>}>
@@ -502,7 +563,7 @@ export function InventoryPage() {
       )}
 
       <PageHeader title="Inventory"
-        action={<Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Product</Btn>} />
+        action={<div style={{ display:'flex', gap:8 }}>{user?.role === 'ADMIN' && <Btn variant="secondary" onClick={() => { setError(''); setShowCategories(true) }}>Categories</Btn>}<Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Product</Btn></div>} />
 
       <div className="responsive-grid responsive-grid-4" style={{ gap:12 }}>
         <KpiCard title="Total Products"  value={`${products.length}`}  change="Active items"        icon={<Package size={18}/>} color="var(--b360-blue)" />
@@ -533,7 +594,7 @@ export function InventoryPage() {
             rows={filtered.map(p => {
               const st = stockStatus(p)
               return [
-                <strong>{p.name}</strong>,
+                <div style={{display:'flex',alignItems:'center',gap:9}}>{p.imageUrl ? <img src={p.imageUrl} alt="" style={{width:38,height:38,borderRadius:7,objectFit:'cover'}} /> : <div style={{width:38,height:38,borderRadius:7,background:'var(--b360-bg)',display:'grid',placeItems:'center'}}><Package size={16}/></div>}<strong>{p.name}</strong></div>,
                 <span style={{ fontFamily:'monospace', fontSize:12, color:'var(--b360-text-secondary)' }}>{p.sku}</span>,
                 p.category,
                 `KES ${p.buyingPrice.toLocaleString()}`,

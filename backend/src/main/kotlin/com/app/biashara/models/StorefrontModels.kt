@@ -41,6 +41,7 @@ data class StorefrontCheckoutRequest(
     val customerName: String,
     val customerPhone: String,
     val deliveryLocation: String,
+    val paymentMethod: String = "MPESA",
     val items: List<StorefrontCheckoutItemRequest>,
     val notes: String = ""
 )
@@ -58,6 +59,7 @@ data class StorefrontCheckoutResponse(
     val clientReference: String,
     val amount: Double,
     val paymentStatus: String,
+    val paymentMethod: String = "MPESA",
     val customerMessage: String? = null,
     val checkoutRequestId: String? = null
 )

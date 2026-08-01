@@ -344,6 +344,7 @@ fun Route.cyberSourceRoutes() {
          * Body: { csTransactionId, amount, reason? }
          */
         post("/refund") {
+            if(!call.hasRole("ADMIN")) return@post call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Manager approval is required for refunds"))
             val businessId = call.businessId()
             val req = call.receive<CsRefundRouteRequest>()
             val result = csService.refund(businessId, req)
@@ -358,6 +359,7 @@ fun Route.cyberSourceRoutes() {
          * Body: { csTransactionId }
          */
         post("/void") {
+            if(!call.hasRole("ADMIN")) return@post call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Manager approval is required for voids"))
             val businessId = call.businessId()
             val req = call.receive<CsVoidRouteRequest>()
             val result = csService.void(businessId, req)

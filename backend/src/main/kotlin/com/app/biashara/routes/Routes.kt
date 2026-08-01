@@ -183,6 +183,10 @@ fun Route.orderRoutes() {
         post {
             val businessId = call.businessId()
             val req = call.receive<CreateOrderRequest>()
+            if (req.items.any { it.complimentary || it.discountAmount > 0 } && !call.hasRole("ADMIN")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Manager approval is required for discounts and complimentary items"))
+                return@post
+            }
             val platform = call.request.headers["X-Client-Platform"]
             val result = orderService.create(businessId, req, platform)
             call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
@@ -221,6 +225,7 @@ fun Route.orderRoutes() {
             }
 
             post("/void") {
+                if(!call.hasRole("ADMIN")) return@post call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Manager approval is required to void an order"))
                 val businessId = call.businessId()
                 val id = call.parameters["id"]!!
                 val result = orderService.void(id, businessId)

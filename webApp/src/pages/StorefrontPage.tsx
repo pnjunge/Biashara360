@@ -27,6 +27,7 @@ export default function StorefrontPage() {
   const [clientReference] = useState(transactionReference)
   const [order, setOrder] = useState<StorefrontCheckoutResult | null>(null)
   const [paymentStatus, setPaymentStatus] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState<'MPESA' | 'COD' | 'CARD'>('MPESA')
 
   useEffect(() => {
     let active = true
@@ -43,7 +44,7 @@ export default function StorefrontPage() {
   }, [storeSlug])
 
   useEffect(() => {
-    if (!order || paymentStatus === 'PAID') return
+    if (!order || order.paymentMethod !== 'MPESA' || paymentStatus === 'PAID') return
     const poll = async () => {
       try {
         const response = await storefrontApi.orderStatus(storeSlug, order.orderId, order.clientReference)
@@ -81,6 +82,8 @@ export default function StorefrontPage() {
 
   const checkout = async (event: FormEvent) => {
     event.preventDefault()
+    if (!store) return
+    const storeBusinessId = store.businessId
     if (!cartProducts.length) return setError('Add at least one product to your cart.')
     setSubmitting(true)
     setError('')
@@ -90,10 +93,15 @@ export default function StorefrontPage() {
         customerName,
         customerPhone,
         deliveryLocation,
+        paymentMethod,
         notes,
         items: cartProducts.map(product => ({ productId: product.id, quantity: cart[product.id] }))
       })
       if (response.success && response.data) {
+        if (response.data.paymentMethod === 'CARD') {
+          window.location.assign(`/pay/card?orderId=${encodeURIComponent(response.data.orderId)}&businessId=${encodeURIComponent(storeBusinessId)}`)
+          return
+        }
         setOrder(response.data)
         setPaymentStatus(response.data.paymentStatus)
       } else setError(response.message || 'Checkout could not be completed.')
@@ -135,12 +143,12 @@ export default function StorefrontPage() {
       <section className="store-result">
         {paymentStatus === 'PAID' ? <CheckCircle2 size={58} color="#16a34a" /> : <ShoppingBag size={58} color="#0f766e" />}
         <p className="store-eyebrow">{store.businessName}</p>
-        <h1>{paymentStatus === 'PAID' ? 'Payment received' : 'Order created'}</h1>
+        <h1>{paymentStatus === 'PAID' ? 'Payment received' : order.paymentMethod === 'COD' ? 'Order placed' : 'Order created'}</h1>
         <p>Order <strong>{order.orderNumber}</strong> · {money(store.currency, order.amount)}</p>
         <div className={`store-payment-status ${paymentStatus === 'PAID' ? 'paid' : ''}`}>{paymentStatus || 'PENDING'}</div>
-        {paymentStatus !== 'PAID' && <p>{order.customerMessage || 'Complete the M-Pesa prompt on your phone. This page checks payment automatically.'}</p>}
+        {paymentStatus !== 'PAID' && <p>{order.customerMessage || (order.paymentMethod === 'COD' ? 'Pay when your order is delivered.' : 'Complete the M-Pesa prompt on your phone. This page checks payment automatically.')}</p>}
         {error && <div className="store-error"><AlertCircle size={16} />{error}</div>}
-        {paymentStatus !== 'PAID' && <button className="store-primary" disabled={submitting} onClick={retryPayment}>{submitting ? 'Requesting…' : 'Retry M-Pesa push'}</button>}
+        {paymentStatus !== 'PAID' && order.paymentMethod === 'MPESA' && <button className="store-primary" disabled={submitting} onClick={retryPayment}>{submitting ? 'Requesting…' : 'Retry M-Pesa push'}</button>}
       </section>
     </main>
   )
@@ -176,11 +184,12 @@ export default function StorefrontPage() {
           <div className="store-total"><span>Total</span><strong>{money(store.currency, total)}</strong></div>
           <form onSubmit={checkout} className="store-form">
             <label>Full name<input required minLength={2} maxLength={100} value={customerName} onChange={event => setCustomerName(event.target.value)} /></label>
-            <label>M-Pesa phone<input required inputMode="tel" placeholder="0712 345 678" value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} /></label>
+            <label>Customer phone<input required inputMode="tel" placeholder="0712 345 678" value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} /></label>
             <label>Delivery or pickup location<textarea required minLength={2} maxLength={500} value={deliveryLocation} onChange={event => setDeliveryLocation(event.target.value)} /></label>
+            <fieldset className="store-payment-options"><legend>Payment method</legend>{([['MPESA','M-Pesa'],['CARD','Card'],['COD','Cash on delivery']] as const).map(([value,label]) => <label key={value} className={paymentMethod === value ? 'active' : ''}><input type="radio" name="paymentMethod" value={value} checked={paymentMethod === value} onChange={() => setPaymentMethod(value)} /><span><b>{label}</b><small>{value === 'MPESA' ? 'Pay now using an STK push' : value === 'CARD' ? 'Secure CyberSource checkout' : 'Pay when the order arrives'}</small></span></label>)}</fieldset>
             <label>Order notes (optional)<textarea maxLength={500} value={notes} onChange={event => setNotes(event.target.value)} /></label>
             {error && <div className="store-error"><AlertCircle size={16} />{error}</div>}
-            <button className="store-primary" disabled={submitting || !cartProducts.length}>{submitting ? 'Creating order…' : `Pay ${money(store.currency, total)} with M-Pesa`}</button>
+            <button className="store-primary" disabled={submitting || !cartProducts.length}>{submitting ? 'Creating order…' : paymentMethod === 'COD' ? `Place COD order · ${money(store.currency, total)}` : paymentMethod === 'CARD' ? `Pay ${money(store.currency, total)} by card` : `Pay ${money(store.currency, total)} with M-Pesa`}</button>
           </form>
         </aside>
       </div>
@@ -212,6 +221,7 @@ const STORE_STYLES = `
   .store-cart-line { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 0; border-bottom:1px solid #edf2f1; } .store-cart-line strong,.store-cart-line span { display:block; font-size:13px; } .store-cart-line span { color:#657572; margin-top:4px; } .store-cart-line button { border:0; background:none; color:#b42318; cursor:pointer; }
   .store-total { display:flex; justify-content:space-between; padding:18px 0; font-size:18px; } .store-form { display:flex; flex-direction:column; gap:12px; } .store-form label { font-size:12px; font-weight:700; color:#52635f; }
   .store-form input,.store-form textarea { box-sizing:border-box; display:block; width:100%; margin-top:5px; padding:11px 12px; border:1px solid #cbdad7; border-radius:9px; font:inherit; color:#132a27; } .store-form textarea { resize:vertical; min-height:62px; }
+  .store-payment-options { border:0; padding:0; margin:2px 0; display:grid; gap:8px; } .store-payment-options legend { font-size:12px; font-weight:800; color:#52635f; margin-bottom:7px; } .store-payment-options label { display:flex; align-items:center; gap:10px; padding:10px 11px; border:1px solid #cbdad7; border-radius:10px; cursor:pointer; } .store-payment-options label.active { border-color:var(--store-primary); background:#f0f8f6; } .store-payment-options input { width:auto; margin:0; } .store-payment-options span,.store-payment-options small { display:block; } .store-payment-options small { margin-top:2px; color:#72817e; font-weight:500; }
   .store-primary { border:0; border-radius:10px; padding:13px 18px; background:var(--store-primary); color:white; font-weight:800; cursor:pointer; width:100%; } .store-primary:disabled { opacity:.55; cursor:not-allowed; }
   .store-error { display:flex; align-items:flex-start; gap:8px; padding:10px 12px; color:#b42318; background:#fff0ee; border-radius:9px; font-size:12px; }
   .store-muted { color:#72817e; font-size:13px; } .store-footer { text-align:center; padding:20px; color:#72817e; font-size:12px; }

@@ -40,7 +40,9 @@ class BusinessProfileService {
                     storefrontHeadline = it[BusinessesTable.storefrontHeadline],
                     storefrontDescription = it[BusinessesTable.storefrontDescription],
                     storefrontBannerUrl = it[BusinessesTable.storefrontBannerUrl],
-                    storefrontLayout = it[BusinessesTable.storefrontLayout]
+                    storefrontLayout = it[BusinessesTable.storefrontLayout],
+                    dayStartTime = it[BusinessesTable.dayStartTime],
+                    dayCloseTime = it[BusinessesTable.dayCloseTime]
                 )
             }
     }
@@ -65,6 +67,11 @@ class BusinessProfileService {
         if (bannerUrl != null && !bannerUrl.startsWith("https://")) return@transaction ApiResponse(false, message = "Storefront banner must use an HTTPS image URL")
         val layout = req.storefrontLayout.trim().uppercase()
         if (layout !in setOf("GRID", "LIST")) return@transaction ApiResponse(false, message = "Storefront layout must be GRID or LIST")
+        val timePattern = Regex("^(?:[01]\\d|2[0-3]):[0-5]\\d$")
+        if (!req.dayStartTime.matches(timePattern) || !req.dayCloseTime.matches(timePattern)) {
+            return@transaction ApiResponse(false, message = "Start and close times must use 24-hour HH:mm format")
+        }
+        if (req.dayStartTime == req.dayCloseTime) return@transaction ApiResponse(false, message = "Start and close times must be different")
 
         val exists = BusinessesTable.select { BusinessesTable.id eq businessId }.count() > 0
         if (!exists) return@transaction ApiResponse(false, message = "Business not found")
@@ -91,6 +98,8 @@ class BusinessProfileService {
             it[storefrontDescription] = req.storefrontDescription.trim().take(500)
             it[storefrontBannerUrl] = bannerUrl
             it[storefrontLayout] = layout
+            it[dayStartTime] = req.dayStartTime
+            it[dayCloseTime] = req.dayCloseTime
             it[updatedAt]     = now
         }
 

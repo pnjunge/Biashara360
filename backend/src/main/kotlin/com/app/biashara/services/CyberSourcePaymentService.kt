@@ -380,6 +380,7 @@ class CyberSourcePaymentService(
             }
             com.app.biashara.db.OrdersTable.update({ com.app.biashara.db.OrdersTable.id eq orderId }) {
                 it[paymentStatus] = "PAID"
+                it[tabStatus] = "CLOSED"
                 it[updatedAt] = Clock.System.now()
             }
         }

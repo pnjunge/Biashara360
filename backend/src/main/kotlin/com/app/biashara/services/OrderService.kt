@@ -6,6 +6,8 @@ import com.app.biashara.models.*
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import kotlinx.datetime.Clock
 
 internal data class InitialOrderStatuses(
@@ -107,6 +109,9 @@ class OrderService {
                         val qty   = item[OrderItemsTable.quantity]
                         val price = item[OrderItemsTable.unitPrice]
                         val buy   = item[OrderItemsTable.buyingPrice]
+                        val modifiers = runCatching { Json.decodeFromString<List<MenuOption>>(item[OrderItemsTable.modifiersJson]) }.getOrDefault(emptyList())
+                        val gross = qty * (price + modifiers.sumOf { it.priceDelta })
+                        val lineTotal = if(item[OrderItemsTable.complimentary]) 0.0 else (gross-item[OrderItemsTable.discountAmount]).coerceAtLeast(0.0)
                         OrderItemResponse(
                             id          = item[OrderItemsTable.id],
                             productId   = item[OrderItemsTable.productId],
@@ -114,8 +119,9 @@ class OrderService {
                             quantity    = qty,
                             unitPrice   = price,
                             buyingPrice = buy,
-                            lineTotal   = qty * price,
-                            lineProfit  = qty * (price - buy)
+                            lineTotal   = lineTotal,
+                            lineProfit  = lineTotal - qty * buy,
+                            modifiers = modifiers, itemNote=item[OrderItemsTable.itemNote], discountAmount=item[OrderItemsTable.discountAmount], complimentary=item[OrderItemsTable.complimentary]
                         )
                     }
                 }
@@ -137,6 +143,13 @@ class OrderService {
         clientPlatform: String? = null
     ): ApiResponse<OrderResponse> = try {
         transaction {
+        if (req.items.isEmpty()) return@transaction ApiResponse(false, message = "Add at least one item")
+        if (req.items.any { item ->
+                item.quantity <= 0 || item.unitPrice < 0 || item.discountAmount < 0 ||
+                    item.modifiers.any { modifier -> modifier.priceDelta < 0 }
+            }) {
+            return@transaction ApiResponse(false, message = "Invalid item quantity, price, discount, or modifier")
+        }
         val clientReference = req.clientReference?.trim()?.takeIf { it.isNotEmpty() }
         if (clientReference != null &&
             (clientReference.length > 64 || !clientReference.matches(Regex("^[A-Za-z0-9._:-]+$")))
@@ -190,12 +203,16 @@ class OrderService {
                     message = "Insufficient stock for ${product[ProductsTable.name]}: only ${product[ProductsTable.currentStock]} available"
                 )
             }
+            val gross = item.quantity * (item.unitPrice + item.modifiers.sumOf { it.priceDelta })
+            if (item.discountAmount > gross) {
+                return@transaction ApiResponse(false, message = "Discount cannot exceed the item total")
+            }
         }
 
         val orderId = generateId()
         val orderNumber = generateOrderNumber(clientPlatform)
         val now = Clock.System.now()
-        val totals = calculateOrderTotals(req.items.sumOf { it.quantity * it.unitPrice }, req.includeTax, req.taxRate)
+        val totals = calculateOrderTotals(req.items.sumOf { item -> if(item.complimentary) 0.0 else (item.quantity * (item.unitPrice + item.modifiers.sumOf { it.priceDelta }) - item.discountAmount).coerceAtLeast(0.0) }, req.includeTax, req.taxRate)
         val baseAmount = totals.baseAmount
         val appliedTaxRate = totals.taxRate
         val taxAmount = totals.taxAmount
@@ -248,6 +265,10 @@ class OrderService {
                 it[quantity] = item.quantity
                 it[unitPrice] = item.unitPrice
                 it[buyingPrice] = product[ProductsTable.buyingPrice]
+                it[modifiersJson] = Json.encodeToString(item.modifiers)
+                it[itemNote] = item.itemNote.take(500)
+                it[discountAmount] = item.discountAmount.coerceAtLeast(0.0)
+                it[complimentary] = item.complimentary
             }
             // Atomic conditional deduction: only succeeds if stock is still sufficient
             val deducted = ProductsTable.update({
@@ -287,6 +308,27 @@ class OrderService {
                     }
                     it[updatedAt] = now
                 }
+            }
+        }
+
+        // Record immediately settled channels (for example POS cash) in the
+        // unified payment ledger. Deferred M-Pesa/card/COD flows create their
+        // payment record only when the gateway or collection confirms payment.
+        if (initialStatuses.payment == "PAID") {
+            val method = req.paymentMethod.trim().uppercase()
+            PaymentsTable.insert {
+                it[id] = generateId()
+                it[PaymentsTable.businessId] = businessId
+                it[PaymentsTable.orderId] = orderId
+                it[transactionCode] = "$method-$orderNumber"
+                it[amount] = subtotal
+                it[payerPhone] = req.customerPhone.orEmpty()
+                it[payerName] = req.customerName
+                it[PaymentsTable.method] = method
+                it[status] = "SUCCESS"
+                it[channel] = salesChannel
+                it[reconciled] = true
+                it[transactionDate] = now
             }
         }
 
@@ -445,6 +487,9 @@ class OrderService {
             val qty = item[OrderItemsTable.quantity]
             val price = item[OrderItemsTable.unitPrice]
             val buying = item[OrderItemsTable.buyingPrice]
+            val modifiers = runCatching { Json.decodeFromString<List<MenuOption>>(item[OrderItemsTable.modifiersJson]) }.getOrDefault(emptyList())
+            val gross = qty * (price + modifiers.sumOf { it.priceDelta })
+            val lineTotal = if(item[OrderItemsTable.complimentary]) 0.0 else (gross-item[OrderItemsTable.discountAmount]).coerceAtLeast(0.0)
             OrderItemResponse(
                 id = item[OrderItemsTable.id],
                 productId = item[OrderItemsTable.productId],
@@ -452,8 +497,9 @@ class OrderService {
                 quantity = qty,
                 unitPrice = price,
                 buyingPrice = buying,
-                lineTotal = qty * price,
-                lineProfit = qty * (price - buying)
+                lineTotal = lineTotal,
+                lineProfit = lineTotal - qty * buying,
+                modifiers=modifiers, itemNote=item[OrderItemsTable.itemNote], discountAmount=item[OrderItemsTable.discountAmount], complimentary=item[OrderItemsTable.complimentary]
             )
         }
         return OrderResponse(

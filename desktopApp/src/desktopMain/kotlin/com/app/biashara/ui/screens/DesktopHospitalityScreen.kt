@@ -66,11 +66,26 @@ private data class DesktopHospitalityDashboard(
     val openTabs: List<DesktopHospitalityOrder> = emptyList(),
     val tickets: List<DesktopKitchenTicket> = emptyList(),
 )
+@Serializable private data class DesktopReservation(val id:String,val status:String)
+@Serializable private data class DesktopIngredient(val id:String,val isLowStock:Boolean)
+@Serializable private data class DesktopShift(val id:String,val status:String)
+@Serializable private data class DesktopHospitalityOperations(val reservations:List<DesktopReservation> = emptyList(),val ingredients:List<DesktopIngredient> = emptyList(),val shifts:List<DesktopShift> = emptyList())
 
 @Composable
 fun DesktopHospitalityScreen(client: HttpClient = remember { inject() }) {
+    DesktopHospitalityContent(client, tabsOnly = false)
+}
+
+@Composable
+fun DesktopOpenTabsScreen(client: HttpClient = remember { inject() }) {
+    DesktopHospitalityContent(client, tabsOnly = true)
+}
+
+@Composable
+private fun DesktopHospitalityContent(client: HttpClient, tabsOnly: Boolean) {
     val scope = rememberCoroutineScope()
     var dashboard by remember { mutableStateOf<DesktopHospitalityDashboard?>(null) }
+    var operations by remember { mutableStateOf<DesktopHospitalityOperations?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -79,10 +94,11 @@ fun DesktopHospitalityScreen(client: HttpClient = remember { inject() }) {
             loading = true
             error = null
             runCatching {
-                client.get("$BASE_URL/hospitality").body<ApiResponse<DesktopHospitalityDashboard>>()
-            }.onSuccess { response ->
+                client.get("$BASE_URL/hospitality").body<ApiResponse<DesktopHospitalityDashboard>>() to client.get("$BASE_URL/hospitality/operations").body<ApiResponse<DesktopHospitalityOperations>>()
+            }.onSuccess { (response,operationsResponse) ->
                 if (response.success && response.data != null) dashboard = response.data
                 else error = response.message.ifBlank { "Could not load hospitality operations." }
+                if(operationsResponse.success) operations=operationsResponse.data
             }.onFailure { error = it.message ?: "Could not load hospitality operations." }
             loading = false
         }
@@ -98,11 +114,11 @@ fun DesktopHospitalityScreen(client: HttpClient = remember { inject() }) {
         item {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Column {
-                    Text("Bar & Restaurant", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A))
-                    Text("Tables, customer tabs, kitchen and bar tickets", color = Color(0xFF64748B))
+                    Text(if (tabsOnly) "Open Tabs" else "Bar & Restaurant", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A))
+                    Text(if (tabsOnly) "Separate customer receipts awaiting settlement" else "Tables, customer tabs, kitchen and bar tickets", color = Color(0xFF64748B))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(onClick = { openDesktopWeb("/hospitality") }) {
+                    OutlinedButton(onClick = { openDesktopWeb("/hospitality-operations") }) {
                         Icon(Icons.Default.OpenInBrowser, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Manage")
                     }
                     Button(onClick = ::load, enabled = !loading, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00B874))) {
@@ -127,10 +143,19 @@ fun DesktopHospitalityScreen(client: HttpClient = remember { inject() }) {
                     HospitalitySummary(Modifier.weight(1f), "Open amount", "KES ${String.format("%,.0f", data.openTabs.sumOf { it.subtotal })}", Icons.Default.Restaurant)
                 }
             }
-            item { Text("Tables", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A)) }
-            if (data.tables.isEmpty()) item { HospitalityEmpty("No tables configured. Use Manage to create your first table.") }
-            items(data.tables, key = { it.id }) { table ->
-                HospitalityRow(table.name, "${table.area} · ${table.capacity} seats", table.status, "${table.openOrderCount} tabs · KES ${String.format("%,.0f", table.openAmount)}")
+            if(!tabsOnly) item {
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                    HospitalitySummary(Modifier.weight(1f),"Reservations",(operations?.reservations?.count{it.status=="BOOKED"}?:0).toString(),Icons.Default.TableRestaurant)
+                    HospitalitySummary(Modifier.weight(1f),"Low ingredients",(operations?.ingredients?.count{it.isLowStock}?:0).toString(),Icons.Default.Restaurant)
+                    HospitalitySummary(Modifier.weight(1f),"Shift",if(operations?.shifts?.any{it.status=="OPEN"}==true)"Open" else "Closed",Icons.Default.Restaurant)
+                }
+            }
+            if (!tabsOnly) {
+                item { Text("Tables", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A)) }
+                if (data.tables.isEmpty()) item { HospitalityEmpty("No tables configured. Use Manage to create your first table.") }
+                items(data.tables, key = { it.id }) { table ->
+                    HospitalityRow(table.name, "${table.area} · ${table.capacity} seats", table.status, "${table.openOrderCount} tabs · KES ${String.format("%,.0f", table.openAmount)}")
+                }
             }
             item { Text("Open tabs", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A), modifier = Modifier.padding(top = 8.dp)) }
             if (data.openTabs.isEmpty()) item { HospitalityEmpty("No open customer tabs.") }

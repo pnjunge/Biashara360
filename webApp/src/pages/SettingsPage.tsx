@@ -6,12 +6,12 @@ import {
 } from 'lucide-react'
 import { PageHeader, Card, Btn, Input, Select } from '../components/ui'
 import {
-  settingsApi, businessApi, kraApi, BusinessProfileRequest,
+  settingsApi, businessApi, kraApi, authApi, BusinessProfileRequest,
   MpesaConfigResponse, SessionTimeoutConfig
 } from '../services/api'
 import { useAuth } from '../App'
 
-type SettingsTab = 'general' | 'cybersource' | 'kra' | 'mpesa' | 'security' | 'notifications'
+type SettingsTab = 'general' | 'storefront' | 'cybersource' | 'kra' | 'mpesa' | 'security' | 'notifications'
 
 export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -88,6 +88,10 @@ export function SettingsPage() {
   const [twoFA, setTwoFA] = useState(true)
   const [secSaving, setSecSaving] = useState(false)
   const [secMsg, setSecMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [pinPassword, setPinPassword] = useState('')
+  const [loginPin, setLoginPin] = useState('')
+  const [confirmLoginPin, setConfirmLoginPin] = useState('')
+  const [pinSaving, setPinSaving] = useState(false)
 
   // ── 6. Notifications State ─────────────────────────────────────────────────
   const [smsAlerts, setSmsAlerts] = useState(true)
@@ -97,7 +101,7 @@ export function SettingsPage() {
 
   // Load Tab-Specific Data
   useEffect(() => {
-    if (activeTab === 'general' || activeTab === 'notifications') {
+    if (activeTab === 'general' || activeTab === 'storefront' || activeTab === 'notifications') {
       setProfileLoading(true)
       businessApi.getProfile().then(res => {
         if (res.success && res.data) {
@@ -108,8 +112,19 @@ export function SettingsPage() {
             name: d.name || '', owner: d.owner || '', phone: d.phone || '',
             email: d.email || '', type: d.type || '', county: d.county || '',
             address: d.address || '', kraPin: d.kraPin || '',
-            paybillNumber: d.paybillNumber || '', accountNumber: d.accountNumber || ''
+            paybillNumber: d.paybillNumber || '', accountNumber: d.accountNumber || '',
+            receiptHeader: d.receiptHeader, receiptFooter: d.receiptFooter,
+            receiptLogo: d.receiptLogo, receiptShowTax: d.receiptShowTax,
+            receiptShowCustomer: d.receiptShowCustomer,
+            storefrontThemeColor: d.storefrontThemeColor || '#0F766E',
+            storefrontHeadline: d.storefrontHeadline || 'Shop with us online',
+            storefrontDescription: d.storefrontDescription || '',
+            storefrontBannerUrl: d.storefrontBannerUrl || null,
+            storefrontLayout: d.storefrontLayout || 'GRID',
+            dayStartTime: d.dayStartTime || '06:00', dayCloseTime: d.dayCloseTime || '23:00'
           })
+          setReceiptHeader(d.receiptHeader || 'Welcome to our store!')
+          setReceiptFooter(d.receiptFooter || 'Thank you for shopping with us!')
           if (d.kraPin) setKraPin(d.kraPin)
           if (d.name) setKraCompanyName(d.name)
         }
@@ -154,7 +169,7 @@ export function SettingsPage() {
     setProfileSaving(true)
     setProfileMsg(null)
     try {
-      const res = await businessApi.updateProfile(profile)
+      const res = await businessApi.updateProfile({ ...profile, receiptHeader, receiptFooter })
       setProfileMsg({ ok: res.success, text: res.message || (res.success ? 'Business profile updated' : 'Failed to save profile') })
     } catch (e: any) {
       setProfileMsg({ ok: false, text: e.response?.data?.message || 'Network error' })
@@ -256,6 +271,18 @@ export function SettingsPage() {
     }
   }
 
+  const handleLoginPin = async (disable = false) => {
+    if (!pinPassword) return setSecMsg({ok:false,text:'Enter your current password.'})
+    if (!disable && (!/^\d{6}$/.test(loginPin) || loginPin !== confirmLoginPin)) return setSecMsg({ok:false,text:'Enter matching 6-digit PINs.'})
+    setPinSaving(true); setSecMsg(null)
+    try {
+      const res = await authApi.setLoginPin({currentPassword:pinPassword,pin:disable ? undefined : loginPin,disable})
+      setSecMsg({ok:res.success,text:res.message || (disable ? 'PIN login disabled' : 'PIN login enabled')})
+      if (res.success) { setPinPassword(''); setLoginPin(''); setConfirmLoginPin('') }
+    } catch (e:any) { setSecMsg({ok:false,text:e.response?.data?.message || 'Could not update PIN login.'}) }
+    finally { setPinSaving(false) }
+  }
+
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <Card style={{ padding: 22, marginBottom: 16 }}>
       <h3 style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>{title}</h3>
@@ -276,6 +303,7 @@ export function SettingsPage() {
   )
 
   const tabs = [
+    { key: 'storefront', label: 'Storefront', icon: <ExternalLink size={15} /> },
     { key: 'general', label: 'Store Profile', icon: <Building2 size={15} /> },
     { key: 'cybersource', label: 'CyberSource Card', icon: <CreditCard size={15} /> },
     { key: 'kra', label: 'KRA & eTIMS', icon: <Shield size={15} /> },
@@ -347,6 +375,14 @@ export function SettingsPage() {
                 <Input label="Receipt Footer Message" value={receiptFooter} onChange={setReceiptFooter} placeholder="e.g. Thank you for your purchase!" />
               </Section>
 
+              <Section title="Operating Day">
+                <div className="responsive-grid responsive-grid-2" style={{gap:14}}>
+                  <Input label="Start of day" type="time" value={profile.dayStartTime || '06:00'} onChange={v => setProfile(p => ({...p, dayStartTime:v}))} />
+                  <Input label="Close of day" type="time" value={profile.dayCloseTime || '23:00'} onChange={v => setProfile(p => ({...p, dayCloseTime:v}))} />
+                </div>
+                <div style={{fontSize:12,color:'var(--b360-text-secondary)',lineHeight:1.5}}>These times define the merchant operating day. A closing time earlier than the start time means the business closes after midnight.</div>
+              </Section>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <Btn icon={<Save size={14} />} onClick={handleSaveGeneral} disabled={profileSaving}>
                   {profileSaving ? 'Saving Profile…' : 'Save Store Profile'}
@@ -354,6 +390,32 @@ export function SettingsPage() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {activeTab === 'storefront' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {profileMsg && <div style={{ padding:12, background:profileMsg.ok ? 'var(--b360-green-bg)' : 'var(--b360-red-bg)', color:profileMsg.ok ? 'var(--b360-green)' : 'var(--b360-red)', borderRadius:8, fontSize:13, fontWeight:600 }}>{profileMsg.text}</div>}
+          {profileLoading ? <div style={{padding:32,textAlign:'center',color:'var(--b360-text-secondary)'}}>Loading storefront settings…</div> : <>
+            <Section title="Storefront Appearance">
+              <Input label="Welcome headline" value={profile.storefrontHeadline || ''} onChange={value => setProfile(current => ({...current, storefrontHeadline:value}))} placeholder="Shop with us online" />
+              <Input label="Store description" value={profile.storefrontDescription || ''} onChange={value => setProfile(current => ({...current, storefrontDescription:value}))} placeholder="Tell customers about your store" />
+              <Input label="HTTPS banner image" value={profile.storefrontBannerUrl || ''} onChange={value => setProfile(current => ({...current, storefrontBannerUrl:value || null}))} placeholder="https://example.com/banner.jpg" />
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+                <label style={{fontSize:12,fontWeight:600}}>Theme color<div style={{display:'flex',gap:8,marginTop:5}}><input type="color" value={profile.storefrontThemeColor || '#0F766E'} onChange={event => setProfile(current => ({...current,storefrontThemeColor:event.target.value.toUpperCase()}))} style={{width:48,height:40,padding:2,border:'1px solid var(--b360-border)',borderRadius:8}}/><input value={profile.storefrontThemeColor || '#0F766E'} maxLength={7} onChange={event => setProfile(current => ({...current,storefrontThemeColor:event.target.value.toUpperCase()}))} style={{minWidth:0,flex:1,padding:'9px 12px',border:'1px solid var(--b360-border)',borderRadius:8}}/></div></label>
+                <label style={{fontSize:12,fontWeight:600}}>Product layout<select value={profile.storefrontLayout || 'GRID'} onChange={event => setProfile(current => ({...current,storefrontLayout:event.target.value as 'GRID'|'LIST'}))} style={{display:'block',width:'100%',marginTop:5,padding:'10px 12px',border:'1px solid var(--b360-border)',borderRadius:8,background:'white'}}><option value="GRID">Product grid</option><option value="LIST">Product list</option></select></label>
+              </div>
+            </Section>
+            <Section title="Live Branding Preview">
+              <div style={{padding:24,borderRadius:14,color:'white',background:profile.storefrontThemeColor || '#0F766E',backgroundImage:profile.storefrontBannerUrl ? `linear-gradient(#0008,#0008),url(${profile.storefrontBannerUrl})` : undefined,backgroundSize:'cover',backgroundPosition:'center'}}>
+                <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:2,fontWeight:800,opacity:.85}}>{profile.name || 'Your business'}</div>
+                <h2 style={{margin:'7px 0',fontSize:28}}>{profile.storefrontHeadline || 'Shop with us online'}</h2>
+                <p style={{margin:0,opacity:.9}}>{profile.storefrontDescription || 'Your store description will appear here.'}</p>
+              </div>
+              <div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>Products will be displayed using the selected {profile.storefrontLayout === 'LIST' ? 'list' : 'grid'} layout.</div>
+            </Section>
+            <div style={{display:'flex',justifyContent:'flex-end'}}><Btn icon={<Save size={14}/>} onClick={handleSaveGeneral} disabled={profileSaving}>{profileSaving ? 'Saving…' : 'Save Storefront'}</Btn></div>
+          </>}
         </div>
       )}
 
@@ -636,6 +698,16 @@ export function SettingsPage() {
 
           <Section title="Two-Factor Authentication (2FA)">
             <Toggle label="Enable Two-Factor Authentication (2FA) for Admin Logins" checked={twoFA} onChange={setTwoFA} />
+          </Section>
+
+          <Section title="PIN Login">
+            <p style={{fontSize:12,color:'var(--b360-text-secondary)',margin:0,lineHeight:1.5}}>Create a personal six-digit PIN for faster sign-in. Your current password is required, and existing OTP rules still apply.</p>
+            <Input label="Current password" type="password" value={pinPassword} onChange={setPinPassword} />
+            <div className="responsive-grid responsive-grid-2" style={{gap:14}}>
+              <Input label="New 6-digit PIN" type="password" value={loginPin} onChange={value=>setLoginPin(value.replace(/\D/g,'').slice(0,6))} />
+              <Input label="Confirm PIN" type="password" value={confirmLoginPin} onChange={value=>setConfirmLoginPin(value.replace(/\D/g,'').slice(0,6))} />
+            </div>
+            <div style={{display:'flex',gap:8,justifyContent:'flex-end',flexWrap:'wrap'}}><Btn variant="secondary" disabled={pinSaving || !pinPassword} onClick={()=>handleLoginPin(true)}>Disable PIN</Btn><Btn disabled={pinSaving || !pinPassword || loginPin.length!==6 || confirmLoginPin.length!==6} onClick={()=>handleLoginPin(false)}>{pinSaving ? 'Saving…' : 'Set PIN'}</Btn></div>
           </Section>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

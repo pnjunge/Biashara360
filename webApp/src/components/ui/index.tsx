@@ -162,7 +162,7 @@ export function Modal({ title, onClose, children, footer, wide, extraWide }: {
 }) {
   return (
     <div className="ui-modal-backdrop" style={{ position:'fixed', inset:0, background:'rgba(15, 23, 42, 0.4)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
-      <div className="ui-modal" style={{ background:'white', borderRadius:'var(--radius-lg)', width:'100%', maxWidth: extraWide ? 1100 : wide ? 680 : 480, maxHeight: extraWide ? '94vh' : '90vh', overflow:'auto', boxShadow:'var(--shadow-lg)', display:'flex', flexDirection:'column', border:'1px solid var(--b360-border)' }}>
+      <div className="ui-modal" style={{ background:'white', borderRadius:'var(--radius-lg)', width:'100%', maxWidth: extraWide ? 1240 : wide ? 680 : 480, maxHeight: extraWide ? '94vh' : '90vh', overflow:'auto', boxShadow:'var(--shadow-lg)', display:'flex', flexDirection:'column', border:'1px solid var(--b360-border)' }}>
         <div className="ui-modal-header" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 24px', borderBottom:'1px solid var(--b360-border)', flexShrink:0 }}>
           <h2 style={{ fontSize:16, fontWeight:800, letterSpacing:'-0.25px', color:'var(--b360-text)' }}>{title}</h2>
           <button className="btn" type="button" onClick={onClose} style={{ fontSize:22, lineHeight:1, color:'var(--b360-text-secondary)', cursor:'pointer', border:'none', background:'none', padding:'0 4px' }}>×</button>

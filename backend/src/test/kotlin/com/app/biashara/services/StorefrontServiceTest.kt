@@ -6,6 +6,13 @@ import kotlin.test.assertNull
 
 class StorefrontServiceTest {
     @Test
+    fun `storefront accepts supported payment methods`() {
+        assertEquals("MPESA", normalizeStorefrontPaymentMethod("mpesa"))
+        assertEquals("CARD", normalizeStorefrontPaymentMethod(" card "))
+        assertEquals("COD", normalizeStorefrontPaymentMethod("COD"))
+        assertEquals(null, normalizeStorefrontPaymentMethod("CASH"))
+    }
+    @Test
     fun `normalizes supported Kenyan customer numbers`() {
         assertEquals("254712345678", normalizeStorefrontPhone("0712 345 678"))
         assertEquals("254112345678", normalizeStorefrontPhone("+254 112 345 678"))

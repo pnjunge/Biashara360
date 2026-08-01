@@ -7,6 +7,7 @@ import com.app.biashara.exceptions.ForbiddenException
 import com.app.biashara.exceptions.NotFoundException
 import com.app.biashara.models.*
 import com.app.biashara.services.ProductService
+import com.app.biashara.services.InventoryCategoryService
 import com.app.biashara.utils.PaginationParams
 import com.app.biashara.validation.Validator
 import io.ktor.http.*
@@ -21,9 +22,29 @@ import org.koin.ktor.ext.inject
  */
 fun Route.productRoutesValidated() {
     val productService: ProductService by inject()
+    val categoryService: InventoryCategoryService by inject()
 
     route("/products") {
         moduleGuard("INVENTORY")
+
+        route("/categories") {
+            get {
+                call.respond(ApiResponse(true, data = categoryService.getAll(call.businessId())))
+            }
+            post {
+                if (!call.hasRole("ADMIN")) throw ForbiddenException("Admin access required to manage categories")
+                val req = call.receive<CreateInventoryCategoryRequest>()
+                val result = categoryService.create(call.businessId(), req.name, req.imageUrl)
+                call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
+            }
+            put("/{categoryId}") {
+                if (!call.hasRole("ADMIN")) throw ForbiddenException("Admin access required to manage categories")
+                val categoryId = call.parameters["categoryId"] ?: throw IllegalArgumentException("Category ID required")
+                val req = call.receive<UpdateInventoryCategoryRequest>()
+                val result = categoryService.update(categoryId, call.businessId(), req)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+        }
         
         /**
          * List all products with pagination
@@ -199,6 +220,12 @@ fun Route.productRoutesValidated() {
                         positive()
                         custom("Selling price should be greater than buying price", "INVALID_PROFIT_MARGIN") {
                             (it as Double) >= req.buyingPrice
+                        }
+                    }
+                    field("imageUrl", req.imageUrl) {
+                        optional {
+                            maxLength(500)
+                            matches(Regex("^https?://.*"), "Image URL must be a valid HTTP(S) URL")
                         }
                     }
                 }

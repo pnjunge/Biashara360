@@ -214,3 +214,14 @@ input:focus, select:focus, textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+.hospitality-sale-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, .9fr) minmax(430px, 1.15fr);
+  gap: 0;
+}
+
+@media (max-width: 900px) {
+  .hospitality-sale-grid { grid-template-columns: minmax(0, 1fr); }
+  .hospitality-sale-catalog { border-left: 0 !important; border-top: 1px solid var(--b360-border); }
+}

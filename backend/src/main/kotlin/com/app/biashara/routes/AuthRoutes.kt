@@ -102,6 +102,22 @@ fun Route.authRoutesValidated() {
                 )
             }
 
+            post("/pin-login") {
+                val req = call.receive<PinLoginRequest>()
+                Validator.validate {
+                    field("email", req.email) { required(); email() }
+                    field("pin", req.pin) {
+                        required()
+                        custom("PIN must be exactly 6 digits", "INVALID_PIN_FORMAT") {
+                            it is String && it.matches(Regex("^\\d{6}$"))
+                        }
+                    }
+                }
+                val result = authService.loginWithPin(req)
+                authLogger.info("""{"event":"pin_login_attempt","success":${result.success},"request_id":"${call.callId ?: "unknown"}"}""")
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.Unauthorized, result)
+            }
+
             /**
              * Verify OTP for 2FA
              * POST /auth/verify-otp
@@ -278,6 +294,23 @@ fun Route.accountRoutesValidated() {
                 if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest,
                 result
             )
+        }
+
+        post("/login-pin") {
+            val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject
+                ?: throw UnauthorizedException("Authentication required")
+            val req = call.receive<SetLoginPinRequest>()
+            Validator.validate {
+                field("currentPassword", req.currentPassword) { required(); minLength(6) }
+                if (!req.disable) field("pin", req.pin) {
+                    required()
+                    custom("PIN must be exactly 6 digits", "INVALID_PIN_FORMAT") {
+                        it is String && it.matches(Regex("^\\d{6}$"))
+                    }
+                }
+            }
+            val result = authService.setLoginPin(callerUserId, req)
+            call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
         }
     }
 }

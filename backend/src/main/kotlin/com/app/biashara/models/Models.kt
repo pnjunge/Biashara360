@@ -25,6 +25,16 @@ data class RegisterRequest(
 data class LoginRequest(val email: String, val password: String)
 
 @Serializable
+data class PinLoginRequest(val email: String, val pin: String)
+
+@Serializable
+data class SetLoginPinRequest(
+    val currentPassword: String,
+    val pin: String? = null,
+    val disable: Boolean = false
+)
+
+@Serializable
 data class LoginResponse(
     val userId: String,
     val requiresOtp: Boolean,
@@ -102,6 +112,25 @@ data class ProductResponse(
 )
 
 @Serializable
+data class InventoryCategoryResponse(
+    val id: String,
+    val name: String,
+    val isActive: Boolean,
+    val productCount: Int,
+    val imageUrl: String? = null
+)
+
+@Serializable
+data class CreateInventoryCategoryRequest(val name: String, val imageUrl: String? = null)
+
+@Serializable
+data class UpdateInventoryCategoryRequest(
+    val name: String? = null,
+    val isActive: Boolean? = null,
+    val imageUrl: String? = null
+)
+
+@Serializable
 data class StockUpdateRequest(
     val type: String,   // STOCK_IN, STOCK_OUT, ADJUSTMENT
     val quantity: Int,
@@ -135,7 +164,11 @@ data class CreateOrderRequest(
 data class OrderItemRequest(
     val productId: String,
     val quantity: Int,
-    val unitPrice: Double
+    val unitPrice: Double,
+    val modifiers: List<MenuOption> = emptyList(),
+    val itemNote: String = "",
+    val discountAmount: Double = 0.0,
+    val complimentary: Boolean = false
 )
 
 @Serializable
@@ -177,7 +210,11 @@ data class OrderItemResponse(
     val unitPrice: Double,
     val buyingPrice: Double,
     val lineTotal: Double,
-    val lineProfit: Double
+    val lineProfit: Double,
+    val modifiers: List<MenuOption> = emptyList(),
+    val itemNote: String = "",
+    val discountAmount: Double = 0.0,
+    val complimentary: Boolean = false
 )
 
 @Serializable
@@ -401,7 +438,9 @@ data class BusinessProfileRequest(
     val storefrontHeadline: String = "Shop with us online",
     val storefrontDescription: String = "",
     val storefrontBannerUrl: String? = null,
-    val storefrontLayout: String = "GRID"
+    val storefrontLayout: String = "GRID",
+    val dayStartTime: String = "06:00",
+    val dayCloseTime: String = "23:00"
 )
 
 @Serializable
@@ -430,7 +469,9 @@ data class BusinessProfileResponse(
     val storefrontHeadline: String = "Shop with us online",
     val storefrontDescription: String = "",
     val storefrontBannerUrl: String? = null,
-    val storefrontLayout: String = "GRID"
+    val storefrontLayout: String = "GRID",
+    val dayStartTime: String = "06:00",
+    val dayCloseTime: String = "23:00"
 )
 
 // ─── Super Admin — Business Management ───────────────────────────────────────

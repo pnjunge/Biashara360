@@ -8,6 +8,8 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 class HospitalityService(private val orderService: OrderService) {
     internal companion object {
@@ -15,6 +17,10 @@ class HospitalityService(private val orderService: OrderService) {
     }
 
     private val logger = LoggerFactory.getLogger(HospitalityService::class.java)
+    fun isEnabled(businessId: String): Boolean = transaction {
+        BusinessesTable.select { BusinessesTable.id eq businessId }
+            .firstOrNull()?.get(BusinessesTable.hospitalityEnabled) == true
+    }
     fun dashboard(businessId: String): HospitalityDashboardResponse = transaction {
         val enabled = BusinessesTable.select { BusinessesTable.id eq businessId }.first()[BusinessesTable.hospitalityEnabled]
         HospitalityDashboardResponse(enabled, tables(businessId), openTabs(businessId), tickets(businessId))
@@ -28,7 +34,7 @@ class HospitalityService(private val orderService: OrderService) {
             }.none()) { "Settle all open and awaiting-payment tabs before disabling hospitality mode" }
             require(KitchenTicketsTable.select {
                 (KitchenTicketsTable.businessId eq businessId) and
-                    (KitchenTicketsTable.status inList listOf("NEW", "PREPARING", "READY"))
+                    (KitchenTicketsTable.status inList listOf("NEW", "PREPARING", "READY", "DELAYED"))
             }.none()) { "Complete or cancel all active kitchen and bar tickets before disabling hospitality mode" }
         }
         BusinessesTable.update({ BusinessesTable.id eq businessId }) { it[hospitalityEnabled] = enabled; it[updatedAt] = Clock.System.now() }
@@ -75,7 +81,7 @@ class HospitalityService(private val orderService: OrderService) {
         tables(businessId).first { it.id == tableId }
     }
 
-    fun createOrder(businessId: String, serverUserId: String, request: HospitalityOrderRequest): ApiResponse<OrderResponse> {
+    fun createOrder(businessId: String, serverUserId: String?, request: HospitalityOrderRequest): ApiResponse<OrderResponse> {
         val enabled = transaction { BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull()?.get(BusinessesTable.hospitalityEnabled) == true }
         if (!enabled) return ApiResponse(false, message = "Hospitality mode is disabled")
         val serviceType=request.serviceType.trim().uppercase()
@@ -83,9 +89,17 @@ class HospitalityService(private val orderService: OrderService) {
         if (request.guestCount !in 1..100) return ApiResponse(false,message="Guest count must be between 1 and 100")
         val table = request.tableId?.let { tableId -> transaction { HospitalityTablesTable.select { (HospitalityTablesTable.id eq tableId) and (HospitalityTablesTable.businessId eq businessId) and (HospitalityTablesTable.isActive eq true) }.firstOrNull() } }
         if (serviceType == "DINE_IN" && table == null) return ApiResponse(false,message="Select a table for dine-in service")
+        val productRows=transaction{ProductsTable.select{(ProductsTable.businessId eq businessId) and (ProductsTable.id inList request.items.map{it.productId})}.associateBy{it[ProductsTable.id]}}
+        val profiles=transaction{HospitalityMenuProfilesTable.select{(HospitalityMenuProfilesTable.businessId eq businessId) and (HospitalityMenuProfilesTable.productId inList request.items.map{it.productId})}.associateBy{it[HospitalityMenuProfilesTable.productId]}}
+        if(request.items.any{profiles[it.productId]?.get(HospitalityMenuProfilesTable.soldOut)==true}) return ApiResponse(false,message="One or more menu items are sold out")
+        if(!request.ageVerified&&request.items.any{profiles[it.productId]?.get(HospitalityMenuProfilesTable.ageRestricted)==true}) return ApiResponse(false,message="Age verification is required for this order")
+        val currentTime=Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).time.toString().take(5)
+        val pricedItems=request.items.map{item->val product=productRows[item.productId]?:return ApiResponse(false,message="Product not found");val profile=profiles[item.productId];val happy=profile?.get(HospitalityMenuProfilesTable.happyHourPrice);val start=profile?.get(HospitalityMenuProfilesTable.happyHourStart);val end=profile?.get(HospitalityMenuProfilesTable.happyHourEnd);val active=happy!=null&&start!=null&&end!=null&&if(start<=end)currentTime in start..end else currentTime>=start||currentTime<=end;item.copy(unitPrice=if(active)happy!! else product[ProductsTable.sellingPrice])}
+        val insufficient=transaction{pricedItems.firstOrNull{item->ProductRecipesTable.select{ProductRecipesTable.productId eq item.productId}.any{line->val stock=InventoryIngredientsTable.select{InventoryIngredientsTable.id eq line[ProductRecipesTable.ingredientId]}.firstOrNull()?.get(InventoryIngredientsTable.quantity)?:0.0;stock<line[ProductRecipesTable.quantity]*item.quantity}}}
+        if(insufficient!=null)return ApiResponse(false,message="Insufficient ingredients for ${productRows[insufficient.productId]?.get(ProductsTable.name)?:"menu item"}")
         val result=orderService.create(businessId, CreateOrderRequest(
             customerName=request.customerName.trim().ifBlank { "Walk-in Guest" }, customerPhone=request.customerPhone.trim(),
-            deliveryLocation=table?.get(HospitalityTablesTable.name) ?: serviceType.replace('_',' '), items=request.items,
+            deliveryLocation=table?.get(HospitalityTablesTable.name) ?: serviceType.replace('_',' '), items=pricedItems,
             paymentMethod="TAB", paymentStatus="PENDING", deliveryStatus="PROCESSING", notes=request.notes.trim().take(1000),
             serviceType=serviceType, hospitalityTableId=table?.get(HospitalityTablesTable.id), serverUserId=serverUserId,
             guestCount=request.guestCount, tabStatus="OPEN"
@@ -94,8 +108,8 @@ class HospitalityService(private val orderService: OrderService) {
         logger.info("""{"event":"hospitality_tab_opened","business_id":"$businessId","order_id":"${order.id}","service_type":"$serviceType","guest_count":${request.guestCount}}""")
         transaction {
             table?.let { HospitalityTablesTable.update({ HospitalityTablesTable.id eq it[HospitalityTablesTable.id] }) { row -> row[status]="OCCUPIED"; row[updatedAt]=Clock.System.now() } }
-            val productRows=ProductsTable.select { ProductsTable.id inList request.items.map { it.productId } }.associateBy { it[ProductsTable.id] }
-            val stations=request.items.map { item -> stationFor(productRows[item.productId]?.get(ProductsTable.category).orEmpty()) }.toSet()
+            pricedItems.forEach{item->ProductRecipesTable.select{ProductRecipesTable.productId eq item.productId}.forEach{line->InventoryIngredientsTable.update({InventoryIngredientsTable.id eq line[ProductRecipesTable.ingredientId]}){with(SqlExpressionBuilder){it.update(quantity,quantity-line[ProductRecipesTable.quantity]*item.quantity)};it[updatedAt]=Clock.System.now()}}}
+            val stations=pricedItems.mapNotNull { item -> profiles[item.productId]?.get(HospitalityMenuProfilesTable.preparationStation) ?: hospitalityStationFor(productRows[item.productId]?.get(ProductsTable.category).orEmpty()) }.toSet()
             val now=Clock.System.now()
             stations.forEach { station -> KitchenTicketsTable.insert { it[id]=generateId(); it[KitchenTicketsTable.businessId]=businessId; it[orderId]=order.id; it[KitchenTicketsTable.station]=station; it[status]="NEW"; it[notes]=request.notes.take(500); it[createdAt]=now; it[updatedAt]=now } }
         }
@@ -103,7 +117,7 @@ class HospitalityService(private val orderService: OrderService) {
     }
 
     fun updateTicket(businessId: String, ticketId: String, request: UpdateTicketStatusRequest): KitchenTicketResponse = transaction {
-        val status=request.status.trim().uppercase(); require(status in setOf("NEW","PREPARING","READY","SERVED","CANCELLED")) { "Invalid ticket status" }
+        val status=request.status.trim().uppercase(); require(status in setOf("NEW","PREPARING","READY","SERVED","DELAYED","CANCELLED")) { "Invalid ticket status" }
         require(KitchenTicketsTable.update({ (KitchenTicketsTable.id eq ticketId) and (KitchenTicketsTable.businessId eq businessId) }) { it[KitchenTicketsTable.status]=status; it[updatedAt]=Clock.System.now() } == 1) { "Ticket not found" }
         logger.info("""{"event":"hospitality_ticket_status_changed","business_id":"$businessId","ticket_id":"$ticketId","status":"$status"}""")
         tickets(businessId).first { it.id == ticketId }
@@ -116,7 +130,7 @@ class HospitalityService(private val orderService: OrderService) {
                 (OrdersTable.businessId eq businessId) and
                 (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES)
         }.firstOrNull() ?: error("Active tab not found")
-        val paid=method != "MPESA"; val now=Clock.System.now()
+        val paid=method == "CASH"; val now=Clock.System.now()
         OrdersTable.update({ OrdersTable.id eq orderId }) {
             it[paymentMethod]=method
             it[paymentStatus]=if(paid) "PAID" else "PENDING"
@@ -181,18 +195,20 @@ class HospitalityService(private val orderService: OrderService) {
             HospitalityTableResponse(
                 row[HospitalityTablesTable.id], row[HospitalityTablesTable.name], row[HospitalityTablesTable.area], row[HospitalityTablesTable.capacity],
                 if(tabs.isEmpty()) row[HospitalityTablesTable.status] else "OCCUPIED",
-                tabs.firstOrNull()?.get(OrdersTable.id), tabs.sumOf { it[OrdersTable.subtotal] }, tabs.size
+                tabs.firstOrNull()?.get(OrdersTable.id), tabs.sumOf { it[OrdersTable.subtotal] }, tabs.size,
+                row[HospitalityTablesTable.waiterUserId],row[HospitalityTablesTable.mergedIntoTableId],row[HospitalityTablesTable.positionX],row[HospitalityTablesTable.positionY],row[HospitalityTablesTable.shape]
             )
         }
     }
     private fun openTabs(businessId: String)=OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES) }.orderBy(OrdersTable.createdAt,SortOrder.DESC).mapNotNull { orderService.getById(it[OrdersTable.id],businessId) }
     private fun tickets(businessId: String): List<KitchenTicketResponse> {
         val rows=KitchenTicketsTable.select { KitchenTicketsTable.businessId eq businessId }.orderBy(KitchenTicketsTable.createdAt,SortOrder.ASC).toList()
-        return rows.map { ticket ->
+        return rows.mapNotNull { ticket ->
             val order=orderService.getById(ticket[KitchenTicketsTable.orderId],businessId)!!
             val tableName=order.hospitalityTableId?.let { id -> HospitalityTablesTable.select { HospitalityTablesTable.id eq id }.firstOrNull()?.get(HospitalityTablesTable.name) }
             val productCategories=ProductsTable.select { ProductsTable.id inList order.items.map { it.productId } }.associate { it[ProductsTable.id] to it[ProductsTable.category] }
-            val stationItems=order.items.filter { stationFor(productCategories[it.productId].orEmpty()) == ticket[KitchenTicketsTable.station] }
+            val stationItems=order.items.filter { hospitalityStationFor(productCategories[it.productId].orEmpty()) == ticket[KitchenTicketsTable.station] }
+            if (stationItems.isEmpty()) return@mapNotNull null
             KitchenTicketResponse(ticket[KitchenTicketsTable.id],order.id,order.orderNumber,tableName,ticket[KitchenTicketsTable.station],ticket[KitchenTicketsTable.status],ticket[KitchenTicketsTable.notes],stationItems,ticket[KitchenTicketsTable.createdAt].toString())
         }
     }
@@ -201,5 +217,15 @@ class HospitalityService(private val orderService: OrderService) {
             (BusinessesTable.id eq businessId) and (BusinessesTable.hospitalityEnabled eq true)
         }.any()) { "Hospitality mode is disabled" }
     }
-    private fun stationFor(category: String): String = if (category.lowercase().let { value -> listOf("drink","beverage","beer","wine","spirit","cocktail","bar").any(value::contains) }) "BAR" else "KITCHEN"
+}
+
+internal fun hospitalityStationFor(category: String): String? {
+    val value = category.trim().lowercase()
+    val kitchenKeywords = listOf("food", "meal", "dish", "snack", "bakery", "breakfast", "lunch", "dinner", "restaurant", "kitchen")
+    val barKeywords = listOf("drink", "beverage", "beer", "wine", "spirit", "cocktail", "bar", "juice", "soda", "water")
+    return when {
+        kitchenKeywords.any(value::contains) -> "KITCHEN"
+        barKeywords.any(value::contains) -> "BAR"
+        else -> null
+    }
 }

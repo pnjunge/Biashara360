@@ -203,6 +203,7 @@ class SecureAcceptanceService(
                 // Mark order as PAID
                 OrdersTable.update({ OrdersTable.id eq orderId }) {
                     it[OrdersTable.paymentStatus] = "PAID"
+                    it[OrdersTable.tabStatus] = "CLOSED"
                     it[OrdersTable.updatedAt]     = Clock.System.now()
                 }
                 // Insert payment record for reconciliation
