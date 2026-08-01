@@ -182,11 +182,19 @@ export function OrdersPage() {
             <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Customer</span><div style={{ fontWeight:600 }}>{viewOrder.customerName}</div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Phone</span><div style={{ fontWeight:600 }}>{viewOrder.customerPhone}</div></div>
-              <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Delivery</span><div style={{ fontWeight:600 }}>{viewOrder.deliveryLocation || '—'}</div></div>
+              {viewOrder.serviceType === 'RETAIL' ? (
+                <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Delivery</span><div style={{ fontWeight:600 }}>{viewOrder.deliveryLocation || '—'}</div></div>
+              ) : (
+                <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Hospitality service</span><div style={{ fontWeight:600 }}>{viewOrder.serviceType?.replace(/_/g, ' ')}</div></div>
+              )}
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Payment</span><div><StatusBadge status={viewOrder.paymentStatus} /></div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Payment Method</span><div style={{ fontWeight:600 }}>{viewOrder.paymentMethod}</div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Order Channel</span><div style={{ fontWeight:600 }}>{viewOrder.salesChannel}</div></div>
-              <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Delivery Status</span><div><StatusBadge status={viewOrder.deliveryStatus} /></div></div>
+              {viewOrder.serviceType === 'RETAIL' ? (
+                <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Delivery Status</span><div><StatusBadge status={viewOrder.deliveryStatus} /></div></div>
+              ) : (
+                <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Tab Status</span><div><StatusBadge status={viewOrder.tabStatus || 'OPEN'} /></div></div>
+              )}
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Date</span><div style={{ fontWeight:600 }}>{new Date(viewOrder.createdAt).toLocaleDateString('en-KE')}</div></div>
               {viewOrder.mpesaTransactionCode && (
                 <div>
@@ -210,7 +218,7 @@ export function OrdersPage() {
             {viewOrder.notes && <div style={{ fontSize:13, color:'var(--b360-text-secondary)' }}>Notes: {viewOrder.notes}</div>}
             
             {/* Merchant Delivery Status Override */}
-            <div style={{ borderTop:'1px solid var(--b360-border)', paddingTop:12, marginTop:4 }}>
+            {viewOrder.serviceType === 'RETAIL' && <div style={{ borderTop:'1px solid var(--b360-border)', paddingTop:12, marginTop:4 }}>
               <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)', display:'block', marginBottom:6 }}>
                 Update Delivery Status
               </label>
@@ -236,7 +244,7 @@ export function OrdersPage() {
                   <option value="CANCELLED">CANCELLED</option>
                 </select>
               </div>
-            </div>
+            </div>}
 
             {/* Card Payment Link if pending */}
             {viewOrder.paymentMethod === 'CARD' && viewOrder.paymentStatus === 'PENDING' && (
@@ -281,9 +289,9 @@ export function OrdersPage() {
 
       <div className="responsive-grid responsive-grid-4" style={{ gap: 12 }}>
         <KpiCard title="Total Orders"   value={String(orders.length)}                                                      change="All time"      icon={<ShoppingCart size={18} />} color="var(--b360-blue)" />
-        <KpiCard title="Delivered"      value={String(orders.filter(o => o.deliveryStatus === 'DELIVERED').length)}        change="Completed"     icon={<ShoppingCart size={18} />} color="var(--b360-green)" />
-        <KpiCard title="In Progress"    value={String(orders.filter(o => o.deliveryStatus === 'PROCESSING' || o.deliveryStatus === 'SHIPPED').length)} change="Active" icon={<ShoppingCart size={18} />} color="var(--b360-amber)" />
-        <KpiCard title="Pending"        value={String(orders.filter(o => o.deliveryStatus === 'PENDING').length)}          change="Awaiting action" icon={<ShoppingCart size={18} />} color="var(--b360-red)" />
+        <KpiCard title="Delivered"      value={String(orders.filter(o => o.serviceType === 'RETAIL' && o.deliveryStatus === 'DELIVERED').length)}        change="Retail completed"     icon={<ShoppingCart size={18} />} color="var(--b360-green)" />
+        <KpiCard title="Open Tabs"      value={String(orders.filter(o => o.serviceType !== 'RETAIL' && ['OPEN','AWAITING_PAYMENT'].includes(o.tabStatus || '')).length)} change="Hospitality" icon={<ShoppingCart size={18} />} color="var(--b360-amber)" />
+        <KpiCard title="Pending"        value={String(orders.filter(o => o.serviceType === 'RETAIL' && o.deliveryStatus === 'PENDING').length)}          change="Retail awaiting action" icon={<ShoppingCart size={18} />} color="var(--b360-red)" />
       </div>
 
       <Card>
@@ -293,7 +301,7 @@ export function OrdersPage() {
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No orders yet. Click "New Order" to get started.</div>
         ) : (
           <DataTable
-            headers={['Order #', 'Customer', 'Items', 'Total', 'Method / Channel', 'Payment', 'Delivery Status', 'Date', 'Actions']}
+            headers={['Order #', 'Customer', 'Items', 'Total', 'Method / Channel', 'Payment', 'Fulfilment / Tab', 'Date', 'Actions']}
             rows={orders.map(o => [
               <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{o.orderNumber}</span>,
               <span style={{ fontWeight: 600 }}>{o.customerName}</span>,
@@ -308,7 +316,7 @@ export function OrdersPage() {
                   </div>
                 )}
               </div>,
-              <select
+              o.serviceType === 'RETAIL' ? <select
                 value={o.deliveryStatus}
                 onChange={async e => {
                   const newStatus = e.target.value
@@ -326,7 +334,7 @@ export function OrdersPage() {
                 <option value="SHIPPED">SHIPPED</option>
                 <option value="DELIVERED">DELIVERED</option>
                 <option value="CANCELLED">CANCELLED</option>
-              </select>,
+              </select> : <StatusBadge status={o.tabStatus || 'OPEN'} />,
               <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>{new Date(o.createdAt).toLocaleDateString('en-KE')}</span>,
               <div style={{ display:'flex', gap:6 }}>
                 <Btn small icon={<Eye size={12}/>} onClick={() => setViewOrder(o)}>View</Btn>

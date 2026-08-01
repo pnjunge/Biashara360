@@ -55,6 +55,11 @@ class StorefrontService(
             address = business[BusinessesTable.address],
             currency = business[BusinessesTable.currency],
             welcomeMessage = business[BusinessesTable.receiptHeader],
+            themeColor = business[BusinessesTable.storefrontThemeColor],
+            headline = business[BusinessesTable.storefrontHeadline],
+            description = business[BusinessesTable.storefrontDescription],
+            bannerUrl = business[BusinessesTable.storefrontBannerUrl],
+            layout = business[BusinessesTable.storefrontLayout],
             products = products
         )
     }

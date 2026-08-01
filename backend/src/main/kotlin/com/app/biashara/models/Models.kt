@@ -396,7 +396,12 @@ data class BusinessProfileRequest(
     val receiptFooter: String = "Thank you for shopping with us!",
     val receiptLogo: String? = null,
     val receiptShowTax: Boolean = true,
-    val receiptShowCustomer: Boolean = true
+    val receiptShowCustomer: Boolean = true,
+    val storefrontThemeColor: String = "#0F766E",
+    val storefrontHeadline: String = "Shop with us online",
+    val storefrontDescription: String = "",
+    val storefrontBannerUrl: String? = null,
+    val storefrontLayout: String = "GRID"
 )
 
 @Serializable
@@ -420,7 +425,12 @@ data class BusinessProfileResponse(
     val receiptFooter: String = "Thank you for shopping with us!",
     val receiptLogo: String? = null,
     val receiptShowTax: Boolean = true,
-    val receiptShowCustomer: Boolean = true
+    val receiptShowCustomer: Boolean = true,
+    val storefrontThemeColor: String = "#0F766E",
+    val storefrontHeadline: String = "Shop with us online",
+    val storefrontDescription: String = "",
+    val storefrontBannerUrl: String? = null,
+    val storefrontLayout: String = "GRID"
 )
 
 // ─── Super Admin — Business Management ───────────────────────────────────────

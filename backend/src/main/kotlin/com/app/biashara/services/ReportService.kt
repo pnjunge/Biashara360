@@ -69,6 +69,8 @@ class ReportService {
                         subtotal = it[OrdersTable.subtotal],
                         paymentStatus = it[OrdersTable.paymentStatus],
                         deliveryStatus = it[OrdersTable.deliveryStatus],
+                        serviceType = it[OrdersTable.serviceType],
+                        tabStatus = it[OrdersTable.tabStatus],
                         paymentMethod = it[OrdersTable.paymentMethod],
                         salesChannel = it[OrdersTable.salesChannel],
                         createdAt = it[OrdersTable.createdAt].toString()

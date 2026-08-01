@@ -141,7 +141,7 @@ export interface OrderResponse {
   notes: string; createdAt: string; updatedAt: string
 }
 
-export interface HospitalityTable { id:string; name:string; area:string; capacity:number; status:string; openOrderId:string|null; openAmount:number }
+export interface HospitalityTable { id:string; name:string; area:string; capacity:number; status:string; openOrderId:string|null; openAmount:number; openOrderCount:number }
 export interface KitchenTicket { id:string; orderId:string; orderNumber:string; tableName:string|null; station:string; status:string; notes:string; items:OrderItemResponse[]; createdAt:string }
 export interface HospitalityDashboard { enabled:boolean; tables:HospitalityTable[]; openTabs:OrderResponse[]; tickets:KitchenTicket[] }
 
@@ -182,7 +182,7 @@ export interface PaymentReportResponse {
 export interface OrderReportResponse {
   period: string; totalOrders: number; totalValue: number; paidValue: number
   byPaymentMethod: ReportBreakdown[]; byChannel: ReportBreakdown[]
-  orders: Array<{ orderId: string; orderNumber: string; customerName: string; subtotal: number; paymentStatus: string; deliveryStatus: string; paymentMethod: string; salesChannel: string; createdAt: string }>
+  orders: Array<{ orderId: string; orderNumber: string; customerName: string; subtotal: number; paymentStatus: string; deliveryStatus: string; serviceType: string; tabStatus: string; paymentMethod: string; salesChannel: string; createdAt: string }>
 }
 
 export interface TaxRateResponse {
@@ -266,6 +266,11 @@ export interface Storefront {
   address: string | null
   currency: string
   welcomeMessage: string
+  themeColor: string
+  headline: string
+  description: string
+  bannerUrl: string | null
+  layout: 'GRID' | 'LIST'
   products: StorefrontProduct[]
 }
 
@@ -885,6 +890,11 @@ export interface BusinessProfileRequest {
   receiptLogo?: string | null
   receiptShowTax?: boolean
   receiptShowCustomer?: boolean
+  storefrontThemeColor?: string
+  storefrontHeadline?: string
+  storefrontDescription?: string
+  storefrontBannerUrl?: string | null
+  storefrontLayout?: 'GRID' | 'LIST'
 }
 
 export interface BusinessProfileResponse {
@@ -908,6 +918,11 @@ export interface BusinessProfileResponse {
   receiptLogo?: string | null
   receiptShowTax?: boolean
   receiptShowCustomer?: boolean
+  storefrontThemeColor?: string
+  storefrontHeadline?: string
+  storefrontDescription?: string
+  storefrontBannerUrl?: string | null
+  storefrontLayout?: 'GRID' | 'LIST'
 }
 
 export interface MpesaConfigResponse {

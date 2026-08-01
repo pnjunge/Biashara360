@@ -13,6 +13,7 @@ import {
 import {
   Btn,
   Card,
+  DataTable,
   Input,
   KpiCard,
   Modal,
@@ -138,6 +139,9 @@ export default function HospitalityPage() {
   const openOrder = (table?: HospitalityTable) => {
     setOrderTable(table || null);
     setServiceType(table ? "DINE_IN" : "TAKEAWAY");
+    setGuests("1");
+    setCustomerName("Walk-in Guest");
+    setCustomerPhone("");
     setCart({});
     setNotes("");
     setMenuSearch("");
@@ -407,8 +411,8 @@ export default function HospitalityPage() {
         }}
       >
         {data.tables.map((table) => {
-          const order = data.openTabs.find(
-            (tab) => tab.id === table.openOrderId,
+          const tableTabs = data.openTabs.filter(
+            (tab) => tab.hospitalityTableId === table.id,
           );
           return (
             <Card
@@ -453,16 +457,19 @@ export default function HospitalityPage() {
               >
                 {table.area} · {table.capacity} seats
               </div>
-              {order ? (
+              {tableTabs.length > 0 ? (
                 <>
                   <div style={{ fontSize: 12, marginBottom: 4 }}>
-                    {order.guestCount || 1} guest(s) · {age(order.createdAt)}
+                    {tableTabs.length} customer tab{tableTabs.length === 1 ? "" : "s"} · {tableTabs.reduce((sum, tab) => sum + (tab.guestCount || 1), 0)} guest(s)
                   </div>
                   <strong style={{ display: "block", marginBottom: 9 }}>
                     KES {table.openAmount.toLocaleString()}
                   </strong>
-                  <Btn small onClick={() => openSettlement(order)}>
-                    Settle tab
+                  <div style={{ fontSize: 11, color: "var(--b360-text-secondary)", marginBottom: 9 }}>
+                    Receipts: {tableTabs.map((tab) => tab.orderNumber).join(", ")}
+                  </div>
+                  <Btn small onClick={() => openOrder(table)}>
+                    New customer
                   </Btn>
                 </>
               ) : (
@@ -481,51 +488,25 @@ export default function HospitalityPage() {
           No open tabs. Select an available table or create a takeaway order.
         </Card>
       ) : (
-        <div className="responsive-grid responsive-grid-2">
-          {data.openTabs.map((order) => {
+        <Card>
+          <DataTable
+            headers={["Table", "Receipt / Tab", "Customer", "Guests / Items", "Open", "Amount", "Status", "Actions"]}
+            rows={data.openTabs.map((order) => {
             const table = data.tables.find(
               (item) => item.id === order.hospitalityTableId,
             );
             const available = data.tables.filter(
-              (item) => item.status !== "OCCUPIED",
+              (item) => item.id !== order.hospitalityTableId,
             );
-            return (
-              <Card key={order.id} style={{ padding: 16 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 10,
-                    alignItems: "start",
-                  }}
-                >
-                  <div>
-                    <b>
-                      {table?.name ||
-                        order.serviceType?.replace("_", " ") ||
-                        "Takeaway"}{" "}
-                      · {order.orderNumber}
-                    </b>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "var(--b360-text-secondary)",
-                        marginTop: 4,
-                      }}
-                    >
-                      <Clock size={12} style={{ verticalAlign: "-2px" }} />{" "}
-                      {age(order.createdAt)} · {order.guestCount || 1} guest(s)
-                      · {order.items.length} item(s)
-                    </div>
-                  </div>
-                  <StatusBadge status={order.tabStatus || "OPEN"} />
-                </div>
-                <div
-                  style={{ fontSize: 20, fontWeight: 800, margin: "13px 0" }}
-                >
-                  KES {order.subtotal.toLocaleString()}
-                </div>
-                <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+            return [
+              <div><b>{table?.name || order.serviceType?.replace("_", " ") || "Takeaway"}</b><div style={{fontSize:10,color:"var(--b360-text-secondary)"}}>{table?.area || "Off premises"}</div></div>,
+              <span style={{fontFamily:"monospace",fontWeight:800,color:"var(--b360-green)"}}>{order.orderNumber}</span>,
+              <div><b>{order.customerName || "Walk-in Guest"}</b><div style={{fontSize:10,color:"var(--b360-text-secondary)"}}>{order.customerPhone || "No phone"}</div></div>,
+              `${order.guestCount || 1} guest(s) · ${order.items.length} item(s)`,
+              <span><Clock size={12} style={{verticalAlign:"-2px",marginRight:4}}/>{age(order.createdAt)}</span>,
+              <strong>KES {order.subtotal.toLocaleString()}</strong>,
+              <StatusBadge status={order.tabStatus || "OPEN"} />,
+              <div style={{ display: "flex", gap: 7, flexWrap: "wrap", minWidth: 250 }}>
                   <Btn small onClick={() => openSettlement(order)}>
                     Settle
                   </Btn>
@@ -559,11 +540,11 @@ export default function HospitalityPage() {
                       ))}
                     </select>
                   )}
-                </div>
-              </Card>
-            );
+                </div>,
+            ];
           })}
-        </div>
+          />
+        </Card>
       )}
 
       <h2 style={{ fontSize: 17 }}>Kitchen & bar tickets</h2>
@@ -575,7 +556,13 @@ export default function HospitalityPage() {
         <div className="responsive-grid responsive-grid-3">
           {data.tickets
             .filter((t) => !["SERVED", "CANCELLED"].includes(t.status))
-            .map((ticket) => (
+            .map((ticket) => {
+              const ticketStatusLabel: Record<string, string> = {
+                NEW: "Waiting to start",
+                PREPARING: "Being prepared",
+                READY: "Ready for service",
+              };
+              return (
               <Card
                 key={ticket.id}
                 style={{
@@ -583,26 +570,21 @@ export default function HospitalityPage() {
                   borderLeft: `4px solid ${ticket.status === "READY" ? "var(--b360-green)" : "var(--b360-amber)"}`,
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 8,
-                  }}
-                >
-                  <b>
-                    {ticket.station} · {ticket.tableName || "Takeaway"}
-                  </b>
-                  <StatusBadge status={ticket.status} />
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "start" }}>
+                  <div>
+                    <div style={{ fontSize: 10, textTransform: "uppercase", color: "var(--b360-text-secondary)", fontWeight: 700 }}>Preparation station</div>
+                    <b style={{ fontSize: 16 }}>{ticket.station === "BAR" ? "Bar" : "Kitchen"}</b>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <StatusBadge status={ticket.status} />
+                    <div style={{ fontSize: 10, color: "var(--b360-text-secondary)", marginTop: 3 }}>{ticketStatusLabel[ticket.status] || ticket.status}</div>
+                  </div>
                 </div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "var(--b360-text-secondary)",
-                    margin: "4px 0 10px",
-                  }}
-                >
-                  {ticket.orderNumber} · {age(ticket.createdAt)}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "12px 0", padding: 10, background: "var(--b360-bg)", borderRadius: 8 }}>
+                  <div><div style={{ fontSize: 10, color: "var(--b360-text-secondary)" }}>Table / service</div><b style={{ fontSize: 12 }}>{ticket.tableName || "Takeaway"}</b></div>
+                  <div><div style={{ fontSize: 10, color: "var(--b360-text-secondary)" }}>Receipt / tab</div><b style={{ fontSize: 12, fontFamily: "monospace", color: "var(--b360-green)" }}>{ticket.orderNumber}</b></div>
+                  <div><div style={{ fontSize: 10, color: "var(--b360-text-secondary)" }}>Opened</div><span style={{ fontSize: 12 }}><Clock size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />{age(ticket.createdAt)} ago</span></div>
+                  <div><div style={{ fontSize: 10, color: "var(--b360-text-secondary)" }}>Ticket ID</div><span title={ticket.id} style={{ fontSize: 12, fontFamily: "monospace" }}>{ticket.id.slice(0, 8)}</span></div>
                 </div>
                 {ticket.items.map((item) => (
                   <div key={item.id} style={{ fontSize: 13, marginBottom: 4 }}>
@@ -654,7 +636,8 @@ export default function HospitalityPage() {
                   </Btn>
                 </div>
               </Card>
-            ))}
+              );
+            })}
         </div>
       )}
 
@@ -778,7 +761,7 @@ export default function HospitalityPage() {
       )}
       {(orderTable || serviceType === "TAKEAWAY") && (
         <Modal
-          wide
+          extraWide
           title={
             orderTable ? `New sale · ${orderTable.name}` : "New takeaway sale"
           }

@@ -19,12 +19,16 @@ import androidx.compose.ui.unit.sp
 import com.app.biashara.presentation.viewmodel.PaymentsViewModel
 import com.app.biashara.presentation.viewmodel.ReportsViewModel
 import com.app.biashara.presentation.viewmodel.SocialViewModel
+import com.app.biashara.presentation.viewmodel.BusinessViewModel
 import com.app.biashara.domain.model.PaymentChannel
 import com.app.biashara.domain.model.TransactionStatus
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import java.io.File
 import java.net.URI
+import java.net.URLEncoder
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import java.util.Base64
 import kotlinx.serialization.Serializable
 import io.ktor.client.HttpClient
@@ -383,10 +387,15 @@ fun DesktopKraModernScreen() {
 
 @Composable
 fun DesktopSocialModernScreen(
-    viewModel: SocialViewModel = remember { inject() }
+    viewModel: SocialViewModel = remember { inject() },
+    businessViewModel: BusinessViewModel = remember { inject() }
 ) {
     val state by viewModel.state.collectAsState()
-    LaunchedEffect(Unit) { viewModel.loadChannelsAndInbox() }
+    val businessState by businessViewModel.profileState.collectAsState()
+    LaunchedEffect(Unit) {
+        viewModel.loadChannelsAndInbox()
+        businessViewModel.loadProfile()
+    }
     val colors = mapOf(
         "WHATSAPP" to Color(0xFF22C55E),
         "INSTAGRAM" to Color(0xFFE1306C),
@@ -396,6 +405,11 @@ fun DesktopSocialModernScreen(
     var search by remember { mutableStateOf("") }
     var reply by remember { mutableStateOf("") }
     var showPaymentPrompt by remember { mutableStateOf(false) }
+    var storefrontCopied by remember { mutableStateOf(false) }
+    val storefrontUrl = businessState.profile?.storefrontSlug?.takeIf { it.isNotBlank() }
+        ?.let { "https://enw9p7mvty.us-east-1.awsapprunner.com/shop/$it" }
+        .orEmpty()
+    val storefrontMessage = "Shop online with ${businessState.profile?.name ?: "us"}: $storefrontUrl"
     val filteredConversations = state.conversations.filter {
         it.customerName.contains(search, ignoreCase = true) ||
             it.platform.contains(search, ignoreCase = true) ||
@@ -411,6 +425,45 @@ fun DesktopSocialModernScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(it, color = Color(0xFF991B1B), modifier = Modifier.weight(1f))
                     IconButton(onClick = viewModel::dismissError) { Icon(Icons.Default.Close, "Dismiss") }
+                }
+            }
+        }
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, ModernBorder)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Storefront, null, tint = ModernGreen)
+                Column(Modifier.weight(1f)) {
+                    Text("Customer storefront", color = ModernNavy, fontWeight = FontWeight.Bold)
+                    Text(
+                        storefrontUrl.ifBlank { if (businessState.isLoading) "Loading storefront link…" else "Storefront link unavailable" },
+                        color = ModernMuted,
+                        fontSize = 12.sp,
+                        maxLines = 1
+                    )
+                }
+                OutlinedButton(
+                    enabled = storefrontUrl.isNotBlank(),
+                    onClick = {
+                        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(storefrontUrl), null)
+                        storefrontCopied = true
+                    }
+                ) { Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(5.dp)); Text(if (storefrontCopied) "Copied" else "Copy") }
+                OutlinedButton(enabled = storefrontUrl.isNotBlank(), onClick = { openExternalUrl("mailto:?subject=${urlEncode("Shop online with ${businessState.profile?.name ?: "us"}")}&body=${urlEncode(storefrontMessage)}") }) {
+                    Icon(Icons.Default.Email, null); Spacer(Modifier.width(5.dp)); Text("Email")
+                }
+                OutlinedButton(enabled = storefrontUrl.isNotBlank(), onClick = { openExternalUrl("https://wa.me/?text=${urlEncode(storefrontMessage)}") }) {
+                    Icon(Icons.Default.Chat, null); Spacer(Modifier.width(5.dp)); Text("WhatsApp")
+                }
+                Button(enabled = storefrontUrl.isNotBlank(), onClick = { openExternalUrl(storefrontUrl) }, colors = ButtonDefaults.buttonColors(containerColor = ModernGreen)) {
+                    Icon(Icons.Default.OpenInNew, null); Spacer(Modifier.width(5.dp)); Text("Open")
                 }
             }
         }
@@ -538,6 +591,12 @@ fun DesktopSocialModernScreen(
                                 }
                                 IconButton(onClick = { showPaymentPrompt = true }) {
                                     Icon(Icons.Default.Payments, "Send payment prompt", tint = ModernGreen)
+                                }
+                                IconButton(
+                                    onClick = { reply = storefrontMessage },
+                                    enabled = storefrontUrl.isNotBlank()
+                                ) {
+                                    Icon(Icons.Default.Storefront, "Share storefront", tint = Color(0xFF2563EB))
                                 }
                                 OutlinedTextField(
                                     value = reply,
@@ -883,6 +942,16 @@ private fun openDesktopWeb(path: String) {
     runCatching {
         if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
             java.awt.Desktop.getDesktop().browse(URI("https://enw9p7mvty.us-east-1.awsapprunner.com$path"))
+        }
+    }
+}
+
+private fun urlEncode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name()).replace("+", "%20")
+
+private fun openExternalUrl(url: String) {
+    runCatching {
+        if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+            java.awt.Desktop.getDesktop().browse(URI(url))
         }
     }
 }

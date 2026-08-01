@@ -5,7 +5,7 @@ import {
   RefreshCw, ChevronDown, Search, Settings, Circle, ArrowRight,
   Phone, MapPin, Package, AlertCircle, Wifi, Link, Copy
 } from 'lucide-react'
-import { socialApi, ConversationSummary, SocialChannel, SocialMessage } from '../services/api'
+import { businessApi, socialApi, ConversationSummary, SocialChannel, SocialMessage } from '../services/api'
 
 function normalizeConversations(data: unknown): ConversationSummary[] {
   if (Array.isArray(data)) return data as ConversationSummary[]
@@ -785,6 +785,8 @@ export default function SocialPage() {
   const [totalUnread, setTotalUnread] = useState<number | null>(null)
   const [channels, setChannels] = useState<SocialChannel[]>([])
   const [loading, setLoading] = useState(true)
+  const [storefront, setStorefront] = useState<{ slug: string; businessName: string } | null>(null)
+  const [storefrontCopied, setStorefrontCopied] = useState(false)
 
   useEffect(() => {
     socialApi.getInboxStats().then(res => {
@@ -796,7 +798,22 @@ export default function SocialPage() {
         setChannels(res.data.filter(c => c.isActive))
       }
     }).catch(() => {}).finally(() => setLoading(false))
+
+    businessApi.getProfile().then(res => {
+      if (res.success && res.data?.storefrontSlug) {
+        setStorefront({ slug: res.data.storefrontSlug, businessName: res.data.name })
+      }
+    }).catch(() => {})
   }, [])
+
+  const storefrontUrl = storefront ? `${window.location.origin}/shop/${storefront.slug}` : ''
+  const storefrontMessage = storefront ? `Shop online with ${storefront.businessName}: ${storefrontUrl}` : ''
+  const copyStorefront = async () => {
+    if (!storefrontUrl) return
+    await navigator.clipboard.writeText(storefrontUrl)
+    setStorefrontCopied(true)
+    window.setTimeout(() => setStorefrontCopied(false), 2000)
+  }
 
   const tabs = [
     { key:'inbox',     label:'Unified Inbox',    badge: totalUnread && totalUnread > 0 ? totalUnread : null },
@@ -822,6 +839,20 @@ export default function SocialPage() {
           </div>
         </div>
       </div>
+
+      {storefront && (
+        <div style={{ background:'white', border:'1px solid #E8EDE9', borderRadius:12, padding:14, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+          <div style={{ width:36, height:36, borderRadius:9, background:'#E8F5E9', color:G, display:'grid', placeItems:'center' }}><ShoppingCart size={18}/></div>
+          <div style={{ flex:1, minWidth:220 }}>
+            <strong style={{ fontSize:13 }}>Customer storefront</strong>
+            <div style={{ color:'#777', fontSize:12, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{storefrontUrl}</div>
+          </div>
+          <button onClick={copyStorefront} style={{ border:'1px solid #DDE5DF', background:'white', borderRadius:8, padding:'8px 11px', cursor:'pointer' }}><Copy size={13}/> {storefrontCopied ? 'Copied' : 'Copy'}</button>
+          <button onClick={() => window.location.href = `mailto:?subject=${encodeURIComponent(`Shop online with ${storefront.businessName}`)}&body=${encodeURIComponent(storefrontMessage)}`} style={{ border:'1px solid #DDE5DF', background:'white', borderRadius:8, padding:'8px 11px', cursor:'pointer' }}>Email</button>
+          <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(storefrontMessage)}`, '_blank', 'noopener,noreferrer')} style={{ border:0, background:'#25D366', color:'white', borderRadius:8, padding:'9px 12px', cursor:'pointer', fontWeight:700 }}>WhatsApp</button>
+          <button onClick={() => window.open(storefrontUrl, '_blank', 'noopener,noreferrer')} style={{ border:0, background:G, color:'white', borderRadius:8, padding:'9px 12px', cursor:'pointer', fontWeight:700 }}>Open store</button>
+        </div>
+      )}
 
       {/* Tabs / Empty State Switch */}
       {loading ? (

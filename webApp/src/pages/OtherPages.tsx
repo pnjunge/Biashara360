@@ -351,22 +351,26 @@ export function ReportsPage() {
   const loadReport = (selectedPeriod: string) => {
     setLoading(true)
     const { startDate, endDate } = getPeriodRange(selectedPeriod)
-    Promise.all([
+    Promise.allSettled([
       reportApi.profitSummary(startDate, endDate),
       reportApi.payments(startDate, endDate),
       reportApi.orders(startDate, endDate),
       expenseApi.list(undefined, startDate, endDate),
       customerApi.list(),
       businessApi.getProfile(),
-    ]).then(([profit, payments, orders, expenseResult, customerResult, profileResult]) => {
-      setProfitSummary(profit.success ? profit.data : null)
-      setPaymentReport(payments.success ? payments.data : null)
-      setOrderReport(orders.success ? orders.data : null)
-      setExpenses(expenseResult.success && expenseResult.data ? expenseResult.data : [])
-      setCustomers(customerResult.success && customerResult.data ? customerResult.data : [])
-      if (profileResult.success && profileResult.data) setBusinessName(profileResult.data.name)
-    }).catch(() => {
-      setProfitSummary(null); setPaymentReport(null); setOrderReport(null); setExpenses([]); setCustomers([])
+    ]).then(([profitResult, paymentResult, orderResult, expenseResult, customerResult, profileResult]) => {
+      const profit = profitResult.status === 'fulfilled' ? profitResult.value : null
+      const payments = paymentResult.status === 'fulfilled' ? paymentResult.value : null
+      const orders = orderResult.status === 'fulfilled' ? orderResult.value : null
+      const expenseResponse = expenseResult.status === 'fulfilled' ? expenseResult.value : null
+      const customerResponse = customerResult.status === 'fulfilled' ? customerResult.value : null
+      const profileResponse = profileResult.status === 'fulfilled' ? profileResult.value : null
+      setProfitSummary(profit?.success ? profit.data : null)
+      setPaymentReport(payments?.success ? payments.data : null)
+      setOrderReport(orders?.success ? orders.data : null)
+      setExpenses(expenseResponse?.success && expenseResponse.data ? expenseResponse.data : [])
+      setCustomers(customerResponse?.success && customerResponse.data ? customerResponse.data : [])
+      if (profileResponse?.success && profileResponse.data) setBusinessName(profileResponse.data.name)
     }).finally(() => setLoading(false))
   }
 
@@ -375,24 +379,24 @@ export function ReportsPage() {
   }, [period])
 
   const selectedReport = useMemo<ShareableReport | null>(() => {
-    if (!profitSummary || !paymentReport || !orderReport) return null
     const money = (value:number) => `KES ${value.toLocaleString('en-KE', {minimumFractionDigits:2,maximumFractionDigits:2})}`
     const base = { period, businessName }
-    const paymentRows = (method:string) => paymentReport.payments.filter(payment => payment.method.toUpperCase() === method)
+    const paymentRows = (method:string) => paymentReport?.payments.filter(payment => payment.method.toUpperCase() === method) ?? []
     const paymentDocument = (method:string,title:string):ShareableReport => {
       const rows=paymentRows(method); const amount=rows.filter(row=>row.status==='SUCCESS').reduce((sum,row)=>sum+row.amount,0)
       return {...base,title,summary:[['Transactions',String(rows.length)],['Successful amount',money(amount)]],columns:['Transaction','Payer','Phone','Channel','Status','Amount','Date'],rows:rows.map(row=>[row.transactionCode,row.payerName,row.payerPhone,row.channel,row.status,row.amount,row.transactionDate])}
     }
-    if(reportType==='MPESA')return paymentDocument('MPESA','M-Pesa Payment Report')
-    if(reportType==='CARD')return paymentDocument('CARD','Card Payment Report')
-    if(reportType==='CASH')return paymentDocument('CASH','Cash Payment Report')
+    if(reportType==='MPESA')return paymentReport ? paymentDocument('MPESA','M-Pesa Payment Report') : null
+    if(reportType==='CARD')return paymentReport ? paymentDocument('CARD','Card Payment Report') : null
+    if(reportType==='CASH')return paymentReport ? paymentDocument('CASH','Cash Payment Report') : null
     if(reportType==='EXPENSES')return {...base,title:'Expense Report',summary:[['Expenses',String(expenses.length)],['Total',money(expenses.reduce((sum,item)=>sum+item.amount,0))]],columns:['Date','Category','Description','Amount'],rows:expenses.map(item=>[item.expenseDate,item.category,item.description,item.amount])}
     if(reportType==='CUSTOMERS'){
       const {startDate,endDate}=getPeriodRange(period); const rows=customers.filter(customer=>customer.createdAt.slice(0,10)>=startDate&&customer.createdAt.slice(0,10)<=endDate)
       return {...base,title:'Customer Report',summary:[['New customers',String(rows.length)],['Total spent',money(rows.reduce((sum,item)=>sum+item.totalSpent,0))],['Repeat customers',String(rows.filter(item=>item.isRepeatCustomer).length)]],columns:['Customer','Phone','Email','Location','Orders','Total Spent','Loyalty Points','Joined'],rows:rows.map(item=>[item.name,item.phone,item.email,item.location,item.totalOrders,item.totalSpent,item.loyaltyPoints,item.createdAt])}
     }
-    if(reportType==='ORDERS')return {...base,title:'Order Report',summary:[['Orders',String(orderReport.totalOrders)],['Order value',money(orderReport.totalValue)],['Paid value',money(orderReport.paidValue)]],columns:['Order','Customer','Method','Channel','Payment','Delivery','Value','Date'],rows:orderReport.orders.map(item=>[item.orderNumber,item.customerName,item.paymentMethod,item.salesChannel,item.paymentStatus,item.deliveryStatus,item.subtotal,item.createdAt])}
-    if(reportType==='REVENUE')return {...base,title:'Revenue & Profit Report',summary:[['Revenue',money(profitSummary.totalRevenue)],['Gross profit',money(profitSummary.grossProfit)],['Expenses',money(profitSummary.totalExpenses)],['Net profit',money(profitSummary.netProfit)]],columns:['Metric','Value'],rows:[['Revenue',profitSummary.totalRevenue],['Cost of goods',profitSummary.totalCostOfGoods],['Gross profit',profitSummary.grossProfit],['Expenses',profitSummary.totalExpenses],['Net profit',profitSummary.netProfit],['Net margin',`${profitSummary.netMargin.toFixed(1)}%`]]}
+    if(reportType==='ORDERS')return orderReport ? {...base,title:'Order Report',summary:[['Orders',String(orderReport.totalOrders)],['Order value',money(orderReport.totalValue)],['Paid value',money(orderReport.paidValue)]],columns:['Order','Customer','Method','Channel','Payment','Fulfilment / Tab','Value','Date'],rows:orderReport.orders.map(item=>[item.orderNumber,item.customerName,item.paymentMethod,item.salesChannel,item.paymentStatus,item.serviceType === 'RETAIL' ? item.deliveryStatus : item.tabStatus,item.subtotal,item.createdAt])} : null
+    if(reportType==='REVENUE')return profitSummary ? {...base,title:'Revenue & Profit Report',summary:[['Revenue',money(profitSummary.totalRevenue)],['Gross profit',money(profitSummary.grossProfit)],['Expenses',money(profitSummary.totalExpenses)],['Net profit',money(profitSummary.netProfit)]],columns:['Metric','Value'],rows:[['Revenue',profitSummary.totalRevenue],['Cost of goods',profitSummary.totalCostOfGoods],['Gross profit',profitSummary.grossProfit],['Expenses',profitSummary.totalExpenses],['Net profit',profitSummary.netProfit],['Net margin',`${profitSummary.netMargin.toFixed(1)}%`]]} : null
+    if (!orderReport) return null
     const sales=orderReport.orders.filter(item=>item.paymentStatus==='PAID')
     return {...base,title:'Sales Report',summary:[['Paid sales',String(sales.length)],['Sales revenue',money(sales.reduce((sum,item)=>sum+item.subtotal,0))]],columns:['Sale','Customer','Method','Channel','Amount','Date'],rows:sales.map(item=>[item.orderNumber,item.customerName,item.paymentMethod,item.salesChannel,item.subtotal,item.createdAt])}
   },[reportType,period,businessName,profitSummary,paymentReport,orderReport,expenses,customers])
@@ -436,7 +440,38 @@ export function ReportsPage() {
 
       {loading ? (
         <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
+      ) : selectedReport ? (
+        <Card style={{ padding:20 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'start', gap:12, flexWrap:'wrap', marginBottom:16 }}>
+            <div>
+              <h3 style={{ margin:0, fontWeight:700 }}>{selectedReport.title}</h3>
+              <div style={{ color:'var(--b360-text-secondary)', fontSize:12, marginTop:4 }}>{period} · {selectedReport.rows.length} detailed row{selectedReport.rows.length === 1 ? '' : 's'}</div>
+            </div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              {selectedReport.summary.map(([label, value]) => (
+                <div key={label} style={{ minWidth:120, padding:'8px 12px', background:'var(--b360-surface)', borderRadius:8 }}>
+                  <div style={{ color:'var(--b360-text-secondary)', fontSize:11 }}>{label}</div>
+                  <strong style={{ fontSize:13 }}>{value}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+          {selectedReport.rows.length ? (
+            <DataTable headers={selectedReport.columns} rows={selectedReport.rows.map(row => row.map((value, index) => {
+              const column = selectedReport.columns[index].toLowerCase()
+              if (typeof value === 'number' && (column.includes('amount') || column.includes('value') || column.includes('spent'))) return `KES ${value.toLocaleString('en-KE')}`
+              if (typeof value === 'string' && (column === 'date' || column === 'joined') && !Number.isNaN(Date.parse(value))) return new Date(value).toLocaleString('en-KE')
+              return String(value ?? '—')
+            }))} />
+          ) : <div style={{ padding:32, textAlign:'center', color:'var(--b360-text-secondary)' }}>No {selectedReport.title.toLowerCase()} data for {period.toLowerCase()}.</div>}
+        </Card>
       ) : (
+        <Card style={{ padding:32, textAlign:'center', color:'var(--b360-text-secondary)' }}>
+          This report could not be loaded. Refresh the page or choose another period.
+        </Card>
+      )}
+
+      {!loading && reportType === 'REVENUE' && (
         <div className="responsive-grid responsive-grid-2" style={{ gap:16 }}>
           {/* P&L */}
           <Card style={{ padding:20 }}>
@@ -499,7 +534,7 @@ export function ReportsPage() {
         </div>
       )}
 
-      {!loading && paymentReport && (
+      {!loading && ['MPESA','CARD','CASH'].includes(reportType) && paymentReport && (
         <Card style={{ padding:20 }}>
           <h3 style={{ fontWeight:700, margin:'0 0 16px' }}>Payment Report — {period}</h3>
           <div className="responsive-grid responsive-grid-3" style={{ gap:12, marginBottom:18 }}>
@@ -527,7 +562,7 @@ export function ReportsPage() {
         </Card>
       )}
 
-      {!loading && orderReport && (
+      {!loading && reportType === 'ORDERS' && orderReport && (
         <Card style={{ padding:20 }}>
           <h3 style={{ fontWeight:700, margin:'0 0 16px' }}>Order Report — {period}</h3>
           <div className="responsive-grid responsive-grid-3" style={{ gap:12, marginBottom:18 }}>
@@ -543,13 +578,13 @@ export function ReportsPage() {
               </div>
             ))}
           </div>
-          {orderReport.orders.length ? <DataTable headers={['Order', 'Customer', 'Payment Method', 'Order Channel', 'Payment', 'Delivery', 'Value', 'Date']} rows={orderReport.orders.map(order => [
+          {orderReport.orders.length ? <DataTable headers={['Order', 'Customer', 'Payment Method', 'Order Channel', 'Payment', 'Fulfilment / Tab', 'Value', 'Date']} rows={orderReport.orders.map(order => [
             <span style={{ fontFamily:'monospace', fontWeight:700 }}>{order.orderNumber}</span>,
             order.customerName,
             order.paymentMethod,
             order.salesChannel,
             <StatusBadge status={order.paymentStatus} />,
-            <StatusBadge status={order.deliveryStatus} />,
+            <StatusBadge status={order.serviceType === 'RETAIL' ? order.deliveryStatus : order.tabStatus} />,
             <strong>KES {order.subtotal.toLocaleString()}</strong>,
             new Date(order.createdAt).toLocaleString('en-KE'),
           ])} /> : <div style={{ color:'var(--b360-text-secondary)', fontSize:13 }}>No orders in this period.</div>}
@@ -900,6 +935,8 @@ const emptyProfile: BusinessProfileRequest = {
   name: '', owner: '', phone: '', email: '',
   type: '', county: '', address: '',
   kraPin: '', paybillNumber: '', accountNumber: '',
+  storefrontThemeColor: '#0F766E', storefrontHeadline: 'Shop with us online',
+  storefrontDescription: '', storefrontBannerUrl: null, storefrontLayout: 'GRID',
 }
 
 const BizSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -1002,7 +1039,15 @@ export function BusinessPage() {
           if (res.success && res.data) {
             const d = res.data
             setStorefrontSlug(d.storefrontSlug)
-            setForm({ name: d.name, owner: d.owner, phone: d.phone, email: d.email, type: d.type, county: d.county, address: d.address, kraPin: d.kraPin, paybillNumber: d.paybillNumber, accountNumber: d.accountNumber })
+            setForm({
+              name: d.name, owner: d.owner, phone: d.phone, email: d.email, type: d.type, county: d.county, address: d.address,
+              kraPin: d.kraPin, paybillNumber: d.paybillNumber, accountNumber: d.accountNumber,
+              receiptHeader: d.receiptHeader, receiptFooter: d.receiptFooter, receiptLogo: d.receiptLogo,
+              receiptShowTax: d.receiptShowTax, receiptShowCustomer: d.receiptShowCustomer,
+              storefrontThemeColor: d.storefrontThemeColor || '#0F766E', storefrontHeadline: d.storefrontHeadline || 'Shop with us online',
+              storefrontDescription: d.storefrontDescription || '', storefrontBannerUrl: d.storefrontBannerUrl || null,
+              storefrontLayout: d.storefrontLayout || 'GRID',
+            })
           } else {
             setProfileError(res.message || 'Failed to load business profile.')
           }
@@ -1170,6 +1215,30 @@ export function BusinessPage() {
           <input readOnly value={storefrontUrl} style={{ flex: 1, minWidth: 240, padding: '9px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 12 }} />
           <Btn variant="secondary" small icon={<Copy size={13} />} onClick={copyStorefrontLink}>{storeLinkCopied ? 'Copied' : 'Copy'}</Btn>
           <Btn variant="secondary" small icon={<ExternalLink size={13} />} onClick={() => window.open(storefrontUrl, '_blank', 'noopener,noreferrer')}>Open Store</Btn>
+        </div>
+        <div style={{ borderTop:'1px solid var(--b360-border)', paddingTop:14, display:'flex', flexDirection:'column', gap:12 }}>
+          <strong style={{ fontSize:13 }}>Storefront appearance</strong>
+          <BizField label="Welcome headline" value={form.storefrontHeadline || ''} onChange={f('storefrontHeadline')} />
+          <BizField label="Store description" value={form.storefrontDescription || ''} onChange={f('storefrontDescription')} />
+          <BizField label="Banner image URL" value={form.storefrontBannerUrl || ''} onChange={v => setForm(prev => ({...prev, storefrontBannerUrl:v || null}))} />
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span style={{ fontSize:13, color:'var(--b360-text-secondary)', width:160 }}>Theme color</span>
+            <div style={{ flex:1, maxWidth:320, display:'flex', gap:8 }}>
+              <input type="color" value={form.storefrontThemeColor || '#0F766E'} onChange={e=>setForm(prev=>({...prev,storefrontThemeColor:e.target.value.toUpperCase()}))} style={{width:46,height:36,padding:2,border:'1px solid var(--b360-border)',borderRadius:8}} />
+              <input value={form.storefrontThemeColor || '#0F766E'} onChange={e=>setForm(prev=>({...prev,storefrontThemeColor:e.target.value}))} maxLength={7} style={{flex:1,padding:'8px 12px',border:'1px solid var(--b360-border)',borderRadius:8}} />
+            </div>
+          </div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span style={{ fontSize:13, color:'var(--b360-text-secondary)', width:160 }}>Product layout</span>
+            <select value={form.storefrontLayout || 'GRID'} onChange={e=>setForm(prev=>({...prev,storefrontLayout:e.target.value as 'GRID'|'LIST'}))} style={{flex:1,maxWidth:320,padding:'8px 12px',border:'1px solid var(--b360-border)',borderRadius:8,background:'white'}}>
+              <option value="GRID">Product grid</option><option value="LIST">Product list</option>
+            </select>
+          </div>
+          <div style={{ padding:18, borderRadius:12, color:'white', background:form.storefrontThemeColor || '#0F766E', backgroundImage:form.storefrontBannerUrl ? `linear-gradient(#0007,#0007),url(${form.storefrontBannerUrl})` : undefined, backgroundSize:'cover', backgroundPosition:'center' }}>
+            <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:1}}>Preview</div>
+            <h3 style={{margin:'5px 0'}}>{form.storefrontHeadline || 'Shop with us online'}</h3>
+            <div style={{fontSize:12}}>{form.storefrontDescription || form.name || 'Your store description'}</div>
+          </div>
         </div>
       </BizSection>
       <BizSection title="Tax & Compliance">

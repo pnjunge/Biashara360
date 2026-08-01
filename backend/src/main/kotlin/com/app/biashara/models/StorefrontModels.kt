@@ -12,6 +12,11 @@ data class StorefrontResponse(
     val address: String? = null,
     val currency: String,
     val welcomeMessage: String,
+    val themeColor: String = "#0F766E",
+    val headline: String = "Shop with us online",
+    val description: String = "",
+    val bannerUrl: String? = null,
+    val layout: String = "GRID",
     val products: List<StorefrontProductResponse>
 )
 

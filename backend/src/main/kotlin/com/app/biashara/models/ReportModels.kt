@@ -38,6 +38,8 @@ data class OrderReportRow(
     val subtotal: Double,
     val paymentStatus: String,
     val deliveryStatus: String,
+    val serviceType: String = "RETAIL",
+    val tabStatus: String = "CLOSED",
     val paymentMethod: String,
     val salesChannel: String,
     val createdAt: String

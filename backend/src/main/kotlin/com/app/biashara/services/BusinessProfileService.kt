@@ -35,7 +35,12 @@ class BusinessProfileService {
                     receiptFooter   = it[BusinessesTable.receiptFooter],
                     receiptLogo     = it[BusinessesTable.receiptLogo],
                     receiptShowTax  = it[BusinessesTable.receiptShowTax],
-                    receiptShowCustomer = it[BusinessesTable.receiptShowCustomer]
+                    receiptShowCustomer = it[BusinessesTable.receiptShowCustomer],
+                    storefrontThemeColor = it[BusinessesTable.storefrontThemeColor],
+                    storefrontHeadline = it[BusinessesTable.storefrontHeadline],
+                    storefrontDescription = it[BusinessesTable.storefrontDescription],
+                    storefrontBannerUrl = it[BusinessesTable.storefrontBannerUrl],
+                    storefrontLayout = it[BusinessesTable.storefrontLayout]
                 )
             }
     }
@@ -54,6 +59,12 @@ class BusinessProfileService {
             !logo.startsWith("https://")) {
             return@transaction ApiResponse(false, message = "Receipt logo must be a PNG, JPEG, WebP, or HTTPS image")
         }
+        val themeColor = req.storefrontThemeColor.trim().uppercase()
+        if (!themeColor.matches(Regex("^#[0-9A-F]{6}$"))) return@transaction ApiResponse(false, message = "Storefront theme color must be a valid hex color")
+        val bannerUrl = req.storefrontBannerUrl?.trim()?.takeIf { it.isNotEmpty() }
+        if (bannerUrl != null && !bannerUrl.startsWith("https://")) return@transaction ApiResponse(false, message = "Storefront banner must use an HTTPS image URL")
+        val layout = req.storefrontLayout.trim().uppercase()
+        if (layout !in setOf("GRID", "LIST")) return@transaction ApiResponse(false, message = "Storefront layout must be GRID or LIST")
 
         val exists = BusinessesTable.select { BusinessesTable.id eq businessId }.count() > 0
         if (!exists) return@transaction ApiResponse(false, message = "Business not found")
@@ -75,6 +86,11 @@ class BusinessProfileService {
             it[receiptLogo] = logo
             it[receiptShowTax] = req.receiptShowTax
             it[receiptShowCustomer] = req.receiptShowCustomer
+            it[storefrontThemeColor] = themeColor
+            it[storefrontHeadline] = req.storefrontHeadline.trim().ifBlank { "Shop with us online" }.take(120)
+            it[storefrontDescription] = req.storefrontDescription.trim().take(500)
+            it[storefrontBannerUrl] = bannerUrl
+            it[storefrontLayout] = layout
             it[updatedAt]     = now
         }
 

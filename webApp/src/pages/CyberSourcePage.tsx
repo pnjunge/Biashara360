@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle, Clock, CreditCard, RefreshCw, XCircle } from 'lucide-react'
+import { CheckCircle, Clock, CreditCard, RefreshCw, Search, XCircle } from 'lucide-react'
 import { Btn, Card, DataTable, KpiCard, PageHeader } from '../components/ui'
 import { CsTransactionRecord, cyberSourceApi } from '../services/api'
 
@@ -33,6 +33,11 @@ function TransactionStatus({ status }: { status: string }) {
 export default function CyberSourcePage() {
   const [transactions, setTransactions] = useState<CsTransactionRecord[]>([])
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [typeFilter, setTypeFilter] = useState('ALL')
+  const [brandFilter, setBrandFilter] = useState('ALL')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -52,15 +57,42 @@ export default function CyberSourcePage() {
 
   useEffect(() => { void loadReport() }, [loadReport])
 
-  const visibleTransactions = useMemo(
-    () => statusFilter === 'ALL' ? transactions : transactions.filter(transaction => transaction.status === statusFilter),
-    [statusFilter, transactions],
-  )
-  const captured = transactions.filter(transaction => transaction.status === 'CAPTURED').reduce((sum, transaction) => sum + transaction.amount, 0)
-  const authorized = transactions.filter(transaction => transaction.status === 'AUTHORIZED').reduce((sum, transaction) => sum + transaction.amount, 0)
-  const refunded = transactions.filter(transaction => transaction.status === 'REFUNDED').reduce((sum, transaction) => sum + transaction.amount, 0)
-  const declined = transactions.filter(transaction => transaction.status === 'DECLINED' || transaction.status === 'ERROR').length
+  const visibleTransactions = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+    return transactions.filter(transaction => {
+      const transactionDate = transaction.createdAt.slice(0, 10)
+      const matchesSearch = !query || [
+        transaction.csTransactionId,
+        transaction.orderId,
+        transaction.approvalCode,
+        transaction.reconciliationId,
+        transaction.cardLast4,
+      ].some(value => value?.toLowerCase().includes(query))
+      return matchesSearch
+        && (statusFilter === 'ALL' || transaction.status === statusFilter)
+        && (typeFilter === 'ALL' || transaction.type === typeFilter)
+        && (brandFilter === 'ALL' || transaction.cardType === brandFilter)
+        && (!startDate || transactionDate >= startDate)
+        && (!endDate || transactionDate <= endDate)
+    })
+  }, [brandFilter, endDate, searchTerm, startDate, statusFilter, transactions, typeFilter])
+  const captured = visibleTransactions.filter(transaction => transaction.status === 'CAPTURED').reduce((sum, transaction) => sum + transaction.amount, 0)
+  const authorized = visibleTransactions.filter(transaction => transaction.status === 'AUTHORIZED').reduce((sum, transaction) => sum + transaction.amount, 0)
+  const refunded = visibleTransactions.filter(transaction => transaction.status === 'REFUNDED').reduce((sum, transaction) => sum + transaction.amount, 0)
+  const declined = visibleTransactions.filter(transaction => transaction.status === 'DECLINED' || transaction.status === 'ERROR').length
   const statuses = ['ALL', ...Array.from(new Set(transactions.map(transaction => transaction.status)))]
+  const types = ['ALL', ...Array.from(new Set(transactions.map(transaction => transaction.type).filter(Boolean)))]
+  const brands = ['ALL', ...Array.from(new Set(transactions.map(transaction => transaction.cardType).filter(Boolean)))]
+  const hasFilters = statusFilter !== 'ALL' || typeFilter !== 'ALL' || brandFilter !== 'ALL' || startDate !== '' || endDate !== '' || searchTerm !== ''
+
+  const clearFilters = () => {
+    setStatusFilter('ALL')
+    setTypeFilter('ALL')
+    setBrandFilter('ALL')
+    setStartDate('')
+    setEndDate('')
+    setSearchTerm('')
+  }
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -84,12 +116,45 @@ export default function CyberSourcePage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
           <div>
             <h3 style={{ margin: 0, fontSize: 16 }}>CyberSource transactions</h3>
-            <span style={{ color: 'var(--b360-text-secondary)', fontSize: 12 }}>{visibleTransactions.length} transaction{visibleTransactions.length === 1 ? '' : 's'}</span>
+            <span style={{ color: 'var(--b360-text-secondary)', fontSize: 12 }}>
+              {visibleTransactions.length} of {transactions.length} transaction{transactions.length === 1 ? '' : 's'}
+            </span>
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--b360-text-secondary)' }}>
+          {hasFilters && <Btn variant="secondary" onClick={clearFilters}>Clear filters</Btn>}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16, alignItems: 'end' }}>
+          <label style={{ display: 'grid', gap: 5, fontSize: 12, color: 'var(--b360-text-secondary)', gridColumn: 'span 2' }}>
+            Search
+            <span style={{ position: 'relative', display: 'block' }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--b360-text-secondary)' }} />
+              <input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Reference, order, approval or last 4" style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px 8px 32px', border: '1px solid var(--b360-border)', borderRadius: 8 }} />
+            </span>
+          </label>
+          <label style={{ display: 'grid', gap: 5, fontSize: 12, color: 'var(--b360-text-secondary)' }}>
+            From
+            <input type="date" value={startDate} max={endDate || undefined} onChange={event => setStartDate(event.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--b360-border)', borderRadius: 8 }} />
+          </label>
+          <label style={{ display: 'grid', gap: 5, fontSize: 12, color: 'var(--b360-text-secondary)' }}>
+            To
+            <input type="date" value={endDate} min={startDate || undefined} onChange={event => setEndDate(event.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--b360-border)', borderRadius: 8 }} />
+          </label>
+          <label style={{ display: 'grid', gap: 5, fontSize: 12, color: 'var(--b360-text-secondary)' }}>
             Status
             <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--b360-border)', borderRadius: 8, background: 'white' }}>
               {statuses.map(status => <option key={status} value={status}>{status === 'ALL' ? 'All statuses' : status}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'grid', gap: 5, fontSize: 12, color: 'var(--b360-text-secondary)' }}>
+            Transaction type
+            <select value={typeFilter} onChange={event => setTypeFilter(event.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--b360-border)', borderRadius: 8, background: 'white' }}>
+              {types.map(type => <option key={type} value={type}>{type === 'ALL' ? 'All types' : type}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'grid', gap: 5, fontSize: 12, color: 'var(--b360-text-secondary)' }}>
+            Card brand
+            <select value={brandFilter} onChange={event => setBrandFilter(event.target.value)} style={{ padding: '8px 10px', border: '1px solid var(--b360-border)', borderRadius: 8, background: 'white' }}>
+              {brands.map(brand => <option key={brand} value={brand}>{brand === 'ALL' ? 'All card brands' : brand}</option>)}
             </select>
           </label>
         </div>

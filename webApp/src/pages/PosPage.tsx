@@ -209,16 +209,20 @@ export function PosPage() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) { setError('Your shopping cart is empty.'); return }
-    if (!customerName.trim() || !customerPhone.trim()) { setError('Please provide customer name and phone number.'); return }
+    if (paymentMethod !== 'CASH' && (!customerName.trim() || !customerPhone.trim())) {
+      setError('Please provide customer name and phone number for M-Pesa or card payment.');
+      return
+    }
 
     setIsCheckingOut(true)
     setError('')
     try {
       const payload = {
-        customerName,
-        customerPhone,
+        customerName: customerName.trim() || 'Walk-In Customer',
+        customerPhone: paymentMethod === 'CASH' ? customerPhone.trim() : customerPhone,
         deliveryLocation: 'In-Store POS',
         paymentMethod,
+        ...(paymentMethod === 'CASH' ? { paymentStatus: 'PAID', deliveryStatus: 'DELIVERED' } : {}),
         includeTax,
         taxRate: 0.16,
         notes: notes || 'POS Checkout Sale',
@@ -648,8 +652,8 @@ export function PosPage() {
                 
                 {selectedCustomerId === '' && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <Input label="Name" value={customerName} onChange={setCustomerName} />
-                    <Input label="Phone" value={customerPhone} onChange={setCustomerPhone} />
+                    <Input label={paymentMethod === 'CASH' ? 'Name (optional)' : 'Name'} value={customerName} onChange={setCustomerName} />
+                    <Input label={paymentMethod === 'CASH' ? 'Phone (optional)' : 'Phone'} value={customerPhone} onChange={setCustomerPhone} />
                   </div>
                 )}
 
