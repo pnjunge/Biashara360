@@ -45,6 +45,12 @@ export default function AppShell() {
     businessApi.getProfile().then(result => {
       if (result.success && result.data) setHospitalityEnabled(result.data.hospitalityEnabled)
     }).catch(() => setHospitalityEnabled(null))
+    const handleModeChange = (event: Event) => {
+      const enabled = (event as CustomEvent<{ enabled: boolean }>).detail?.enabled
+      if (typeof enabled === 'boolean') setHospitalityEnabled(enabled)
+    }
+    window.addEventListener('hospitality-mode-changed', handleModeChange)
+    return () => window.removeEventListener('hospitality-mode-changed', handleModeChange)
   }, [user?.id])
   const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
   const visibleNavItems = navItems.filter(item => {

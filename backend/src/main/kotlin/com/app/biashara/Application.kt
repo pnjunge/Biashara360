@@ -82,7 +82,7 @@ fun Application.module() {
             authenticate("jwt-auth") {
                 accountRoutesValidated()
                 dashboardRoute()
-                productRoutes()
+                productRoutesValidated()
                 orderRoutes()
                 customerRoutes()
                 expenseRoutes()

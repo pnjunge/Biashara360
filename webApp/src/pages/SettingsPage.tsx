@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { PageHeader, Card, Btn, Input, Select } from '../components/ui'
 import {
-  settingsApi, businessApi, kraApi, authApi, BusinessProfileRequest,
+  settingsApi, businessApi, kraApi, authApi, hospitalityApi, BusinessProfileRequest,
   MpesaConfigResponse, SessionTimeoutConfig
 } from '../services/api'
 import { useAuth } from '../App'
@@ -20,15 +20,15 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
   </Card>
 )
 
-const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
+const Toggle = ({ label, checked, onChange, disabled = false }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) => (
   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
     <span style={{ fontSize: 13 }}>{label}</span>
-    <div onClick={() => onChange(!checked)} style={{
-      width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s',
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} disabled={disabled} onClick={() => onChange(!checked)} style={{
+      width: 44, height: 24, borderRadius: 12, cursor: disabled ? 'not-allowed' : 'pointer', transition: 'background 0.2s', border:0, padding:0,
       background: checked ? 'var(--b360-green)' : '#D1D5DB', position: 'relative'
     }}>
       <div style={{ position: 'absolute', top: 2, left: checked ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-    </div>
+    </button>
   </div>
 )
 
@@ -63,6 +63,8 @@ export function SettingsPage() {
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [hospitalityEnabled, setHospitalityEnabled] = useState(false)
+  const [hospitalitySaving, setHospitalitySaving] = useState(false)
 
   // ── 2. CyberSource Configuration State ───────────────────────────────────────
   const [csMerchantId, setCsMerchantId] = useState('')
@@ -127,6 +129,7 @@ export function SettingsPage() {
           const d = res.data
           setSubscriptionTier(d.subscriptionTier || 'FREEMIUM')
           setSubscriptionEnabled(d.subscriptionEnabled !== false)
+          setHospitalityEnabled(d.hospitalityEnabled === true)
           setProfile({
             name: d.name || '', owner: d.owner || '', phone: d.phone || '',
             email: d.email || '', type: d.type || '', county: d.county || '',
@@ -194,6 +197,24 @@ export function SettingsPage() {
       setProfileMsg({ ok: false, text: e.response?.data?.message || 'Network error' })
     } finally {
       setProfileSaving(false)
+    }
+  }
+
+  const handleHospitalityToggle = async (enabled: boolean) => {
+    if (!isMerchantAdmin) return
+    if (!enabled && !window.confirm('Disable hospitality mode? Settle all open tabs and complete active kitchen or bar tickets first.')) return
+    setHospitalitySaving(true)
+    setProfileMsg(null)
+    try {
+      const res = await hospitalityApi.setEnabled(enabled)
+      if (!res.success) throw new Error(res.message || 'Could not update hospitality mode')
+      setHospitalityEnabled(enabled)
+      window.dispatchEvent(new CustomEvent('hospitality-mode-changed', { detail: { enabled } }))
+      setProfileMsg({ ok: true, text: `Hospitality mode ${enabled ? 'enabled' : 'disabled'}.` })
+    } catch (e: any) {
+      setProfileMsg({ ok: false, text: e.response?.data?.message || e.message || 'Could not update hospitality mode.' })
+    } finally {
+      setHospitalitySaving(false)
     }
   }
 
@@ -381,6 +402,20 @@ export function SettingsPage() {
                   <Input label="Close of day" type="time" value={profile.dayCloseTime || '23:00'} onChange={v => setProfile(p => ({...p, dayCloseTime:v}))} />
                 </div>
                 <div style={{fontSize:12,color:'var(--b360-text-secondary)',lineHeight:1.5}}>These times define the merchant operating day. A closing time earlier than the start time means the business closes after midnight.</div>
+              </Section>
+
+              <Section title="Hospitality Mode">
+                <Toggle
+                  label={hospitalityEnabled ? 'Hospitality mode is enabled' : 'Enable hospitality mode'}
+                  checked={hospitalityEnabled}
+                  onChange={handleHospitalityToggle}
+                  disabled={!isMerchantAdmin || hospitalitySaving}
+                />
+                <div style={{fontSize:12,color:'var(--b360-text-secondary)',lineHeight:1.5}}>
+                  Enables tables, open tabs, kitchen and bar tickets, reservations, shifts, and hospitality operations across supported channels.
+                </div>
+                {!isMerchantAdmin && <div style={{fontSize:12,color:'var(--b360-amber)'}}>Only a business administrator can change this setting.</div>}
+                {hospitalitySaving && <div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>Updating hospitality mode…</div>}
               </Section>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
