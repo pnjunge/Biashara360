@@ -268,7 +268,7 @@ fun Route.cyberSourceRoutes() {
     route("/payments/card/manage") {
 
         /**
-         * POST /v1/payments/card/generate-link
+         * POST /v1/payments/card/manage/generate-link
          *
          * Generates a hosted payment link to send to a customer via Email, WhatsApp, or SMS.
          */
@@ -285,7 +285,7 @@ fun Route.cyberSourceRoutes() {
         }
 
         /**
-         * POST /v1/payments/card/charge
+         * POST /v1/payments/card/manage/charge
          *
          * Charge a card payment. Accepts:
          *   - flexToken: transient token from Unified Checkout widget (preferred, no PCI scope)
@@ -324,7 +324,7 @@ fun Route.cyberSourceRoutes() {
         }
 
         /**
-         * POST /v1/payments/card/capture
+         * POST /v1/payments/card/manage/capture
          *
          * Capture a previously authorized (auth-only) payment.
          * Call this when the order is shipped / fulfilled.
@@ -338,7 +338,7 @@ fun Route.cyberSourceRoutes() {
         }
 
         /**
-         * POST /v1/payments/card/refund
+         * POST /v1/payments/card/manage/refund
          *
          * Refund a captured/settled payment (partial or full).
          * Body: { csTransactionId, amount, reason? }
@@ -351,7 +351,7 @@ fun Route.cyberSourceRoutes() {
         }
 
         /**
-         * POST /v1/payments/card/void
+         * POST /v1/payments/card/manage/void
          *
          * Void an authorization before it is captured/settled.
          * Only valid while order hasn't shipped yet.
@@ -365,7 +365,7 @@ fun Route.cyberSourceRoutes() {
         }
 
         /**
-         * GET /v1/payments/card/transactions
+         * GET /v1/payments/card/manage/transactions
          *
          * Returns full CyberSource card transaction history for the business.
          * Includes all auths, captures, refunds, voids, and errors.
@@ -377,7 +377,7 @@ fun Route.cyberSourceRoutes() {
         }
 
         /**
-         * GET /v1/payments/card/saved-cards?customerId=xxx
+         * GET /v1/payments/card/manage/saved-cards?customerId=xxx
          *
          * Returns tokenized saved cards stored in CyberSource TMS for this business.
          * Use customerId to filter to a specific customer's cards.
@@ -390,7 +390,7 @@ fun Route.cyberSourceRoutes() {
         }
 
         /**
-         * DELETE /v1/payments/card/saved-cards/{id}
+         * DELETE /v1/payments/card/manage/saved-cards/{id}
          *
          * Remove a saved card token from the system.
          */

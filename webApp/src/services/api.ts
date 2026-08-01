@@ -770,15 +770,15 @@ export const hospitalityApi = {
 
 export const cyberSourceApi = {
   getTransactions: async () => {
-    const res = await client.get<ApiResponse<CsTransactionRecord[]>>('/payments/card/transactions')
+    const res = await client.get<ApiResponse<CsTransactionRecord[]>>('/payments/card/manage/transactions')
     return res.data
   },
   getSavedCards: async () => {
-    const res = await client.get<ApiResponse<SavedCardResponse[]>>('/payments/card/saved-cards')
+    const res = await client.get<ApiResponse<SavedCardResponse[]>>('/payments/card/manage/saved-cards')
     return res.data
   },
   deleteSavedCard: async (id: string) => {
-    const res = await client.delete<ApiResponse<null>>(`/payments/card/saved-cards/${id}`)
+    const res = await client.delete<ApiResponse<null>>(`/payments/card/manage/saved-cards/${id}`)
     return res.data
   },
   getGuestCaptureContext: async (origin: string, businessId?: string) => {
