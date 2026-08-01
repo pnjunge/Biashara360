@@ -45,7 +45,7 @@ class SecureAcceptanceService(
             "reference_number", "amount", "currency", "payment_method",
             "bill_to_forename", "bill_to_surname", "bill_to_email", "bill_to_phone",
             "bill_to_address_line1", "bill_to_address_city", "bill_to_address_country",
-            "merchant_defined_data1", "merchant_defined_data2",
+            "merchant_defined_data1", "merchant_defined_data2", "merchant_defined_data3",
             "override_custom_receipt_page_url", "override_custom_cancel_page_url"
         )
     }
@@ -121,6 +121,7 @@ class SecureAcceptanceService(
             "bill_to_address_country"         to "KE",
             "merchant_defined_data1"          to req.businessId,   // carry businessId through for notify
             "merchant_defined_data2"          to req.orderId,
+            "merchant_defined_data3"          to req.returnStoreSlug.orEmpty(),
             "override_custom_receipt_page_url" to receiptUrl,
             "override_custom_cancel_page_url"  to cancelUrl
         )
@@ -271,7 +272,8 @@ data class SaFormRequest(
     val amount        : Double,
     val customerName  : String? = null,
     val customerEmail : String? = null,
-    val customerPhone : String? = null
+    val customerPhone : String? = null,
+    val returnStoreSlug: String? = null
 )
 
 data class SaFormResult(

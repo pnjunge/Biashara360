@@ -606,7 +606,8 @@ data class SaInitiateRequest(
     val amount        : Double,
     val customerName  : String? = null,
     val customerEmail : String? = null,
-    val customerPhone : String? = null
+    val customerPhone : String? = null,
+    val returnStoreSlug: String? = null
 )
 
 @Serializable

@@ -13,6 +13,25 @@ import { useAuth } from '../App'
 
 type SettingsTab = 'general' | 'storefront' | 'cybersource' | 'kra' | 'mpesa' | 'security' | 'notifications'
 
+const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <Card style={{ padding: 22, marginBottom: 16 }}>
+    <h3 style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>{title}</h3>
+    <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
+  </Card>
+)
+
+const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <span style={{ fontSize: 13 }}>{label}</span>
+    <div onClick={() => onChange(!checked)} style={{
+      width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s',
+      background: checked ? 'var(--b360-green)' : '#D1D5DB', position: 'relative'
+    }}>
+      <div style={{ position: 'absolute', top: 2, left: checked ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+    </div>
+  </div>
+)
+
 export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -282,25 +301,6 @@ export function SettingsPage() {
     } catch (e:any) { setSecMsg({ok:false,text:e.response?.data?.message || 'Could not update PIN login.'}) }
     finally { setPinSaving(false) }
   }
-
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <Card style={{ padding: 22, marginBottom: 16 }}>
-      <h3 style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>{title}</h3>
-      <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
-    </Card>
-  )
-
-  const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ fontSize: 13 }}>{label}</span>
-      <div onClick={() => onChange(!checked)} style={{
-        width: 44, height: 24, borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s',
-        background: checked ? 'var(--b360-green)' : '#D1D5DB', position: 'relative'
-      }}>
-        <div style={{ position: 'absolute', top: 2, left: checked ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-      </div>
-    </div>
-  )
 
   const tabs = [
     { key: 'storefront', label: 'Storefront', icon: <ExternalLink size={15} /> },

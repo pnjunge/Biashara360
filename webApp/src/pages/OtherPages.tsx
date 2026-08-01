@@ -658,6 +658,7 @@ export function UserCreationPage() {
   const [accessMessage, setAccessMessage] = useState('')
   const [roleDraft, setRoleDraft] = useState({ name:'', description:'', allowedMenus:[] as string[] })
   const [groupDraft, setGroupDraft] = useState({ name:'', description:'', roleIds:[] as string[] })
+  const [accessSaving, setAccessSaving] = useState<'MENUS'|'ROLE'|'GROUP'|null>(null)
 
   const loadUsers = () => {
     if (isSuperAdmin && !selectedBusinessId) {
@@ -672,7 +673,7 @@ export function UserCreationPage() {
 
   const loadAccess = () => {
     if (isSuperAdmin) return
-    accessApi.config().then(res => { if (res.success && res.data) setAccessConfig(res.data) }).catch(() => {})
+    return accessApi.config().then(res => { if (res.success && res.data) setAccessConfig(res.data) }).catch((e:any) => setAccessMessage(e.response?.data?.message || 'Could not load roles and groups.'))
   }
 
   const loadBusinesses = () => {
@@ -704,24 +705,42 @@ export function UserCreationPage() {
   const toggleValue = (values: string[], value: string) => values.includes(value) ? values.filter(v => v !== value) : [...values, value]
   const saveMenus = async () => {
     if (!accessConfig) return
-    const res = await accessApi.updateMenus(accessConfig.enabledMenus)
-    if (res.success && res.data) { setAccessConfig(res.data); setAccessMessage('Menu availability saved.') }
+    setAccessSaving('MENUS'); setAccessMessage('')
+    try {
+      const res = await accessApi.updateMenus(accessConfig.enabledMenus)
+      if (res.success && res.data) { setAccessConfig(res.data); setAccessMessage('Menu availability saved.') }
+      else setAccessMessage(res.message || 'Could not save menu availability.')
+    } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not save menu availability.') }
+    finally { setAccessSaving(null) }
   }
   const createAccessRole = async () => {
     if (!roleDraft.name.trim()) return setAccessMessage('Enter a role name.')
-    const res = await accessApi.createRole(roleDraft)
-    if (res.success) { setRoleDraft({name:'',description:'',allowedMenus:[]}); loadAccess(); setAccessMessage('Role created.') }
-    else setAccessMessage(res.message || 'Could not create role.')
+    if (!roleDraft.allowedMenus.length) return setAccessMessage('Select at least one menu for this role.')
+    setAccessSaving('ROLE'); setAccessMessage('')
+    try {
+      const res = await accessApi.createRole(roleDraft)
+      if (res.success) { setRoleDraft({name:'',description:'',allowedMenus:[]}); await loadAccess(); setAccessMessage('Role created.') }
+      else setAccessMessage(res.message || 'Could not create role.')
+    } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not create role.') }
+    finally { setAccessSaving(null) }
   }
   const createAccessGroup = async () => {
     if (!groupDraft.name.trim()) return setAccessMessage('Enter a group name.')
-    const res = await accessApi.createGroup(groupDraft)
-    if (res.success) { setGroupDraft({name:'',description:'',roleIds:[]}); loadAccess(); setAccessMessage('Group created.') }
-    else setAccessMessage(res.message || 'Could not create group.')
+    if (!groupDraft.roleIds.length) return setAccessMessage('Select at least one role for this group.')
+    setAccessSaving('GROUP'); setAccessMessage('')
+    try {
+      const res = await accessApi.createGroup(groupDraft)
+      if (res.success) { setGroupDraft({name:'',description:'',roleIds:[]}); await loadAccess(); setAccessMessage('Group created.') }
+      else setAccessMessage(res.message || 'Could not create group.')
+    } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not create group.') }
+    finally { setAccessSaving(null) }
   }
   const toggleGroupUser = async (groupId: string, current: string[], userId: string) => {
-    const res = await accessApi.assignUsers(groupId, toggleValue(current, userId))
-    if (res.success) loadAccess()
+    setAccessMessage('')
+    try {
+      const res = await accessApi.assignUsers(groupId, toggleValue(current, userId))
+      if (res.success) await loadAccess(); else setAccessMessage(res.message || 'Could not update group members.')
+    } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update group members.') }
   }
 
   // ── Handlers ──
@@ -916,21 +935,21 @@ export function UserCreationPage() {
               <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8,margin:'14px 0'}}>
                 {accessConfig.menus.map(menu => <label key={menu.key} style={{fontSize:12,display:'flex',gap:7,alignItems:'center'}}><input type="checkbox" checked={accessConfig.enabledMenus.includes(menu.key)} onChange={() => setAccessConfig({...accessConfig,enabledMenus:toggleValue(accessConfig.enabledMenus,menu.key)})}/>{menu.label}</label>)}
               </div>
-              <Btn small onClick={saveMenus}>Save menu availability</Btn>
+              <Btn small disabled={accessSaving!==null} onClick={saveMenus}>{accessSaving==='MENUS'?'Saving…':'Save menu availability'}</Btn>
             </Card>
             <Card style={{padding:20}}>
               <h3 style={{margin:'0 0 12px'}}>Create role</h3>
               <Input label="Role name" value={roleDraft.name} onChange={v=>setRoleDraft({...roleDraft,name:v})} placeholder="e.g. Cashier" />
               <Input label="Description" value={roleDraft.description} onChange={v=>setRoleDraft({...roleDraft,description:v})} placeholder="What this role is for" />
               <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:7,margin:'12px 0'}}>{accessConfig.menus.map(menu=><label key={menu.key} style={{fontSize:12}}><input type="checkbox" checked={roleDraft.allowedMenus.includes(menu.key)} onChange={()=>setRoleDraft({...roleDraft,allowedMenus:toggleValue(roleDraft.allowedMenus,menu.key)})}/> {menu.label}</label>)}</div>
-              <Btn small onClick={createAccessRole}>Create role</Btn>
+              <Btn small disabled={accessSaving!==null} onClick={createAccessRole}>{accessSaving==='ROLE'?'Creating…':'Create role'}</Btn>
             </Card>
           </div>
           <Card style={{padding:20}}>
             <h3 style={{margin:'0 0 12px'}}>Create group</h3>
             <div className="responsive-grid responsive-grid-2" style={{gap:12}}><Input label="Group name" value={groupDraft.name} onChange={v=>setGroupDraft({...groupDraft,name:v})} placeholder="e.g. Front Desk"/><Input label="Description" value={groupDraft.description} onChange={v=>setGroupDraft({...groupDraft,description:v})} placeholder="Team description"/></div>
             <div style={{display:'flex',gap:14,flexWrap:'wrap',margin:'12px 0'}}>{accessConfig.roles.map(role=><label key={role.id} style={{fontSize:12}}><input type="checkbox" checked={groupDraft.roleIds.includes(role.id)} onChange={()=>setGroupDraft({...groupDraft,roleIds:toggleValue(groupDraft.roleIds,role.id)})}/> {role.name}</label>)}</div>
-            <Btn small onClick={createAccessGroup}>Create group</Btn>
+            <Btn small disabled={accessSaving!==null} onClick={createAccessGroup}>{accessSaving==='GROUP'?'Creating…':'Create group'}</Btn>
           </Card>
           {accessConfig.groups.map(group => <Card key={group.id} style={{padding:16}}><div style={{fontWeight:700}}>{group.name}</div><div style={{fontSize:12,color:'var(--b360-text-secondary)',marginBottom:10}}>{group.description || 'No description'} · Roles: {accessConfig.roles.filter(r=>group.roleIds.includes(r.id)).map(r=>r.name).join(', ') || 'None'}</div><div style={{display:'flex',gap:12,flexWrap:'wrap'}}>{users.map(member=><label key={member.id} style={{fontSize:12}}><input type="checkbox" checked={group.userIds.includes(member.id)} onChange={()=>toggleGroupUser(group.id,group.userIds,member.id)}/> {member.name}</label>)}</div></Card>)}
         </>

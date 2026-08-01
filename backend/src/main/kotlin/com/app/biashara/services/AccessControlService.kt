@@ -64,6 +64,7 @@ class AccessControlService {
 
     fun createGroup(businessId: String, request: SaveAccessGroupRequest): AccessGroupResponse = transaction {
         require(request.name.trim().length in 2..80) { "Group name must be between 2 and 80 characters" }
+        require(AccessGroupsTable.select { AccessGroupsTable.businessId eq businessId }.none { it[AccessGroupsTable.name].equals(request.name.trim(), ignoreCase = true) }) { "A group with this name already exists" }
         val roleIds = request.roleIds.distinct()
         require(roleIds.isEmpty() || AccessRolesTable.select { (AccessRolesTable.businessId eq businessId) and (AccessRolesTable.id inList roleIds) }.count().toInt() == roleIds.size) { "One or more roles are invalid" }
         val id=generateId(); val now=Clock.System.now()

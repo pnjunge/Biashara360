@@ -24,7 +24,7 @@ export default function StorefrontPage() {
   const [customerPhone, setCustomerPhone] = useState('')
   const [deliveryLocation, setDeliveryLocation] = useState('')
   const [notes, setNotes] = useState('')
-  const [clientReference] = useState(transactionReference)
+  const [clientReference, setClientReference] = useState(transactionReference)
   const [order, setOrder] = useState<StorefrontCheckoutResult | null>(null)
   const [paymentStatus, setPaymentStatus] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'MPESA' | 'COD' | 'CARD'>('MPESA')
@@ -55,6 +55,25 @@ export default function StorefrontPage() {
     const timer = window.setInterval(poll, 5_000)
     return () => window.clearInterval(timer)
   }, [storeSlug, order, paymentStatus])
+
+  useEffect(() => {
+    if (paymentStatus !== 'PAID') return
+    const timer = window.setTimeout(() => {
+      setCart({})
+      setOrder(null)
+      setPaymentStatus('')
+      setError('')
+      setCustomerName('')
+      setCustomerPhone('')
+      setDeliveryLocation('')
+      setNotes('')
+      setClientReference(transactionReference())
+      setSearch('')
+      setCategory('ALL')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, 2_500)
+    return () => window.clearTimeout(timer)
+  }, [paymentStatus])
 
   const categories = useMemo(() => ['ALL', ...new Set(store?.products.map(product => product.category).filter(Boolean) || [])], [store])
   const visibleProducts = useMemo(() => {
@@ -99,7 +118,7 @@ export default function StorefrontPage() {
       })
       if (response.success && response.data) {
         if (response.data.paymentMethod === 'CARD') {
-          window.location.assign(`/pay/card?orderId=${encodeURIComponent(response.data.orderId)}&businessId=${encodeURIComponent(storeBusinessId)}`)
+          window.location.assign(`/pay/card?orderId=${encodeURIComponent(response.data.orderId)}&businessId=${encodeURIComponent(storeBusinessId)}&storeSlug=${encodeURIComponent(storeSlug)}`)
           return
         }
         setOrder(response.data)
@@ -146,6 +165,7 @@ export default function StorefrontPage() {
         <h1>{paymentStatus === 'PAID' ? 'Payment received' : order.paymentMethod === 'COD' ? 'Order placed' : 'Order created'}</h1>
         <p>Order <strong>{order.orderNumber}</strong> · {money(store.currency, order.amount)}</p>
         <div className={`store-payment-status ${paymentStatus === 'PAID' ? 'paid' : ''}`}>{paymentStatus || 'PENDING'}</div>
+        {paymentStatus === 'PAID' && <p>Returning to the store…</p>}
         {paymentStatus !== 'PAID' && <p>{order.customerMessage || (order.paymentMethod === 'COD' ? 'Pay when your order is delivered.' : 'Complete the M-Pesa prompt on your phone. This page checks payment automatically.')}</p>}
         {error && <div className="store-error"><AlertCircle size={16} />{error}</div>}
         {paymentStatus !== 'PAID' && order.paymentMethod === 'MPESA' && <button className="store-primary" disabled={submitting} onClick={retryPayment}>{submitting ? 'Requesting…' : 'Retry M-Pesa push'}</button>}

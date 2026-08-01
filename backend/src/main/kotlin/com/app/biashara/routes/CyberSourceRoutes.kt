@@ -53,6 +53,10 @@ fun Route.cyberSourcePublicRoutes() {
                 )
                 return@post
             }
+            if (req.returnStoreSlug != null && !req.returnStoreSlug.matches(Regex("^[a-z0-9-]{1,120}$"))) {
+                call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Invalid storefront return path"))
+                return@post
+            }
             val order = orderService.getById(req.orderId, req.businessId)
             if (order?.paymentStatus == "PAID") {
                 call.respond(
@@ -69,7 +73,8 @@ fun Route.cyberSourcePublicRoutes() {
                     amount        = req.amount,
                     customerName  = req.customerName,
                     customerEmail = req.customerEmail,
-                    customerPhone = req.customerPhone
+                    customerPhone = req.customerPhone,
+                    returnStoreSlug = req.returnStoreSlug
                 )
             )
 
@@ -107,11 +112,12 @@ fun Route.cyberSourcePublicRoutes() {
             val orderId    = call.request.queryParameters["req_reference_number"] ?: ""
             val businessId = call.request.queryParameters["req_merchant_defined_data1"] ?: ""
             val csTransId  = call.request.queryParameters["transaction_id"] ?: ""
+            val storeSlug   = call.request.queryParameters["req_merchant_defined_data3"].orEmpty()
 
             val webBase = "https://app.biashara360.co.ke"
 
             val redirectUrl = when (decision) {
-                "ACCEPT" -> "$webBase/pay/card?status=success&orderId=$orderId&businessId=$businessId&txnId=$csTransId"
+                "ACCEPT" -> if (storeSlug.matches(Regex("^[a-z0-9-]{1,120}$"))) "https://biashara360.co.ke/shop/$storeSlug" else "$webBase/pay/card?status=success&orderId=$orderId&businessId=$businessId&txnId=$csTransId"
                 "CANCEL" -> "$webBase/pay/card?status=cancelled&orderId=$orderId&businessId=$businessId"
                 else     -> "$webBase/pay/card?status=declined&orderId=$orderId&businessId=$businessId"
             }
@@ -124,13 +130,14 @@ fun Route.cyberSourcePublicRoutes() {
             val orderId    = params["req_reference_number"] ?: params["req_merchant_defined_data2"] ?: ""
             val businessId = params["req_merchant_defined_data1"] ?: ""
             val csTransId  = params["transaction_id"] ?: ""
+            val storeSlug   = params["req_merchant_defined_data3"] ?: params["merchant_defined_data3"] ?: ""
 
             val fields = params.entries().associate { entry -> entry.key to (entry.value.firstOrNull() ?: "") }
             saService.verifyAndProcess(fields)
 
             val webBase = "https://app.biashara360.co.ke"
             val redirectUrl = when (decision) {
-                "ACCEPT" -> "$webBase/pay/card?status=success&orderId=$orderId&businessId=$businessId&txnId=$csTransId"
+                "ACCEPT" -> if (storeSlug.matches(Regex("^[a-z0-9-]{1,120}$"))) "https://biashara360.co.ke/shop/$storeSlug" else "$webBase/pay/card?status=success&orderId=$orderId&businessId=$businessId&txnId=$csTransId"
                 "CANCEL" -> "$webBase/pay/card?status=cancelled&orderId=$orderId&businessId=$businessId"
                 else     -> "$webBase/pay/card?status=declined&orderId=$orderId&businessId=$businessId"
             }

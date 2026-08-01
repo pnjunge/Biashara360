@@ -24,6 +24,7 @@ export default function CardCheckoutPage() {
   const status     = searchParams.get('status')     || ''           // success | declined | cancelled
   const txnId      = searchParams.get('txnId')      || ''
   const amount     = searchParams.get('amount')     || ''
+  const storeSlug  = searchParams.get('storeSlug')  || ''
 
   const [order, setOrder]             = useState<OrderResponse | null>(null)
   const [loadingOrder, setLoadingOrder] = useState(true)
@@ -77,7 +78,8 @@ export default function CardCheckoutPage() {
         amount: order.subtotal,
         customerName:  order.customerName  || searchParams.get('name')  || undefined,
         customerEmail: searchParams.get('email') || undefined,
-        customerPhone: order.customerPhone || searchParams.get('phone') || undefined
+        customerPhone: order.customerPhone || searchParams.get('phone') || undefined,
+        returnStoreSlug: storeSlug || undefined
       })
 
       if (!res.data.success || !res.data.data) {
