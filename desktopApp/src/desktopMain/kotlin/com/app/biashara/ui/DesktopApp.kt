@@ -60,6 +60,7 @@ sealed class AppScreen(
 ) {
     object Dashboard : AppScreen("dashboard", "Dashboard", Icons.Default.Dashboard)
     object Pos : AppScreen("pos", "Point of Sale", Icons.Default.Storefront)
+    object Hospitality : AppScreen("hospitality", "Bar & Restaurant", Icons.Default.TableRestaurant)
     object Inventory : AppScreen("inventory", "Inventory", Icons.Default.Inventory)
     object Orders : AppScreen("orders", "Orders", Icons.Default.ShoppingCart)
     object Customers : AppScreen("customers", "Customers", Icons.Default.People)
@@ -78,6 +79,7 @@ sealed class AppScreen(
 private val appScreens = listOf(
     AppScreen.Dashboard,
     AppScreen.Pos,
+    AppScreen.Hospitality,
     AppScreen.Inventory,
     AppScreen.Orders,
     AppScreen.Customers,
@@ -145,12 +147,18 @@ fun Biashara360DesktopApp() {
 @Composable
 fun Biashara360DesktopAppContent(
     navigationViewModel: DesktopNavigationViewModel = remember { inject() },
-    dashboardViewModel: com.app.biashara.presentation.viewmodel.DashboardViewModel = remember { inject() }
+    dashboardViewModel: com.app.biashara.presentation.viewmodel.DashboardViewModel = remember { inject() },
+    businessViewModel: com.app.biashara.presentation.viewmodel.BusinessViewModel = remember { inject() }
 ) {
     val currentScreen by navigationViewModel.currentScreen.collectAsState()
     val dashboardState by dashboardViewModel.state.collectAsState()
+    val businessProfileState by businessViewModel.profileState.collectAsState()
     LaunchedEffect(Unit) {
         dashboardViewModel.loadDashboard()
+        businessViewModel.loadProfile()
+    }
+    val visibleScreens = appScreens.filter { screen ->
+        screen != AppScreen.Hospitality || businessProfileState.profile?.hospitalityEnabled == true
     }
     var isExpanded by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf("") }
@@ -243,7 +251,7 @@ fun Biashara360DesktopAppContent(
                             modifier = Modifier.fillMaxSize().verticalScroll(scrollState),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            appScreens.forEach { screen ->
+                            visibleScreens.forEach { screen ->
                                 val isSelected = currentScreen == screen
                                 val bg = if (isSelected) B360SidebarSelected else Color.Transparent
                                 val iconColor = if (isSelected) B360Green else Color(0xFF94A3B8)
@@ -452,7 +460,7 @@ fun Biashara360DesktopAppContent(
                 bottomBar = {
                     if (!isWideScreen) {
                         NavigationBar {
-                            appScreens.forEach { screen ->
+                            visibleScreens.forEach { screen ->
                                 NavigationBarItem(
                                     selected = currentScreen == screen,
                                     onClick = { navigationViewModel.navigateTo(screen) },
@@ -473,6 +481,7 @@ fun Biashara360DesktopAppContent(
                     when (currentScreen) {
                         AppScreen.Dashboard -> DesktopDashboardScreen()
                         AppScreen.Pos -> DesktopPosScreen()
+                        AppScreen.Hospitality -> DesktopHospitalityScreen()
                         AppScreen.Inventory -> DesktopInventoryScreen(searchQuery = searchQuery)
                         AppScreen.Orders -> DesktopOrdersScreen(searchQuery = searchQuery)
                         AppScreen.Customers -> DesktopCustomersScreen(searchQuery = searchQuery)

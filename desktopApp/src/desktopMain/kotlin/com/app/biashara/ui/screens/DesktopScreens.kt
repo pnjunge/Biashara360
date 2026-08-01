@@ -428,15 +428,21 @@ fun RevenueExpenseLineChart(
 @Composable
 fun DesktopDashboardScreen(
     viewModel: DashboardViewModel = remember { inject() },
-    navigationViewModel: com.app.biashara.ui.DesktopNavigationViewModel = remember { inject() }
+    navigationViewModel: com.app.biashara.ui.DesktopNavigationViewModel = remember { inject() },
+    businessViewModel: BusinessViewModel = remember { inject() }
 ) {
     val state by viewModel.state.collectAsState()
+    val businessState by businessViewModel.profileState.collectAsState()
     LaunchedEffect(Unit) {
         viewModel.loadDashboard()
+        businessViewModel.loadProfile()
     }
     var toastMessage by remember { mutableStateOf<String?>(null) }
 
     var periodMenuExpanded by remember { mutableStateOf(false) }
+    val storefrontUrl = businessState.profile?.storefrontSlug?.takeIf { it.isNotBlank() }
+        ?.let { "https://enw9p7mvty.us-east-1.awsapprunner.com/shop/$it" }
+        .orEmpty()
 
     val scrollState = rememberScrollState()
     Box(Modifier.fillMaxSize().background(Color(0xFFF8FAFC))) {
@@ -452,6 +458,37 @@ fun DesktopDashboardScreen(
             title = "Dashboard",
             subtitle = "Welcome back! Here's what's happening with your business today."
         )
+
+        if (storefrontUrl.isNotBlank()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(Icons.Default.Storefront, null, tint = B360Green)
+                    Column(Modifier.weight(1f)) {
+                        Text("Customer storefront", fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+                        Text(storefrontUrl, color = Color(0xFF64748B), fontSize = 12.sp, maxLines = 1)
+                    }
+                    OutlinedButton(onClick = {
+                        java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                            java.awt.datatransfer.StringSelection(storefrontUrl), null
+                        )
+                        toastMessage = "Shop link copied."
+                    }) { Icon(Icons.Default.ContentCopy, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Copy link") }
+                    Button(
+                        onClick = { openExternalUrl(storefrontUrl) },
+                        colors = ButtonDefaults.buttonColors(containerColor = B360Green)
+                    ) { Icon(Icons.Default.OpenInNew, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Open Shop") }
+                }
+            }
+        }
 
         // KPI cards row
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {

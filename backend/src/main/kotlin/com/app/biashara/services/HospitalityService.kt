@@ -10,6 +10,10 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
 
 class HospitalityService(private val orderService: OrderService) {
+    internal companion object {
+        val ACTIVE_TAB_STATUSES = listOf("OPEN", "AWAITING_PAYMENT")
+    }
+
     private val logger = LoggerFactory.getLogger(HospitalityService::class.java)
     fun dashboard(businessId: String): HospitalityDashboardResponse = transaction {
         val enabled = BusinessesTable.select { BusinessesTable.id eq businessId }.first()[BusinessesTable.hospitalityEnabled]
@@ -20,7 +24,7 @@ class HospitalityService(private val orderService: OrderService) {
         if (!enabled) {
             require(OrdersTable.select {
                 (OrdersTable.businessId eq businessId) and
-                    (OrdersTable.tabStatus inList listOf("OPEN", "AWAITING_PAYMENT"))
+                    (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES)
             }.none()) { "Settle all open and awaiting-payment tabs before disabling hospitality mode" }
             require(KitchenTicketsTable.select {
                 (KitchenTicketsTable.businessId eq businessId) and
@@ -65,7 +69,7 @@ class HospitalityService(private val orderService: OrderService) {
         OrdersTable.update({
             (OrdersTable.businessId eq businessId) and
                 (OrdersTable.hospitalityTableId eq tableId) and
-                (OrdersTable.tabStatus inList listOf("OPEN", "AWAITING_PAYMENT"))
+                (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES)
         }) { it[deliveryLocation] = name; it[updatedAt] = Clock.System.now() }
         logger.info("""{"event":"hospitality_table_updated","business_id":"$businessId","table_id":"$tableId","capacity":${request.capacity}}""")
         tables(businessId).first { it.id == tableId }
@@ -107,7 +111,11 @@ class HospitalityService(private val orderService: OrderService) {
 
     fun closeTab(businessId: String, orderId: String, request: CloseHospitalityTabRequest): OrderResponse = transaction {
         val method=request.paymentMethod.trim().uppercase(); require(method in setOf("CASH","CARD","MPESA")) { "Payment method must be CASH, CARD, or MPESA" }
-        val order=OrdersTable.select { (OrdersTable.id eq orderId) and (OrdersTable.businessId eq businessId) and (OrdersTable.tabStatus eq "OPEN") }.firstOrNull() ?: error("Open tab not found")
+        val order=OrdersTable.select {
+            (OrdersTable.id eq orderId) and
+                (OrdersTable.businessId eq businessId) and
+                (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES)
+        }.firstOrNull() ?: error("Active tab not found")
         val paid=method != "MPESA"; val now=Clock.System.now()
         OrdersTable.update({ OrdersTable.id eq orderId }) {
             it[paymentMethod]=method
@@ -125,7 +133,7 @@ class HospitalityService(private val orderService: OrderService) {
             it[reconciled]=true; it[transactionDate]=now
         }
         if (paid) order[OrdersTable.hospitalityTableId]?.let { tableId ->
-            val otherOpen=OrdersTable.select { (OrdersTable.hospitalityTableId eq tableId) and (OrdersTable.id neq orderId) and (OrdersTable.tabStatus inList listOf("OPEN", "AWAITING_PAYMENT")) }.any()
+            val otherOpen=OrdersTable.select { (OrdersTable.hospitalityTableId eq tableId) and (OrdersTable.id neq orderId) and (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES) }.any()
             if(!otherOpen) HospitalityTablesTable.update({ HospitalityTablesTable.id eq tableId }) { it[status]="AVAILABLE"; it[updatedAt]=now }
         }
         orderService.getById(orderId,businessId)!!
@@ -133,8 +141,10 @@ class HospitalityService(private val orderService: OrderService) {
 
     fun transferTab(businessId: String, orderId: String, request: TransferHospitalityTabRequest): OrderResponse = transaction {
         val order = OrdersTable.select {
-            (OrdersTable.id eq orderId) and (OrdersTable.businessId eq businessId) and (OrdersTable.tabStatus eq "OPEN")
-        }.firstOrNull() ?: error("Open tab not found")
+            (OrdersTable.id eq orderId) and
+                (OrdersTable.businessId eq businessId) and
+                (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES)
+        }.firstOrNull() ?: error("Active tab not found")
         val target = HospitalityTablesTable.select {
             (HospitalityTablesTable.id eq request.tableId) and
                 (HospitalityTablesTable.businessId eq businessId) and
@@ -154,7 +164,7 @@ class HospitalityService(private val orderService: OrderService) {
             val otherOpen = OrdersTable.select {
                 (OrdersTable.hospitalityTableId eq oldId) and
                     (OrdersTable.id neq orderId) and
-                    (OrdersTable.tabStatus inList listOf("OPEN", "AWAITING_PAYMENT"))
+                    (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES)
             }.any()
             if (!otherOpen) HospitalityTablesTable.update({ HospitalityTablesTable.id eq oldId }) { it[status] = "AVAILABLE"; it[updatedAt] = now }
         }
@@ -162,7 +172,7 @@ class HospitalityService(private val orderService: OrderService) {
     }
 
     private fun tables(businessId: String): List<HospitalityTableResponse> {
-        val open=OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.tabStatus inList listOf("OPEN","AWAITING_PAYMENT")) }
+        val open=OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES) }
             .filter { it[OrdersTable.hospitalityTableId] != null }
             .groupBy { it[OrdersTable.hospitalityTableId]!! }
         return HospitalityTablesTable.select { (HospitalityTablesTable.businessId eq businessId) and (HospitalityTablesTable.isActive eq true) }
@@ -175,7 +185,7 @@ class HospitalityService(private val orderService: OrderService) {
             )
         }
     }
-    private fun openTabs(businessId: String)=OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.tabStatus inList listOf("OPEN","AWAITING_PAYMENT")) }.orderBy(OrdersTable.createdAt,SortOrder.DESC).mapNotNull { orderService.getById(it[OrdersTable.id],businessId) }
+    private fun openTabs(businessId: String)=OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES) }.orderBy(OrdersTable.createdAt,SortOrder.DESC).mapNotNull { orderService.getById(it[OrdersTable.id],businessId) }
     private fun tickets(businessId: String): List<KitchenTicketResponse> {
         val rows=KitchenTicketsTable.select { KitchenTicketsTable.businessId eq businessId }.orderBy(KitchenTicketsTable.createdAt,SortOrder.ASC).toList()
         return rows.map { ticket ->

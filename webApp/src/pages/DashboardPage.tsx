@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building, ShoppingCart, Clock, UserPlus, HelpCircle, Activity, ChevronDown, CheckCircle, Smartphone } from 'lucide-react'
+import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building, ShoppingCart, Clock, UserPlus, HelpCircle, Activity, ChevronDown, CheckCircle, Smartphone, ExternalLink, Copy, Store } from 'lucide-react'
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
 import { productApi, orderApi, customerApi, reportApi, businessApi, socialApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse } from '../services/api'
 import { useAuth } from '../App'
@@ -25,15 +25,17 @@ export default function DashboardPage() {
   const [topCustomers, setTopCustomers] = useState<CustomerResponse[]>([])
   const [socialChannels, setSocialChannels] = useState<any[]>([])
   const [resolvedBusinessName, setResolvedBusinessName] = useState('')
+  const [storefrontSlug, setStorefrontSlug] = useState('')
+  const [storefrontCopied, setStorefrontCopied] = useState(false)
   const [loading, setLoading] = useState(true)
   const businessName = user?.businessName?.trim() || resolvedBusinessName || 'Your Business'
 
   useEffect(() => {
-    if (user?.businessName?.trim()) return
     businessApi.getProfile()
       .then(res => {
         if (res.success && res.data?.name) {
           setResolvedBusinessName(res.data.name)
+          setStorefrontSlug(res.data.storefrontSlug || '')
         }
       })
       .catch(() => {})
@@ -77,11 +79,27 @@ export default function DashboardPage() {
   }, [dashboardPeriod])
 
   const fmt = (v: number) => `KES ${v.toLocaleString()}`
+  const storefrontUrl = storefrontSlug ? `${window.location.origin}/shop/${storefrontSlug}` : ''
+  const copyStorefront = async () => {
+    if (!storefrontUrl) return
+    await navigator.clipboard.writeText(storefrontUrl)
+    setStorefrontCopied(true)
+    window.setTimeout(() => setStorefrontCopied(false), 1800)
+  }
 
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:24 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <h1 style={{ fontSize:26, fontWeight:800, color:'var(--b360-text)', letterSpacing:'-0.5px' }}>Dashboard</h1>
+        {storefrontUrl && (
+          <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'flex-end' }}>
+            <span style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--b360-text-secondary)', maxWidth:360, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              <Store size={15} /> {storefrontUrl}
+            </span>
+            <Btn variant="secondary" small icon={<Copy size={13}/>} onClick={copyStorefront}>{storefrontCopied ? 'Copied' : 'Copy shop link'}</Btn>
+            <Btn small icon={<ExternalLink size={13}/>} onClick={() => window.open(storefrontUrl, '_blank', 'noopener,noreferrer')}>Open Shop</Btn>
+          </div>
+        )}
       </div>
 
       {loading ? (

@@ -938,7 +938,7 @@ private suspend fun downloadKraCsv(
     }.onFailure { onError(it.message ?: "KRA export failed") }
 }
 
-private fun openDesktopWeb(path: String) {
+internal fun openDesktopWeb(path: String) {
     runCatching {
         if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
             java.awt.Desktop.getDesktop().browse(URI("https://enw9p7mvty.us-east-1.awsapprunner.com$path"))
@@ -948,7 +948,7 @@ private fun openDesktopWeb(path: String) {
 
 private fun urlEncode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name()).replace("+", "%20")
 
-private fun openExternalUrl(url: String) {
+internal fun openExternalUrl(url: String) {
     runCatching {
         if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
             java.awt.Desktop.getDesktop().browse(URI(url))
