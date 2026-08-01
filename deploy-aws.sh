@@ -148,7 +148,7 @@ echo -e "${BLUE}===============================================${NC}"
 echo
 echo -e "${BLUE}Checking required tools...${NC}"
 
-for required_command in git docker aws; do
+for required_command in git docker aws jq; do
     if ! command_exists "$required_command"; then
         echo -e "${RED}❌ Required command is not installed: ${required_command}${NC}"
         exit 1
@@ -401,19 +401,43 @@ echo
 echo "  Web service image:"
 echo "    $WEB_LATEST_IMAGE_URI"
 echo
-echo -e "${BLUE}Triggering AWS App Runner deployments...${NC}"
+echo -e "${BLUE}Updating AWS App Runner image revisions...${NC}"
 API_SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='biashara360-api-service'].ServiceArn" --output text --region "$AWS_REGION" || true)
 WEB_SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='biashara360-web-service'].ServiceArn" --output text --region "$AWS_REGION" || true)
 
 if [ -n "$API_SERVICE_ARN" ] && [ "$API_SERVICE_ARN" != "None" ]; then
-    echo "Deploying API service ($API_SERVICE_ARN)..."
-    aws apprunner start-deployment --service-arn "$API_SERVICE_ARN" --region "$AWS_REGION" >/dev/null || true
+    echo "Updating API service ($API_SERVICE_ARN)..."
+    API_SOURCE_CONFIGURATION=$(
+        aws apprunner describe-service \
+            --service-arn "$API_SERVICE_ARN" \
+            --region "$AWS_REGION" \
+            --query 'Service.SourceConfiguration' \
+            --output json |
+        jq -c --arg image "$API_VERSIONED_IMAGE_URI" '.ImageRepository.ImageIdentifier = $image'
+    )
+    aws apprunner update-service \
+        --service-arn "$API_SERVICE_ARN" \
+        --source-configuration "$API_SOURCE_CONFIGURATION" \
+        --region "$AWS_REGION" \
+        >/dev/null
     echo -e "${GREEN}✓ API service deployment initiated.${NC}"
 fi
 
 if [ -n "$WEB_SERVICE_ARN" ] && [ "$WEB_SERVICE_ARN" != "None" ]; then
-    echo "Deploying Web service ($WEB_SERVICE_ARN)..."
-    aws apprunner start-deployment --service-arn "$WEB_SERVICE_ARN" --region "$AWS_REGION" >/dev/null || true
+    echo "Updating Web service ($WEB_SERVICE_ARN)..."
+    WEB_SOURCE_CONFIGURATION=$(
+        aws apprunner describe-service \
+            --service-arn "$WEB_SERVICE_ARN" \
+            --region "$AWS_REGION" \
+            --query 'Service.SourceConfiguration' \
+            --output json |
+        jq -c --arg image "$WEB_VERSIONED_IMAGE_URI" '.ImageRepository.ImageIdentifier = $image'
+    )
+    aws apprunner update-service \
+        --service-arn "$WEB_SERVICE_ARN" \
+        --source-configuration "$WEB_SOURCE_CONFIGURATION" \
+        --region "$AWS_REGION" \
+        >/dev/null
     echo -e "${GREEN}✓ Web service deployment initiated.${NC}"
 fi
 
