@@ -335,6 +335,18 @@ fun Route.paymentRoutes() {
                     call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(false, message = "Order not found"))
                     return@post
                 }
+            if (order.paymentMethod != "MPESA") {
+                call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "This order does not use M-Pesa"))
+                return@post
+            }
+            if (order.paymentStatus == "PAID") {
+                call.respond(HttpStatusCode.Conflict, ApiResponse<Unit>(false, message = "This order is already paid"))
+                return@post
+            }
+            if (order.paymentStatus in setOf("CANCELLED", "REFUNDED")) {
+                call.respond(HttpStatusCode.Conflict, ApiResponse<Unit>(false, message = "Payment cannot be retried for a closed order"))
+                return@post
+            }
 
             val result = mpesaService.initiateSTKPush(
                 phoneNumber = req.phoneNumber.normalizePhone(),
@@ -347,16 +359,9 @@ fun Route.paymentRoutes() {
 
             when (result) {
                 is StkPushResult.Success -> {
-                    // Persist checkoutRequestId on the order so the Safaricom callback
-                    // can resolve the tenant and update the order status.
-                    transaction {
-                        OrdersTable.update({
-                            (OrdersTable.id eq req.orderId) and (OrdersTable.businessId eq businessId)
-                        }) {
-                            it[OrdersTable.stkCheckoutRequestId] = result.checkoutRequestId
-                            it[OrdersTable.updatedAt] = Clock.System.now()
-                        }
-                    }
+                    orderService.recordMpesaCheckoutAttempt(
+                        businessId, req.orderId, result.checkoutRequestId
+                    )
                     call.respond(ApiResponse(true, data = mapOf(
                         "merchantRequestId" to result.merchantRequestId,
                         "checkoutRequestId" to result.checkoutRequestId,
@@ -413,11 +418,21 @@ fun Route.mpesaCallbackRoute() {
             val phone    = metadata.find { it.Name == "PhoneNumber" }?.Value ?: ""
             val payerName = metadata.find { it.Name == "FirstName" }?.Value ?: "Unknown"
 
-            // Resolve tenant + order from the checkoutRequestId stored at initiate time
+            // Resolve against every attempt so an earlier prompt can still complete
+            // after the merchant has sent a retry.
             transaction {
-                val orderRow = OrdersTable
-                    .select { OrdersTable.stkCheckoutRequestId eq checkoutRequestId }
+                val attempt = MpesaCheckoutAttemptsTable
+                    .select { MpesaCheckoutAttemptsTable.checkoutRequestId eq checkoutRequestId }
                     .firstOrNull()
+                val orderRow = when {
+                    attempt != null -> OrdersTable.select {
+                        (OrdersTable.id eq attempt[MpesaCheckoutAttemptsTable.orderId]) and
+                            (OrdersTable.businessId eq attempt[MpesaCheckoutAttemptsTable.businessId])
+                    }.firstOrNull()
+                    else -> OrdersTable.select {
+                        OrdersTable.stkCheckoutRequestId eq checkoutRequestId
+                    }.firstOrNull()
+                }
 
                 if (orderRow != null) {
                     val businessId   = orderRow[OrdersTable.businessId]
@@ -430,27 +445,31 @@ fun Route.mpesaCallbackRoute() {
                         application.log.warn("""{"event":"mpesa_callback_rejected","reason":"amount_mismatch","order_id":"$orderId"}""")
                     }
 
-                    // Save payment record (auto-reconciled since it came from the callback)
-                    PaymentsTable.insert {
-                        it[PaymentsTable.id]              = generateId()
-                        it[PaymentsTable.businessId]      = businessId
-                        it[PaymentsTable.orderId]         = orderId
-                        it[PaymentsTable.transactionCode] = txCode
-                        it[PaymentsTable.amount]          = amount
-                        it[PaymentsTable.payerPhone]      = phone
-                        it[PaymentsTable.payerName]       = payerName
-                        it[PaymentsTable.method]          = "MPESA"
-                        it[PaymentsTable.status]          = "SUCCESS"
-                        it[PaymentsTable.channel]         = "STK_PUSH"
-                        it[PaymentsTable.reconciled]      = true
-                        it[PaymentsTable.transactionDate] = now
+                    // Claim settlement atomically: retries and concurrent callbacks must
+                    // not create multiple payment records for the same order.
+                    val settled = OrdersTable.update({
+                        (OrdersTable.id eq orderId) and
+                            (OrdersTable.paymentStatus neq "PAID")
+                    }) {
+                        it[OrdersTable.paymentStatus]        = "PAID"
+                        it[OrdersTable.mpesaTransactionCode] = txCode
+                        it[OrdersTable.updatedAt]            = now
                     }
-
-                    // Mark order as paid
-                    OrdersTable.update({ OrdersTable.id eq orderId }) {
-                        it[OrdersTable.paymentStatus]         = "PAID"
-                        it[OrdersTable.mpesaTransactionCode]  = txCode
-                        it[OrdersTable.updatedAt]             = now
+                    if (settled == 1) {
+                        PaymentsTable.insert {
+                            it[PaymentsTable.id]              = generateId()
+                            it[PaymentsTable.businessId]      = businessId
+                            it[PaymentsTable.orderId]         = orderId
+                            it[PaymentsTable.transactionCode] = txCode
+                            it[PaymentsTable.amount]          = amount
+                            it[PaymentsTable.payerPhone]      = phone
+                            it[PaymentsTable.payerName]       = payerName
+                            it[PaymentsTable.method]          = "MPESA"
+                            it[PaymentsTable.status]          = "SUCCESS"
+                            it[PaymentsTable.channel]         = "STK_PUSH"
+                            it[PaymentsTable.reconciled]      = true
+                            it[PaymentsTable.transactionDate] = now
+                        }
                     }
                 } else {
                     application.log.warn("""{"event":"mpesa_callback_unmatched"}""")
@@ -466,6 +485,7 @@ fun Route.mpesaCallbackRoute() {
 
 fun Route.reportRoutes() {
     val expenseService: ExpenseService by inject()
+    val reportService: ReportService by inject()
 
     route("/reports") {
         moduleGuard("REPORTS")
@@ -485,6 +505,44 @@ fun Route.reportRoutes() {
             }
             val summary = expenseService.getProfitSummary(businessId, startDate, endDate)
             call.respond(ApiResponse(true, data = summary))
+        }
+        get("/payments") {
+            val businessId = call.businessId()
+            if (!call.hasRole("ADMIN")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                return@get
+            }
+            val startDate = call.request.queryParameters["startDate"]
+            val endDate = call.request.queryParameters["endDate"]
+            if (startDate.isNullOrBlank() || endDate.isNullOrBlank()) {
+                call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "startDate and endDate are required"))
+                return@get
+            }
+            val report = runCatching { reportService.paymentReport(businessId, startDate, endDate) }
+                .getOrElse {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = it.message ?: "Invalid report dates"))
+                    return@get
+                }
+            call.respond(ApiResponse(true, data = report))
+        }
+        get("/orders") {
+            val businessId = call.businessId()
+            if (!call.hasRole("ADMIN")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                return@get
+            }
+            val startDate = call.request.queryParameters["startDate"]
+            val endDate = call.request.queryParameters["endDate"]
+            if (startDate.isNullOrBlank() || endDate.isNullOrBlank()) {
+                call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "startDate and endDate are required"))
+                return@get
+            }
+            val report = runCatching { reportService.orderReport(businessId, startDate, endDate) }
+                .getOrElse {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = it.message ?: "Invalid report dates"))
+                    return@get
+                }
+            call.respond(ApiResponse(true, data = report))
         }
     }
 }

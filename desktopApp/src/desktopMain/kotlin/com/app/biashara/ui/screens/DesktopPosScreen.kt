@@ -89,7 +89,7 @@ fun DesktopPosScreen(
     val cart = remember { mutableStateListOf<DesktopCartItem>() }
     var selectedCustomer by remember { mutableStateOf<Customer?>(null) }
     var walkInName by remember { mutableStateOf("Walk-In Customer") }
-    var walkInPhone by remember { mutableStateOf("+254000000000") }
+    var walkInPhone by remember { mutableStateOf("") }
     var paymentMethod by remember { mutableStateOf(PaymentMethod.CASH) }
     var mpesaAccountType by remember { mutableStateOf<String?>(null) }
     var notes by remember { mutableStateOf("") }
@@ -495,7 +495,7 @@ fun DesktopPosScreen(
                                     onClick = {
                                         selectedCustomer = null
                                         walkInName = "Walk-In Customer"
-                                        walkInPhone = "+254000000000"
+                                        walkInPhone = ""
                                         paymentMethod = PaymentMethod.CASH
                                         notes = ""
                                         paymentFeedback = null
@@ -687,7 +687,7 @@ fun DesktopPosScreen(
                                     onClick = {
                                         selectedCustomer = null
                                         walkInName = "Walk-In Customer"
-                                        walkInPhone = "+254000000000"
+                                        walkInPhone = ""
                                         expanded = false
                                     }
                                 )

@@ -189,26 +189,29 @@ class SocialViewModel(
         }
 
         scope.launch {
-            val logs = listOf(
-                "Establishing secure handshake with Biashara360 API...",
-                "Validating platform access token payload...",
-                "Syncing verification handshake parameters...",
-                "Transmitting test payload challenge...",
-                "Listening for mock webhook challenge loop-back reply...",
-                "Webhook challenge successfully verified!",
-                "Active connection registered! System is now live."
-            )
-
-            for (i in logs.indices) {
-                delay(600)
-                _state.update {
-                    it.copy(
-                        verificationLogs = it.verificationLogs + logs[i],
-                        verifyProgress = (i + 1).toFloat() / logs.size
-                    )
-                }
+            _state.update {
+                it.copy(verificationLogs = listOf("Verifying channel with the platform API…"), verifyProgress = 0.5f)
             }
-            _state.update { it.copy(verificationStage = "success", verifyProgress = 1.0f) }
+            socialRepository.verifyChannel(created.id)
+                .onSuccess {
+                    _state.update {
+                        it.copy(
+                            verificationStage = "success",
+                            verifyProgress = 1.0f,
+                            verificationLogs = it.verificationLogs + "Channel connection verified."
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _state.update {
+                        it.copy(
+                            verificationStage = "failed",
+                            verifyProgress = 0.0f,
+                            verificationLogs = it.verificationLogs + "Verification failed.",
+                            error = error.message
+                        )
+                    }
+                }
         }
     }
 

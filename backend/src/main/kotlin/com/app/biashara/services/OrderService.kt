@@ -13,6 +13,8 @@ internal data class InitialOrderStatuses(
     val delivery: String
 )
 
+private class ConcurrentStockException(message: String) : RuntimeException(message)
+
 internal fun resolveInitialOrderStatuses(
     paymentMethod: String,
     requestedPaymentStatus: String?,
@@ -43,6 +45,34 @@ internal fun resolveInitialOrderStatuses(
 }
 
 class OrderService {
+
+    fun recordMpesaCheckoutAttempt(
+        businessId: String,
+        orderId: String,
+        checkoutRequestId: String
+    ) = transaction {
+        val now = Clock.System.now()
+        val updated = OrdersTable.update({
+            (OrdersTable.id eq orderId) and (OrdersTable.businessId eq businessId)
+        }) {
+            it[stkCheckoutRequestId] = checkoutRequestId
+            it[updatedAt] = now
+        }
+        check(updated == 1) { "Order not found while recording M-Pesa attempt" }
+
+        val alreadyRecorded = MpesaCheckoutAttemptsTable.select {
+            MpesaCheckoutAttemptsTable.checkoutRequestId eq checkoutRequestId
+        }.any()
+        if (!alreadyRecorded) {
+            MpesaCheckoutAttemptsTable.insert {
+                it[id] = generateId()
+                it[MpesaCheckoutAttemptsTable.businessId] = businessId
+                it[MpesaCheckoutAttemptsTable.orderId] = orderId
+                it[MpesaCheckoutAttemptsTable.checkoutRequestId] = checkoutRequestId
+                it[createdAt] = now
+            }
+        }
+    }
 
     fun getAll(businessId: String, paymentStatus: String? = null, page: Int = 1, pageSize: Int = 20): PagedResponse<OrderResponse> = transaction {
         var query = OrdersTable.select { OrdersTable.businessId eq businessId }
@@ -94,7 +124,8 @@ class OrderService {
         businessId: String,
         req: CreateOrderRequest,
         clientPlatform: String? = null
-    ): ApiResponse<OrderResponse> = transaction {
+    ): ApiResponse<OrderResponse> = try {
+        transaction {
         val clientReference = req.clientReference?.trim()?.takeIf { it.isNotEmpty() }
         if (clientReference != null &&
             (clientReference.length > 64 || !clientReference.matches(Regex("^[A-Za-z0-9._:-]+$")))
@@ -161,6 +192,7 @@ class OrderService {
             req.deliveryStatus,
             req.deliveryLocation
         )
+        val salesChannel = resolveSalesChannel(clientPlatform)
 
         OrdersTable.insert {
             it[id] = orderId
@@ -174,6 +206,7 @@ class OrderService {
             it[paymentStatus] = initialStatuses.payment
             it[deliveryStatus] = initialStatuses.delivery
             it[paymentMethod] = req.paymentMethod
+            it[OrdersTable.salesChannel] = salesChannel
             it[notes] = req.notes
             it[OrdersTable.subtotal] = subtotal
             it[createdAt] = now
@@ -201,10 +234,9 @@ class OrderService {
                 it[updatedAt] = now
             }
             if (deducted == 0) {
-                // Stock was concurrently depleted — roll back the transaction
-                return@transaction ApiResponse(
-                    false,
-                    message = "Insufficient stock for ${product[ProductsTable.name]}: concurrent order may have consumed remaining units"
+                // Throwing is required so Exposed rolls back items and earlier stock deductions.
+                throw ConcurrentStockException(
+                    "Insufficient stock for ${product[ProductsTable.name]}: concurrent order may have consumed remaining units"
                 )
             }
             // Stock movement record
@@ -236,6 +268,9 @@ class OrderService {
 
         val order = OrdersTable.select { OrdersTable.id eq orderId }.first().toResponse()
         ApiResponse(true, data = order, message = "Order $orderNumber created")
+        }
+    } catch (exception: ConcurrentStockException) {
+        ApiResponse(false, message = exception.message ?: "Stock changed while creating the order")
     }
 
     fun updatePaymentStatus(id: String, businessId: String, req: UpdatePaymentStatusRequest): ApiResponse<OrderResponse> = transaction {
@@ -349,6 +384,7 @@ class OrderService {
             "ios" -> "IOS"
             "web" -> "WEB"
             "social" -> "SOC"
+            "ecommerce" -> "ECOM"
             else -> "WEB"
         }
 
@@ -368,6 +404,15 @@ class OrderService {
             if (!exists) return candidate
         }
         throw IllegalStateException("Unable to generate a unique order reference")
+    }
+
+    private fun resolveSalesChannel(clientPlatform: String?): String = when (clientPlatform?.trim()?.lowercase()) {
+        "desktop" -> "DESKTOP"
+        "android" -> "ANDROID"
+        "ios" -> "IOS"
+        "social" -> "SOCIAL"
+        "ecommerce" -> "ECOMMERCE"
+        else -> "WEB"
     }
 
     private fun ResultRow.toResponse(preloadedItems: List<OrderItemResponse>? = null): OrderResponse {
@@ -399,6 +444,7 @@ class OrderService {
             paymentStatus = this[OrdersTable.paymentStatus],
             deliveryStatus = this[OrdersTable.deliveryStatus],
             paymentMethod = this[OrdersTable.paymentMethod],
+            salesChannel = this[OrdersTable.salesChannel],
             mpesaTransactionCode = this[OrdersTable.mpesaTransactionCode],
             subtotal = this[OrdersTable.subtotal],
             notes = this[OrdersTable.notes],

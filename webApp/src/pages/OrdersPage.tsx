@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, KpiCard, Modal, Input, Select } from '../components/ui'
-import { ShoppingCart, Plus, Eye } from 'lucide-react'
-import { orderApi, productApi, customerApi, OrderResponse, ProductResponse, CustomerResponse } from '../services/api'
+import { ShoppingCart, Plus, Eye, RefreshCw } from 'lucide-react'
+import { orderApi, productApi, customerApi, paymentApi, OrderResponse, ProductResponse, CustomerResponse } from '../services/api'
 
 const PAYMENT_METHODS = ['CASH','MPESA','CARD','COD']
 
@@ -14,6 +14,7 @@ export function OrdersPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [retryingOrderId, setRetryingOrderId] = useState('')
 
   const [showNew, setShowNew] = useState(false)
   const [viewOrder, setViewOrder] = useState<OrderResponse | null>(null)
@@ -92,6 +93,20 @@ export function OrdersPage() {
   const subtotal = items.reduce((s, it) => s + it.quantity * it.unitPrice, 0)
   const f = (k: keyof typeof emptyOrder) => (v: string) => setForm(prev => ({ ...prev, [k]: v }))
 
+  const retryMpesa = async (order: OrderResponse) => {
+    if (!window.confirm(`Send another M-Pesa prompt to ${order.customerPhone} for ${order.orderNumber}?`)) return
+    setRetryingOrderId(order.id)
+    try {
+      const response = await paymentApi.initiate({ orderId: order.id, phoneNumber: order.customerPhone })
+      if (!response.success) throw new Error(response.message || 'M-Pesa retry failed')
+      alert(response.data?.customerMessage || 'M-Pesa prompt sent. Ask the customer to enter their PIN.')
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'M-Pesa retry failed')
+    } finally {
+      setRetryingOrderId('')
+    }
+  }
+
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {showNew && (
@@ -162,6 +177,8 @@ export function OrdersPage() {
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Phone</span><div style={{ fontWeight:600 }}>{viewOrder.customerPhone}</div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Delivery</span><div style={{ fontWeight:600 }}>{viewOrder.deliveryLocation || '—'}</div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Payment</span><div><StatusBadge status={viewOrder.paymentStatus} /></div></div>
+              <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Payment Method</span><div style={{ fontWeight:600 }}>{viewOrder.paymentMethod}</div></div>
+              <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Order Channel</span><div style={{ fontWeight:600 }}>{viewOrder.salesChannel}</div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Delivery Status</span><div><StatusBadge status={viewOrder.deliveryStatus} /></div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Date</span><div style={{ fontWeight:600 }}>{new Date(viewOrder.createdAt).toLocaleDateString('en-KE')}</div></div>
               {viewOrder.mpesaTransactionCode && (
@@ -239,6 +256,15 @@ export function OrdersPage() {
                 </div>
               </div>
             )}
+            {viewOrder.paymentMethod === 'MPESA' && viewOrder.paymentStatus === 'PENDING' && (
+              <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:10, padding:14, marginTop:8 }}>
+                <div style={{ fontWeight:700, fontSize:13, color:'#166534', marginBottom:4 }}>M-Pesa payment pending</div>
+                <p style={{ fontSize:12, color:'#15803D', margin:'0 0 8px' }}>If the customer dismissed the prompt or did not enter their PIN, send a new STK push to the same order.</p>
+                <Btn small icon={<RefreshCw size={12} />} disabled={retryingOrderId === viewOrder.id} onClick={() => retryMpesa(viewOrder)}>
+                  {retryingOrderId === viewOrder.id ? 'Sending…' : 'Retry M-Pesa'}
+                </Btn>
+              </div>
+            )}
           </div>
         </Modal>
       )}
@@ -260,12 +286,13 @@ export function OrdersPage() {
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No orders yet. Click "New Order" to get started.</div>
         ) : (
           <DataTable
-            headers={['Order #', 'Customer', 'Items', 'Total', 'Payment', 'Delivery Status', 'Date', 'Actions']}
+            headers={['Order #', 'Customer', 'Items', 'Total', 'Method / Channel', 'Payment', 'Delivery Status', 'Date', 'Actions']}
             rows={orders.map(o => [
               <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{o.orderNumber}</span>,
               <span style={{ fontWeight: 600 }}>{o.customerName}</span>,
               o.items.length,
               <span style={{ fontWeight: 700 }}>KES {o.subtotal.toLocaleString()}</span>,
+              <div><strong style={{ fontSize:11 }}>{o.paymentMethod}</strong><div style={{ fontSize:10, color:'var(--b360-text-secondary)', marginTop:3 }}>{o.salesChannel}</div></div>,
               <div>
                 <StatusBadge status={o.paymentStatus} />
                 {o.mpesaTransactionCode && (
@@ -302,6 +329,11 @@ export function OrdersPage() {
                     navigator.clipboard.writeText(url)
                     alert(`Card payment link copied for Order ${o.orderNumber}!`)
                   }}>💳 Link</Btn>
+                )}
+                {o.paymentMethod === 'MPESA' && o.paymentStatus === 'PENDING' && (
+                  <Btn small variant="secondary" icon={<RefreshCw size={11} />} disabled={retryingOrderId === o.id} onClick={() => retryMpesa(o)}>
+                    {retryingOrderId === o.id ? 'Sending…' : 'Retry M-Pesa'}
+                  </Btn>
                 )}
               </div>,
             ])}

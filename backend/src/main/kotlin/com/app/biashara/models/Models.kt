@@ -144,6 +144,7 @@ data class OrderResponse(
     val paymentStatus: String,
     val deliveryStatus: String,
     val paymentMethod: String,
+    val salesChannel: String = "WEB",
     val mpesaTransactionCode: String?,
     val subtotal: Double,
     val notes: String,

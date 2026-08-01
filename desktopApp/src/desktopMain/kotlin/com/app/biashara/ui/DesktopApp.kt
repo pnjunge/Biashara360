@@ -481,7 +481,7 @@ fun Biashara360DesktopAppContent(
                         AppScreen.CyberSource -> DesktopPaymentConfigurationScreen()
                         AppScreen.Mpesa -> DesktopPaymentConfigurationScreen()
                         AppScreen.ReceiptTemplate -> DesktopReceiptTemplateScreen()
-                        AppScreen.Reports -> DesktopReportsScreen()
+                        AppScreen.Reports -> DesktopReportsLiveScreen()
                         AppScreen.Tax -> DesktopTaxModernScreen()
                         AppScreen.KRA -> DesktopKraModernScreen()
                         AppScreen.Social -> DesktopSocialModernScreen()

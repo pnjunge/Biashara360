@@ -1,5 +1,17 @@
 
 services:
+  redis:
+    image: valkey/valkey:8-alpine
+    container_name: biashara360-redis
+    command: ["valkey-server", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   postgres:
     image: postgres:16-alpine
     container_name: biashara360-db
@@ -28,6 +40,7 @@ services:
       - ./.env
     environment:
       DATABASE_URL: ${DATABASE_URL:-jdbc:postgresql://postgres:5432/${POSTGRES_DB}}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
@@ -51,6 +64,8 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL}
     depends_on:
+      redis:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     restart: unless-stopped

@@ -93,6 +93,15 @@ class SocialService(
 
     fun connectChannel(businessId: String, req: SocialChannelRequest): ApiResponse<SocialChannelResponse> = transaction {
         val platformName = req.platform.uppercase()
+        if (platformName == "TIKTOK") {
+            return@transaction ApiResponse(
+                false,
+                message = "TikTok messaging onboarding is not available yet"
+            )
+        }
+        if (platformName !in setOf("WHATSAPP", "INSTAGRAM", "FACEBOOK")) {
+            return@transaction ApiResponse(false, message = "Unsupported social platform")
+        }
         if (platformName == "WHATSAPP") {
             if (!isMetaSystemUserConfigured()) {
                 return@transaction ApiResponse(false, message = "Platform WhatsApp credentials are not configured")
@@ -107,6 +116,28 @@ class SocialService(
             }.count() > 0
             if (duplicate) {
                 return@transaction ApiResponse(false, message = "This WhatsApp Business Account or phone number is already connected")
+            }
+        } else {
+            if (req.externalId.isBlank()) {
+                return@transaction ApiResponse(false, message = "Meta account ID is required")
+            }
+            if (req.accessToken.isBlank()) {
+                return@transaction ApiResponse(false, message = "Meta access token is required")
+            }
+            if (tokenCipher == null) {
+                return@transaction ApiResponse(
+                    false,
+                    message = "Secure social credential storage is not configured"
+                )
+            }
+            val duplicate = SocialChannelsTable.select {
+                (SocialChannelsTable.platform eq platformName) and
+                    (SocialChannelsTable.externalId eq req.externalId) and
+                    (SocialChannelsTable.businessId eq businessId) and
+                    (SocialChannelsTable.isActive eq true)
+            }.count() > 0
+            if (duplicate) {
+                return@transaction ApiResponse(false, message = "This account is already connected")
             }
         }
         val id           = generateId()
@@ -123,8 +154,15 @@ class SocialService(
             it[wabaId]                           = req.wabaId
             it[phoneNumberId]                    = req.phoneNumberId
             it[metaBusinessId]                   = req.metaBusinessId
-            it[accessToken]                      = if (platformName == "WHATSAPP") "" else req.accessToken
-            it[refreshToken]                     = if (platformName == "WHATSAPP") null else req.refreshToken
+            it[accessToken]                      = if (platformName == "WHATSAPP") "" else tokenCipher!!.encrypt(req.accessToken)
+            it[refreshToken]                     = if (platformName == "WHATSAPP") {
+                null
+            } else {
+                req.refreshToken?.takeIf(String::isNotBlank)?.let(tokenCipher!!::encrypt)
+            }
+            it[isActive]                        = platformName == "WHATSAPP"
+            it[connectionStatus]                = if (platformName == "WHATSAPP") "CONNECTED" else "ACTION_REQUIRED"
+            it[tokenEncryptionVersion]          = if (platformName == "WHATSAPP") 0 else 1
             it[autoReplyEnabled]                 = req.autoReplyEnabled
             it[aiPersonaPrompt]                  = req.aiPersonaPrompt
             it[webhookVerifyToken]               = verifyToken
@@ -132,7 +170,15 @@ class SocialService(
             it[updatedAt]                        = now
         }
         val channel = SocialChannelsTable.select { SocialChannelsTable.id eq id }.first()
-        ApiResponse(true, data = channel.toChannelResponse(businessId), message = "${req.platform} channel connected")
+        ApiResponse(
+            true,
+            data = channel.toChannelResponse(businessId),
+            message = if (platformName == "WHATSAPP") {
+                "WhatsApp channel connected"
+            } else {
+                "$platformName credentials saved; verification required"
+            }
+        )
     }
 
     suspend fun completeMetaEmbeddedSignup(
@@ -306,18 +352,30 @@ class SocialService(
                     (SocialChannelsTable.businessId eq businessId)
             }.firstOrNull()
         } ?: return ApiResponse(false, message = "Channel not found")
-        if (channel[SocialChannelsTable.platform] != "WHATSAPP") {
-            return ApiResponse(false, message = "Automatic verification is currently available for WhatsApp")
+        val platform = channel[SocialChannelsTable.platform]
+        if (platform == "TIKTOK") {
+            return ApiResponse(false, message = "TikTok messaging onboarding is not available yet")
         }
         return try {
             val token = channelToken(channel)
-            val phoneId = channel[SocialChannelsTable.phoneNumberId] ?: channel[SocialChannelsTable.externalId]
-            val response = graphGet(phoneId, token, "id,display_phone_number,verified_name,quality_rating")
-            val connected = response.first && response.second.string("id") == phoneId
+            val accountId = if (platform == "WHATSAPP") {
+                channel[SocialChannelsTable.phoneNumberId] ?: channel[SocialChannelsTable.externalId]
+            } else {
+                channel[SocialChannelsTable.externalId]
+            }
+            val fields = when (platform) {
+                "WHATSAPP" -> "id,display_phone_number,verified_name,quality_rating"
+                "INSTAGRAM" -> "id,username"
+                "FACEBOOK" -> "id,name"
+                else -> return ApiResponse(false, message = "Unsupported social platform")
+            }
+            val response = graphGet(accountId, token, fields)
+            val connected = response.first && response.second.string("id") == accountId
             val now = Clock.System.now()
             transaction {
                 SocialChannelsTable.update({ SocialChannelsTable.id eq channelId }) {
                     it[connectionStatus] = if (connected) "CONNECTED" else "ACTION_REQUIRED"
+                    it[isActive] = connected
                     if (connected) it[lastVerifiedAt] = now
                     it[updatedAt] = now
                 }
@@ -329,20 +387,23 @@ class SocialService(
                     connectionStatus = if (connected) "CONNECTED" else "ACTION_REQUIRED",
                     phoneNumber = response.second.string("display_phone_number"),
                     displayName = response.second.string("verified_name")
+                        ?: response.second.string("username")
+                        ?: response.second.string("name")
                 ),
-                message = if (connected) "WhatsApp connection verified" else "WhatsApp authorization needs attention"
+                message = if (connected) "$platform connection verified" else "$platform authorization needs attention"
             )
         } catch (_: Exception) {
             transaction {
                 SocialChannelsTable.update({ SocialChannelsTable.id eq channelId }) {
                     it[connectionStatus] = "ACTION_REQUIRED"
+                    it[isActive] = false
                     it[updatedAt] = Clock.System.now()
                 }
             }
             ApiResponse(
                 false,
                 data = SocialConnectionVerificationResponse(false, "ACTION_REQUIRED"),
-                message = "WhatsApp authorization needs attention"
+                message = "$platform authorization needs attention"
             )
         }
     }

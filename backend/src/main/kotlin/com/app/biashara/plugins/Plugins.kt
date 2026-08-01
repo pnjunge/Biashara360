@@ -1,5 +1,7 @@
 package com.app.biashara.plugins
 
+import com.app.biashara.cache.DistributedRateLimiter
+import com.app.biashara.cache.RateLimitStore
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.app.biashara.auth.JwtUtils
@@ -17,10 +19,10 @@ import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.ratelimit.*
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.koin.ktor.ext.get
 
 fun Application.configureSerialization() {
     install(ContentNegotiation) {
@@ -162,9 +164,12 @@ fun Application.configureDefaultHeaders() {
 }
 
 fun Application.configureRateLimiting() {
+    val rateLimitStore = get<RateLimitStore>()
     install(RateLimit) {
         register(RateLimitName("auth-limiter")) {
-            rateLimiter(limit = 10, refillPeriod = 60.seconds)
+            rateLimiter { _, key ->
+                DistributedRateLimiter(rateLimitStore, "auth", key.toString(), limit = 10, windowSeconds = 60)
+            }
             // Use X-Forwarded-For so per-client limiting works behind AWS/Nginx proxies
             requestKey { call ->
                 call.request.headers["X-Forwarded-For"]?.split(",")?.firstOrNull()?.trim()
@@ -172,7 +177,9 @@ fun Application.configureRateLimiting() {
             }
         }
         register(RateLimitName("public-payment-limiter")) {
-            rateLimiter(limit = 10, refillPeriod = 60.seconds)
+            rateLimiter { _, key ->
+                DistributedRateLimiter(rateLimitStore, "public-payment", key.toString(), limit = 10, windowSeconds = 60)
+            }
             requestKey { call -> call.request.origin.remoteHost }
         }
     }

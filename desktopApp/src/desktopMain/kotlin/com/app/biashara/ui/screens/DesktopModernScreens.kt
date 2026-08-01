@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.app.biashara.presentation.viewmodel.PaymentsViewModel
+import com.app.biashara.presentation.viewmodel.ReportsViewModel
 import com.app.biashara.presentation.viewmodel.SocialViewModel
 import com.app.biashara.domain.model.PaymentChannel
 import com.app.biashara.domain.model.TransactionStatus
@@ -42,6 +43,78 @@ private val ModernNavy = Color(0xFF0F1F3A)
 private val ModernMuted = Color(0xFF64748B)
 private val ModernBorder = Color(0xFFE2E8F0)
 private val ModernBackground = Color(0xFFF8FAFC)
+
+@Composable
+fun DesktopReportsLiveScreen(
+    viewModel: ReportsViewModel = remember { inject() }
+) {
+    val state by viewModel.state.collectAsState()
+    var selectedPeriod by remember { mutableStateOf("This Month") }
+    var periodMenuExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { viewModel.loadReport(selectedPeriod) }
+    val summary = state.profitSummary
+
+    ModernPage(
+        "Reports",
+        "Dashboard",
+        "Reports",
+        if (state.isSyncing) "Syncing…" else "Refresh",
+        Icons.Default.Refresh,
+        { viewModel.loadReport(selectedPeriod) },
+        actionEnabled = !state.isSyncing
+    ) {
+        state.error?.let { ComplianceError(it) }
+        Box {
+            OutlinedButton(onClick = { periodMenuExpanded = true }) {
+                Icon(Icons.Default.CalendarMonth, null)
+                Spacer(Modifier.width(8.dp))
+                Text(selectedPeriod)
+            }
+            DropdownMenu(
+                expanded = periodMenuExpanded,
+                onDismissRequest = { periodMenuExpanded = false }
+            ) {
+                listOf("Today", "This Week", "This Month", "This Quarter", "This Year").forEach { period ->
+                    DropdownMenuItem(
+                        text = { Text(period) },
+                        onClick = {
+                            selectedPeriod = period
+                            periodMenuExpanded = false
+                            viewModel.loadReport(period)
+                        }
+                    )
+                }
+            }
+        }
+
+        if (summary != null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                ModernSummary(Modifier.weight(1f), "Revenue", summary.totalRevenue, selectedPeriod, Icons.Default.MonetizationOn, ModernGreen, Color(0xFFE1F8EF))
+                ModernSummary(Modifier.weight(1f), "Expenses", summary.totalExpenses, selectedPeriod, Icons.Default.ReceiptLong, Color(0xFFEF4444), Color(0xFFFEECEC))
+                ModernSummary(Modifier.weight(1f), "Gross Profit", summary.grossProfit, selectedPeriod, Icons.Default.TrendingUp, Color(0xFF2563EB), Color(0xFFE8F1FF))
+                ModernSummary(Modifier.weight(1f), "Net Profit", summary.netProfit, selectedPeriod, Icons.Default.AccountBalance, Color(0xFF7C3AED), Color(0xFFF1EAFE))
+            }
+        } else if (!state.isLoading) {
+            ComplianceError("No synchronized report data is available for $selectedPeriod.")
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, ModernBorder),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Detailed trends", color = ModernNavy, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text(
+                    "Charts and category breakdowns are hidden until the reporting API provides time-series and expense-category data. The totals above come from synchronized orders and expenses.",
+                    color = ModernMuted,
+                    fontSize = 13.sp
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun DesktopPaymentsModernScreen(
@@ -146,22 +219,28 @@ fun DesktopTaxModernScreen() {
         Unit
     }
     LaunchedEffect(Unit) { loadTax() }
-    val rows = listOf(
-        Triple("VAT", summary?.netVat ?: 0.0, "Due 20th"),
-        Triple("TOT", summary?.totAmount ?: 0.0, "Due 20th"),
-        Triple("WHT", summary?.whtAmount ?: 0.0, "Due 20th")
-    ).filter { selectedType == null || it.first == selectedType }
+    val rows = summary?.let {
+        listOf(
+            Triple("VAT", it.netVat, "See KRA calendar"),
+            Triple("TOT", it.totAmount, "See KRA calendar"),
+            Triple("WHT", it.whtAmount, "See KRA calendar")
+        )
+    }.orEmpty().filter { selectedType == null || it.first == selectedType }
     var selectedTax by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     ModernPage(
         "Tax Management", "Dashboard", "Tax", if (loading) "Refreshing…" else "Refresh", Icons.Default.Refresh, loadTax,
         actionEnabled = !loading
     ) {
         error?.let { ComplianceError(it) }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            ModernSummary(Modifier.weight(1f), "VAT Liability", summary?.netVat ?: 0.0, "Current filing period", Icons.Default.ReceiptLong, Color(0xFFEF4444), Color(0xFFFEECEC))
-            ModernSummary(Modifier.weight(1f), "TOT Liability", summary?.totAmount ?: 0.0, "Current filing period", Icons.Default.AccountBalance, Color(0xFF2563EB), Color(0xFFE8F1FF))
-            ModernSummary(Modifier.weight(1f), "Withholding Tax", summary?.whtAmount ?: 0.0, "Current filing period", Icons.Default.RequestQuote, Color(0xFF7C3AED), Color(0xFFF1EAFE))
-            ModernSummary(Modifier.weight(1f), "Total Liability", summary?.totalTaxLiability ?: 0.0, "${summary?.pendingRemittances ?: 0} pending remittances", Icons.Default.Event, ModernGreen, Color(0xFFE1F8EF))
+        if (summary != null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                ModernSummary(Modifier.weight(1f), "VAT Liability", summary!!.netVat, "Current filing period", Icons.Default.ReceiptLong, Color(0xFFEF4444), Color(0xFFFEECEC))
+                ModernSummary(Modifier.weight(1f), "TOT Liability", summary!!.totAmount, "Current filing period", Icons.Default.AccountBalance, Color(0xFF2563EB), Color(0xFFE8F1FF))
+                ModernSummary(Modifier.weight(1f), "Withholding Tax", summary!!.whtAmount, "Current filing period", Icons.Default.RequestQuote, Color(0xFF7C3AED), Color(0xFFF1EAFE))
+                ModernSummary(Modifier.weight(1f), "Total Liability", summary!!.totalTaxLiability, "${summary!!.pendingRemittances} pending remittances", Icons.Default.Event, ModernGreen, Color(0xFFE1F8EF))
+            }
+        } else if (!loading) {
+            ComplianceError("No tax summary is available. No liability values are being shown.")
         }
         ModernTableCard(
             toolbar = {
@@ -173,10 +252,10 @@ fun DesktopTaxModernScreen() {
             },
             headers = listOf("Tax Type", "Taxable Period", "Liability", "Due Date", "Status", "Actions"),
             weights = listOf(1.4f, 1.2f, 1.2f, 1f, 1f, .7f),
-            empty = false,
+            empty = rows.isEmpty(),
             emptyIcon = Icons.Default.ReceiptLong,
-            emptyTitle = "",
-            emptySubtitle = ""
+            emptyTitle = "No tax summary",
+            emptySubtitle = "Refresh after tax reporting is configured."
         ) {
             rows.forEach { (type, amount, due) ->
                 ModernDataRow(listOf(1.4f, 1.2f, 1.2f, 1f, 1f, .7f)) {

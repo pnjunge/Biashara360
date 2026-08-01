@@ -17,6 +17,8 @@ import io.ktor.server.request.*
 import java.util.UUID
 import com.typesafe.config.ConfigFactory
 import io.ktor.server.config.HoconApplicationConfig
+import com.app.biashara.cache.RateLimitStore
+import org.koin.ktor.ext.get
 
 fun main() {
     val port = System.getenv("PORT")?.toIntOrNull() ?: 8080
@@ -32,6 +34,10 @@ fun Application.module() {
 
     // DI
     configureKoin(appConfig)
+    val rateLimitStore = get<RateLimitStore>()
+    environment.monitor.subscribe(ApplicationStopped) {
+        rateLimitStore.close()
+    }
 
     // Plugins
     configureSerialization()
@@ -65,6 +71,7 @@ fun Application.module() {
             // Mpesa Daraja callback — called by Safaricom, no JWT required
             mpesaCallbackRoute()
             publicBusinessRoutes()
+            storefrontRoutes()
             cyberSourcePublicRoutes()
             socialWebhookRoutes()
 

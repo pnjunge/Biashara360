@@ -1,5 +1,6 @@
 package com.app.biashara.routes
 
+import com.app.biashara.cache.RateLimitStore
 import com.app.biashara.db.DatabaseFactory
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -8,6 +9,7 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.Instant
+import org.koin.ktor.ext.inject
 
 /**
  * Comprehensive health check endpoints for monitoring and load balancers.
@@ -33,6 +35,7 @@ data class ComponentHealth(
 private val startTime = System.currentTimeMillis()
 
 fun Route.healthRoutes() {
+    val rateLimitStore: RateLimitStore by inject()
     
     // Load-balancer health check: only accept traffic when the database is reachable.
     get("/health") {
@@ -93,6 +96,23 @@ fun Route.healthRoutes() {
         checks["database"] = dbHealth
         if (dbHealth.status == "down") unhealthy = true
         else if (dbHealth.status == "degraded") degraded = true
+
+        val redisStart = System.currentTimeMillis()
+        val redisAvailable = rateLimitStore.ping()
+        checks["redis"] = ComponentHealth(
+            status = when {
+                !rateLimitStore.configured -> "disabled"
+                redisAvailable -> "up"
+                else -> "degraded"
+            },
+            responseTime = System.currentTimeMillis() - redisStart,
+            message = when {
+                !rateLimitStore.configured -> "Redis is optional; using the local fallback"
+                redisAvailable -> "Redis rate-limit store is reachable"
+                else -> "Redis is unavailable; using the local fallback"
+            }
+        )
+        if (rateLimitStore.configured && !redisAvailable) degraded = true
         
         // Application metrics
         checks["application"] = ComponentHealth(

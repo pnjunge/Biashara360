@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Plus, Download, Share2, FileText, Table, Building2 } from 'lucide-react'
+import { Plus, Download, Share2, FileText, Table, Building2, Copy, ExternalLink } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
-import { expenseApi, paymentApi, orderApi, reportApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, userApi, superAdminApi, businessApi, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest } from '../services/api'
+import { expenseApi, paymentApi, orderApi, reportApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, userApi, superAdminApi, businessApi, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest } from '../services/api'
 import { useAuth } from '../App'
 
 function getCurrentMonthRange() {
@@ -335,15 +335,24 @@ function getPeriodRange(period: string) {
 // ── Reports ───────────────────────────────────────────────────────────────────
 export function ReportsPage() {
   const [profitSummary, setProfitSummary] = useState<ProfitSummaryResponse | null>(null)
+  const [paymentReport, setPaymentReport] = useState<PaymentReportResponse | null>(null)
+  const [orderReport, setOrderReport] = useState<OrderReportResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<string>('This Month')
 
   const loadReport = (selectedPeriod: string) => {
     setLoading(true)
     const { startDate, endDate } = getPeriodRange(selectedPeriod)
-    reportApi.profitSummary(startDate, endDate).then(res => {
-      if (res.success && res.data) setProfitSummary(res.data)
-      else setProfitSummary(null)
+    Promise.all([
+      reportApi.profitSummary(startDate, endDate),
+      reportApi.payments(startDate, endDate),
+      reportApi.orders(startDate, endDate),
+    ]).then(([profit, payments, orders]) => {
+      setProfitSummary(profit.success ? profit.data : null)
+      setPaymentReport(payments.success ? payments.data : null)
+      setOrderReport(orders.success ? orders.data : null)
+    }).catch(() => {
+      setProfitSummary(null); setPaymentReport(null); setOrderReport(null)
     }).finally(() => setLoading(false))
   }
 
@@ -413,7 +422,7 @@ export function ReportsPage() {
                 </div>
                 <div style={{ display:'flex', justifyContent:'space-between' }}>
                   <span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Net Margin</span>
-                  <span style={{ color:'var(--b360-blue)', fontWeight:600, fontSize:12 }}>{(profitSummary.netMargin * 100).toFixed(1)}%</span>
+                  <span style={{ color:'var(--b360-blue)', fontWeight:600, fontSize:12 }}>{profitSummary.netMargin.toFixed(1)}%</span>
                 </div>
               </>
             ) : (
@@ -429,7 +438,7 @@ export function ReportsPage() {
             {profitSummary ? (
               <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                 {[
-                  ['Gross Profit',   profitSummary.grossProfit,  `${(profitSummary.grossMargin * 100).toFixed(1)}% margin`, 'var(--b360-green)'],
+                  ['Gross Profit',   profitSummary.grossProfit,  `${profitSummary.grossMargin.toFixed(1)}% margin`, 'var(--b360-green)'],
                   ['Total Expenses', profitSummary.totalExpenses, 'Operating costs', 'var(--b360-red)'],
                   ['Cash In',        profitSummary.cashflowIn,   'Revenue received', 'var(--b360-blue)'],
                   ['Cash Out',       profitSummary.cashflowOut,  'Expenses paid', 'var(--b360-amber)'],
@@ -450,6 +459,63 @@ export function ReportsPage() {
             )}
           </Card>
         </div>
+      )}
+
+      {!loading && paymentReport && (
+        <Card style={{ padding:20 }}>
+          <h3 style={{ fontWeight:700, margin:'0 0 16px' }}>Payment Report — {period}</h3>
+          <div className="responsive-grid responsive-grid-3" style={{ gap:12, marginBottom:18 }}>
+            <KpiCard title="Transactions" value={String(paymentReport.totalTransactions)} change="Recorded payments" icon={<FileText size={18} />} color="var(--b360-blue)" />
+            <KpiCard title="Collected" value={`KES ${paymentReport.totalAmount.toLocaleString()}`} change="Successful payments" icon={<FileText size={18} />} color="var(--b360-green)" />
+            <KpiCard title="Reconciled" value={`KES ${paymentReport.reconciledAmount.toLocaleString()}`} change="Matched to orders" icon={<FileText size={18} />} color="var(--b360-amber)" />
+          </div>
+          <div className="responsive-grid responsive-grid-2" style={{ gap:16, marginBottom:18 }}>
+            {[['By payment method', paymentReport.byMethod], ['By payment channel', paymentReport.byChannel]].map(([title, values]) => (
+              <div key={title as string} style={{ background:'var(--b360-surface)', padding:14, borderRadius:10 }}>
+                <strong style={{ fontSize:13 }}>{title as string}</strong>
+                {(values as PaymentReportResponse['byMethod']).map(value => <div key={value.label} style={{ display:'flex', justifyContent:'space-between', marginTop:9, fontSize:12 }}><span>{value.label} ({value.count})</span><b>KES {value.amount.toLocaleString()}</b></div>)}
+              </div>
+            ))}
+          </div>
+          {paymentReport.payments.length ? <DataTable headers={['Transaction', 'Payer', 'Method', 'Channel', 'Status', 'Amount', 'Date']} rows={paymentReport.payments.map(payment => [
+            <span style={{ fontFamily:'monospace', fontWeight:700 }}>{payment.transactionCode}</span>,
+            <div><strong>{payment.payerName}</strong><div style={{ fontSize:10, color:'var(--b360-text-secondary)' }}>{payment.payerPhone}</div></div>,
+            payment.method,
+            payment.channel,
+            <StatusBadge status={payment.status} />,
+            <strong>KES {payment.amount.toLocaleString()}</strong>,
+            new Date(payment.transactionDate).toLocaleString('en-KE'),
+          ])} /> : <div style={{ color:'var(--b360-text-secondary)', fontSize:13 }}>No payments in this period.</div>}
+        </Card>
+      )}
+
+      {!loading && orderReport && (
+        <Card style={{ padding:20 }}>
+          <h3 style={{ fontWeight:700, margin:'0 0 16px' }}>Order Report — {period}</h3>
+          <div className="responsive-grid responsive-grid-3" style={{ gap:12, marginBottom:18 }}>
+            <KpiCard title="Orders" value={String(orderReport.totalOrders)} change="Created in period" icon={<FileText size={18} />} color="var(--b360-blue)" />
+            <KpiCard title="Order Value" value={`KES ${orderReport.totalValue.toLocaleString()}`} change="All payment statuses" icon={<FileText size={18} />} color="var(--b360-amber)" />
+            <KpiCard title="Paid Value" value={`KES ${orderReport.paidValue.toLocaleString()}`} change="Paid orders" icon={<FileText size={18} />} color="var(--b360-green)" />
+          </div>
+          <div className="responsive-grid responsive-grid-2" style={{ gap:16, marginBottom:18 }}>
+            {[['By payment method', orderReport.byPaymentMethod], ['By order channel', orderReport.byChannel]].map(([title, values]) => (
+              <div key={title as string} style={{ background:'var(--b360-surface)', padding:14, borderRadius:10 }}>
+                <strong style={{ fontSize:13 }}>{title as string}</strong>
+                {(values as OrderReportResponse['byChannel']).map(value => <div key={value.label} style={{ display:'flex', justifyContent:'space-between', marginTop:9, fontSize:12 }}><span>{value.label} ({value.count})</span><b>KES {value.amount.toLocaleString()}</b></div>)}
+              </div>
+            ))}
+          </div>
+          {orderReport.orders.length ? <DataTable headers={['Order', 'Customer', 'Payment Method', 'Order Channel', 'Payment', 'Delivery', 'Value', 'Date']} rows={orderReport.orders.map(order => [
+            <span style={{ fontFamily:'monospace', fontWeight:700 }}>{order.orderNumber}</span>,
+            order.customerName,
+            order.paymentMethod,
+            order.salesChannel,
+            <StatusBadge status={order.paymentStatus} />,
+            <StatusBadge status={order.deliveryStatus} />,
+            <strong>KES {order.subtotal.toLocaleString()}</strong>,
+            new Date(order.createdAt).toLocaleString('en-KE'),
+          ])} /> : <div style={{ color:'var(--b360-text-secondary)', fontSize:13 }}>No orders in this period.</div>}
+        </Card>
       )}
     </div>
   )
@@ -773,6 +839,7 @@ export function BusinessPage() {
   const [profileError, setProfileError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [storeLinkCopied, setStoreLinkCopied] = useState(false)
 
   const handleToggleBusinessStatus = async (id: string, isActive: boolean) => {
     if (!isActive && !window.confirm('Disable this business account? All merchant access will stop immediately.')) return
@@ -853,6 +920,21 @@ export function BusinessPage() {
       setSaveMsg({ ok: false, text: e.response?.data?.message || 'Network error. Please try again.' })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const storefrontUrl = currentUser?.businessId
+    ? `${window.location.origin}/shop/${currentUser.businessId}`
+    : ''
+
+  const copyStorefrontLink = async () => {
+    if (!storefrontUrl) return
+    try {
+      await navigator.clipboard.writeText(storefrontUrl)
+      setStoreLinkCopied(true)
+      window.setTimeout(() => setStoreLinkCopied(false), 2_000)
+    } catch {
+      setSaveMsg({ ok: false, text: 'Clipboard access was blocked. Copy the URL manually.' })
     }
   }
 
@@ -974,6 +1056,16 @@ export function BusinessPage() {
         <BizField label="Business Type" value={form.type} onChange={f('type')} />
         <BizField label="County"        value={form.county} onChange={f('county')} />
         <BizField label="Address"       value={form.address} onChange={f('address')} />
+      </BizSection>
+      <BizSection title="Online Store">
+        <div style={{ fontSize: 13, color: 'var(--b360-text-secondary)', lineHeight: 1.5 }}>
+          Share this public link with customers. Active products with available stock appear automatically, and customer orders are added to your Orders menu.
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input readOnly value={storefrontUrl} style={{ flex: 1, minWidth: 240, padding: '9px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 12 }} />
+          <Btn variant="secondary" small icon={<Copy size={13} />} onClick={copyStorefrontLink}>{storeLinkCopied ? 'Copied' : 'Copy'}</Btn>
+          <Btn variant="secondary" small icon={<ExternalLink size={13} />} onClick={() => window.open(storefrontUrl, '_blank', 'noopener,noreferrer')}>Open Store</Btn>
+        </div>
       </BizSection>
       <BizSection title="Tax & Compliance">
         <BizField label="KRA PIN" value={form.kraPin} onChange={f('kraPin')} />

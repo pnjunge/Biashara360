@@ -141,6 +141,7 @@ object OrdersTable : Table("orders") {
     val paymentStatus = varchar("payment_status", 20).default("PENDING")
     val deliveryStatus = varchar("delivery_status", 20).default("PENDING")
     val paymentMethod = varchar("payment_method", 30).default("MPESA")
+    val salesChannel = varchar("sales_channel", 30).default("WEB")
     val mpesaTransactionCode = varchar("mpesa_transaction_code", 50).nullable()
     val stkCheckoutRequestId = varchar("stk_checkout_request_id", 100).nullable()
     val notes = text("notes").default("")
@@ -163,6 +164,16 @@ object OrderItemsTable : Table("order_items") {
     val unitPrice = double("unit_price")
     val buyingPrice = double("buying_price")
     override val primaryKey = PrimaryKey(id)
+}
+
+object MpesaCheckoutAttemptsTable : Table("mpesa_checkout_attempts") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id)
+    val orderId = varchar("order_id", 36).references(OrdersTable.id)
+    val checkoutRequestId = varchar("checkout_request_id", 100).uniqueIndex()
+    val createdAt = timestamp("created_at")
+    override val primaryKey = PrimaryKey(id)
+    val orderCreatedAtIdx = index("idx_mpesa_attempts_order_created", false, orderId, createdAt)
 }
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────

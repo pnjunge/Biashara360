@@ -80,6 +80,7 @@ dependencies {
     // Serialization & utils
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.5.0")
+    implementation("io.lettuce:lettuce-core:7.0.0.RELEASE")
 
     // Email (Jakarta Mail for SMTP OTP delivery)
     implementation("com.sun.mail:jakarta.mail:2.0.1")

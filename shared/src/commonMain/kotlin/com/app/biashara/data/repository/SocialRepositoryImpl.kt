@@ -32,6 +32,14 @@ class SocialRepositoryImpl(
         response.data
     }
 
+    override suspend fun verifyChannel(id: String): Result<Unit> = runCatching {
+        val response: ApiResponse<SocialConnectionVerification> =
+            client.post("$BASE_URL/social/channels/$id/verify").body()
+        if (!response.success || response.data?.connected != true) {
+            throw Exception(response.message.ifBlank { "Channel verification failed" })
+        }
+    }
+
     override suspend fun updateChannelSettings(
         id: String,
         channelName: String,

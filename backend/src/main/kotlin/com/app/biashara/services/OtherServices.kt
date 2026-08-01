@@ -1,5 +1,6 @@
 package com.app.biashara.services
 
+import com.app.biashara.cache.CacheStore
 import com.app.biashara.auth.generateId
 import com.app.biashara.db.*
 import com.app.biashara.models.*
@@ -10,6 +11,9 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.plus
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -327,16 +331,22 @@ data class PaymentResponse(
 
 class DashboardService(
     private val productService: ProductService,
-    private val orderService: OrderService
+    private val orderService: OrderService,
+    private val cacheStore: CacheStore
 ) {
 
-    fun getDashboard(businessId: String): DashboardResponse = transaction {
-        val tz         = TimeZone.of("Africa/Nairobi")
-        val now        = Clock.System.now()
-        val localNow   = now.toLocalDateTime(tz)
-        val today      = localNow.date
-        val todayStart = today.atStartOfDayIn(tz)
-        val monthStart = LocalDate(today.year, today.monthNumber, 1).atStartOfDayIn(tz)
+    suspend fun getDashboard(businessId: String): DashboardResponse {
+        val cacheKey = "cache:dashboard:$businessId"
+        cacheStore.get(cacheKey)?.let { cached ->
+            runCatching { Json.decodeFromString<DashboardResponse>(cached) }.getOrNull()?.let { return it }
+        }
+        val dashboard = transaction {
+            val tz         = TimeZone.of("Africa/Nairobi")
+            val now        = Clock.System.now()
+            val localNow   = now.toLocalDateTime(tz)
+            val today      = localNow.date
+            val todayStart = today.atStartOfDayIn(tz)
+            val monthStart = LocalDate(today.year, today.monthNumber, 1).atStartOfDayIn(tz)
 
         // Revenue this calendar month (paid orders)
         val totalRevenueMonth = OrdersTable
@@ -409,16 +419,23 @@ class DashboardService(
         val recentOrders    = orderService.getAll(businessId, null, 1, 5).data
         val lowStockProducts = productService.getAll(businessId, null, lowStockOnly = true).take(10)
 
-        DashboardResponse(
-            totalRevenueMonth  = totalRevenueMonth,
-            netProfitMonth     = netProfitMonth,
-            totalOrdersToday   = totalOrdersToday,
-            pendingOrdersCount = pendingOrdersCount,
-            lowStockCount      = lowStockCount,
-            totalCustomers     = totalCustomers,
-            unpaidOrdersCount  = unpaidOrdersCount,
-            recentOrders       = recentOrders,
-            lowStockProducts   = lowStockProducts
-        )
+            DashboardResponse(
+                totalRevenueMonth  = totalRevenueMonth,
+                netProfitMonth     = netProfitMonth,
+                totalOrdersToday   = totalOrdersToday,
+                pendingOrdersCount = pendingOrdersCount,
+                lowStockCount      = lowStockCount,
+                totalCustomers     = totalCustomers,
+                unpaidOrdersCount  = unpaidOrdersCount,
+                recentOrders       = recentOrders,
+                lowStockProducts   = lowStockProducts
+            )
+        }
+        cacheStore.put(cacheKey, Json.encodeToString(dashboard), DASHBOARD_CACHE_TTL_SECONDS)
+        return dashboard
+    }
+
+    private companion object {
+        const val DASHBOARD_CACHE_TTL_SECONDS = 30L
     }
 }

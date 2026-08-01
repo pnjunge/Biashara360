@@ -459,7 +459,7 @@ fun DesktopDashboardScreen(
                 modifier = Modifier.weight(1f),
                 title = "Revenue (${state.selectedPeriod.label})",
                 value = "KES ${String.format("%,.0f", state.monthRevenue)}",
-                change = "↑ 12% from last period",
+                change = "Period: ${state.selectedPeriod.label}",
                 icon = Icons.Default.TrendingUp,
                 color = B360Green,
                 bgColor = Color(0xFFE6F7F0)
@@ -468,7 +468,7 @@ fun DesktopDashboardScreen(
                 modifier = Modifier.weight(1f),
                 title = "Net Profit",
                 value = "KES ${String.format("%,.0f", state.netProfit)}",
-                change = "↑ 8% from last period",
+                change = "Current net profit",
                 icon = Icons.Default.AccountBalance,
                 color = B360Blue,
                 bgColor = Color(0xFFE0F2FE)
@@ -477,7 +477,7 @@ fun DesktopDashboardScreen(
                 modifier = Modifier.weight(1f),
                 title = "Orders Today",
                 value = state.totalOrders.toString(),
-                change = "↑ 3 from yesterday",
+                change = "Period: ${state.selectedPeriod.label}",
                 icon = Icons.Default.ShoppingCart,
                 color = B360Amber,
                 bgColor = Color(0xFFFEF3C7)
@@ -549,30 +549,8 @@ fun DesktopDashboardScreen(
                             }
                         }
                     }
-                    val dayRevenue = remember(state.recentOrders) {
-                        val daysOfWeek = listOf(
-                            kotlinx.datetime.DayOfWeek.MONDAY,
-                            kotlinx.datetime.DayOfWeek.TUESDAY,
-                            kotlinx.datetime.DayOfWeek.WEDNESDAY,
-                            kotlinx.datetime.DayOfWeek.THURSDAY,
-                            kotlinx.datetime.DayOfWeek.FRIDAY,
-                            kotlinx.datetime.DayOfWeek.SATURDAY,
-                            kotlinx.datetime.DayOfWeek.SUNDAY
-                        )
-                        val map = daysOfWeek.associateWith { 0f }.toMutableMap()
-                        state.recentOrders.forEach { order ->
-                            try {
-                                val localDateTime = order.createdAt.toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
-                                val day = localDateTime.dayOfWeek
-                                map[day] = (map[day] ?: 0f) + order.subtotal.toFloat()
-                            } catch (_: Exception) {}
-                        }
-                        val list = daysOfWeek.map { map[it] ?: 0f }
-                        if (list.all { it == 0f }) {
-                            listOf(18000f, 24000f, 19000f, 31000f, 27000f, 22000f, 34000f)
-                        } else {
-                            list
-                        }
+                    val dayRevenue = remember(state.weeklyRevenue) {
+                        state.weeklyRevenue.map { (_, revenue) -> revenue.toFloat() }
                     }
                     RevenueBarChart(data = dayRevenue)
                 }
@@ -595,8 +573,6 @@ fun DesktopDashboardScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         AlertCard("${state.lowStockCount} products low stock", Icons.Default.Warning, B360Amber, Color(0xFFFEF3C7))
                         AlertCard("${state.pendingOrders} unpaid orders", Icons.Default.PendingActions, B360Red, Color(0xFFFEE2E2))
-                        AlertCard("5 new customers this week", Icons.Default.PersonAdd, B360Green, Color(0xFFE6F7F0))
-                        AlertCard("Mpesa: 2 unreconciled", Icons.Default.SyncProblem, B360Blue, Color(0xFFE0F2FE))
                     }
                 }
             }
@@ -860,7 +836,7 @@ fun KpiCard(
 
 @Composable
 fun RevenueBarChart(
-    data: List<Float> = listOf(18000f, 24000f, 19000f, 31000f, 27000f, 22000f, 34000f)
+    data: List<Float>
 ) {
     val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     val max = if (data.isEmpty() || data.max() == 0f) 1f else data.max()
@@ -2613,6 +2589,7 @@ fun DesktopPaymentsScreen(
 // ─── Reports ──────────────────────────────────────────────────────────────────
 
 @Composable
+@Deprecated("Legacy prototype with synthetic chart data; use DesktopReportsLiveScreen", level = DeprecationLevel.ERROR)
 fun DesktopReportsScreen(
     viewModel: ReportsViewModel = remember { inject() }
 ) {
@@ -2993,7 +2970,7 @@ fun SettingsTabChip(
 fun DesktopSettingsScreen(
     viewModel: BusinessViewModel = remember { inject() }
 ) {
-    var activeTab by remember { mutableStateOf(SettingsTab.Receipt) }
+    var activeTab by remember { mutableStateOf(SettingsTab.General) }
 
     Column(
         Modifier
@@ -3039,65 +3016,32 @@ fun DesktopSettingsScreen(
                 SettingsTab.General -> {
                     val scrollState = rememberScrollState()
                     val profileState by viewModel.profileState.collectAsState()
-                    val mpesaState by viewModel.mpesaState.collectAsState()
 
                     LaunchedEffect(Unit) {
                         viewModel.loadProfile()
-                        viewModel.loadMpesaConfig()
                     }
 
                     val profile = profileState.profile
-                    val mpesaConfig = mpesaState.config
 
                     var nameInput by remember { mutableStateOf("") }
                     var phoneInput by remember { mutableStateOf("") }
                     var typeInput by remember { mutableStateOf("") }
-                    var shortCodeInput by remember { mutableStateOf("") }
 
                     // Inline editing states
                     var isEditingName by remember { mutableStateOf(false) }
                     var isEditingPhone by remember { mutableStateOf(false) }
                     var isEditingType by remember { mutableStateOf(false) }
-                    var isEditingShortCode by remember { mutableStateOf(false) }
 
                     LaunchedEffect(profile) {
                         if (profile != null) {
                             nameInput = profile.name
                             phoneInput = profile.phone
                             typeInput = profile.type
-                        } else {
-                            nameInput = "Wanjiru's Fashion"
-                            phoneInput = "+254712345678"
-                            typeInput = "Retail"
                         }
                     }
-
-                    LaunchedEffect(mpesaConfig) {
-                        if (mpesaConfig != null) {
-                            shortCodeInput = mpesaConfig.shortCode
-                        } else {
-                            shortCodeInput = "174379"
-                        }
-                    }
-
-                    var backendUrl by remember { mutableStateOf(com.app.biashara.data.remote.BASE_URL) }
 
                     fun saveField(fieldName: String, value: String) {
-                        val currentProfile = profile ?: BusinessProfile(
-                            id = "default",
-                            name = nameInput,
-                            owner = profile?.owner ?: "Wanjiru",
-                            phone = phoneInput,
-                            email = profile?.email ?: "wanjiru@fashion.com",
-                            type = typeInput,
-                            county = profile?.county ?: "Nairobi",
-                            address = profile?.address ?: "Kenyatta Ave",
-                            kraPin = profile?.kraPin ?: "",
-                            paybillNumber = shortCodeInput,
-                            accountNumber = profile?.accountNumber ?: "",
-                            subscriptionTier = profile?.subscriptionTier ?: "FREEMIUM",
-                            subscriptionEnabled = profile?.subscriptionEnabled ?: true
-                        )
+                        val currentProfile = profile ?: return
                         when (fieldName) {
                             "name" -> {
                                 viewModel.updateProfile(currentProfile.copy(name = value))
@@ -3110,14 +3054,6 @@ fun DesktopSettingsScreen(
                             "type" -> {
                                 viewModel.updateProfile(currentProfile.copy(type = value))
                                 isEditingType = false
-                            }
-                            "shortCode" -> {
-                                val configReq = MpesaConfigRequest(
-                                    shortCode = value,
-                                    callbackUrl = mpesaConfig?.callbackUrl ?: ""
-                                )
-                                viewModel.saveMpesaConfig(configReq)
-                                isEditingShortCode = false
                             }
                         }
                     }
@@ -3161,14 +3097,14 @@ fun DesktopSettingsScreen(
                                 onValueChange = { typeInput = it },
                                 onSave = { saveField("type", typeInput) }
                             )
-                            SettingsField(
-                                label = "Mpesa Short Code",
-                                value = shortCodeInput,
-                                icon = Icons.Default.PhoneAndroid,
-                                isEditing = isEditingShortCode,
-                                onEditToggle = { isEditingShortCode = it },
-                                onValueChange = { shortCodeInput = it },
-                                onSave = { saveField("shortCode", shortCodeInput) }
+                            Text(
+                                if (profile == null && !profileState.isLoading) {
+                                    profileState.error ?: "Business profile is unavailable. Editing is disabled."
+                                } else {
+                                    "Payment configuration is read-only on desktop and is managed in the Payment Configuration tabs."
+                                },
+                                color = if (profile == null && !profileState.isLoading) B360Red else Color(0xFF64748B),
+                                fontSize = 13.sp
                             )
                         }
 
@@ -3178,9 +3114,11 @@ fun DesktopSettingsScreen(
                             subtitle = "Manage your account security and notification preferences",
                             icon = Icons.Default.Shield
                         ) {
-                            SettingsToggle("Two-Factor Authentication (2FA)", true, icon = Icons.Default.Lock)
-                            SettingsToggle("Email Notifications", true, icon = Icons.Default.Email)
-                            SettingsToggle("SMS Alerts", false, icon = Icons.Default.Message)
+                            Text(
+                                "Security and notification preferences are managed in the web application. Desktop does not display unsaved toggle states.",
+                                color = Color(0xFF64748B),
+                                fontSize = 13.sp
+                            )
                         }
 
                         // Section 3: Subscription
@@ -3247,38 +3185,19 @@ fun DesktopSettingsScreen(
                         // Section 4: Backend Connectivity
                         SettingsSection(
                             title = "Backend Connectivity",
-                            subtitle = "Configure your backend servers and environment endpoints",
+                            subtitle = "Application service endpoint",
                             icon = Icons.Default.Link
                         ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                OutlinedTextField(
-                                    value = backendUrl,
-                                    onValueChange = { backendUrl = it },
-                                    label = { Text("Backend URL") },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = B360Green,
-                                        unfocusedBorderColor = Color(0xFFCBD5E1)
-                                    )
-                                )
-                                Button(
-                                    onClick = {
-                                        val configDir = File(System.getProperty("user.home"), ".biashara360")
-                                        if (!configDir.exists()) configDir.mkdirs()
-                                        val configFile = File(configDir, "base_url.txt")
-                                        configFile.writeText(backendUrl.trim())
-                                        com.app.biashara.data.remote.BASE_URL = backendUrl.trim()
-                                    },
-                                    colors = ButtonDefaults.buttonColors(B360Green),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Save Backend URL")
-                                }
-                            }
+                            Text(
+                                com.app.biashara.data.remote.BASE_URL,
+                                color = Color(0xFF334155),
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                "This endpoint is read-only and can only be changed by deployment configuration.",
+                                color = Color(0xFF64748B),
+                                fontSize = 12.sp
+                            )
                         }
                     }
                 }
@@ -3492,6 +3411,7 @@ fun SettingsToggle(
 
 // ── Tax Screen ────────────────────────────────────────────────────────────────
 @Composable
+@Deprecated("Legacy prototype with static tax data; use DesktopTaxModernScreen", level = DeprecationLevel.ERROR)
 fun DesktopTaxScreen() {
     val taxTypes = listOf(
         Triple("VAT 16%", "KES 48,000", "Due 20th"),
@@ -3530,6 +3450,7 @@ fun DesktopTaxScreen() {
 
 // ── KRA iTax Screen ───────────────────────────────────────────────────────────
 @Composable
+@Deprecated("Legacy prototype with static KRA data; use DesktopKraModernScreen", level = DeprecationLevel.ERROR)
 fun DesktopKraScreen() {
     val returns = listOf(
         Triple("VAT3 - Feb 2025", "Submitted", "KES 48,000"),
@@ -3759,6 +3680,7 @@ fun DesktopCyberSourceSettingsScreen(
 }
 
 @Composable
+@Deprecated("Legacy editable payment screen; use DesktopPaymentConfigurationScreen", level = DeprecationLevel.ERROR)
 fun DesktopMpesaScreen(
     viewModel: BusinessViewModel = remember { inject() }
 ) {

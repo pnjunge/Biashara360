@@ -18,13 +18,8 @@ fun main() {
     System.getenv("SESSION_IDLE_TIMEOUT_SECONDS")?.toLongOrNull()?.let {
         com.app.biashara.data.remote.SESSION_IDLE_TIMEOUT_SECONDS = it
     }
-    // Resolve BASE_URL before Koin starts so all HTTP clients use the correct endpoint
-    val savedUrl = runCatching {
-        val configFile = java.io.File(System.getProperty("user.home"), ".biashara360/base_url.txt")
-        if (configFile.exists()) configFile.readText().trim() else null
-    }.getOrNull()
-    com.app.biashara.data.remote.BASE_URL = savedUrl
-        ?: System.getenv("BASE_URL")
+    // Endpoint overrides are deployment configuration, not an end-user setting.
+    com.app.biashara.data.remote.BASE_URL = System.getenv("BASE_URL")
         ?: "https://sddgmezqj2.us-east-1.awsapprunner.com/v1"
 
     // Guard against double-initialization (e.g. on hot-restart in dev)

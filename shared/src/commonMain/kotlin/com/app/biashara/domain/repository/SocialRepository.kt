@@ -5,6 +5,7 @@ import com.app.biashara.domain.model.*
 interface SocialRepository {
     suspend fun getChannels(): Result<List<SocialChannel>>
     suspend fun createChannel(req: SocialChannelRequest): Result<SocialChannel>
+    suspend fun verifyChannel(id: String): Result<Unit>
     suspend fun updateChannelSettings(
         id: String,
         channelName: String,

@@ -33,6 +33,14 @@ data class SocialChannelRequest(
 )
 
 @Serializable
+data class SocialConnectionVerification(
+    val connected: Boolean,
+    val connectionStatus: String,
+    val phoneNumber: String? = null,
+    val displayName: String? = null
+)
+
+@Serializable
 data class ConversationSummary(
     val id: String,
     val platform: String,

@@ -134,6 +134,7 @@ export interface OrderResponse {
   customerName: string; customerPhone: string; deliveryLocation: string
   items: OrderItemResponse[]; paymentStatus: string; deliveryStatus: string
   paymentMethod: string; mpesaTransactionCode: string | null; subtotal: number
+  salesChannel: string
   notes: string; createdAt: string; updatedAt: string
 }
 
@@ -161,6 +162,18 @@ export interface ProfitSummaryResponse {
   period: string; totalRevenue: number; totalCostOfGoods: number
   grossProfit: number; grossMargin: number; totalExpenses: number
   netProfit: number; netMargin: number; cashflowIn: number; cashflowOut: number
+}
+
+export interface ReportBreakdown { label: string; count: number; amount: number }
+export interface PaymentReportResponse {
+  period: string; totalTransactions: number; totalAmount: number; reconciledAmount: number
+  byMethod: ReportBreakdown[]; byChannel: ReportBreakdown[]
+  payments: Array<{ transactionCode: string; orderId: string | null; amount: number; payerName: string; payerPhone: string; method: string; channel: string; status: string; reconciled: boolean; transactionDate: string }>
+}
+export interface OrderReportResponse {
+  period: string; totalOrders: number; totalValue: number; paidValue: number
+  byPaymentMethod: ReportBreakdown[]; byChannel: ReportBreakdown[]
+  orders: Array<{ orderId: string; orderNumber: string; customerName: string; subtotal: number; paymentStatus: string; deliveryStatus: string; paymentMethod: string; salesChannel: string; createdAt: string }>
 }
 
 export interface TaxRateResponse {
@@ -222,6 +235,79 @@ export interface MetaOnboardingConfiguration {
   configurationId: string | null
   graphApiVersion: string
   missing: string[]
+}
+
+export interface StorefrontProduct {
+  id: string
+  sku: string
+  name: string
+  description: string
+  sellingPrice: number
+  availableQuantity: number
+  category: string
+  imageUrl: string | null
+}
+
+export interface Storefront {
+  businessId: string
+  businessName: string
+  businessType: string
+  county: string | null
+  address: string | null
+  currency: string
+  welcomeMessage: string
+  products: StorefrontProduct[]
+}
+
+export interface StorefrontCheckoutResult {
+  orderId: string
+  orderNumber: string
+  clientReference: string
+  amount: number
+  paymentStatus: string
+  customerMessage: string | null
+  checkoutRequestId: string | null
+}
+
+export interface StorefrontOrderStatus {
+  orderId: string
+  orderNumber: string
+  amount: number
+  paymentStatus: string
+  deliveryStatus: string
+}
+
+export const storefrontApi = {
+  get: async (businessId: string) => {
+    const res = await client.get<ApiResponse<Storefront>>(`/public/store/${encodeURIComponent(businessId)}`)
+    return res.data
+  },
+  checkout: async (businessId: string, data: {
+    clientReference: string
+    customerName: string
+    customerPhone: string
+    deliveryLocation: string
+    notes?: string
+    items: Array<{ productId: string; quantity: number }>
+  }) => {
+    const res = await client.post<ApiResponse<StorefrontCheckoutResult>>(
+      `/public/store/${encodeURIComponent(businessId)}/checkout`, data
+    )
+    return res.data
+  },
+  retryMpesa: async (businessId: string, orderId: string, data: { clientReference: string; customerPhone: string }) => {
+    const res = await client.post<ApiResponse<StorefrontCheckoutResult>>(
+      `/public/store/${encodeURIComponent(businessId)}/orders/${encodeURIComponent(orderId)}/mpesa`, data
+    )
+    return res.data
+  },
+  orderStatus: async (businessId: string, orderId: string, reference: string) => {
+    const params = new URLSearchParams({ reference })
+    const res = await client.get<ApiResponse<StorefrontOrderStatus>>(
+      `/public/store/${encodeURIComponent(businessId)}/orders/${encodeURIComponent(orderId)}?${params}`
+    )
+    return res.data
+  }
 }
 
 export interface ConversationSummary {
@@ -288,7 +374,7 @@ export interface CsChargeResponse {
 
 export interface StkPushResponse {
   checkoutRequestId: string; merchantRequestId: string
-  responseCode: string; responseDescription: string
+  responseCode: string; responseDescription: string; customerMessage?: string
 }
 
 export interface UserResponse {
@@ -445,6 +531,16 @@ export const reportApi = {
     const res = await client.get<ApiResponse<ProfitSummaryResponse>>(
       `/reports/profit-summary?startDate=${startDate}&endDate=${endDate}`
     )
+    return res.data
+  },
+  payments: async (startDate: string, endDate: string) => {
+    const params = new URLSearchParams({ startDate, endDate })
+    const res = await client.get<ApiResponse<PaymentReportResponse>>(`/reports/payments?${params}`)
+    return res.data
+  },
+  orders: async (startDate: string, endDate: string) => {
+    const params = new URLSearchParams({ startDate, endDate })
+    const res = await client.get<ApiResponse<OrderReportResponse>>(`/reports/orders?${params}`)
     return res.data
   },
 }

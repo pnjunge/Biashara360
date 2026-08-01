@@ -17,7 +17,8 @@ const PLATFORMS = [
     bg: '#E8FBF0',
     icon: '💬',
     desc: 'Connect via Meta Cloud API to send automated catalogs, payment pings, and chat alerts.',
-    docsUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api'
+    docsUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api',
+    available: true
   },
   {
     id: 'INSTAGRAM',
@@ -25,8 +26,9 @@ const PLATFORMS = [
     color: '#E1306C',
     bg: '#FDE8F0',
     icon: '📸',
-    desc: 'Automate replies to direct messages (DMs) and post comments to boost story engagements.',
-    docsUrl: 'https://developers.facebook.com/docs/instagram-api'
+    desc: 'Handle direct messages for an Instagram professional account through the Meta Graph API.',
+    docsUrl: 'https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/messaging-api',
+    available: true
   },
   {
     id: 'FACEBOOK',
@@ -35,7 +37,8 @@ const PLATFORMS = [
     bg: '#E7F0FE',
     icon: '👥',
     desc: 'Handle Messenger inquiries and sync comments from promotional posts seamlessly.',
-    docsUrl: 'https://developers.facebook.com/docs/messenger-platform'
+    docsUrl: 'https://developers.facebook.com/docs/messenger-platform',
+    available: true
   },
   {
     id: 'TIKTOK',
@@ -43,10 +46,51 @@ const PLATFORMS = [
     color: '#000000',
     bg: '#F0F0F0',
     icon: '🎵',
-    desc: 'Engage with customer inquiries on direct messages and sync TikTok Shop updates.',
-    docsUrl: 'https://developers.tiktok.com/doc/business-api-direct-messages'
+    desc: 'TikTok messaging is not currently supported by this integration.',
+    docsUrl: 'https://developers.tiktok.com/doc/webhooks-overview',
+    available: false
   }
 ]
+
+const AVAILABLE_PLATFORMS = PLATFORMS.filter(platform => platform.available)
+
+const META_SETUP: Record<string, {
+  idLabel: string
+  tokenLabel: string
+  tokenHint: string
+  heading: string
+  verifyDescription: string
+  checklist: string[]
+}> = {
+  FACEBOOK: {
+    idLabel: 'Facebook Page ID *',
+    tokenLabel: 'Page Access Token *',
+    tokenHint: 'Use a Page access token with the permissions approved for your Messenger integration.',
+    heading: 'Configure Webhooks in Meta App Dashboard',
+    verifyDescription: 'Biashara360 will query Meta for this Facebook Page. No customer message is sent.',
+    checklist: [
+      'Open your app in Meta for Developers',
+      'Add or open the Messenger product',
+      'Configure the callback URL and verify token',
+      'Subscribe the Page to messages and messaging_postbacks',
+      'Save the webhook subscription'
+    ]
+  },
+  INSTAGRAM: {
+    idLabel: 'Instagram Professional Account ID *',
+    tokenLabel: 'Instagram Access Token *',
+    tokenHint: 'Use the token issued for the professional account and permissions approved for Instagram messaging.',
+    heading: 'Configure Webhooks in Meta App Dashboard',
+    verifyDescription: 'Biashara360 will query Meta for this Instagram professional account. No customer message is sent.',
+    checklist: [
+      'Open your app in Meta for Developers',
+      'Add or open the Instagram product',
+      'Configure the callback URL and verify token',
+      'Subscribe the professional account to messaging events',
+      'Save the webhook subscription'
+    ]
+  }
+}
 
 // Steps for the Onboarding wizard
 const STEPS = [
@@ -87,6 +131,7 @@ export default function SocialOnboardingPage() {
   const [createdChannel, setCreatedChannel] = useState<SocialChannel | null>(null)
   const [copiedText, setCopiedText] = useState<'url' | 'token' | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const [loadError, setLoadError] = useState('')
 
   // Real provider connection verification
   const [verificationStage, setVerificationStage] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle')
@@ -220,24 +265,38 @@ export default function SocialOnboardingPage() {
       const res = await socialApi.getChannels()
       if (res.success && res.data) {
         setChannels(res.data)
+        setLoadError('')
+      } else {
+        setLoadError(res.message || 'Unable to load connected social channels.')
       }
     } catch (_) {
-      // ignore
+      setLoadError('Unable to load connected social channels.')
     } finally {
       setLoading(false)
     }
   }
 
-  const copyToClipboard = (text: string, type: 'url' | 'token') => {
-    navigator.clipboard.writeText(text)
-    setCopiedText(type)
-    setTimeout(() => setCopiedText(null), 2000)
+  const copyToClipboard = async (text: string, type: 'url' | 'token') => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedText(type)
+      setTimeout(() => setCopiedText(null), 2000)
+    } catch {
+      setErrorMsg('Your browser blocked clipboard access. Select and copy the value manually.')
+    }
   }
 
   const handleSelectPlatform = (platformId: string) => {
+    if (!PLATFORMS.find(platform => platform.id === platformId)?.available) return
     setSelectedPlatform(platformId)
     // Pre-fill name suggestion
     setChannelName(`${PLATFORMS.find(p => p.id === platformId)?.name} Integration`)
+    setExternalId('')
+    setAccessToken('')
+    setCreatedChannel(null)
+    setVerificationStage('idle')
+    setVerificationLogs([])
+    setErrorMsg('')
     setCurrentStep(1)
   }
 
@@ -247,7 +306,9 @@ export default function SocialOnboardingPage() {
       return
     }
     if (!externalId.trim()) {
-      setErrorMsg(selectedPlatform === 'WHATSAPP' ? 'Phone Number ID is required.' : 'External ID is required.')
+      setErrorMsg(selectedPlatform === 'FACEBOOK'
+        ? 'Facebook Page ID is required.'
+        : 'Instagram professional account ID is required.')
       return
     }
     if (selectedPlatform === 'WHATSAPP' && (!wabaId.trim() || !metaBusinessId.trim())) {
@@ -293,25 +354,24 @@ export default function SocialOnboardingPage() {
     if (!createdChannel) return
     setVerificationStage('testing')
     setVerifyProgress(0.25)
-    setVerificationLogs(['Checking the merchant authorization with Meta...'])
+    setVerificationLogs([`Checking ${platformMeta?.name || 'provider'} authorization...`])
     try {
       const res = await socialApi.verifyChannel(createdChannel.id)
       if (res.success && res.data?.connected) {
         setVerificationLogs([
-          'Merchant authorization confirmed.',
-          'WhatsApp Business phone number is accessible.',
-          'Webhook subscription is active.',
+          `${platformMeta?.name || 'Account'} authorization confirmed.`,
+          'The configured account ID is accessible.',
           'Connection is ready.'
         ])
         setVerificationStage('success')
         setVerifyProgress(1)
       } else {
-        setVerificationLogs([res.message || 'Meta reported that the connection needs attention.'])
+        setVerificationLogs([res.message || `${platformMeta?.name || 'The provider'} reported that the connection needs attention.`])
         setVerificationStage('failed')
         setVerifyProgress(1)
       }
     } catch (e: any) {
-      setVerificationLogs([e.response?.data?.message || 'Unable to verify the Meta connection.'])
+      setVerificationLogs([e.response?.data?.message || `Unable to verify the ${platformMeta?.name || 'provider'} connection.`])
       setVerificationStage('failed')
       setVerifyProgress(1)
     }
@@ -349,7 +409,11 @@ export default function SocialOnboardingPage() {
   }
 
   const platformMeta = PLATFORMS.find(p => p.id === selectedPlatform)
-  const overallProgress = (channels.length / PLATFORMS.length)
+  const setupMeta = META_SETUP[selectedPlatform]
+  const connectedPlatformCount = AVAILABLE_PLATFORMS.filter(
+    platform => channels.some(channel => channel.platform === platform.id && channel.isActive)
+  ).length
+  const overallProgress = connectedPlatformCount / AVAILABLE_PLATFORMS.length
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1000, margin: '0 auto', paddingBottom: 40 }}>
@@ -363,6 +427,8 @@ export default function SocialOnboardingPage() {
         }
       />
 
+      {loadError && <AlertBanner message={loadError} icon={<AlertCircle size={16} />} color="var(--b360-red)" />}
+
       {/* ── Setup Summary Dashboard Card ── */}
       <Card style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, background: 'linear-gradient(135deg, #ffffff 0%, #f9fbfd 100%)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
@@ -374,7 +440,7 @@ export default function SocialOnboardingPage() {
           </div>
           <div style={{ textAlign: 'right', minWidth: 150 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--b360-green)' }}>
-              {channels.length} of {PLATFORMS.length} Channels Connected
+              {connectedPlatformCount} of {AVAILABLE_PLATFORMS.length} Available Platforms Connected
             </span>
             <div style={{ marginTop: 6 }}>
               <ProgressBar value={overallProgress} />
@@ -404,6 +470,7 @@ export default function SocialOnboardingPage() {
               >
                 <span>{p.icon}</span>
                 <span>{p.name}</span>
+                {!p.available && <span>— Coming soon</span>}
                 <span
                   style={{
                     width: 6,
@@ -477,13 +544,23 @@ export default function SocialOnboardingPage() {
               return (
                 <div
                   key={p.id}
-                  onClick={() => handleSelectPlatform(p.id)}
+                  onClick={() => p.available && handleSelectPlatform(p.id)}
+                  role={p.available ? 'button' : undefined}
+                  tabIndex={p.available ? 0 : undefined}
+                  onKeyDown={event => {
+                    if (p.available && (event.key === 'Enter' || event.key === ' ')) {
+                      event.preventDefault()
+                      handleSelectPlatform(p.id)
+                    }
+                  }}
+                  aria-disabled={!p.available}
                   style={{
                     background: 'white',
                     borderRadius: 'var(--radius-md)',
                     border: `1.5px solid ${isConnected ? p.color : 'var(--b360-border)'}`,
                     padding: 24,
-                    cursor: 'pointer',
+                    cursor: p.available ? 'pointer' : 'not-allowed',
+                    opacity: p.available ? 1 : 0.65,
                     transition: 'transform 0.2s, box-shadow 0.2s',
                     position: 'relative',
                     overflow: 'hidden',
@@ -493,6 +570,7 @@ export default function SocialOnboardingPage() {
                     boxShadow: 'var(--shadow-sm)'
                   }}
                   onMouseEnter={e => {
+                    if (!p.available) return
                     e.currentTarget.style.transform = 'translateY(-2px)'
                     e.currentTarget.style.boxShadow = 'var(--shadow-md)'
                   }}
@@ -501,7 +579,23 @@ export default function SocialOnboardingPage() {
                     e.currentTarget.style.boxShadow = 'var(--shadow-sm)'
                   }}
                 >
-                  {isConnected && (
+                  {!p.available ? (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        background: '#64748B',
+                        color: 'white',
+                        padding: '4px 10px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        borderBottomLeftRadius: 8
+                      }}
+                    >
+                      COMING SOON
+                    </div>
+                  ) : isConnected && (
                     <div
                       style={{
                         position: 'absolute',
@@ -543,8 +637,8 @@ export default function SocialOnboardingPage() {
                   </div>
 
                   <div style={{ marginTop: 24, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: p.color }}>
-                    <span>{isConnected ? 'Add Another Account' : 'Connect Now'}</span>
-                    <ArrowRight size={14} />
+                    <span>{!p.available ? 'Unavailable' : isConnected ? 'Add Another Account' : 'Connect Now'}</span>
+                    {p.available && <ArrowRight size={14} />}
                   </div>
                 </div>
               )
@@ -606,13 +700,7 @@ export default function SocialOnboardingPage() {
               />
 
               <Input
-                label={
-                  selectedPlatform === 'WHATSAPP'
-                    ? 'Phone Number ID *'
-                    : selectedPlatform === 'FACEBOOK' || selectedPlatform === 'INSTAGRAM'
-                    ? 'Meta Page/Account ID *'
-                    : 'TikTok Client App ID *'
-                }
+                label={setupMeta?.idLabel || 'Account ID *'}
                 placeholder="e.g. 102938475610293"
                 value={externalId}
                 onChange={setExternalId}
@@ -623,7 +711,7 @@ export default function SocialOnboardingPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-text-secondary)' }}>
-                  Developer System User/Page Token *
+                  {setupMeta?.tokenLabel || 'Access Token *'}
                 </label>
                 <textarea
                   placeholder="Paste your access token here..."
@@ -643,7 +731,7 @@ export default function SocialOnboardingPage() {
                   }}
                 />
                 <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                  <Info size={12} /> Make sure this token has permanent expiry (system user token) so connection does not expire.
+                  <Info size={12} /> {setupMeta?.tokenHint}
                 </span>
               </div>
             </div>
@@ -672,7 +760,7 @@ export default function SocialOnboardingPage() {
             </div>
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--b360-text)' }}>
-                Configure Webhooks in Meta Developers Console
+                {setupMeta?.heading}
               </h2>
               <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>
                 Input these webhook details in the App Dashboard to route inbound customer queries into Biashara360.
@@ -722,7 +810,7 @@ export default function SocialOnboardingPage() {
                   💡 Next Setup Action
                 </span>
                 <p style={{ fontSize: 12, color: 'var(--b360-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Copy these configurations, log into your Meta App dashboard, add the **{selectedPlatform === 'WHATSAPP' ? 'WhatsApp' : 'Webhooks'}** product, and paste these values into Webhook configuration setup.
+                  Copy these values into the webhook configuration for your {platformMeta.name} app, then subscribe the account to the supported messaging events.
                 </p>
               </div>
             </div>
@@ -730,17 +818,10 @@ export default function SocialOnboardingPage() {
             {/* Checklist guide */}
             <div style={{ borderLeft: '1px solid var(--b360-border)', paddingLeft: 24 }}>
               <h4 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 12px 0', color: 'var(--b360-text)' }}>
-                Meta Console Checklist
+                Meta Setup Checklist
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[
-                  'Open Meta Developers Console',
-                  'Select/Create your Commerce App',
-                  'Configure Webhook product',
-                  'Paste URL & Verification Token',
-                  'Verify and Save settings',
-                  selectedPlatform === 'WHATSAPP' ? 'Subscribe to "messages" field' : 'Subscribe to messaging pings'
-                ].map((item, idx) => (
+                {(setupMeta?.checklist || []).map((item, idx) => (
                   <div key={idx} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     <div style={{ background: 'var(--b360-green-bg)', color: 'var(--b360-green)', width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Check size={10} strokeWidth={3} />
@@ -787,7 +868,7 @@ export default function SocialOnboardingPage() {
                 Verify and Test Channel Connection
               </h2>
               <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>
-                Confirm that Meta still authorizes this WhatsApp business account and phone number.
+                Confirm that Meta authorizes the configured {platformMeta.name} account.
               </span>
             </div>
           </div>
@@ -802,7 +883,7 @@ export default function SocialOnboardingPage() {
                   Ready to Verify
                 </h3>
                 <p style={{ fontSize: 12, color: 'var(--b360-text-secondary)', maxWidth: 400, margin: '0 auto', lineHeight: 1.5 }}>
-                  Biashara360 will securely query Meta for the selected business phone number. No test message is sent to customers.
+                  {setupMeta?.verifyDescription || 'Biashara360 will securely query the provider. No test message is sent to customers.'}
                 </p>
               </div>
               <Btn onClick={runVerificationScan} icon={<Play size={14} />}>
@@ -815,7 +896,7 @@ export default function SocialOnboardingPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--b360-text)' }}>
-                  Verifying Meta Authorization...
+                  Verifying {platformMeta.name} Authorization...
                 </span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-blue)' }}>
                   {Math.round(verifyProgress * 100)}%
@@ -861,10 +942,10 @@ export default function SocialOnboardingPage() {
               </div>
               <div style={{ textAlign: 'center' }}>
                 <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--b360-green)', margin: '0 0 6px 0' }}>
-                  WhatsApp Connected
+                  {platformMeta.name} Connected
                 </h3>
                 <p style={{ fontSize: 13, color: 'var(--b360-text-secondary)', maxWidth: 450, margin: '0 auto', lineHeight: 1.5 }}>
-                  Meta confirmed access to your WhatsApp Business phone number and Biashara360 subscribed the account to webhook updates.
+                  Meta confirmed access to the configured account. The channel is now active in Biashara360.
                 </p>
               </div>
 
@@ -881,7 +962,7 @@ export default function SocialOnboardingPage() {
               <AlertCircle size={40} color="var(--b360-red)" />
               <h3 style={{ margin: 0, fontSize: 16 }}>Connection needs attention</h3>
               <p style={{ margin: 0, color: 'var(--b360-text-secondary)', fontSize: 13, textAlign: 'center' }}>
-                {verificationLogs[0] || 'Meta could not verify this connection.'}
+                {verificationLogs[0] || `Meta could not verify this ${platformMeta.name} connection.`}
               </p>
               <Btn onClick={runVerificationScan}>Try Again</Btn>
             </div>
@@ -892,11 +973,6 @@ export default function SocialOnboardingPage() {
               <Btn variant="secondary" onClick={handleBack} icon={<ArrowLeft size={14} />}>
                 Back
               </Btn>
-              {selectedPlatform !== 'WHATSAPP' && (
-                <Btn variant="secondary" onClick={() => setCurrentStep(4)} icon={<ArrowRight size={14} />}>
-                  Skip Verification
-                </Btn>
-              )}
             </div>
           )}
         </Card>

@@ -1,5 +1,8 @@
 package com.app.biashara.di
 
+import com.app.biashara.cache.RateLimitStore
+import com.app.biashara.cache.RedisRateLimitStore
+import com.app.biashara.cache.CacheStore
 import com.app.biashara.services.*
 import com.app.biashara.services.CyberSourceConfig
 import com.app.biashara.services.CyberSourceService
@@ -24,6 +27,10 @@ fun Application.configureKoin(appConfig: ApplicationConfig) {
 }
 
 fun appModule(config: ApplicationConfig) = module {
+    single { RedisRateLimitStore(config) }
+    single<RateLimitStore> { get<RedisRateLimitStore>() }
+    single<CacheStore> { get<RedisRateLimitStore>() }
+
     // HTTP client for outbound calls (Mpesa Daraja API)
     single {
         HttpClient(CIO) {
@@ -54,7 +61,9 @@ fun appModule(config: ApplicationConfig) = module {
     single { UserManagementService(get()) }
     single { SuperAdminService() }
     single { BusinessProfileService() }
-    single { DashboardService(get(), get()) }
+    single { DashboardService(get(), get(), get()) }
+    single { StorefrontService(get(), get()) }
+    single { ReportService() }
 
     // CyberSource card payment services
     single {

@@ -75,9 +75,9 @@ fun Route.socialRoutes() {
                 }
                 val businessId = call.businessId()
                 val req        = call.receive<SocialChannelRequest>()
-                if (req.platform.uppercase() !in listOf("WHATSAPP","INSTAGRAM","FACEBOOK","TIKTOK")) {
+                if (req.platform.uppercase() !in listOf("WHATSAPP","INSTAGRAM","FACEBOOK")) {
                     call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false,
-                        message = "Platform must be WHATSAPP, INSTAGRAM, FACEBOOK or TIKTOK"))
+                        message = "Platform must be WHATSAPP, INSTAGRAM or FACEBOOK. TikTok messaging is not available yet."))
                     return@post
                 }
                 if (req.platform.uppercase() != "WHATSAPP" && req.accessToken.isBlank()) {
@@ -98,10 +98,18 @@ fun Route.socialRoutes() {
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
             }
             post("/{id}/verify") {
+                if (!call.hasRole("ADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Merchant admin access required"))
+                    return@post
+                }
                 val result = svc.verifyChannelConnection(call.businessId(), call.parameters["id"]!!)
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
             }
             patch("/{id}/settings") {
+                if (!call.hasRole("ADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Merchant admin access required"))
+                    return@patch
+                }
                 val businessId = call.businessId()
                 val id         = call.parameters["id"]!!
                 val req        = call.receive<SocialChannelRequest>()
