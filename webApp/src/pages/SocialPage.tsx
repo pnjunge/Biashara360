@@ -168,10 +168,10 @@ function InboxTab() {
   const totalUnread = convs.reduce((s, c) => s + c.unreadCount, 0)
 
   return (
-    <div style={{ display:'flex', height:'calc(100vh - 120px)', background:'#F4F7F5', borderRadius:16, overflow:'hidden', border:'1px solid #E5E9E7' }}>
+    <div className="social-inbox-layout" style={{ display:'flex', height:'calc(100vh - 120px)', background:'#F4F7F5', borderRadius:16, overflow:'hidden', border:'1px solid #E5E9E7' }}>
 
       {/* ── Left Panel: Conversation List ──────────────────────────────── */}
-      <div style={{ width:340, flexShrink:0, display:'flex', flexDirection:'column', background:'white', borderRight:'1px solid #E8EDE9' }}>
+      <div className="social-conversation-list" style={{ width:340, flexShrink:0, display:'flex', flexDirection:'column', background:'white', borderRight:'1px solid #E8EDE9' }}>
 
         {/* Search + Filter */}
         <div style={{ padding:'14px 14px 10px' }}>
@@ -247,7 +247,7 @@ function InboxTab() {
 
       {/* ── Right Panel: Chat ─────────────────────────────────────────────── */}
       {activeConv ? (
-        <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
+        <div className="social-chat-panel" style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
 
           {/* Chat header */}
           <div style={{ padding:'14px 20px', background:'white', borderBottom:'1px solid #E8EDE9', display:'flex', alignItems:'center', justifyContent:'space-between' }}>

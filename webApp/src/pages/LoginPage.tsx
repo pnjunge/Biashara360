@@ -172,7 +172,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div
+    <div className="auth-page"
       style={{
         minHeight: '100vh',
         background: '#F4FBF7',
@@ -200,7 +200,7 @@ export default function LoginPage() {
       </svg>
 
       <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1 }}>
-        <div
+        <div className="auth-card"
           style={{
             background: 'white',
             borderRadius: 16,

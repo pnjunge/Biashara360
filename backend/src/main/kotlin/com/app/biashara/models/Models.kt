@@ -121,7 +121,12 @@ data class CreateOrderRequest(
     val paymentMethod: String = "MPESA",
     val paymentStatus: String? = null,
     val deliveryStatus: String? = null,
-    val notes: String = ""
+    val notes: String = "",
+    val serviceType: String = "RETAIL",
+    val hospitalityTableId: String? = null,
+    val serverUserId: String? = null,
+    val guestCount: Int = 1,
+    val tabStatus: String = "CLOSED"
 )
 
 @Serializable
@@ -145,6 +150,11 @@ data class OrderResponse(
     val deliveryStatus: String,
     val paymentMethod: String,
     val salesChannel: String = "WEB",
+    val serviceType: String = "RETAIL",
+    val hospitalityTableId: String? = null,
+    val serverUserId: String? = null,
+    val guestCount: Int = 1,
+    val tabStatus: String = "CLOSED",
     val mpesaTransactionCode: String?,
     val subtotal: Double,
     val notes: String,
@@ -385,6 +395,7 @@ data class BusinessProfileRequest(
 @Serializable
 data class BusinessProfileResponse(
     val id: String,
+    val storefrontSlug: String,
     val name: String,
     val owner: String,
     val phone: String,

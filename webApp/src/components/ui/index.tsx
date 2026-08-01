@@ -5,7 +5,7 @@ interface KpiCardProps { title: string; value: string; change: string; icon: Rea
 export function KpiCard({ title, value, change, icon, color, bgColor }: KpiCardProps) {
   const bg = bgColor || `${color}12`
   return (
-    <div className="kpi-card" style={{ background:'white', borderRadius:'var(--radius-md)', padding:20, boxShadow:'var(--shadow-sm)', border:'1px solid var(--b360-border)', display:'flex', alignItems:'center', gap:16 }}>
+    <div className="kpi-card ui-kpi-card" style={{ background:'white', borderRadius:'var(--radius-md)', padding:20, boxShadow:'var(--shadow-sm)', border:'1px solid var(--b360-border)', display:'flex', alignItems:'center', gap:16 }}>
       <div style={{ background:bg, borderRadius:'50%', width:48, height:48, minWidth:48, color, display:'flex', alignItems:'center', justifyContent:'center' }}>
         {icon}
       </div>
@@ -50,7 +50,7 @@ export function StatusBadge({ status }: { status: string }) {
 // ── Page Header ───────────────────────────────────────────────────────────────
 export function PageHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
-    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+    <div className="ui-page-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
       <h1 style={{ fontSize:26, fontWeight:800, letterSpacing:'-0.5px', color:'var(--b360-text)' }}>{title}</h1>
       {action}
     </div>
@@ -60,7 +60,7 @@ export function PageHeader({ title, action }: { title: string; action?: React.Re
 // ── Card ──────────────────────────────────────────────────────────────────────
 export function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ background:'white', borderRadius:'var(--radius-md)', border:'1px solid var(--b360-border)', boxShadow:'var(--shadow-sm)', ...style }}>
+    <div className="ui-card" style={{ background:'white', borderRadius:'var(--radius-md)', border:'1px solid var(--b360-border)', boxShadow:'var(--shadow-sm)', ...style }}>
       {children}
     </div>
   )
@@ -95,8 +95,8 @@ export function Btn({ children, variant='primary', onClick, icon, small, disable
 // ── Table ─────────────────────────────────────────────────────────────────────
 export function DataTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
   return (
-    <div style={{ overflowX:'auto', borderRadius:'var(--radius-md)', border:'1px solid var(--b360-border)' }}>
-      <table style={{ width:'100%', borderCollapse:'collapse' }}>
+    <div className="ui-table-wrap" style={{ overflowX:'auto', borderRadius:'var(--radius-md)', border:'1px solid var(--b360-border)' }}>
+      <table style={{ width:'100%', minWidth: Math.max(640, headers.length * 120), borderCollapse:'collapse' }}>
         <thead>
           <tr style={{ background:'var(--b360-surface)', borderBottom:'2px solid var(--b360-border)' }}>
             {headers.map((h, i) => (
@@ -161,15 +161,15 @@ export function Modal({ title, onClose, children, footer, wide }: {
   title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean
 }) {
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(15, 23, 42, 0.4)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
-      <div style={{ background:'white', borderRadius:'var(--radius-lg)', width:'100%', maxWidth: wide ? 680 : 480, maxHeight:'90vh', overflow:'auto', boxShadow:'var(--shadow-lg)', display:'flex', flexDirection:'column', border:'1px solid var(--b360-border)' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 24px', borderBottom:'1px solid var(--b360-border)', flexShrink:0 }}>
+    <div className="ui-modal-backdrop" style={{ position:'fixed', inset:0, background:'rgba(15, 23, 42, 0.4)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
+      <div className="ui-modal" style={{ background:'white', borderRadius:'var(--radius-lg)', width:'100%', maxWidth: wide ? 680 : 480, maxHeight:'90vh', overflow:'auto', boxShadow:'var(--shadow-lg)', display:'flex', flexDirection:'column', border:'1px solid var(--b360-border)' }}>
+        <div className="ui-modal-header" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 24px', borderBottom:'1px solid var(--b360-border)', flexShrink:0 }}>
           <h2 style={{ fontSize:16, fontWeight:800, letterSpacing:'-0.25px', color:'var(--b360-text)' }}>{title}</h2>
           <button className="btn" type="button" onClick={onClose} style={{ fontSize:22, lineHeight:1, color:'var(--b360-text-secondary)', cursor:'pointer', border:'none', background:'none', padding:'0 4px' }}>×</button>
         </div>
-        <div style={{ padding:'20px 24px', flex:1, overflow:'auto' }}>{children}</div>
+        <div className="ui-modal-body" style={{ padding:'20px 24px', flex:1, overflow:'auto' }}>{children}</div>
         {footer && (
-          <div style={{ padding:'14px 24px', borderTop:'1px solid var(--b360-border)', display:'flex', justifyContent:'flex-end', gap:8, flexShrink:0 }}>
+          <div className="ui-modal-footer" style={{ padding:'14px 24px', borderTop:'1px solid var(--b360-border)', display:'flex', justifyContent:'flex-end', gap:8, flexShrink:0 }}>
             {footer}
           </div>
         )}

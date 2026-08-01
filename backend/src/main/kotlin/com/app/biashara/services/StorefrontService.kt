@@ -23,12 +23,13 @@ class StorefrontService(
     private val orderService: OrderService,
     private val mpesaService: MpesaService
 ) {
-    fun getStorefront(businessId: String): StorefrontResponse? = transaction {
+    fun getStorefront(storeIdentifier: String): StorefrontResponse? = transaction {
         val business = BusinessesTable.select {
-            (BusinessesTable.id eq businessId) and
+            ((BusinessesTable.storefrontSlug eq storeIdentifier) or (BusinessesTable.id eq storeIdentifier)) and
                 (BusinessesTable.isActive eq true) and
                 (BusinessesTable.subscriptionEnabled eq true)
         }.firstOrNull() ?: return@transaction null
+        val businessId = business[BusinessesTable.id]
         val products = ProductsTable.select {
             (ProductsTable.businessId eq businessId) and
                 (ProductsTable.isActive eq true) and
@@ -47,6 +48,7 @@ class StorefrontService(
         }
         StorefrontResponse(
             businessId = businessId,
+            storefrontSlug = business[BusinessesTable.storefrontSlug],
             businessName = business[BusinessesTable.name],
             businessType = business[BusinessesTable.type],
             county = business[BusinessesTable.county],
@@ -57,11 +59,13 @@ class StorefrontService(
         )
     }
 
-    suspend fun checkout(businessId: String, req: StorefrontCheckoutRequest): ApiResponse<StorefrontCheckoutResponse> {
+    suspend fun checkout(storeIdentifier: String, req: StorefrontCheckoutRequest): ApiResponse<StorefrontCheckoutResponse> {
         val validationError = validateCheckout(req)
         if (validationError != null) return ApiResponse(false, message = validationError)
         val phone = normalizeStorefrontPhone(req.customerPhone)
             ?: return ApiResponse(false, message = "Enter a valid Kenyan mobile number")
+        val businessId = resolveActiveBusinessId(storeIdentifier)
+            ?: return ApiResponse(false, message = "Store not found")
         val pricedItems = transaction {
             val businessActive = BusinessesTable.select {
                 (BusinessesTable.id eq businessId) and
@@ -102,17 +106,20 @@ class StorefrontService(
     }
 
     suspend fun retryPayment(
-        businessId: String,
+        storeIdentifier: String,
         orderId: String,
         clientReference: String,
         phoneInput: String
     ): ApiResponse<StorefrontCheckoutResponse> {
         val phone = normalizeStorefrontPhone(phoneInput)
             ?: return ApiResponse(false, message = "Enter a valid Kenyan mobile number")
+        val businessId = resolveActiveBusinessId(storeIdentifier)
+            ?: return ApiResponse(false, message = "Store not found")
         return initiatePayment(businessId, orderId, clientReference, phone)
     }
 
-    fun getOrderStatus(businessId: String, orderId: String, clientReference: String): StorefrontOrderStatusResponse? = transaction {
+    fun getOrderStatus(storeIdentifier: String, orderId: String, clientReference: String): StorefrontOrderStatusResponse? = transaction {
+        val businessId = resolveActiveBusinessId(storeIdentifier) ?: return@transaction null
         val order = OrdersTable.select {
             (OrdersTable.id eq orderId) and
                 (OrdersTable.businessId eq businessId) and
@@ -125,6 +132,14 @@ class StorefrontService(
             paymentStatus = order[OrdersTable.paymentStatus],
             deliveryStatus = order[OrdersTable.deliveryStatus]
         )
+    }
+
+    private fun resolveActiveBusinessId(storeIdentifier: String): String? = transaction {
+        BusinessesTable.select {
+            ((BusinessesTable.storefrontSlug eq storeIdentifier) or (BusinessesTable.id eq storeIdentifier)) and
+                (BusinessesTable.isActive eq true) and
+                (BusinessesTable.subscriptionEnabled eq true)
+        }.firstOrNull()?.get(BusinessesTable.id)
     }
 
     private suspend fun initiatePayment(

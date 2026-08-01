@@ -17,6 +17,7 @@ class BusinessProfileService {
             ?.let {
                 BusinessProfileResponse(
                     id              = it[BusinessesTable.id],
+                    storefrontSlug  = it[BusinessesTable.storefrontSlug],
                     name            = it[BusinessesTable.name],
                     owner           = it[BusinessesTable.ownerName] ?: "",
                     phone           = it[BusinessesTable.ownerPhone],

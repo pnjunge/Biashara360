@@ -135,8 +135,14 @@ export interface OrderResponse {
   items: OrderItemResponse[]; paymentStatus: string; deliveryStatus: string
   paymentMethod: string; mpesaTransactionCode: string | null; subtotal: number
   salesChannel: string
+  serviceType?: string; hospitalityTableId?: string | null; serverUserId?: string | null
+  guestCount?: number; tabStatus?: string
   notes: string; createdAt: string; updatedAt: string
 }
+
+export interface HospitalityTable { id:string; name:string; area:string; capacity:number; status:string; openOrderId:string|null; openAmount:number }
+export interface KitchenTicket { id:string; orderId:string; orderNumber:string; tableName:string|null; station:string; status:string; notes:string; items:OrderItemResponse[]; createdAt:string }
+export interface HospitalityDashboard { enabled:boolean; tables:HospitalityTable[]; openTabs:OrderResponse[]; tickets:KitchenTicket[] }
 
 export interface PagedResponse<T> {
   data: T[]; total: number; page: number; pageSize: number; hasMore: boolean
@@ -250,6 +256,7 @@ export interface StorefrontProduct {
 
 export interface Storefront {
   businessId: string
+  storefrontSlug: string
   businessName: string
   businessType: string
   county: string | null
@@ -394,6 +401,11 @@ export interface InviteUserRequest {
   phone: string
   role?: string   // 'ADMIN' | 'STAFF', defaults to 'STAFF'
 }
+
+export interface MenuDefinition { key: string; label: string }
+export interface AccessRole { id: string; name: string; description: string; allowedMenus: string[]; isActive: boolean }
+export interface AccessGroup { id: string; name: string; description: string; roleIds: string[]; userIds: string[]; isActive: boolean }
+export interface AccessConfig { menus: MenuDefinition[]; enabledMenus: string[]; roles: AccessRole[]; groups: AccessGroup[] }
 
 // ── API Service Objects ───────────────────────────────────────────────────────
 
@@ -733,6 +745,24 @@ export const userApi = {
   },
 }
 
+export const accessApi = {
+  me: async () => (await client.get<ApiResponse<{ enabledMenus: string[] }>>('/access/me')).data,
+  config: async () => (await client.get<ApiResponse<AccessConfig>>('/access/config')).data,
+  updateMenus: async (enabledMenus: string[]) => (await client.put<ApiResponse<AccessConfig>>('/access/config/menus', { enabledMenus })).data,
+  createRole: async (data: { name: string; description: string; allowedMenus: string[] }) => (await client.post<ApiResponse<AccessRole>>('/access/config/roles', data)).data,
+  createGroup: async (data: { name: string; description: string; roleIds: string[] }) => (await client.post<ApiResponse<AccessGroup>>('/access/config/groups', data)).data,
+  assignUsers: async (groupId: string, userIds: string[]) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${groupId}/users`, { userIds })).data,
+}
+
+export const hospitalityApi = {
+  dashboard: async () => (await client.get<ApiResponse<HospitalityDashboard>>('/hospitality')).data,
+  setEnabled: async (enabled:boolean) => (await client.put<ApiResponse<HospitalityDashboard>>('/hospitality/enabled',{enabled})).data,
+  createTable: async (data:{name:string;area:string;capacity:number}) => (await client.post<ApiResponse<HospitalityTable>>('/hospitality/tables',data)).data,
+  createOrder: async (data:{tableId?:string;serviceType:string;guestCount:number;customerName:string;customerPhone:string;notes:string;items:Array<{productId:string;quantity:number;unitPrice:number}>}) => (await client.post<ApiResponse<OrderResponse>>('/hospitality/orders',data)).data,
+  updateTicket: async (id:string,status:string) => (await client.patch<ApiResponse<KitchenTicket>>(`/hospitality/tickets/${id}`,{status})).data,
+  closeTab: async (orderId:string,paymentMethod:string) => (await client.post<ApiResponse<OrderResponse>>(`/hospitality/tabs/${orderId}/close`,{paymentMethod})).data,
+}
+
 export const cyberSourceApi = {
   getTransactions: async () => {
     const res = await client.get<ApiResponse<CsTransactionRecord[]>>('/payments/card/transactions')
@@ -852,6 +882,7 @@ export interface BusinessProfileRequest {
 
 export interface BusinessProfileResponse {
   id: string
+  storefrontSlug: string
   name: string
   owner: string
   phone: string

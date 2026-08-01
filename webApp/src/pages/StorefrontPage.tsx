@@ -12,7 +12,7 @@ const transactionReference = () =>
   `store-${typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`}`
 
 export default function StorefrontPage() {
-  const { businessId = '' } = useParams()
+  const { storeSlug = '' } = useParams()
   const [store, setStore] = useState<Storefront | null>(null)
   const [cart, setCart] = useState<Cart>({})
   const [search, setSearch] = useState('')
@@ -31,7 +31,7 @@ export default function StorefrontPage() {
   useEffect(() => {
     let active = true
     setLoading(true)
-    storefrontApi.get(businessId)
+    storefrontApi.get(storeSlug)
       .then(response => {
         if (!active) return
         if (response.success && response.data) setStore(response.data)
@@ -40,20 +40,20 @@ export default function StorefrontPage() {
       .catch((err: any) => active && setError(err.response?.data?.message || 'This store is unavailable.'))
       .finally(() => active && setLoading(false))
     return () => { active = false }
-  }, [businessId])
+  }, [storeSlug])
 
   useEffect(() => {
     if (!order || paymentStatus === 'PAID') return
     const poll = async () => {
       try {
-        const response = await storefrontApi.orderStatus(businessId, order.orderId, order.clientReference)
+        const response = await storefrontApi.orderStatus(storeSlug, order.orderId, order.clientReference)
         if (response.success && response.data) setPaymentStatus(response.data.paymentStatus)
       } catch { /* polling is best effort */ }
     }
     poll()
     const timer = window.setInterval(poll, 5_000)
     return () => window.clearInterval(timer)
-  }, [businessId, order, paymentStatus])
+  }, [storeSlug, order, paymentStatus])
 
   const categories = useMemo(() => ['ALL', ...new Set(store?.products.map(product => product.category).filter(Boolean) || [])], [store])
   const visibleProducts = useMemo(() => {
@@ -85,7 +85,7 @@ export default function StorefrontPage() {
     setSubmitting(true)
     setError('')
     try {
-      const response = await storefrontApi.checkout(businessId, {
+      const response = await storefrontApi.checkout(storeSlug, {
         clientReference,
         customerName,
         customerPhone,
@@ -114,7 +114,7 @@ export default function StorefrontPage() {
     setSubmitting(true)
     setError('')
     try {
-      const response = await storefrontApi.retryMpesa(businessId, order.orderId, {
+      const response = await storefrontApi.retryMpesa(storeSlug, order.orderId, {
         clientReference: order.clientReference,
         customerPhone
       })

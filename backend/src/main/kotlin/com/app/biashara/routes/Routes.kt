@@ -470,6 +470,20 @@ fun Route.mpesaCallbackRoute() {
                             it[PaymentsTable.reconciled]      = true
                             it[PaymentsTable.transactionDate] = now
                         }
+                        OrdersTable.update({ OrdersTable.id eq orderId }) {
+                            it[OrdersTable.tabStatus] = "CLOSED"
+                        }
+                        orderRow[OrdersTable.hospitalityTableId]?.let { tableId ->
+                            val anotherTab = OrdersTable.select {
+                                (OrdersTable.hospitalityTableId eq tableId) and
+                                    (OrdersTable.id neq orderId) and
+                                    (OrdersTable.tabStatus inList listOf("OPEN", "AWAITING_PAYMENT"))
+                            }.any()
+                            if (!anotherTab) HospitalityTablesTable.update({ HospitalityTablesTable.id eq tableId }) {
+                                it[status] = "AVAILABLE"
+                                it[updatedAt] = now
+                            }
+                        }
                     }
                 } else {
                     application.log.warn("""{"event":"mpesa_callback_unmatched"}""")
@@ -708,10 +722,10 @@ fun ApplicationCall.hasRole(vararg roles: String): Boolean =
  * Size-capped LRU cache for module-enabled checks.
  * Caps at 1000 entries (max ~6 modules × 167 businesses) to prevent unbounded growth.
  */
-private val moduleCache: MutableMap<Pair<String, String>, Pair<Long, Boolean>> =
+private val moduleCache: MutableMap<Triple<String, String, String>, Pair<Long, Boolean>> =
     java.util.Collections.synchronizedMap(
-        object : java.util.LinkedHashMap<Pair<String, String>, Pair<Long, Boolean>>(256, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<String, String>, Pair<Long, Boolean>>?) =
+        object : java.util.LinkedHashMap<Triple<String, String, String>, Pair<Long, Boolean>>(256, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Triple<String, String, String>, Pair<Long, Boolean>>?) =
                 size > 1000
         }
     )
@@ -732,22 +746,48 @@ fun ApplicationCall.hasModule(module: String): Boolean {
                 ?.takeIf { it.isNotBlank() }
         }
         ?: return false
-    val cacheKey = bId to module.uppercase()
+    val normalizedModule = module.uppercase()
+    val cacheKey = Triple(bId, userId, normalizedModule)
     val cached = moduleCache[cacheKey]
     if (cached != null && System.currentTimeMillis() - cached.first < MODULE_CACHE_TTL_MS) {
         return cached.second
     }
     val result = transaction {
-        val enabledModules = BusinessesTable
+        val business = BusinessesTable
             .select { BusinessesTable.id eq bId }
-            .firstOrNull()
-            ?.get(BusinessesTable.enabledModules)
-            ?.takeIf { it.isNotBlank() }
-            ?: DEFAULT_ENABLED_MODULES
-
-        enabledModules
+            .firstOrNull() ?: return@transaction false
+        val moduleEnabled = (business[BusinessesTable.enabledModules].takeIf { it.isNotBlank() } ?: DEFAULT_ENABLED_MODULES)
             .split(",")
-            .any { it.trim().equals(module, ignoreCase = true) }
+            .any { it.trim().equals(normalizedModule, ignoreCase = true) }
+        if (!moduleEnabled) return@transaction false
+
+        val moduleMenus = when (normalizedModule) {
+            "INVENTORY" -> setOf("INVENTORY")
+            "SALES" -> setOf("POS", "ORDERS", "HOSPITALITY")
+            "CRM" -> setOf("CUSTOMERS")
+            "EXPENSES" -> setOf("EXPENSES")
+            "PAYMENTS" -> setOf("PAYMENTS", "CARD_PAYMENTS")
+            "REPORTS" -> setOf("REPORTS")
+            else -> emptySet()
+        }
+        if (moduleMenus.isEmpty()) return@transaction true
+        val businessMenus = business[BusinessesTable.enabledMenus].split(',').map { it.trim().uppercase() }.toSet()
+        if (businessMenus.intersect(moduleMenus).isEmpty()) return@transaction false
+        if (userRole() == "ADMIN") return@transaction true
+
+        val assignedRoles = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)
+            .slice(AccessGroupRolesTable.roleId)
+            .select {
+                (UserAccessGroupsTable.userId eq userId) and
+                    (AccessGroupsTable.businessId eq bId) and
+                    (AccessGroupsTable.isActive eq true)
+            }.map { it[AccessGroupRolesTable.roleId] }
+        if (assignedRoles.isEmpty()) return@transaction true
+        AccessRolesTable.select {
+            (AccessRolesTable.id inList assignedRoles) and (AccessRolesTable.isActive eq true)
+        }.flatMap { it[AccessRolesTable.allowedMenus].split(',') }
+            .map { it.trim().uppercase() }
+            .any { it in moduleMenus }
     }
     moduleCache[cacheKey] = System.currentTimeMillis() to result
     return result

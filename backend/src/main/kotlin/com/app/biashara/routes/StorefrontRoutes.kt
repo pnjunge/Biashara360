@@ -14,10 +14,10 @@ import org.koin.ktor.ext.inject
 fun Route.storefrontRoutes() {
     val storefrontService: StorefrontService by inject()
 
-    route("/public/store/{businessId}") {
+    route("/public/store/{storeIdentifier}") {
         get {
-            val businessId = call.parameters["businessId"].orEmpty()
-            val storefront = storefrontService.getStorefront(businessId)
+            val storeIdentifier = call.parameters["storeIdentifier"].orEmpty()
+            val storefront = storefrontService.getStorefront(storeIdentifier)
                 ?: return@get call.respond(
                     HttpStatusCode.NotFound,
                     ApiResponse<Unit>(false, message = "Store not found")
@@ -27,18 +27,18 @@ fun Route.storefrontRoutes() {
 
         rateLimit(RateLimitName("public-payment-limiter")) {
             post("/checkout") {
-                val businessId = call.parameters["businessId"].orEmpty()
+                val storeIdentifier = call.parameters["storeIdentifier"].orEmpty()
                 val request = call.receive<StorefrontCheckoutRequest>()
-                val result = storefrontService.checkout(businessId, request)
+                val result = storefrontService.checkout(storeIdentifier, request)
                 call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
             }
 
             post("/orders/{orderId}/mpesa") {
-                val businessId = call.parameters["businessId"].orEmpty()
+                val storeIdentifier = call.parameters["storeIdentifier"].orEmpty()
                 val orderId = call.parameters["orderId"].orEmpty()
                 val request = call.receive<StorefrontPaymentRetryRequest>()
                 val result = storefrontService.retryPayment(
-                    businessId,
+                    storeIdentifier,
                     orderId,
                     request.clientReference,
                     request.customerPhone
@@ -48,10 +48,10 @@ fun Route.storefrontRoutes() {
         }
 
         get("/orders/{orderId}") {
-            val businessId = call.parameters["businessId"].orEmpty()
+            val storeIdentifier = call.parameters["storeIdentifier"].orEmpty()
             val orderId = call.parameters["orderId"].orEmpty()
             val reference = call.request.queryParameters["reference"].orEmpty()
-            val status = storefrontService.getOrderStatus(businessId, orderId, reference)
+            val status = storefrontService.getOrderStatus(storeIdentifier, orderId, reference)
                 ?: return@get call.respond(
                     HttpStatusCode.NotFound,
                     ApiResponse<Unit>(false, message = "Order not found")

@@ -1,6 +1,7 @@
 .shell {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -133,6 +134,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
 }
 
 .topbar {
@@ -307,6 +309,8 @@
   overflow-y: auto;
   padding: 24px;
   background: #f8fafc;
+  min-width: 0;
+  overscroll-behavior: contain;
 }
 
 /* Mobile-Responsive adjustments */
@@ -339,7 +343,9 @@
     position: fixed;
     top: 0;
     left: -240px;
-    height: 100vh;
+    height: 100dvh;
+    width: min(280px, 86vw);
+    min-width: min(280px, 86vw);
     z-index: 1001;
     box-shadow: 10px 0 30px rgba(0, 0, 0, 0.25);
     transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -369,4 +375,16 @@
   .content {
     padding: 16px;
   }
+}
+
+@media (max-width: 520px) {
+  .topbar { padding: 9px 10px; gap: 8px; }
+  .searchWrap { max-width: none; min-width: 0; }
+  .searchInput { padding: 9px 10px 9px 34px; font-size: 12px; }
+  .searchIcon { left: 11px; }
+  .topbarRight { gap: 6px; }
+  .topbarUserCard { padding: 5px; border: 0; }
+  .topbarUserInfo, .chevronDown { display: none; }
+  .iconBtn { padding: 8px; }
+  .content { padding: 12px; }
 }

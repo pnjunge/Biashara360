@@ -255,7 +255,7 @@ export function PosPage() {
   }
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, height: 'calc(100vh - 120px)' }}>
+    <div className="fade-in pos-page-layout" style={{ display: 'flex', flexDirection: 'column', gap: 20, height: 'calc(100vh - 120px)' }}>
       <PageHeader title="Point of Sale" />
       <p style={{ color: 'var(--b360-text-secondary)', fontSize: 13, marginTop: -15, marginBottom: 10 }}>Process in-store checkout orders instantly</p>
 

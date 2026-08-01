@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class StorefrontResponse(
     val businessId: String,
+    val storefrontSlug: String,
     val businessName: String,
     val businessType: String,
     val county: String? = null,

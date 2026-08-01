@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, Download, Share2, FileText, Table, Building2, Copy, ExternalLink } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
-import { expenseApi, paymentApi, orderApi, reportApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, userApi, superAdminApi, businessApi, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest } from '../services/api'
+import { expenseApi, paymentApi, orderApi, reportApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, userApi, superAdminApi, businessApi, accessApi, AccessConfig, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest } from '../services/api'
 import { useAuth } from '../App'
 
 function getCurrentMonthRange() {
@@ -549,6 +549,10 @@ export function UserCreationPage() {
   const [selectedBusinessId, setSelectedBusinessId] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [accessConfig, setAccessConfig] = useState<AccessConfig | null>(null)
+  const [accessMessage, setAccessMessage] = useState('')
+  const [roleDraft, setRoleDraft] = useState({ name:'', description:'', allowedMenus:[] as string[] })
+  const [groupDraft, setGroupDraft] = useState({ name:'', description:'', roleIds:[] as string[] })
 
   const loadUsers = () => {
     if (isSuperAdmin && !selectedBusinessId) {
@@ -559,6 +563,11 @@ export function UserCreationPage() {
     userApi.list(isSuperAdmin ? selectedBusinessId : undefined).then(res => {
       if (res.success && res.data) setUsers(res.data)
     }).catch(() => {}).finally(() => setUsersLoading(false))
+  }
+
+  const loadAccess = () => {
+    if (isSuperAdmin) return
+    accessApi.config().then(res => { if (res.success && res.data) setAccessConfig(res.data) }).catch(() => {})
   }
 
   const loadBusinesses = () => {
@@ -583,8 +592,32 @@ export function UserCreationPage() {
 
   useEffect(() => {
     loadUsers()
+    loadAccess()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuperAdmin, selectedBusinessId])
+
+  const toggleValue = (values: string[], value: string) => values.includes(value) ? values.filter(v => v !== value) : [...values, value]
+  const saveMenus = async () => {
+    if (!accessConfig) return
+    const res = await accessApi.updateMenus(accessConfig.enabledMenus)
+    if (res.success && res.data) { setAccessConfig(res.data); setAccessMessage('Menu availability saved.') }
+  }
+  const createAccessRole = async () => {
+    if (!roleDraft.name.trim()) return setAccessMessage('Enter a role name.')
+    const res = await accessApi.createRole(roleDraft)
+    if (res.success) { setRoleDraft({name:'',description:'',allowedMenus:[]}); loadAccess(); setAccessMessage('Role created.') }
+    else setAccessMessage(res.message || 'Could not create role.')
+  }
+  const createAccessGroup = async () => {
+    if (!groupDraft.name.trim()) return setAccessMessage('Enter a group name.')
+    const res = await accessApi.createGroup(groupDraft)
+    if (res.success) { setGroupDraft({name:'',description:'',roleIds:[]}); loadAccess(); setAccessMessage('Group created.') }
+    else setAccessMessage(res.message || 'Could not create group.')
+  }
+  const toggleGroupUser = async (groupId: string, current: string[], userId: string) => {
+    const res = await accessApi.assignUsers(groupId, toggleValue(current, userId))
+    if (res.success) loadAccess()
+  }
 
   // ── Handlers ──
 
@@ -767,6 +800,37 @@ export function UserCreationPage() {
         </>
       )}
 
+      {!isSuperAdmin && accessConfig && (
+        <>
+          <PageHeader title="Menus, Roles & Groups" />
+          {accessMessage && <div style={{fontSize:13,color:'var(--b360-blue)'}}>{accessMessage}</div>}
+          <div className="responsive-grid responsive-grid-2" style={{gap:16}}>
+            <Card style={{padding:20}}>
+              <h3 style={{margin:'0 0 6px'}}>Business menus</h3>
+              <p style={{fontSize:12,color:'var(--b360-text-secondary)'}}>Disabled menus are hidden for everyone in this business.</p>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8,margin:'14px 0'}}>
+                {accessConfig.menus.map(menu => <label key={menu.key} style={{fontSize:12,display:'flex',gap:7,alignItems:'center'}}><input type="checkbox" checked={accessConfig.enabledMenus.includes(menu.key)} onChange={() => setAccessConfig({...accessConfig,enabledMenus:toggleValue(accessConfig.enabledMenus,menu.key)})}/>{menu.label}</label>)}
+              </div>
+              <Btn small onClick={saveMenus}>Save menu availability</Btn>
+            </Card>
+            <Card style={{padding:20}}>
+              <h3 style={{margin:'0 0 12px'}}>Create role</h3>
+              <Input label="Role name" value={roleDraft.name} onChange={v=>setRoleDraft({...roleDraft,name:v})} placeholder="e.g. Cashier" />
+              <Input label="Description" value={roleDraft.description} onChange={v=>setRoleDraft({...roleDraft,description:v})} placeholder="What this role is for" />
+              <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:7,margin:'12px 0'}}>{accessConfig.menus.map(menu=><label key={menu.key} style={{fontSize:12}}><input type="checkbox" checked={roleDraft.allowedMenus.includes(menu.key)} onChange={()=>setRoleDraft({...roleDraft,allowedMenus:toggleValue(roleDraft.allowedMenus,menu.key)})}/> {menu.label}</label>)}</div>
+              <Btn small onClick={createAccessRole}>Create role</Btn>
+            </Card>
+          </div>
+          <Card style={{padding:20}}>
+            <h3 style={{margin:'0 0 12px'}}>Create group</h3>
+            <div className="responsive-grid responsive-grid-2" style={{gap:12}}><Input label="Group name" value={groupDraft.name} onChange={v=>setGroupDraft({...groupDraft,name:v})} placeholder="e.g. Front Desk"/><Input label="Description" value={groupDraft.description} onChange={v=>setGroupDraft({...groupDraft,description:v})} placeholder="Team description"/></div>
+            <div style={{display:'flex',gap:14,flexWrap:'wrap',margin:'12px 0'}}>{accessConfig.roles.map(role=><label key={role.id} style={{fontSize:12}}><input type="checkbox" checked={groupDraft.roleIds.includes(role.id)} onChange={()=>setGroupDraft({...groupDraft,roleIds:toggleValue(groupDraft.roleIds,role.id)})}/> {role.name}</label>)}</div>
+            <Btn small onClick={createAccessGroup}>Create group</Btn>
+          </Card>
+          {accessConfig.groups.map(group => <Card key={group.id} style={{padding:16}}><div style={{fontWeight:700}}>{group.name}</div><div style={{fontSize:12,color:'var(--b360-text-secondary)',marginBottom:10}}>{group.description || 'No description'} · Roles: {accessConfig.roles.filter(r=>group.roleIds.includes(r.id)).map(r=>r.name).join(', ') || 'None'}</div><div style={{display:'flex',gap:12,flexWrap:'wrap'}}>{users.map(member=><label key={member.id} style={{fontSize:12}}><input type="checkbox" checked={group.userIds.includes(member.id)} onChange={()=>toggleGroupUser(group.id,group.userIds,member.id)}/> {member.name}</label>)}</div></Card>)}
+        </>
+      )}
+
       {/* ── User Management ── */}
       <PageHeader title="User Management" action={<Btn onClick={() => { setSelectedBusinessId(businesses[0]?.id ?? ''); setShowAdd(true) }} icon={<Plus size={14} />}>Add User</Btn>} />
       <Card style={{ padding: 0 }}>
@@ -835,6 +899,7 @@ export function BusinessPage() {
 
   // ── Admin: business profile ──
   const [form, setForm] = useState<BusinessProfileRequest>(emptyProfile)
+  const [storefrontSlug, setStorefrontSlug] = useState('')
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -898,6 +963,7 @@ export function BusinessPage() {
         .then(res => {
           if (res.success && res.data) {
             const d = res.data
+            setStorefrontSlug(d.storefrontSlug)
             setForm({ name: d.name, owner: d.owner, phone: d.phone, email: d.email, type: d.type, county: d.county, address: d.address, kraPin: d.kraPin, paybillNumber: d.paybillNumber, accountNumber: d.accountNumber })
           } else {
             setProfileError(res.message || 'Failed to load business profile.')
@@ -915,6 +981,7 @@ export function BusinessPage() {
     setSaveMsg(null)
     try {
       const res = await businessApi.updateProfile(form)
+      if (res.success && res.data) setStorefrontSlug(res.data.storefrontSlug)
       setSaveMsg({ ok: res.success, text: res.message || (res.success ? 'Saved' : 'Failed to save') })
     } catch (e: any) {
       setSaveMsg({ ok: false, text: e.response?.data?.message || 'Network error. Please try again.' })
@@ -923,8 +990,8 @@ export function BusinessPage() {
     }
   }
 
-  const storefrontUrl = currentUser?.businessId
-    ? `${window.location.origin}/shop/${currentUser.businessId}`
+  const storefrontUrl = storefrontSlug
+    ? `${window.location.origin}/shop/${storefrontSlug}`
     : ''
 
   const copyStorefrontLink = async () => {

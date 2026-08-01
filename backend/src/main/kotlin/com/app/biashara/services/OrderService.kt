@@ -207,6 +207,11 @@ class OrderService {
             it[deliveryStatus] = initialStatuses.delivery
             it[paymentMethod] = req.paymentMethod
             it[OrdersTable.salesChannel] = salesChannel
+            it[serviceType] = req.serviceType.trim().uppercase()
+            it[hospitalityTableId] = req.hospitalityTableId
+            it[serverUserId] = req.serverUserId
+            it[guestCount] = req.guestCount.coerceAtLeast(1)
+            it[tabStatus] = req.tabStatus.trim().uppercase()
             it[notes] = req.notes
             it[OrdersTable.subtotal] = subtotal
             it[createdAt] = now
@@ -445,6 +450,11 @@ class OrderService {
             deliveryStatus = this[OrdersTable.deliveryStatus],
             paymentMethod = this[OrdersTable.paymentMethod],
             salesChannel = this[OrdersTable.salesChannel],
+            serviceType = this[OrdersTable.serviceType],
+            hospitalityTableId = this[OrdersTable.hospitalityTableId],
+            serverUserId = this[OrdersTable.serverUserId],
+            guestCount = this[OrdersTable.guestCount],
+            tabStatus = this[OrdersTable.tabStatus],
             mpesaTransactionCode = this[OrdersTable.mpesaTransactionCode],
             subtotal = this[OrdersTable.subtotal],
             notes = this[OrdersTable.notes],

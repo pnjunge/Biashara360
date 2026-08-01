@@ -86,6 +86,8 @@ fun Application.module() {
                 paymentRoutes()
                 reportRoutes()
                 userRoutes()
+                accessControlRoutes()
+                hospitalityRoutes()
                 cyberSourceRoutes()
                 taxRoutes()
                 kraRoutes()

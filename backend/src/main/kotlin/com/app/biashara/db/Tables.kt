@@ -11,6 +11,7 @@ import org.jetbrains.exposed.sql.ReferenceOption.SET_NULL
 object BusinessesTable : Table("businesses") {
     val id = varchar("id", 36)
     val name = varchar("name", 255)
+    val storefrontSlug = varchar("storefront_slug", 120).uniqueIndex()
     val type = varchar("type", 50)
     val ownerName = varchar("owner_name", 255).nullable()
     val ownerPhone = varchar("owner_phone", 20)
@@ -25,6 +26,8 @@ object BusinessesTable : Table("businesses") {
     val subscriptionTier = varchar("subscription_tier", 20).default("FREEMIUM")
     val subscriptionEnabled = bool("subscription_enabled").default(true)
     val enabledModules = text("enabled_modules").default("INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS")
+    val enabledMenus = text("enabled_menus").default("DASHBOARD,POS,HOSPITALITY,INVENTORY,ORDERS,CUSTOMERS,EXPENSES,PAYMENTS,CARD_PAYMENTS,TAX,KRA,SOCIAL,SOCIAL_SETUP,USERS,REPORTS,DOWNLOADS,SETTINGS")
+    val hospitalityEnabled = bool("hospitality_enabled").default(false)
     val isActive = bool("is_active").default(true)
     val receiptHeader = varchar("receipt_header", 255).default("Welcome to our store!")
     val receiptFooter = varchar("receipt_footer", 255).default("Thank you for shopping with us!")
@@ -33,6 +36,43 @@ object BusinessesTable : Table("businesses") {
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
+}
+
+object AccessRolesTable : Table("access_roles") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
+    val name = varchar("name", 80)
+    val description = varchar("description", 255).default("")
+    val allowedMenus = text("allowed_menus").default("")
+    val isActive = bool("is_active").default(true)
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+    val businessNameIdx = uniqueIndex("uq_access_roles_business_name", businessId, name)
+}
+
+object AccessGroupsTable : Table("access_groups") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
+    val name = varchar("name", 80)
+    val description = varchar("description", 255).default("")
+    val isActive = bool("is_active").default(true)
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+    val businessNameIdx = uniqueIndex("uq_access_groups_business_name", businessId, name)
+}
+
+object AccessGroupRolesTable : Table("access_group_roles") {
+    val groupId = varchar("group_id", 36).references(AccessGroupsTable.id, onDelete = CASCADE)
+    val roleId = varchar("role_id", 36).references(AccessRolesTable.id, onDelete = CASCADE)
+    override val primaryKey = PrimaryKey(groupId, roleId)
+}
+
+object UserAccessGroupsTable : Table("user_access_groups") {
+    val userId = varchar("user_id", 36).references(UsersTable.id, onDelete = CASCADE)
+    val groupId = varchar("group_id", 36).references(AccessGroupsTable.id, onDelete = CASCADE)
+    override val primaryKey = PrimaryKey(userId, groupId)
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -142,6 +182,11 @@ object OrdersTable : Table("orders") {
     val deliveryStatus = varchar("delivery_status", 20).default("PENDING")
     val paymentMethod = varchar("payment_method", 30).default("MPESA")
     val salesChannel = varchar("sales_channel", 30).default("WEB")
+    val serviceType = varchar("service_type", 20).default("RETAIL")
+    val hospitalityTableId = varchar("hospitality_table_id", 36).nullable()
+    val serverUserId = varchar("server_user_id", 36).nullable()
+    val guestCount = integer("guest_count").default(1)
+    val tabStatus = varchar("tab_status", 20).default("CLOSED")
     val mpesaTransactionCode = varchar("mpesa_transaction_code", 50).nullable()
     val stkCheckoutRequestId = varchar("stk_checkout_request_id", 100).nullable()
     val notes = text("notes").default("")
@@ -174,6 +219,31 @@ object MpesaCheckoutAttemptsTable : Table("mpesa_checkout_attempts") {
     val createdAt = timestamp("created_at")
     override val primaryKey = PrimaryKey(id)
     val orderCreatedAtIdx = index("idx_mpesa_attempts_order_created", false, orderId, createdAt)
+}
+
+object HospitalityTablesTable : Table("hospitality_tables") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
+    val name = varchar("name", 60)
+    val area = varchar("area", 80).default("Main Floor")
+    val capacity = integer("capacity").default(4)
+    val status = varchar("status", 20).default("AVAILABLE")
+    val isActive = bool("is_active").default(true)
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
+object KitchenTicketsTable : Table("kitchen_tickets") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
+    val orderId = varchar("order_id", 36).references(OrdersTable.id, onDelete = CASCADE)
+    val station = varchar("station", 20)
+    val status = varchar("status", 20).default("NEW")
+    val notes = varchar("notes", 500).default("")
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
 }
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────

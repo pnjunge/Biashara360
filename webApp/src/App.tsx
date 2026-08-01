@@ -29,6 +29,7 @@ const DownloadsPage = lazy(() => import('./pages/DownloadsPage'))
 
 const CardCheckoutPage = lazy(() => import('./pages/CardCheckoutPage'))
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage'))
+const HospitalityPage = lazy(() => import('./pages/HospitalityPage'))
 
 // ── Auth Context ──────────────────────────────────────────────────────────────
 interface AuthUser {
@@ -131,12 +132,13 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/card-checkout" element={<CardCheckoutPage />} />
           <Route path="/pay/card" element={<CardCheckoutPage />} />
-          <Route path="/shop/:businessId" element={<StorefrontPage />} />
+          <Route path="/shop/:storeSlug" element={<StorefrontPage />} />
           <Route path="/" element={<PrivateRoute><AppShell /></PrivateRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard"  element={<DashboardPage />} />
             <Route path="inventory"  element={<InventoryPage />} />
             <Route path="pos"        element={<PosPage />} />
+            <Route path="hospitality" element={<HospitalityPage />} />
             <Route path="orders"     element={<OrdersPage />} />
             <Route path="customers"  element={<CustomersPage />} />
             <Route path="expenses"   element={<ExpensesPage />} />

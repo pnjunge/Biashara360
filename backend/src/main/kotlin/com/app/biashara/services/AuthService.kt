@@ -103,6 +103,7 @@ class AuthService(
         BusinessesTable.insert {
             it[id] = businessId
             it[name] = req.businessName
+            it[storefrontSlug] = allocateStorefrontSlug(req.businessName, businessId)
             it[type] = req.businessType
             it[ownerPhone] = req.phone
             it[ownerEmail] = req.email

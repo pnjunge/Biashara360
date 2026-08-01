@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../App'
 import {
@@ -7,23 +7,25 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Menu, Shield, FileCheck, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Link, Download
 } from 'lucide-react'
 import styles from './AppShell.module.css'
+import { accessApi } from '../../services/api'
 
 const navItems = [
-  { to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/pos',           icon: Store,           label: 'Point of Sale' },
-  { to: '/inventory',     icon: Package,         label: 'Inventory' },
-  { to: '/orders',        icon: ShoppingCart,    label: 'Orders' },
-  { to: '/customers',     icon: Users,           label: 'Customers' },
-  { to: '/expenses',      icon: Receipt,         label: 'Expenses' },
-  { to: '/payments',      icon: CreditCard,      label: 'Mpesa Payments' },
-  { to: '/card-payments', icon: Shield,          label: 'Card / CyberSource' },
-  { to: '/tax',           icon: Receipt,          label: 'Tax' },
-  { to: '/kra',           icon: FileCheck,        label: 'KRA iTax' },
-  { to: '/social',        icon: MessageSquare,    label: 'Social Inbox' },
-  { to: '/social-onboarding', icon: Link,         label: 'Social Setup' },
-  { to: '/users',         icon: UserPlus,         label: 'User Creation' },
-  { to: '/reports',       icon: BarChart3,        label: 'Reports' },
-  { to: '/downloads',     icon: Download,         label: 'Download Apps' },
+  { key:'DASHBOARD', to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
+  { key:'POS', to: '/pos',           icon: Store,           label: 'Point of Sale' },
+  { key:'HOSPITALITY', to: '/hospitality', icon: Receipt, label: 'Bar & Restaurant' },
+  { key:'INVENTORY', to: '/inventory',     icon: Package,         label: 'Inventory' },
+  { key:'ORDERS', to: '/orders',        icon: ShoppingCart,    label: 'Orders' },
+  { key:'CUSTOMERS', to: '/customers',     icon: Users,           label: 'Customers' },
+  { key:'EXPENSES', to: '/expenses',      icon: Receipt,         label: 'Expenses' },
+  { key:'PAYMENTS', to: '/payments',      icon: CreditCard,      label: 'Mpesa Payments' },
+  { key:'CARD_PAYMENTS', to: '/card-payments', icon: Shield,          label: 'Card / CyberSource' },
+  { key:'TAX', to: '/tax',           icon: Receipt,          label: 'Tax' },
+  { key:'KRA', to: '/kra',           icon: FileCheck,        label: 'KRA iTax' },
+  { key:'SOCIAL', to: '/social',        icon: MessageSquare,    label: 'Social Inbox' },
+  { key:'SOCIAL_SETUP', to: '/social-onboarding', icon: Link,         label: 'Social Setup' },
+  { key:'USERS', to: '/users',         icon: UserPlus,         label: 'Users & Access' },
+  { key:'REPORTS', to: '/reports',       icon: BarChart3,        label: 'Reports' },
+  { key:'DOWNLOADS', to: '/downloads',     icon: Download,         label: 'Download Apps' },
 ]
 
 export default function AppShell() {
@@ -33,8 +35,15 @@ export default function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [allowedMenus, setAllowedMenus] = useState<Set<string> | null>(null)
+  useEffect(() => {
+    accessApi.me().then(result => {
+      if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
+    }).catch(() => setAllowedMenus(null))
+  }, [user?.id])
   const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
   const visibleNavItems = navItems.filter(item => {
+    if (allowedMenus && !allowedMenus.has(item.key)) return false
     if (!isStaff) return true
     return item.to !== '/users' && item.to !== '/business' && item.to !== '/cybersource-settings'
   })
@@ -77,7 +86,7 @@ export default function AppShell() {
         </nav>
 
         <div className={styles.sidebarBottom}>
-          {!isStaff && (
+          {!isStaff && (!allowedMenus || allowedMenus.has('SETTINGS')) && (
             <NavLink
               to="/settings"
               className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
@@ -162,7 +171,7 @@ export default function AppShell() {
             </div>
           </div>
         </header>
-        <main className={styles.content}>
+        <main className={`${styles.content} app-content`}>
           <Outlet />
         </main>
       </div>

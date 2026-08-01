@@ -112,7 +112,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--b360-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div className="auth-page" style={{ minHeight: '100vh', background: 'var(--b360-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ width: '100%', maxWidth: 450 }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
@@ -123,7 +123,7 @@ export default function RegisterPage() {
           <p style={{ color: 'var(--b360-text-secondary)', fontSize: 13 }}>Biashara yako, nguvu yako · Create Merchant Account</p>
         </div>
 
-        <div style={{ background: 'white', borderRadius: 16, padding: 32, boxShadow: 'var(--shadow-md)', border: '1px solid var(--b360-border)' }}>
+        <div className="auth-card" style={{ background: 'white', borderRadius: 16, padding: 32, boxShadow: 'var(--shadow-md)', border: '1px solid var(--b360-border)' }}>
           {step === 'register' ? (
             <>
               <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Self Onboarding / Jisajili</h2>
@@ -135,7 +135,7 @@ export default function RegisterPage() {
                   onChange={setName}
                 />
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="responsive-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <Input
                     label="Phone / Simu (07XX) *"
                     placeholder="e.g. 0712345678"
