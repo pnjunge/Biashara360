@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { Btn, Input, Modal, Select } from '../ui'
-import { OrderResponse, hospitalityApi, hospitalityOpsApi, paymentApi } from '../../services/api'
+import { BusinessProfileResponse, OrderResponse, businessApi, hospitalityApi, hospitalityOpsApi, paymentApi } from '../../services/api'
+import { printOrderReceipt } from '../../utils/receipt'
 
 type SplitLine = { method: string; amount: string; phone: string }
 
@@ -8,10 +9,15 @@ export function SettlementModal({ order, onClose, onComplete }: { order: OrderRe
   const [mode, setMode] = useState<'single'|'split'>('single')
   const [method, setMethod] = useState('CASH')
   const [phone, setPhone] = useState(order.customerPhone || '')
+  const [profile, setProfile] = useState<BusinessProfileResponse | null>(null)
   const half = (order.subtotal / 2).toFixed(2)
   const [lines, setLines] = useState<SplitLine[]>([{method:'CASH',amount:half,phone:''},{method:'CASH',amount:(order.subtotal-Number(half)).toFixed(2),phone:''}])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    businessApi.getProfile().then(res => { if (res.success && res.data) setProfile(res.data) }).catch(() => undefined)
+  }, [])
   const splitTotal = useMemo(() => lines.reduce((sum,line)=>sum+(Number(line.amount)||0),0),[lines])
   const methods = [{value:'CASH',label:'Cash'},{value:'MPESA',label:'M-Pesa'},{value:'CARD',label:'Card'}]
   const splitMethods = methods.filter(item=>item.value==='CASH')
@@ -37,6 +43,11 @@ export function SettlementModal({ order, onClose, onComplete }: { order: OrderRe
           window.location.assign(`/pay/card?orderId=${encodeURIComponent(order.id)}&businessId=${encodeURIComponent(order.businessId)}`)
           return
         }
+      }
+      try {
+        printOrderReceipt({ ...order, paymentStatus: 'PAID', paymentMethod: method }, profile, false)
+      } catch (err) {
+        console.warn('Auto print receipt error:', err)
       }
       await onComplete()
       onClose()

@@ -87,6 +87,96 @@ private data class PosHospitalityOrderRes(
     val orderNumber: String
 )
 
+fun printReceiptDesktop(
+    orderNumber: String,
+    tableName: String? = null,
+    items: List<Pair<String, Pair<Int, Double>>>,
+    subtotal: Double,
+    tax: Double,
+    grandTotal: Double,
+    isSettled: Boolean,
+    paymentMethod: String = "CASH",
+    customerName: String = "Walk-In Customer",
+    customerPhone: String = ""
+) {
+    try {
+        val tempFile = java.io.File.createTempFile("receipt_$orderNumber", ".html")
+        tempFile.deleteOnExit()
+
+        val banner = if (!isSettled) {
+            """<div style="text-align:center; font-weight:bold; font-size:12px; margin: 4px 0; background:#fffbeb; padding:6px; border:1px dashed #d97706; color:#92400e;">*** PRO-FORMA TABLE BILL (UNPAID) ***</div>"""
+        } else {
+            """<div style="text-align:center; font-weight:bold; font-size:12px; margin: 4px 0; background:#f0fdf4; padding:6px; border:1px solid #16a34a; color:#166534;">*** OFFICIAL RECEIPT (PAID) ***</div>"""
+        }
+
+        val statusText = if (!isSettled) "<span style='color:#d97706; font-weight:bold;'>PENDING SETTLEMENT</span>" else "<span style='color:#16a34a; font-weight:bold;'>SETTLED ($paymentMethod)</span>"
+        val tableInfo = if (!tableName.isNullOrBlank()) "<div class='line'><span>TABLE:</span><strong>$tableName</strong></div>" else ""
+
+        val itemsHtml = items.joinToString("") { (name, qtyPrice) ->
+            val (qty, price) = qtyPrice
+            """<div style="margin: 5px 0;">
+                <div style="font-weight:bold;">${name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")}</div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span>$qty × KES ${String.format("%,.2f", price)}</span>
+                    <span>KES ${String.format("%,.2f", qty * price)}</span>
+                </div>
+            </div>"""
+        }
+
+        val htmlContent = """<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Receipt $orderNumber</title>
+    <style>
+        @page { size: 80mm auto; margin: 4mm; }
+        body { width: 72mm; margin: 0 auto; color: #111; font-family: monospace; font-size: 11px; line-height: 1.35; }
+        .center { text-align: center; }
+        .rule { border-top: 1px dashed #111; margin: 7px 0; }
+        .line { display: flex; justify-content: space-between; }
+        .total { font-size: 14px; font-weight: bold; margin-top: 4px; }
+        @media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="center">
+        <h2 style="margin:2px 0;">BIASHARA360 POS</h2>
+        <div style="font-size:10px; color:#444;">Hospitality & Retail Commerce</div>
+    </div>
+    $banner
+    <div class="rule"></div>
+    <div class="line"><span>REF / ORDER:</span><strong>$orderNumber</strong></div>
+    $tableInfo
+    <div class="line"><span>DATE:</span><span>${java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))}</span></div>
+    <div class="line"><span>STATUS:</span>$statusText</div>
+    <div class="line"><span>CUSTOMER:</span><span>${customerName.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")}</span></div>
+    ${if (customerPhone.isNotBlank()) "<div class='line'><span>PHONE:</span><span>$customerPhone</span></div>" else ""}
+    <div class="rule"></div>
+    $itemsHtml
+    <div class="rule"></div>
+    <div class="line"><span>SUBTOTAL:</span><span>KES ${String.format("%,.2f", subtotal)}</span></div>
+    <div class="line"><span>VAT (16%):</span><span>KES ${String.format("%,.2f", tax)}</span></div>
+    <div class="line total"><span>TOTAL:</span><span>KES ${String.format("%,.2f", grandTotal)}</span></div>
+    <div class="rule"></div>
+    <div class="center" style="margin-top:8px;">
+        <strong>${if (!isSettled) "PLEASE PRESENT BILL TO CASHIER FOR SETTLEMENT" else "THANK YOU FOR YOUR VISIT!"}</strong>
+    </div>
+    <div class="center no-print" style="margin-top:16px;">
+        <button onclick="window.print()">Print Receipt</button>
+    </div>
+    <script>window.addEventListener('load', () => setTimeout(() => window.print(), 200))</script>
+</body>
+</html>"""
+
+        tempFile.writeText(htmlContent)
+        if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+            java.awt.Desktop.getDesktop().browse(tempFile.toURI())
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DesktopPosScreen(
@@ -190,10 +280,15 @@ fun DesktopPosScreen(
         modifier = Modifier.fillMaxSize().background(Color(0xFFF8FAFC))
     ) {
         // Left Side: Product Selection Grid
+        val leftScrollState = rememberScrollState()
         Column(
-            modifier = Modifier.weight(1.3f).fillMaxHeight().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+            modifier = Modifier
+                .weight(1.3f)
+                .fillMaxHeight()
+                .verticalScroll(leftScrollState)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         val isHospitalityActive = businessProfileState.profile?.hospitalityEnabled == true || businessProfileState.profile?.type == "HOSPITALITY"
         if (isHospitalityActive) {
             Surface(color = Color(0xFFE8F5EE), shape = RoundedCornerShape(8.dp)) {
@@ -424,7 +519,7 @@ fun DesktopPosScreen(
                     columns = GridCells.Adaptive(minSize = 160.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 450.dp, max = 900.dp)
                 ) {
                     items(filteredProducts) { p ->
                         val isOutOfStock = p.isOutOfStock
@@ -1070,6 +1165,19 @@ fun DesktopPosScreen(
                                                 }
                                                 else -> {
                                                     successOrderNumber = savedOrder.orderNumber
+                                                    val itemsList = cart.map { it.product.name to (it.qty to it.product.sellingPrice) }
+                                                    printReceiptDesktop(
+                                                        orderNumber = savedOrder.orderNumber,
+                                                        tableName = selectedTable?.name,
+                                                        items = itemsList,
+                                                        subtotal = subtotal,
+                                                        tax = tax,
+                                                        grandTotal = grandTotal,
+                                                        isSettled = true,
+                                                        paymentMethod = paymentMethod.name,
+                                                        customerName = selectedCustomer?.name ?: walkInName,
+                                                        customerPhone = selectedCustomer?.phone ?: walkInPhone
+                                                    )
                                                     cart.clear()
                                                     notes = ""
                                                 }
@@ -1095,7 +1203,7 @@ fun DesktopPosScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                    Text("Complete Sale", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                    Text("Complete Sale & Print Receipt", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
                                 }
                             }
                         }
@@ -1133,6 +1241,18 @@ fun DesktopPosScreen(
                                             val orderRes = resp.data
                                             if (resp.success && orderRes != null) {
                                                 paymentFeedback = "Order #${orderRes.orderNumber} tab opened and sent to kitchen!"
+                                                val itemsList = cart.map { it.product.name to (it.qty to it.product.sellingPrice) }
+                                                printReceiptDesktop(
+                                                    orderNumber = orderRes.orderNumber,
+                                                    tableName = selectedTable?.name,
+                                                    items = itemsList,
+                                                    subtotal = subtotal,
+                                                    tax = tax,
+                                                    grandTotal = grandTotal,
+                                                    isSettled = false,
+                                                    customerName = selectedCustomer?.name ?: walkInName,
+                                                    customerPhone = selectedCustomer?.phone ?: walkInPhone
+                                                )
                                                 cart.clear()
                                                 notes = ""
                                             } else {
