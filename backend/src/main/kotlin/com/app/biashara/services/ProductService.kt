@@ -134,7 +134,7 @@ class ProductService {
             it[StockMovementsTable.businessId] = businessId
             it[type] = req.type
             it[quantity] = req.quantity
-            it[note] = req.note
+            it[note] = req.note ?: ""
             it[recordedAt] = Clock.System.now()
         }
 

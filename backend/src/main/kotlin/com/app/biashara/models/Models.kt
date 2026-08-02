@@ -131,12 +131,64 @@ data class UpdateInventoryCategoryRequest(
     val imageUrl: String? = null
 )
 
-@Serializable
+@Serializable(with = StockUpdateRequestSerializer::class)
 data class StockUpdateRequest(
-    val type: String,   // STOCK_IN, STOCK_OUT, ADJUSTMENT
-    val quantity: Int,
-    val note: String = ""
+    val type: String = "STOCK_IN",   // STOCK_IN, STOCK_OUT, ADJUSTMENT
+    val quantity: Int = 0,
+    val note: String? = ""
 )
+
+@Serializable
+private data class StockUpdateRequestSurrogate(
+    val type: String = "STOCK_IN",
+    val quantity: Int = 0,
+    val note: String? = ""
+)
+
+object StockUpdateRequestSerializer : KSerializer<StockUpdateRequest> {
+    private val surrogateSerializer = StockUpdateRequestSurrogate.serializer()
+    override val descriptor: SerialDescriptor = surrogateSerializer.descriptor
+
+    override fun serialize(encoder: Encoder, value: StockUpdateRequest) {
+        encoder.encodeSerializableValue(
+            surrogateSerializer,
+            StockUpdateRequestSurrogate(value.type, value.quantity, value.note)
+        )
+    }
+
+    override fun deserialize(decoder: Decoder): StockUpdateRequest {
+        val jsonDecoder = decoder as? JsonDecoder
+        if (jsonDecoder != null) {
+            val jsonElement = jsonDecoder.decodeJsonElement()
+            if (jsonElement is JsonObject) {
+                val typeStr = jsonElement["type"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: "STOCK_IN"
+
+                val rawQuantityElement = jsonElement["quantity"] ?: jsonElement["quantityToAdd"]
+                val qtyInt = when (rawQuantityElement) {
+                    is JsonPrimitive -> {
+                        rawQuantityElement.intOrNull
+                            ?: rawQuantityElement.doubleOrNull?.toInt()
+                            ?: rawQuantityElement.contentOrNull?.toDoubleOrNull()?.toInt()
+                            ?: rawQuantityElement.contentOrNull?.toIntOrNull()
+                            ?: 0
+                    }
+                    else -> 0
+                }
+
+                val noteStr = jsonElement["note"]?.jsonPrimitive?.contentOrNull ?: ""
+
+                return StockUpdateRequest(
+                    type = typeStr,
+                    quantity = qtyInt,
+                    note = noteStr
+                )
+            }
+        }
+
+        val surrogate = decoder.decodeSerializableValue(surrogateSerializer)
+        return StockUpdateRequest(surrogate.type, surrogate.quantity, surrogate.note)
+    }
+}
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 

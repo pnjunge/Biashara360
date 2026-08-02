@@ -280,7 +280,7 @@ fun Route.productRoutesValidated() {
                 // Validate stock update request
                 Validator.validate {
                     field("id", id) {
-                        uuid()
+                        required()
                     }
                     field("type", req.type) {
                         required()
@@ -293,7 +293,7 @@ fun Route.productRoutesValidated() {
                         nonNegative()
                         range(0.0, Constants.Business.MAX_STOCK_QUANTITY.toDouble())
                     }
-                    field("note", req.note) {
+                    field("note", req.note ?: "") {
                         maxLength(500)
                     }
                 }

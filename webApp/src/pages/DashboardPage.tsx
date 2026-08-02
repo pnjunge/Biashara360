@@ -463,7 +463,7 @@ export function InventoryPage() {
     if (!stockProduct) return
     setSaving(true); setError('')
     try {
-      const res = await productApi.updateStock(stockProduct.id, { quantityToAdd: Number(stockQty) })
+      const res = await productApi.updateStock(stockProduct.id, { type: 'STOCK_IN', quantity: Number(stockQty) })
       if (res.success) { setStockProduct(null); loadProducts() }
       else setError(res.message || 'Failed to update stock.')
     } catch (e: any) {
