@@ -727,8 +727,10 @@ fun DesktopAuthFlow(viewModel: AuthViewModel) {
 
 @Composable
 fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentation.viewmodel.AuthState) {
+    var isPinLoginMode by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var pin by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(true) }
     var showForgotPassword by remember { mutableStateOf(false) }
@@ -763,7 +765,59 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                 Text("Enterprise Management Platform", color = Color.Gray, fontSize = 12.sp)
             }
 
-            Spacer(Modifier.height(8.dp))
+            // Auth Mode Toggle Tabs (Password vs Staff PIN)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFFF1F5F9))
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (!isPinLoginMode) B360Green else Color.Transparent)
+                        .clickable { isPinLoginMode = false; viewModel.dismissError() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Password",
+                        fontWeight = if (!isPinLoginMode) FontWeight.Bold else FontWeight.Medium,
+                        color = if (!isPinLoginMode) Color.White else Color(0xFF64748B),
+                        fontSize = 13.sp
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isPinLoginMode) B360Green else Color.Transparent)
+                        .clickable { isPinLoginMode = true; viewModel.dismissError() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(
+                            Icons.Default.Pin,
+                            contentDescription = null,
+                            tint = if (isPinLoginMode) Color.White else Color(0xFF64748B),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            "Staff PIN",
+                            fontWeight = if (isPinLoginMode) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isPinLoginMode) Color.White else Color(0xFF64748B),
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
 
             val errorText = state.error
             if (errorText != null) {
@@ -794,53 +848,90 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                 enabled = !state.isLoading
             )
 
-            CustomLoginTextField(
-                value = password,
-                onValueChange = { password = it; viewModel.dismissError() },
-                placeholder = "Password",
-                leadingIcon = Icons.Filled.Lock,
-                isPassword = true,
-                passwordVisible = passwordVisible,
-                onPasswordToggle = { passwordVisible = !passwordVisible },
-                enabled = !state.isLoading
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = rememberMe,
-                        onCheckedChange = { rememberMe = it },
-                        colors = CheckboxDefaults.colors(checkedColor = B360Green)
-                    )
-                    Text("Remember me", fontSize = 14.sp, color = Color(0xFF475569))
-                }
-                Text(
-                    text = "Forgot password?",
-                    fontSize = 14.sp,
-                    color = B360Green,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.clickable { showForgotPassword = true }
+            if (!isPinLoginMode) {
+                CustomLoginTextField(
+                    value = password,
+                    onValueChange = { password = it; viewModel.dismissError() },
+                    placeholder = "Password",
+                    leadingIcon = Icons.Filled.Lock,
+                    isPassword = true,
+                    passwordVisible = passwordVisible,
+                    onPasswordToggle = { passwordVisible = !passwordVisible },
+                    enabled = !state.isLoading
                 )
-            }
 
-            Button(
-                onClick = { viewModel.login(email, password) },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                shape = RoundedCornerShape(8.dp),
-                enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank()
-            ) {
-                if (state.isLoading) {
-                    CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Sign In", fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = rememberMe,
+                            onCheckedChange = { rememberMe = it },
+                            colors = CheckboxDefaults.colors(checkedColor = B360Green)
+                        )
+                        Text("Remember me", fontSize = 14.sp, color = Color(0xFF475569))
+                    }
+                    Text(
+                        text = "Forgot password?",
+                        fontSize = 14.sp,
+                        color = B360Green,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable { showForgotPassword = true }
+                    )
+                }
+
+                Button(
+                    onClick = { viewModel.login(email, password) },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank()
+                ) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                            Icon(Icons.AutoMirrored.Filled.ExitToApp, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Sign In", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            } else {
+                CustomLoginTextField(
+                    value = pin,
+                    onValueChange = { pin = it.filter { char -> char.isDigit() }.take(6); viewModel.dismissError() },
+                    placeholder = "Enter 6-Digit Staff PIN",
+                    leadingIcon = Icons.Filled.Pin,
+                    isPassword = true,
+                    passwordVisible = passwordVisible,
+                    onPasswordToggle = { passwordVisible = !passwordVisible },
+                    enabled = !state.isLoading
+                )
+
+                Text(
+                    "Enter your assigned 6-digit staff PIN for rapid terminal authorization.",
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B)
+                )
+
+                Button(
+                    onClick = { viewModel.loginWithPin(email, pin) },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = !state.isLoading && email.isNotBlank() && pin.length == 6
+                ) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                            Icon(Icons.Filled.Pin, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Sign In with Staff PIN", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

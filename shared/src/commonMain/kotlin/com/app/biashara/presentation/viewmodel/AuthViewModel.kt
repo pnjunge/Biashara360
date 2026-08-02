@@ -33,7 +33,8 @@ class AuthViewModel(
     private val loginWithBiometricUseCase: LoginWithBiometricUseCase,
     private val resendOtpUseCase: ResendOtpUseCase,
     private val requestPasswordResetUseCase: RequestPasswordResetUseCase,
-    private val confirmPasswordResetUseCase: ConfirmPasswordResetUseCase
+    private val confirmPasswordResetUseCase: ConfirmPasswordResetUseCase,
+    private val loginWithPinUseCase: LoginWithPinUseCase
 ) : KmpViewModel() {
 
     private val _state = MutableStateFlow(AuthState())
@@ -47,6 +48,30 @@ class AuthViewModel(
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             loginUseCase(email, password).fold(
+                onSuccess = { user ->
+                    if (user.twoFactorEnabled) {
+                        _state.update {
+                            it.copy(isLoading = false, step = AuthStep.Otp(userId = user.id))
+                        }
+                    } else {
+                        _state.update { it.copy(isLoading = false, isAuthenticated = true) }
+                    }
+                },
+                onFailure = { e ->
+                    _state.update { it.copy(isLoading = false, error = e.message) }
+                }
+            )
+        }
+    }
+
+    fun loginWithPin(email: String, pin: String) {
+        if (email.isBlank() || pin.length != 6) {
+            _state.update { it.copy(error = "Email and a 6-digit staff PIN are required") }
+            return
+        }
+        scope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            loginWithPinUseCase(email, pin).fold(
                 onSuccess = { user ->
                     if (user.twoFactorEnabled) {
                         _state.update {

@@ -328,8 +328,10 @@ fun LoginScreen(
             onAuthenticated()
         }
     }
+    var isPinLoginMode by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var pin by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var showPasswordReset by remember { mutableStateOf(false) }
     var resetEmail by remember { mutableStateOf("") }
@@ -467,6 +469,58 @@ fun LoginScreen(
                         Text("Welcome Back!", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color(0xFF0F172A))
                         Text("Please sign in to continue", fontSize = 13.sp, color = Color(0xFF64748B))
 
+                        // Auth Mode Toggle Tabs (Password vs Staff PIN)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFFF1F5F9))
+                                .padding(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (!isPinLoginMode) B360Green else Color.Transparent)
+                                    .clickable { isPinLoginMode = false; viewModel.dismissError() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "Password",
+                                    fontWeight = if (!isPinLoginMode) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (!isPinLoginMode) Color.White else Color(0xFF64748B),
+                                    fontSize = 13.sp
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isPinLoginMode) B360Green else Color.Transparent)
+                                    .clickable { isPinLoginMode = true; viewModel.dismissError() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Icon(
+                                        Icons.Default.Pin,
+                                        contentDescription = null,
+                                        tint = if (isPinLoginMode) Color.White else Color(0xFF64748B),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        "Staff PIN",
+                                        fontWeight = if (isPinLoginMode) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isPinLoginMode) Color.White else Color(0xFF64748B),
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                        }
+
                         if (state.error != null) {
                             Surface(
                                 color = MaterialTheme.colorScheme.errorContainer,
@@ -491,42 +545,78 @@ fun LoginScreen(
                             enabled = !state.isLoading
                         )
 
-                        TextButton(
-                            onClick = {
-                                resetEmail = email
-                                viewModel.dismissError()
-                                showPasswordReset = true
-                            },
-                            enabled = !state.isLoading,
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Text("Forgot password?", color = B360Green, fontWeight = FontWeight.SemiBold)
-                        }
+                        if (!isPinLoginMode) {
+                            TextButton(
+                                onClick = {
+                                    resetEmail = email
+                                    viewModel.dismissError()
+                                    showPasswordReset = true
+                                },
+                                enabled = !state.isLoading,
+                                modifier = Modifier.align(Alignment.End)
+                            ) {
+                                Text("Forgot password?", color = B360Green, fontWeight = FontWeight.SemiBold)
+                            }
 
-                        AndroidCustomLoginTextField(
-                            value = password,
-                            onValueChange = { password = it; viewModel.dismissError() },
-                            placeholder = "Password",
-                            leadingIcon = Icons.Filled.Lock,
-                            isPassword = true,
-                            passwordVisible = passwordVisible,
-                            onPasswordToggle = { passwordVisible = !passwordVisible },
-                            enabled = !state.isLoading
-                        )
+                            AndroidCustomLoginTextField(
+                                value = password,
+                                onValueChange = { password = it; viewModel.dismissError() },
+                                placeholder = "Password",
+                                leadingIcon = Icons.Filled.Lock,
+                                isPassword = true,
+                                passwordVisible = passwordVisible,
+                                onPasswordToggle = { passwordVisible = !passwordVisible },
+                                enabled = !state.isLoading
+                            )
 
-                        Button(
-                            onClick = { viewModel.login(email, password) },
-                            modifier = Modifier.fillMaxWidth().height(54.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                            shape = RoundedCornerShape(14.dp),
-                            enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank()
-                        ) {
-                            if (state.isLoading) {
-                                CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
-                            } else {
-                                Box(modifier = Modifier.fillMaxWidth()) {
-                                    Text("Login / Ingia", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
-                                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                            Button(
+                                onClick = { viewModel.login(email, password) },
+                                modifier = Modifier.fillMaxWidth().height(54.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                                shape = RoundedCornerShape(14.dp),
+                                enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank()
+                            ) {
+                                if (state.isLoading) {
+                                    CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                                } else {
+                                    Box(modifier = Modifier.fillMaxWidth()) {
+                                        Text("Login / Ingia", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
+                                        Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                    }
+                                }
+                            }
+                        } else {
+                            AndroidCustomLoginTextField(
+                                value = pin,
+                                onValueChange = { pin = it.filter { c -> c.isDigit() }.take(6); viewModel.dismissError() },
+                                placeholder = "Enter 6-Digit Staff PIN",
+                                leadingIcon = Icons.Filled.Pin,
+                                isPassword = true,
+                                passwordVisible = passwordVisible,
+                                onPasswordToggle = { passwordVisible = !passwordVisible },
+                                enabled = !state.isLoading
+                            )
+
+                            Text(
+                                "Enter your assigned 6-digit staff PIN for rapid terminal authorization.",
+                                fontSize = 12.sp,
+                                color = Color(0xFF64748B)
+                            )
+
+                            Button(
+                                onClick = { viewModel.loginWithPin(email, pin) },
+                                modifier = Modifier.fillMaxWidth().height(54.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                                shape = RoundedCornerShape(14.dp),
+                                enabled = !state.isLoading && email.isNotBlank() && pin.length == 6
+                            ) {
+                                if (state.isLoading) {
+                                    CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                                } else {
+                                    Box(modifier = Modifier.fillMaxWidth()) {
+                                        Text("Login with PIN / Ingia na PIN", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
+                                        Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                    }
                                 }
                             }
                         }

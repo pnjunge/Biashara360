@@ -181,6 +181,35 @@ class AuthRepositoryImpl(
         )
     }
 
+    override suspend fun loginWithPin(email: String, pin: String): Result<User> = runCatching {
+        val response: ApiResponse<LoginResponse> = client.post("$BASE_URL/auth/pin-login") {
+            contentType(ContentType.Application.Json)
+            setBody(PinLoginRequest(email = email, pin = pin))
+        }.body()
+
+        if (!response.success || response.data == null) {
+            throw Exception(response.message.ifBlank { "PIN login failed" })
+        }
+
+        val loginData = response.data
+        if (!loginData.requiresOtp) {
+            tokenStorage.saveTokens(loginData.accessToken ?: "", loginData.refreshToken ?: "")
+            refreshSessionTimeoutPolicy()
+            loginData.user?.let { user -> setSessionUser(user) }
+        }
+        val resolvedBizId = loginData.user?.let { resolveBusinessId(it) }
+        User(
+            id = loginData.userId,
+            email = email,
+            phone = loginData.user?.phone ?: "",
+            name = loginData.user?.name ?: "",
+            role = loginData.user?.let { runCatching { UserRole.valueOf(it.role) }.getOrDefault(UserRole.STAFF) } ?: UserRole.ADMIN,
+            businessId = resolvedBizId,
+            createdAt = Clock.System.now(),
+            twoFactorEnabled = loginData.requiresOtp
+        )
+    }
+
     @kotlinx.serialization.Serializable
     private data class AdminBusinessItemDto(val id: String)
 

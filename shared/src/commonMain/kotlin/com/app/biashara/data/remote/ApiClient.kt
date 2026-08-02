@@ -118,6 +118,9 @@ data class ApiResponse<T>(
 data class LoginRequest(val email: String, val password: String)
 
 @kotlinx.serialization.Serializable
+data class PinLoginRequest(val email: String, val pin: String)
+
+@kotlinx.serialization.Serializable
 data class LoginResponse(
     val userId: String,
     val requiresOtp: Boolean,
