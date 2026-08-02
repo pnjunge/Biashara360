@@ -16,14 +16,20 @@ fun Route.hospitalityRoutes() {
     val service: HospitalityService by inject()
     val operations: AdvancedHospitalityService by inject()
     route("/hospitality") {
-        moduleGuard("SALES")
         intercept(ApplicationCallPipeline.Call) {
             val isToggleRequest = call.request.httpMethod == HttpMethod.Put && call.request.path().endsWith("/hospitality/enabled")
-            if (!isToggleRequest && !service.isEnabled(call.businessId())) {
+            val isStatusRequest = call.request.httpMethod == HttpMethod.Get && call.request.path().endsWith("/hospitality/status")
+            if (!isToggleRequest && !isStatusRequest && !call.hasAnyMenu("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Hospitality access is not enabled for this user"))
+                finish()
+                return@intercept
+            }
+            if (!isToggleRequest && !isStatusRequest && !service.isEnabled(call.businessId())) {
                 call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Hospitality mode is disabled for this business"))
                 finish()
             }
         }
+        get("/status") { call.respond(ApiResponse(true, data = mapOf("enabled" to service.isEnabled(call.businessId())))) }
         get { call.respond(ApiResponse(true,data=service.dashboard(call.businessId()))) }
         put("/enabled") {
             if(!call.hasRole("ADMIN")) return@put call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Admin access required"))

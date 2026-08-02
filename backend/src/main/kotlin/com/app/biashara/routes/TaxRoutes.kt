@@ -38,6 +38,7 @@ fun Route.taxRoutes() {
     val taxService: TaxService by inject()
 
     route("/tax") {
+        menuGuardAny("TAX")
 
         // ── Tax Rates ─────────────────────────────────────────────────────────
 

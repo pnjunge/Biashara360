@@ -69,7 +69,8 @@ data class UserResponse(
     val role: String,
     val businessId: String?,
     val preferredLanguage: String,
-    val businessName: String? = null
+    val businessName: String? = null,
+    val isActive: Boolean = true
 )
 
 // ─── Products ─────────────────────────────────────────────────────────────────

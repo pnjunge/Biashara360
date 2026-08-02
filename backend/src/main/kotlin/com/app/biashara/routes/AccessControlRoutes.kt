@@ -34,8 +34,14 @@ fun Route.accessControlRoutes() {
             post("/roles") {
                 call.respondResult(HttpStatusCode.Created) { service.createRole(call.businessId(), call.receive()) }
             }
+            put("/roles/{id}") {
+                call.respondResult { service.updateRole(call.businessId(), call.parameters["id"].orEmpty(), call.receive()) }
+            }
             post("/groups") {
                 call.respondResult(HttpStatusCode.Created) { service.createGroup(call.businessId(), call.receive()) }
+            }
+            put("/groups/{id}") {
+                call.respondResult { service.updateGroup(call.businessId(), call.parameters["id"].orEmpty(), call.receive()) }
             }
             put("/groups/{id}/users") {
                 call.respondResult { service.assignUsers(call.businessId(), call.parameters["id"].orEmpty(), call.receive()) }

@@ -1,7 +1,7 @@
 import React, { Suspense, createContext, lazy, useContext, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
-import { businessApi, settingsApi } from './services/api'
+import { hospitalityApi, settingsApi } from './services/api'
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
@@ -63,8 +63,8 @@ function RoleProtectedRoute({ children, blockedRoles }: { children: React.ReactN
 function HospitalityProtectedRoute({ children }: { children: React.ReactNode }) {
   const [enabled, setEnabled] = useState<boolean | null>(null)
   useEffect(() => {
-    businessApi.getProfile()
-      .then(result => setEnabled(result.success && result.data?.hospitalityEnabled === true))
+    hospitalityApi.status()
+      .then(result => setEnabled(result.success && result.data?.enabled === true))
       .catch(() => setEnabled(false))
   }, [])
   if (enabled === null) return <div style={{ padding: 32, textAlign: 'center' }}>Checking hospitality settings…</div>

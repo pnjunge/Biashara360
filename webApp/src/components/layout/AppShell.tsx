@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Menu, FileCheck, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Link, Download
 } from 'lucide-react'
 import styles from './AppShell.module.css'
-import { accessApi, businessApi } from '../../services/api'
+import { accessApi, hospitalityApi } from '../../services/api'
 
 const navItems = [
   { key:'DASHBOARD', to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
@@ -42,8 +42,8 @@ export default function AppShell() {
     accessApi.me().then(result => {
       if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
     }).catch(() => setAllowedMenus(null))
-    businessApi.getProfile().then(result => {
-      if (result.success && result.data) setHospitalityEnabled(result.data.hospitalityEnabled)
+    hospitalityApi.status().then(result => {
+      if (result.success && result.data) setHospitalityEnabled(result.data.enabled)
     }).catch(() => setHospitalityEnabled(null))
     const handleModeChange = (event: Event) => {
       const enabled = (event as CustomEvent<{ enabled: boolean }>).detail?.enabled

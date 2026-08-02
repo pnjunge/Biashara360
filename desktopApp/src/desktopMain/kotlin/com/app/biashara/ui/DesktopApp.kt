@@ -42,6 +42,17 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.input.key.*
+import com.app.biashara.data.remote.ApiResponse
+import com.app.biashara.data.remote.BASE_URL
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import kotlinx.serialization.Serializable
+
+@Serializable
+private data class HospitalityStatus(val enabled: Boolean = false)
+@Serializable
+private data class MenuAccess(val enabledMenus: List<String> = emptyList())
 
 // --- ViewModel-driven Navigation State ---
 class DesktopNavigationViewModel : com.app.biashara.presentation.viewmodel.KmpViewModel() {
@@ -150,17 +161,29 @@ fun Biashara360DesktopApp() {
 fun Biashara360DesktopAppContent(
     navigationViewModel: DesktopNavigationViewModel = remember { inject() },
     dashboardViewModel: com.app.biashara.presentation.viewmodel.DashboardViewModel = remember { inject() },
-    businessViewModel: com.app.biashara.presentation.viewmodel.BusinessViewModel = remember { inject() }
+    client: HttpClient = remember { inject() }
 ) {
     val currentScreen by navigationViewModel.currentScreen.collectAsState()
     val dashboardState by dashboardViewModel.state.collectAsState()
-    val businessProfileState by businessViewModel.profileState.collectAsState()
+    var hospitalityEnabled by remember { mutableStateOf(false) }
+    var enabledMenus by remember { mutableStateOf<Set<String>?>(null) }
     LaunchedEffect(Unit) {
         dashboardViewModel.loadDashboard()
-        businessViewModel.loadProfile()
+        runCatching { client.get("$BASE_URL/hospitality/status").body<ApiResponse<HospitalityStatus>>() }
+            .onSuccess { hospitalityEnabled = it.success && it.data?.enabled == true }
+        runCatching { client.get("$BASE_URL/access/me").body<ApiResponse<MenuAccess>>() }
+            .onSuccess { if (it.success) enabledMenus = it.data?.enabledMenus?.toSet() }
     }
     val visibleScreens = appScreens.filter { screen ->
-        screen !in setOf(AppScreen.Hospitality, AppScreen.OpenTabs) || businessProfileState.profile?.hospitalityEnabled == true
+        val menu = when (screen) {
+            AppScreen.Dashboard -> "DASHBOARD"; AppScreen.Pos -> "POS"; AppScreen.Hospitality -> "HOSPITALITY"
+            AppScreen.OpenTabs -> "OPEN_TABS"; AppScreen.Inventory -> "INVENTORY"; AppScreen.Orders -> "ORDERS"
+            AppScreen.Customers -> "CUSTOMERS"; AppScreen.Expenses -> "EXPENSES"; AppScreen.Payments -> "PAYMENTS"
+            AppScreen.Reports -> "REPORTS"; AppScreen.Tax -> "TAX"; AppScreen.KRA -> "KRA"; AppScreen.Social -> "SOCIAL"
+            AppScreen.Settings -> "SETTINGS"; else -> null
+        }
+        (menu == null || enabledMenus?.contains(menu) != false) &&
+            (screen !in setOf(AppScreen.Hospitality, AppScreen.OpenTabs) || hospitalityEnabled)
     }
     var isExpanded by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf("") }

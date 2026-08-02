@@ -44,18 +44,27 @@ import com.app.biashara.ui.screens.pos.PosScreen
 import com.app.biashara.ui.screens.hospitality.HospitalityOperationsScreen
 import com.app.biashara.data.remote.TokenStorage
 import com.app.biashara.domain.repository.AuthRepository
-import com.app.biashara.presentation.viewmodel.BusinessViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import com.app.biashara.data.remote.ApiResponse
+import com.app.biashara.data.remote.BASE_URL
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import kotlinx.serialization.Serializable
+
+@Serializable
+private data class HospitalityStatus(val enabled: Boolean = false)
+@Serializable
+private data class MenuAccess(val enabledMenus: List<String> = emptyList())
 
 @Composable
 fun Biashara360App() {
     val startDestination = Screen.Login.route
     val tokenStorage = koinInject<TokenStorage>()
     val authRepository = koinInject<AuthRepository>()
-    val businessViewModel = koinInject<BusinessViewModel>()
-    val businessProfileState by businessViewModel.profileState.collectAsState()
+    val client = koinInject<HttpClient>()
     val coroutineScope = rememberCoroutineScope()
     var sessionWarningSeconds by remember { mutableStateOf<Int?>(null) }
     val networkAvailable = rememberNetworkAvailable()
@@ -63,14 +72,24 @@ fun Biashara360App() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    val hospitalityEnabled = businessProfileState.profile?.hospitalityEnabled == true
+    var hospitalityEnabled by remember { mutableStateOf(false) }
+    var enabledMenus by remember { mutableStateOf<Set<String>?>(null) }
     val visibleBottomNavItems = bottomNavItems.filter {
-        it.screen != Screen.HospitalityOperations || hospitalityEnabled
+        val menu = when (it.screen) {
+            Screen.Dashboard -> "DASHBOARD"; Screen.Pos -> "POS"; Screen.Orders -> "ORDERS"
+            Screen.Inventory -> "INVENTORY"; Screen.Customers -> "CUSTOMERS"; Screen.Payments -> "PAYMENTS"
+            Screen.HospitalityOperations -> "HOSPITALITY_OPS"; Screen.Settings -> "SETTINGS"; else -> null
+        }
+        (menu == null || enabledMenus?.contains(menu) != false) &&
+            (it.screen != Screen.HospitalityOperations || hospitalityEnabled)
     }
 
     LaunchedEffect(currentDestination?.route) {
         if (currentDestination?.route !in setOf(Screen.Login.route, Screen.Register.route, Screen.OtpVerify.route)) {
-            businessViewModel.loadProfile()
+            runCatching { client.get("$BASE_URL/hospitality/status").body<ApiResponse<HospitalityStatus>>() }
+                .onSuccess { hospitalityEnabled = it.success && it.data?.enabled == true }
+            runCatching { client.get("$BASE_URL/access/me").body<ApiResponse<MenuAccess>>() }
+                .onSuccess { if (it.success) enabledMenus = it.data?.enabledMenus?.toSet() }
         }
     }
 

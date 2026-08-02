@@ -62,6 +62,25 @@ class AccessControlService {
         AccessRoleResponse(id, request.name.trim(), request.description.trim().take(255), menus, request.isActive)
     }
 
+    fun updateRole(businessId: String, roleId: String, request: SaveAccessRoleRequest): AccessRoleResponse = transaction {
+        val current = AccessRolesTable.select { (AccessRolesTable.id eq roleId) and (AccessRolesTable.businessId eq businessId) }
+            .firstOrNull() ?: error("Role not found")
+        val name = request.name.trim()
+        require(name.length in 2..80) { "Role name must be between 2 and 80 characters" }
+        require(AccessRolesTable.select { AccessRolesTable.businessId eq businessId }.none {
+            it[AccessRolesTable.id] != roleId && it[AccessRolesTable.name].equals(name, ignoreCase = true)
+        }) { "A role with this name already exists" }
+        val menus = validateMenus(request.allowedMenus)
+        AccessRolesTable.update({ AccessRolesTable.id eq current[AccessRolesTable.id] }) {
+            it[AccessRolesTable.name] = name
+            it[description] = request.description.trim().take(255)
+            it[allowedMenus] = menus.joinToString(",")
+            it[isActive] = request.isActive
+            it[updatedAt] = Clock.System.now()
+        }
+        AccessRoleResponse(roleId, name, request.description.trim().take(255), menus, request.isActive)
+    }
+
     fun createGroup(businessId: String, request: SaveAccessGroupRequest): AccessGroupResponse = transaction {
         require(request.name.trim().length in 2..80) { "Group name must be between 2 and 80 characters" }
         require(AccessGroupsTable.select { AccessGroupsTable.businessId eq businessId }.none { it[AccessGroupsTable.name].equals(request.name.trim(), ignoreCase = true) }) { "A group with this name already exists" }
@@ -73,6 +92,28 @@ class AccessControlService {
         AccessGroupResponse(id, request.name.trim(), request.description.trim().take(255), roleIds, emptyList(), request.isActive)
     }
 
+    fun updateGroup(businessId: String, groupId: String, request: SaveAccessGroupRequest): AccessGroupResponse = transaction {
+        require(AccessGroupsTable.select { (AccessGroupsTable.id eq groupId) and (AccessGroupsTable.businessId eq businessId) }.any()) { "Group not found" }
+        val name = request.name.trim()
+        require(name.length in 2..80) { "Group name must be between 2 and 80 characters" }
+        require(AccessGroupsTable.select { AccessGroupsTable.businessId eq businessId }.none {
+            it[AccessGroupsTable.id] != groupId && it[AccessGroupsTable.name].equals(name, ignoreCase = true)
+        }) { "A group with this name already exists" }
+        val roleIds = request.roleIds.distinct()
+        require(roleIds.isEmpty() || AccessRolesTable.select {
+            (AccessRolesTable.businessId eq businessId) and (AccessRolesTable.id inList roleIds)
+        }.count().toInt() == roleIds.size) { "One or more roles are invalid" }
+        AccessGroupsTable.update({ AccessGroupsTable.id eq groupId }) {
+            it[AccessGroupsTable.name] = name
+            it[description] = request.description.trim().take(255)
+            it[isActive] = request.isActive
+            it[updatedAt] = Clock.System.now()
+        }
+        AccessGroupRolesTable.deleteWhere { AccessGroupRolesTable.groupId eq groupId }
+        roleIds.forEach { roleId -> AccessGroupRolesTable.insert { it[AccessGroupRolesTable.groupId] = groupId; it[AccessGroupRolesTable.roleId] = roleId } }
+        groups(businessId).first { it.id == groupId }
+    }
+
     fun assignUsers(businessId: String, groupId: String, request: AssignGroupUsersRequest): AccessGroupResponse = transaction {
         require(AccessGroupsTable.select { (AccessGroupsTable.id eq groupId) and (AccessGroupsTable.businessId eq businessId) }.any()) { "Group not found" }
         val userIds=request.userIds.distinct()
@@ -82,7 +123,12 @@ class AccessControlService {
         groups(businessId).first { it.id == groupId }
     }
 
-    private fun businessMenus(businessId: String) = BusinessesTable.select { BusinessesTable.id eq businessId }.first()[BusinessesTable.enabledMenus].let(::csv).filter { it in MENU_KEYS }
+    private fun businessMenus(businessId: String): List<String> {
+        val business = BusinessesTable.select { BusinessesTable.id eq businessId }.first()
+        val menus = csv(business[BusinessesTable.enabledMenus]).filter { it in MENU_KEYS }.toMutableSet()
+        if (business[BusinessesTable.hospitalityEnabled]) menus += setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
+        return menus.toList()
+    }
     private fun roles(businessId: String) = AccessRolesTable.select { AccessRolesTable.businessId eq businessId }.orderBy(AccessRolesTable.name).map { AccessRoleResponse(it[AccessRolesTable.id],it[AccessRolesTable.name],it[AccessRolesTable.description],csv(it[AccessRolesTable.allowedMenus]),it[AccessRolesTable.isActive]) }
     private fun groups(businessId: String): List<AccessGroupResponse> {
         val roleMap=AccessGroupRolesTable.selectAll().groupBy({it[AccessGroupRolesTable.groupId]},{it[AccessGroupRolesTable.roleId]})

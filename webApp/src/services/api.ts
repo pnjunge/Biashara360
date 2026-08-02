@@ -784,11 +784,14 @@ export const accessApi = {
   config: async () => (await client.get<ApiResponse<AccessConfig>>('/access/config')).data,
   updateMenus: async (enabledMenus: string[]) => (await client.put<ApiResponse<AccessConfig>>('/access/config/menus', { enabledMenus })).data,
   createRole: async (data: { name: string; description: string; allowedMenus: string[] }) => (await client.post<ApiResponse<AccessRole>>('/access/config/roles', data)).data,
+  updateRole: async (id: string, data: { name: string; description: string; allowedMenus: string[]; isActive: boolean }) => (await client.put<ApiResponse<AccessRole>>(`/access/config/roles/${id}`, data)).data,
   createGroup: async (data: { name: string; description: string; roleIds: string[] }) => (await client.post<ApiResponse<AccessGroup>>('/access/config/groups', data)).data,
+  updateGroup: async (id: string, data: { name: string; description: string; roleIds: string[]; isActive: boolean }) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${id}`, data)).data,
   assignUsers: async (groupId: string, userIds: string[]) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${groupId}/users`, { userIds })).data,
 }
 
 export const hospitalityApi = {
+  status: async () => (await client.get<ApiResponse<{enabled:boolean}>>('/hospitality/status')).data,
   dashboard: async () => (await client.get<ApiResponse<HospitalityDashboard>>('/hospitality')).data,
   setEnabled: async (enabled:boolean) => (await client.put<ApiResponse<HospitalityDashboard>>('/hospitality/enabled',{enabled})).data,
   createTable: async (data:{name:string;area:string;capacity:number}) => (await client.post<ApiResponse<HospitalityTable>>('/hospitality/tables',data)).data,

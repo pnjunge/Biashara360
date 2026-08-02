@@ -273,6 +273,7 @@ fun Route.cyberSourceRoutes() {
     val orderService: OrderService by inject()
 
     route("/payments/card/manage") {
+        menuGuardAny("PAYMENTS", "CARD_PAYMENTS")
 
         /**
          * POST /v1/payments/card/manage/generate-link

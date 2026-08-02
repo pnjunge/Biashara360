@@ -46,6 +46,7 @@ fun Route.kraRoutes() {
     val taxService: TaxService by inject()
 
     route("/kra") {
+        menuGuardAny("KRA")
 
         // ── KRA Profile ───────────────────────────────────────────────────────
 

@@ -37,7 +37,16 @@ class HospitalityService(private val orderService: OrderService) {
                     (KitchenTicketsTable.status inList listOf("NEW", "PREPARING", "READY", "DELAYED"))
             }.none()) { "Complete or cancel all active kitchen and bar tickets before disabling hospitality mode" }
         }
-        BusinessesTable.update({ BusinessesTable.id eq businessId }) { it[hospitalityEnabled] = enabled; it[updatedAt] = Clock.System.now() }
+        BusinessesTable.update({ BusinessesTable.id eq businessId }) {
+            it[hospitalityEnabled] = enabled
+            if (enabled) {
+                val currentMenus = BusinessesTable.select { BusinessesTable.id eq businessId }.first()[BusinessesTable.enabledMenus]
+                    .split(',').map(String::trim).filter(String::isNotBlank).toMutableSet()
+                currentMenus += setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
+                it[enabledMenus] = currentMenus.joinToString(",")
+            }
+            it[updatedAt] = Clock.System.now()
+        }
         logger.info("""{"event":"hospitality_mode_changed","business_id":"$businessId","enabled":$enabled}""")
         dashboard(businessId)
     }

@@ -6,6 +6,7 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.app.biashara.auth.JwtUtils
 import com.app.biashara.db.BusinessesTable
+import com.app.biashara.db.UsersTable
 import com.app.biashara.models.ApiResponse
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
@@ -51,17 +52,20 @@ fun Application.configureSecurity() {
                 val type = credential.payload.getClaim("type").asString()
                 val businessId = credential.payload.getClaim("businessId").asString()
                 val role = credential.payload.getClaim("role").asString()
-                val businessCanAccess = role == "SUPERADMIN" || (!businessId.isNullOrBlank() && transaction {
+                val subject = credential.payload.subject
+                val accountCanAccess = transaction {
+                    val user = UsersTable.select { UsersTable.id eq subject }.firstOrNull()
+                        ?: return@transaction false
+                    if (!user[UsersTable.isActive] || user[UsersTable.role] != role) return@transaction false
+                    if (role == "SUPERADMIN") return@transaction true
+                    if (businessId.isNullOrBlank() || user[UsersTable.businessId] != businessId) return@transaction false
                     BusinessesTable
                         .slice(BusinessesTable.isActive, BusinessesTable.subscriptionEnabled)
                         .select { BusinessesTable.id eq businessId }
                         .firstOrNull()
-                        ?.let {
-                            it[BusinessesTable.isActive] &&
-                                it[BusinessesTable.subscriptionEnabled]
-                        } == true
-                })
-                if (type == "access" && businessCanAccess) {
+                        ?.let { it[BusinessesTable.isActive] && it[BusinessesTable.subscriptionEnabled] } == true
+                }
+                if (type == "access" && accountCanAccess) {
                     JWTPrincipal(credential.payload)
                 } else null
             }

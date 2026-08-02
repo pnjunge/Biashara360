@@ -43,6 +43,7 @@ fun Route.socialRoutes() {
     val svc: SocialService by inject()
 
     route("/social") {
+        menuGuardAny("SOCIAL", "SOCIAL_SETUP")
 
         get("/meta/configuration") {
             call.respond(ApiResponse(true, data = svc.getMetaOnboardingConfiguration()))

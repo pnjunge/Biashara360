@@ -742,6 +742,20 @@ export function UserCreationPage() {
       if (res.success) await loadAccess(); else setAccessMessage(res.message || 'Could not update group members.')
     } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update group members.') }
   }
+  const updateAccessRole = async (role: AccessConfig['roles'][number], isActive = role.isActive) => {
+    setAccessMessage('')
+    try {
+      const res = await accessApi.updateRole(role.id, {...role,isActive})
+      if (res.success) await loadAccess(); else setAccessMessage(res.message || 'Could not update role.')
+    } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update role.') }
+  }
+  const updateAccessGroup = async (group: AccessConfig['groups'][number], isActive = group.isActive) => {
+    setAccessMessage('')
+    try {
+      const res = await accessApi.updateGroup(group.id, {...group,isActive})
+      if (res.success) await loadAccess(); else setAccessMessage(res.message || 'Could not update group.')
+    } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update group.') }
+  }
 
   // ── Handlers ──
 
@@ -796,8 +810,21 @@ export function UserCreationPage() {
   }
 
   const handleToggleUserStatus = async (id: string, isActive: boolean) => {
-    await userApi.setStatus(id, isActive, isSuperAdmin ? selectedBusinessId : undefined)
-    setUsers(prev => prev.map(u => (u.id === id ? { ...u, isActive } : u)))
+    setError('')
+    try {
+      const res = await userApi.setStatus(id, isActive, isSuperAdmin ? selectedBusinessId : undefined)
+      if (!res.success || !res.data) return setError(res.message || 'Could not update user status.')
+      setUsers(prev => prev.map(u => (u.id === id ? res.data! : u)))
+    } catch (e:any) { setError(e.response?.data?.message || 'Could not update user status.') }
+  }
+
+  const handleUserRoleChange = async (id: string, role: string) => {
+    setError('')
+    try {
+      const res = await userApi.updateRole(id, role, isSuperAdmin ? selectedBusinessId : undefined)
+      if (!res.success || !res.data) return setError(res.message || 'Could not update user role.')
+      setUsers(prev => prev.map(u => (u.id === id ? res.data! : u)))
+    } catch (e:any) { setError(e.response?.data?.message || 'Could not update user role.') }
   }
 
   const handleToggleBusinessStatus = async (id: string, isActive: boolean) => {
@@ -951,12 +978,14 @@ export function UserCreationPage() {
             <div style={{display:'flex',gap:14,flexWrap:'wrap',margin:'12px 0'}}>{accessConfig.roles.map(role=><label key={role.id} style={{fontSize:12}}><input type="checkbox" checked={groupDraft.roleIds.includes(role.id)} onChange={()=>setGroupDraft({...groupDraft,roleIds:toggleValue(groupDraft.roleIds,role.id)})}/> {role.name}</label>)}</div>
             <Btn small disabled={accessSaving!==null} onClick={createAccessGroup}>{accessSaving==='GROUP'?'Creating…':'Create group'}</Btn>
           </Card>
-          {accessConfig.groups.map(group => <Card key={group.id} style={{padding:16}}><div style={{fontWeight:700}}>{group.name}</div><div style={{fontSize:12,color:'var(--b360-text-secondary)',marginBottom:10}}>{group.description || 'No description'} · Roles: {accessConfig.roles.filter(r=>group.roleIds.includes(r.id)).map(r=>r.name).join(', ') || 'None'}</div><div style={{display:'flex',gap:12,flexWrap:'wrap'}}>{users.map(member=><label key={member.id} style={{fontSize:12}}><input type="checkbox" checked={group.userIds.includes(member.id)} onChange={()=>toggleGroupUser(group.id,group.userIds,member.id)}/> {member.name}</label>)}</div></Card>)}
+          <Card style={{padding:20}}><h3 style={{margin:'0 0 12px'}}>Existing roles</h3>{accessConfig.roles.map(role=><div key={role.id} style={{display:'flex',justifyContent:'space-between',gap:12,padding:'10px 0',borderTop:'1px solid var(--b360-border)'}}><div><b>{role.name}</b><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{role.allowedMenus.length} menus · {role.isActive?'Active':'Disabled'}</div></div><Btn small variant="secondary" onClick={()=>updateAccessRole(role,!role.isActive)}>{role.isActive?'Disable':'Enable'}</Btn></div>)}</Card>
+          {accessConfig.groups.map(group => <Card key={group.id} style={{padding:16,opacity:group.isActive?1:.65}}><div style={{display:'flex',justifyContent:'space-between',gap:12}}><div style={{fontWeight:700}}>{group.name}</div><Btn small variant="secondary" onClick={()=>updateAccessGroup(group,!group.isActive)}>{group.isActive?'Disable':'Enable'}</Btn></div><div style={{fontSize:12,color:'var(--b360-text-secondary)',marginBottom:10}}>{group.description || 'No description'} · Roles: {accessConfig.roles.filter(r=>group.roleIds.includes(r.id)).map(r=>r.name).join(', ') || 'None'}</div><div style={{display:'flex',gap:12,flexWrap:'wrap'}}>{users.map(member=><label key={member.id} style={{fontSize:12}}><input type="checkbox" disabled={!group.isActive} checked={group.userIds.includes(member.id)} onChange={()=>toggleGroupUser(group.id,group.userIds,member.id)}/> {member.name}</label>)}</div></Card>)}
         </>
       )}
 
       {/* ── User Management ── */}
       <PageHeader title="User Management" action={<Btn onClick={() => { setSelectedBusinessId(businesses[0]?.id ?? ''); setShowAdd(true) }} icon={<Plus size={14} />}>Add User</Btn>} />
+      {error && <div style={{color:'var(--b360-red)',fontSize:13}}>{error}</div>}
       <Card style={{ padding: 0 }}>
         {usersLoading ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading users…</div>
@@ -967,9 +996,9 @@ export function UserCreationPage() {
               u.name,
               u.email,
               u.phone,
-              <StatusBadge key="role" status={u.role} />,
+              <select key="role" value={u.role} disabled={u.id===currentUser?.id} onChange={event=>handleUserRoleChange(u.id,event.target.value)} style={{padding:'6px 8px',borderRadius:7}}>{ROLES.map(role=><option key={role.value} value={role.value}>{role.label}</option>)}</select>,
               <StatusBadge key="status" status={u.isActive === false ? 'INACTIVE' : 'ACTIVE'} />,
-              <Btn key="del" variant={u.isActive === false ? 'secondary' : 'danger'} small onClick={() => handleToggleUserStatus(u.id, u.isActive === false)}>
+              <Btn key="del" disabled={u.id===currentUser?.id} variant={u.isActive === false ? 'secondary' : 'danger'} small onClick={() => handleToggleUserStatus(u.id, u.isActive === false)}>
                 {u.isActive === false ? 'Enable' : 'Disable'}
               </Btn>,
             ])}

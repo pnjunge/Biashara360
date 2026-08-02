@@ -646,7 +646,8 @@ fun Route.userRoutes() {
                 val businessId = call.resolveUserManagementBusinessId(role) ?: return@patch
                 val userId = call.parameters["id"]!!
                 val req = call.receive<UpdateUserRoleRequest>()
-                val result = userService.updateRole(userId, businessId, req)
+                val callerUserId = call.principal<JWTPrincipal>()!!.payload.subject
+                val result = userService.updateRole(userId, businessId, callerUserId, req)
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
             }
 
@@ -659,7 +660,8 @@ fun Route.userRoutes() {
                 val businessId = call.resolveUserManagementBusinessId(role) ?: return@patch
                 val userId = call.parameters["id"]!!
                 val req = call.receive<UpdateUserStatusRequest>()
-                val result = userService.setActiveStatus(userId, businessId, req)
+                val callerUserId = call.principal<JWTPrincipal>()!!.payload.subject
+                val result = userService.setActiveStatus(userId, businessId, callerUserId, req)
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
             }
         }
@@ -752,14 +754,6 @@ fun ApplicationCall.hasRole(vararg roles: String): Boolean =
  * Size-capped LRU cache for module-enabled checks.
  * Caps at 1000 entries (max ~6 modules × 167 businesses) to prevent unbounded growth.
  */
-private val moduleCache: MutableMap<Triple<String, String, String>, Pair<Long, Boolean>> =
-    java.util.Collections.synchronizedMap(
-        object : java.util.LinkedHashMap<Triple<String, String, String>, Pair<Long, Boolean>>(256, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Triple<String, String, String>, Pair<Long, Boolean>>?) =
-                size > 1000
-        }
-    )
-private const val MODULE_CACHE_TTL_MS = 60_000L
 private const val DEFAULT_ENABLED_MODULES = "INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS"
 
 fun ApplicationCall.hasModule(module: String): Boolean {
@@ -777,12 +771,7 @@ fun ApplicationCall.hasModule(module: String): Boolean {
         }
         ?: return false
     val normalizedModule = module.uppercase()
-    val cacheKey = Triple(bId, userId, normalizedModule)
-    val cached = moduleCache[cacheKey]
-    if (cached != null && System.currentTimeMillis() - cached.first < MODULE_CACHE_TTL_MS) {
-        return cached.second
-    }
-    val result = transaction {
+    return transaction {
         val business = BusinessesTable
             .select { BusinessesTable.id eq bId }
             .firstOrNull() ?: return@transaction false
@@ -812,15 +801,48 @@ fun ApplicationCall.hasModule(module: String): Boolean {
                     (AccessGroupsTable.businessId eq bId) and
                     (AccessGroupsTable.isActive eq true)
             }.map { it[AccessGroupRolesTable.roleId] }
-        if (assignedRoles.isEmpty()) return@transaction true
+        if (assignedRoles.isEmpty()) {
+            val defaults = BUSINESS_MENUS.map { it.key }.toSet() - setOf("USERS", "SETTINGS")
+            return@transaction defaults.intersect(moduleMenus).isNotEmpty()
+        }
         AccessRolesTable.select {
             (AccessRolesTable.id inList assignedRoles) and (AccessRolesTable.isActive eq true)
         }.flatMap { it[AccessRolesTable.allowedMenus].split(',') }
             .map { it.trim().uppercase() }
             .any { it in moduleMenus }
     }
-    moduleCache[cacheKey] = System.currentTimeMillis() to result
-    return result
+}
+
+fun ApplicationCall.hasAnyMenu(vararg requestedMenus: String): Boolean {
+    if (userRole() == "SUPERADMIN") return true
+    val principal = principal<JWTPrincipal>() ?: return false
+    val userId = principal.payload.subject
+    val businessId = principal.payload.getClaim("businessId").asString()?.takeIf(String::isNotBlank) ?: return false
+    val requested = requestedMenus.map(String::uppercase).toSet()
+    return transaction {
+        val business = BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull() ?: return@transaction false
+        val enabled = business[BusinessesTable.enabledMenus].split(',').map { it.trim().uppercase() }.toMutableSet()
+        if (business[BusinessesTable.hospitalityEnabled]) enabled += setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
+        if (enabled.intersect(requested).isEmpty()) return@transaction false
+        if (userRole() == "ADMIN") return@transaction true
+        val roleIds = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)
+            .slice(AccessGroupRolesTable.roleId)
+            .select {
+                (UserAccessGroupsTable.userId eq userId) and
+                    (AccessGroupsTable.businessId eq businessId) and
+                    (AccessGroupsTable.isActive eq true)
+            }.map { it[AccessGroupRolesTable.roleId] }
+        val allowed = if (roleIds.isEmpty()) {
+            BUSINESS_MENUS.map { it.key }.toSet() - setOf("USERS", "SETTINGS")
+        } else {
+            AccessRolesTable.select {
+                (AccessRolesTable.businessId eq businessId) and
+                    (AccessRolesTable.id inList roleIds) and
+                    (AccessRolesTable.isActive eq true)
+            }.flatMap { it[AccessRolesTable.allowedMenus].split(',') }.map { it.trim().uppercase() }.toSet()
+        }
+        enabled.intersect(allowed).intersect(requested).isNotEmpty()
+    }
 }
 
 /**
@@ -834,6 +856,15 @@ fun Route.moduleGuard(module: String) {
                 HttpStatusCode.Forbidden,
                 ApiResponse<Unit>(false, message = "Module '$module' is not enabled for this business")
             )
+            finish()
+        }
+    }
+}
+
+fun Route.menuGuardAny(vararg menus: String) {
+    intercept(ApplicationCallPipeline.Call) {
+        if (!call.hasAnyMenu(*menus)) {
+            call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "This menu is not enabled for your account"))
             finish()
         }
     }
