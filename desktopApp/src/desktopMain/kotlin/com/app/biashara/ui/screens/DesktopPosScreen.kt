@@ -56,9 +56,46 @@ private data class PosHospitalityTableInfo(
 )
 
 @Serializable
+private data class PosHospitalityOrderItemInfo(
+    val id: String = "",
+    val productName: String = "",
+    val quantity: Int = 1,
+    val unitPrice: Double = 0.0,
+    val lineTotal: Double = 0.0
+)
+
+@Serializable
+private data class PosHospitalityOrderInfo(
+    val id: String,
+    val orderNumber: String,
+    val customerName: String? = null,
+    val customerPhone: String? = null,
+    val deliveryLocation: String? = null,
+    val serviceType: String? = null,
+    val hospitalityTableId: String? = null,
+    val tabStatus: String = "OPEN",
+    val subtotal: Double = 0.0,
+    val items: List<PosHospitalityOrderItemInfo> = emptyList(),
+    val createdAt: String = ""
+)
+
+@Serializable
 private data class PosHospitalityDashboardResponse(
     val enabled: Boolean,
-    val tables: List<PosHospitalityTableInfo> = emptyList()
+    val tables: List<PosHospitalityTableInfo> = emptyList(),
+    val openTabs: List<PosHospitalityOrderInfo> = emptyList()
+)
+
+@Serializable
+private data class PosSplitPaymentReq(
+    val method: String,
+    val amount: Double,
+    val phone: String? = null
+)
+
+@Serializable
+private data class PosCloseTabReq(
+    val paymentMethod: String
 )
 
 @Serializable
@@ -206,12 +243,16 @@ fun DesktopPosScreen(
 
     val isHospitalityActive = businessProfileState.profile?.hospitalityEnabled == true || businessProfileState.profile?.type == "HOSPITALITY"
     var tablesList by remember { mutableStateOf<List<PosHospitalityTableInfo>>(emptyList()) }
+    var openTabsList by remember { mutableStateOf<List<PosHospitalityOrderInfo>>(emptyList()) }
     var serviceType by remember { mutableStateOf("DINE_IN") }
     var selectedTable by remember { mutableStateOf<PosHospitalityTableInfo?>(null) }
     var guestCount by remember { mutableStateOf(1) }
     var isOpeningTab by remember { mutableStateOf(false) }
 
-    LaunchedEffect(isHospitalityActive) {
+    var splitModalOrder by remember { mutableStateOf<PosHospitalityOrderInfo?>(null) }
+    var settleModalOrder by remember { mutableStateOf<PosHospitalityOrderInfo?>(null) }
+
+    val reloadHospitalityData: suspend () -> Unit = {
         if (isHospitalityActive) {
             runCatching {
                 client.get("$BASE_URL/hospitality").body<ApiResponse<PosHospitalityDashboardResponse>>()
@@ -219,9 +260,14 @@ fun DesktopPosScreen(
                 val dashData = resp.data
                 if (resp.success && dashData != null) {
                     tablesList = dashData.tables
+                    openTabsList = dashData.openTabs
                 }
             }
         }
+    }
+
+    LaunchedEffect(isHospitalityActive) {
+        reloadHospitalityData()
     }
 
     var searchQuery by remember { mutableStateOf("") }
@@ -889,9 +935,68 @@ fun DesktopPosScreen(
                                                 value = guestCount.toString(),
                                                 onValueChange = { guestCount = it.toIntOrNull() ?: 1 },
                                                 label = { Text("Guests", fontSize = 11.sp) },
-                                                modifier = Modifier.width(80.dp),
-                                                singleLine = true
+                                                modifier = Modifier.width(80.dp)
                                             )
+                                        }
+                                    }
+
+                                    val activeTab = remember(openTabsList, selectedTable) {
+                                        openTabsList.find { it.hospitalityTableId == selectedTable?.id && (it.tabStatus == "OPEN" || it.tabStatus == "AWAITING_PAYMENT") }
+                                    }
+                                    activeTab?.let { tab ->
+                                        Surface(
+                                            color = Color(0xFFFEF3C7),
+                                            border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                                        ) {
+                                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                    Text("Active Tab #${tab.orderNumber}", fontWeight = FontWeight.Bold, color = Color(0xFF92400E), fontSize = 12.sp)
+                                                    Text("KES ${String.format("%,.2f", tab.subtotal)}", fontWeight = FontWeight.Bold, color = B360Green, fontSize = 13.sp)
+                                                }
+                                                Text("Guest: ${tab.customerName ?: "Walk-In Guest"} · ${tab.items.size} item(s)", fontSize = 11.sp, color = Color(0xFF78350F))
+                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Button(
+                                                        onClick = {
+                                                            val itemsList = tab.items.map { it.productName to (it.quantity to it.unitPrice) }
+                                                            printReceiptDesktop(
+                                                                orderNumber = tab.orderNumber,
+                                                                tableName = selectedTable?.name,
+                                                                items = itemsList,
+                                                                subtotal = tab.subtotal,
+                                                                tax = 0.0,
+                                                                grandTotal = tab.subtotal,
+                                                                isSettled = false,
+                                                                customerName = tab.customerName ?: "Walk-In Customer"
+                                                            )
+                                                        },
+                                                        modifier = Modifier.weight(1f).height(32.dp),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text("Print Bill", fontSize = 11.sp, color = Color.White)
+                                                    }
+
+                                                    Button(
+                                                        onClick = { splitModalOrder = tab },
+                                                        modifier = Modifier.weight(1f).height(32.dp),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text("Split Bill", fontSize = 11.sp, color = Color.White)
+                                                    }
+
+                                                    Button(
+                                                        onClick = { settleModalOrder = tab },
+                                                        modifier = Modifier.weight(1f).height(32.dp),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text("Settle Tab", fontSize = 11.sp, color = Color.White)
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1279,6 +1384,316 @@ fun DesktopPosScreen(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        splitModalOrder?.let { order ->
+            SplitBillDialogOverlay(
+                order = order,
+                onDismiss = { splitModalOrder = null },
+                onSplitComplete = { feedback ->
+                    splitModalOrder = null
+                    paymentFeedback = feedback
+                    coroutineScope.launch { reloadHospitalityData() }
+                },
+                client = client,
+                coroutineScope = coroutineScope
+            )
+        }
+
+        settleModalOrder?.let { order ->
+            SettleTabDialogOverlay(
+                order = order,
+                onDismiss = { settleModalOrder = null },
+                onSettleComplete = { feedback ->
+                    settleModalOrder = null
+                    paymentFeedback = feedback
+                    coroutineScope.launch { reloadHospitalityData() }
+                },
+                client = client,
+                coroutineScope = coroutineScope
+            )
+        }
+    }
+}
+
+@Composable
+private fun SplitBillDialogOverlay(
+    order: PosHospitalityOrderInfo,
+    onDismiss: () -> Unit,
+    onSplitComplete: (String) -> Unit,
+    client: HttpClient,
+    coroutineScope: kotlinx.coroutines.CoroutineScope
+) {
+    var splitMode by remember { mutableStateOf("EQUAL") }
+    var splitGuests by remember { mutableStateOf(2) }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    val half = order.subtotal / 2.0
+    var customLine1Method by remember { mutableStateOf("CASH") }
+    var customLine1Amount by remember { mutableStateOf(half.toString()) }
+    var customLine1Phone by remember { mutableStateOf("") }
+
+    var customLine2Method by remember { mutableStateOf("MPESA") }
+    var customLine2Amount by remember { mutableStateOf((order.subtotal - half).toString()) }
+    var customLine2Phone by remember { mutableStateOf(order.customerPhone ?: "") }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+            modifier = Modifier
+                .width(440.dp)
+                .clickable(enabled = false) {}
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Split Bill Request", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null) }
+                }
+
+                Surface(color = Color(0xFFF1F5F9), shape = RoundedCornerShape(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Order #${order.orderNumber}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Total: KES ${String.format("%,.2f", order.subtotal)}", fontWeight = FontWeight.Bold, color = B360Green, fontSize = 13.sp)
+                    }
+                }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = splitMode == "EQUAL", onClick = { splitMode = "EQUAL" }, label = { Text("Equal Split") })
+                    FilterChip(selected = splitMode == "CUSTOM", onClick = { splitMode = "CUSTOM" }, label = { Text("By Payment Method") })
+                }
+
+                if (splitMode == "EQUAL") {
+                    Text("Select number of split guests:", fontSize = 12.sp, color = Color(0xFF64748B))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(2, 3, 4, 5).forEach { num ->
+                            FilterChip(
+                                selected = splitGuests == num,
+                                onClick = { splitGuests = num },
+                                label = { Text("$num Ways (${String.format("%,.0f", order.subtotal / num)} ea)", fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Split Payment Allocations:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(value = customLine1Amount, onValueChange = { customLine1Amount = it }, label = { Text("Line 1 (KES)") }, modifier = Modifier.weight(1f), singleLine = true)
+                            OutlinedTextField(value = customLine1Method, onValueChange = { customLine1Method = it }, label = { Text("Method") }, modifier = Modifier.width(90.dp), singleLine = true)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(value = customLine2Amount, onValueChange = { customLine2Amount = it }, label = { Text("Line 2 (KES)") }, modifier = Modifier.weight(1f), singleLine = true)
+                            OutlinedTextField(value = customLine2Method, onValueChange = { customLine2Method = it }, label = { Text("Method") }, modifier = Modifier.width(90.dp), singleLine = true)
+                        }
+                    }
+                }
+
+                errorMsg?.let {
+                    Text(it, color = B360Red, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                isSubmitting = true
+                                errorMsg = null
+                                runCatching {
+                                    val splitItems = if (splitMode == "EQUAL") {
+                                        val perGuest = order.subtotal / splitGuests
+                                        (1..splitGuests).map { PosSplitPaymentReq(method = "CASH", amount = perGuest) }
+                                    } else {
+                                        val amt1 = customLine1Amount.toDoubleOrNull() ?: 0.0
+                                        val amt2 = customLine2Amount.toDoubleOrNull() ?: 0.0
+                                        if (kotlin.math.abs((amt1 + amt2) - order.subtotal) > 1.0) {
+                                            throw IllegalArgumentException("Split sum (KES ${amt1 + amt2}) must equal total (KES ${order.subtotal})")
+                                        }
+                                        listOf(
+                                            PosSplitPaymentReq(method = customLine1Method.uppercase(), amount = amt1, phone = customLine1Phone),
+                                            PosSplitPaymentReq(method = customLine2Method.uppercase(), amount = amt2, phone = customLine2Phone)
+                                        )
+                                    }
+
+                                    val resp = client.post("$BASE_URL/hospitality/operations/tabs/${order.id}/split") {
+                                        contentType(ContentType.Application.Json)
+                                        setBody(splitItems)
+                                    }.body<ApiResponse<Unit>>()
+
+                                    if (resp.success) {
+                                        splitItems.forEachIndexed { idx, item ->
+                                            printReceiptDesktop(
+                                                orderNumber = "${order.orderNumber}-SPLIT-${idx + 1}",
+                                                tableName = order.deliveryLocation,
+                                                items = order.items.map { it.productName to (it.quantity to it.unitPrice) },
+                                                subtotal = item.amount,
+                                                tax = 0.0,
+                                                grandTotal = item.amount,
+                                                isSettled = false,
+                                                paymentMethod = item.method,
+                                                customerName = "Guest ${idx + 1} (${order.customerName ?: "Walk-in"})"
+                                            )
+                                        }
+                                        onSplitComplete("Bill for Order #${order.orderNumber} split successfully into ${splitItems.size} payments!")
+                                    } else {
+                                        errorMsg = resp.message.ifBlank { "Could not split bill" }
+                                    }
+                                }.onFailure {
+                                    errorMsg = it.message ?: "Failed to split bill"
+                                }
+                                isSubmitting = false
+                            }
+                        },
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                    ) {
+                        if (isSubmitting) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
+                        else Text("Confirm & Split", color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettleTabDialogOverlay(
+    order: PosHospitalityOrderInfo,
+    onDismiss: () -> Unit,
+    onSettleComplete: (String) -> Unit,
+    client: HttpClient,
+    coroutineScope: kotlinx.coroutines.CoroutineScope
+) {
+    var paymentMethod by remember { mutableStateOf("CASH") }
+    var mpesaPhone by remember { mutableStateOf(order.customerPhone ?: "") }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+            modifier = Modifier
+                .width(420.dp)
+                .clickable(enabled = false) {}
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Settle & Close Tab", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null) }
+                }
+
+                Surface(color = Color(0xFFF0FDF4), border = BorderStroke(1.dp, Color(0xFFBBF7D0)), shape = RoundedCornerShape(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Tab #${order.orderNumber}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF166534))
+                            Text("KES ${String.format("%,.2f", order.subtotal)}", fontWeight = FontWeight.Bold, color = B360Green, fontSize = 14.sp)
+                        }
+                        Text("Customer: ${order.customerName ?: "Walk-in Customer"}", fontSize = 12.sp, color = Color(0xFF15803D))
+                    }
+                }
+
+                Text("Select Settlement Payment Method:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("CASH" to "Cash", "MPESA" to "M-Pesa", "CARD" to "Card").forEach { (method, label) ->
+                        FilterChip(
+                            selected = paymentMethod == method,
+                            onClick = { paymentMethod = method },
+                            label = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        )
+                    }
+                }
+
+                if (paymentMethod == "MPESA") {
+                    OutlinedTextField(
+                        value = mpesaPhone,
+                        onValueChange = { mpesaPhone = it },
+                        label = { Text("Customer M-Pesa Phone Number") },
+                        placeholder = { Text("e.g. 0712345678") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+
+                errorMsg?.let {
+                    Text(it, color = B360Red, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                isSubmitting = true
+                                errorMsg = null
+                                runCatching {
+                                    val req = PosCloseTabReq(paymentMethod = paymentMethod)
+                                    val resp = client.post("$BASE_URL/hospitality/tabs/${order.id}/close") {
+                                        contentType(ContentType.Application.Json)
+                                        setBody(req)
+                                    }.body<ApiResponse<Unit>>()
+
+                                    if (resp.success) {
+                                        val itemsList = order.items.map { it.productName to (it.quantity to it.unitPrice) }
+                                        printReceiptDesktop(
+                                            orderNumber = order.orderNumber,
+                                            tableName = order.deliveryLocation,
+                                            items = itemsList,
+                                            subtotal = order.subtotal,
+                                            tax = 0.0,
+                                            grandTotal = order.subtotal,
+                                            isSettled = true,
+                                            paymentMethod = paymentMethod,
+                                            customerName = order.customerName ?: "Walk-in Customer",
+                                            customerPhone = mpesaPhone
+                                        )
+                                        onSettleComplete("Tab #${order.orderNumber} settled and closed successfully!")
+                                    } else {
+                                        errorMsg = resp.message.ifBlank { "Could not settle tab" }
+                                    }
+                                }.onFailure {
+                                    errorMsg = it.message ?: "Failed to settle tab"
+                                }
+                                isSubmitting = false
+                            }
+                        },
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = B360Green)
+                    ) {
+                        if (isSubmitting) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
+                        else Text("Complete Settlement", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
