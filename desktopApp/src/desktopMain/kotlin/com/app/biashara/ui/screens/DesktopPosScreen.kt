@@ -30,10 +30,61 @@ import com.app.biashara.presentation.viewmodel.BusinessViewModel
 import com.app.biashara.ui.theme.*
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import kotlinx.serialization.Serializable
+import com.app.biashara.data.remote.ApiResponse
+import com.app.biashara.data.remote.BASE_URL
 
 data class DesktopCartItem(
     val product: Product,
     val qty: Int
+)
+
+@Serializable
+private data class PosHospitalityTableInfo(
+    val id: String,
+    val name: String,
+    val area: String,
+    val capacity: Int,
+    val status: String
+)
+
+@Serializable
+private data class PosHospitalityDashboardResponse(
+    val enabled: Boolean,
+    val tables: List<PosHospitalityTableInfo> = emptyList()
+)
+
+@Serializable
+private data class PosCreateHospitalityOrderReq(
+    val tableId: String? = null,
+    val guestCount: Int = 1,
+    val serviceType: String = "DINE_IN",
+    val customerName: String = "Walk-In Customer",
+    val customerPhone: String = "",
+    val items: List<PosHospitalityOrderItemReq> = emptyList(),
+    val notes: String = ""
+)
+
+@Serializable
+private data class PosHospitalityOrderItemReq(
+    val productId: String,
+    val productName: String,
+    val quantity: Int,
+    val unitPrice: Double,
+    val notes: String = ""
+)
+
+@Serializable
+private data class PosHospitalityOrderRes(
+    val id: String,
+    val orderNumber: String
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,7 +94,8 @@ fun DesktopPosScreen(
     customersViewModel: CustomersViewModel = remember { inject() },
     businessViewModel: BusinessViewModel = remember { inject() },
     createOrderUseCase: CreateOrderUseCase = remember { inject() },
-    initiatePaymentUseCase: InitiatePaymentUseCase = remember { inject() }
+    initiatePaymentUseCase: InitiatePaymentUseCase = remember { inject() },
+    client: HttpClient = remember { inject() }
 ) {
     val coroutineScope = rememberCoroutineScope()
     val currentUserSession by UserSession.currentUser.collectAsState()
@@ -61,6 +113,26 @@ fun DesktopPosScreen(
     val customersState by customersViewModel.state.collectAsState()
     val mpesaState by businessViewModel.mpesaState.collectAsState()
     val businessProfileState by businessViewModel.profileState.collectAsState()
+
+    val isHospitalityActive = businessProfileState.profile?.hospitalityEnabled == true || businessProfileState.profile?.type == "HOSPITALITY"
+    var tablesList by remember { mutableStateOf<List<PosHospitalityTableInfo>>(emptyList()) }
+    var serviceType by remember { mutableStateOf("DINE_IN") }
+    var selectedTable by remember { mutableStateOf<PosHospitalityTableInfo?>(null) }
+    var guestCount by remember { mutableStateOf(1) }
+    var isOpeningTab by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isHospitalityActive) {
+        if (isHospitalityActive) {
+            runCatching {
+                client.get("$BASE_URL/hospitality").body<ApiResponse<PosHospitalityDashboardResponse>>()
+            }.onSuccess { resp ->
+                val dashData = resp.data
+                if (resp.success && dashData != null) {
+                    tablesList = dashData.tables
+                }
+            }
+        }
+    }
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("All") }
@@ -675,6 +747,62 @@ fun DesktopPosScreen(
                     Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        if (isHospitalityActive) {
+                            Surface(
+                                color = Color(0xFFF8FAFC),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                            ) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Hospitality Order Details", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = B360Green)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("DINE_IN" to "Dine In", "TAKEAWAY" to "Takeaway", "DELIVERY" to "Delivery").forEach { (type, label) ->
+                                            FilterChip(
+                                                selected = serviceType == type,
+                                                onClick = { serviceType = type },
+                                                label = { Text(label, fontSize = 11.sp) }
+                                            )
+                                        }
+                                    }
+                                    if (serviceType == "DINE_IN") {
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            var tableDropdownExpanded by remember { mutableStateOf(false) }
+                                            Box(modifier = Modifier.weight(1f)) {
+                                                OutlinedTextField(
+                                                    value = selectedTable?.let { "${it.name} (${it.area})" } ?: "Select Table (Optional)",
+                                                    onValueChange = {},
+                                                    readOnly = true,
+                                                    label = { Text("Table", fontSize = 11.sp) },
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    trailingIcon = { IconButton(onClick = { tableDropdownExpanded = true }) { Icon(Icons.Default.ArrowDropDown, null) } }
+                                                )
+                                                DropdownMenu(
+                                                    expanded = tableDropdownExpanded,
+                                                    onDismissRequest = { tableDropdownExpanded = false }
+                                                ) {
+                                                    DropdownMenuItem(text = { Text("No Table / Counter") }, onClick = { selectedTable = null; tableDropdownExpanded = false })
+                                                    tablesList.forEach { tbl ->
+                                                        DropdownMenuItem(
+                                                            text = { Text("${tbl.name} · ${tbl.area} (${tbl.capacity} seats)") },
+                                                            onClick = { selectedTable = tbl; tableDropdownExpanded = false }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            OutlinedTextField(
+                                                value = guestCount.toString(),
+                                                onValueChange = { guestCount = it.toIntOrNull() ?: 1 },
+                                                label = { Text("Guests", fontSize = 11.sp) },
+                                                modifier = Modifier.width(80.dp),
+                                                singleLine = true
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Customer dropdown
                         var expanded by remember { mutableStateOf(false) }
                         Box(modifier = Modifier.fillMaxWidth()) {
@@ -968,6 +1096,66 @@ fun DesktopPosScreen(
                                 ) {
                                     Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
                                     Text("Complete Sale", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                }
+                            }
+                        }
+
+                        if (isHospitalityActive) {
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        isOpeningTab = true
+                                        errorMessage = null
+                                        runCatching {
+                                            val req = PosCreateHospitalityOrderReq(
+                                                tableId = selectedTable?.id,
+                                                guestCount = guestCount,
+                                                serviceType = serviceType,
+                                                customerName = selectedCustomer?.name ?: walkInName,
+                                                customerPhone = selectedCustomer?.phone ?: walkInPhone,
+                                                items = cart.map {
+                                                    PosHospitalityOrderItemReq(
+                                                        productId = it.product.id,
+                                                        productName = it.product.name,
+                                                        quantity = it.qty,
+                                                        unitPrice = it.product.sellingPrice
+                                                    )
+                                                },
+                                                notes = notes
+                                            )
+                                            val resp = client.post("$BASE_URL/hospitality/orders") {
+                                                contentType(ContentType.Application.Json)
+                                                setBody(req)
+                                            }.body<ApiResponse<PosHospitalityOrderRes>>()
+                                            resp
+                                        }.onSuccess { resp ->
+                                            val orderRes = resp.data
+                                            if (resp.success && orderRes != null) {
+                                                paymentFeedback = "Order #${orderRes.orderNumber} tab opened and sent to kitchen!"
+                                                cart.clear()
+                                                notes = ""
+                                            } else {
+                                                errorMessage = resp.message.ifBlank { "Could not open customer tab." }
+                                            }
+                                        }.onFailure { err ->
+                                            errorMessage = err.message ?: "Failed to open hospitality tab."
+                                        }
+                                        isOpeningTab = false
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(46.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
+                                shape = RoundedCornerShape(8.dp),
+                                enabled = !isOpeningTab && !isCheckingOut && cart.isNotEmpty()
+                            ) {
+                                if (isOpeningTab) {
+                                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                                } else {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Icon(Icons.Default.Restaurant, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                        Text("Send to Kitchen & Open Tab", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                                    }
                                 }
                             }
                         }
