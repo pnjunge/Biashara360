@@ -122,7 +122,7 @@ export interface ProductResponse {
   id: string; businessId: string; sku: string; name: string; description: string
   buyingPrice: number; sellingPrice: number; profitPerItem: number; profitMargin: number
   currentStock: number; lowStockThreshold: number; isLowStock: boolean; isOutOfStock: boolean
-  category: string; imageUrl: string | null; createdAt: string; updatedAt: string
+  category: string; imageUrl: string | null; isActive?: boolean; createdAt: string; updatedAt: string
 }
 
 export interface OrderItemResponse {
@@ -433,10 +433,11 @@ export interface InventoryCategory { id: string; name: string; isActive: boolean
 // ── API Service Objects ───────────────────────────────────────────────────────
 
 export const productApi = {
-  list: async (q?: string, lowStock?: boolean) => {
+  list: async (q?: string, lowStock?: boolean, includeInactive?: boolean) => {
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (lowStock !== undefined) params.set('lowStock', String(lowStock))
+    if (includeInactive !== undefined) params.set('includeInactive', String(includeInactive))
     const res = await client.get<ApiResponse<ProductResponse[]>>(`/products?${params}`)
     return res.data
   },

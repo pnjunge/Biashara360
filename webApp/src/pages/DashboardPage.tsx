@@ -400,9 +400,11 @@ export function InventoryPage() {
   const [stockQty, setStockQty] = useState('')
   const [error, setError] = useState('')
 
-  const loadProducts = () => {
+  const [includeDisabled, setIncludeDisabled] = useState(false)
+
+  const loadProducts = (incDisabled = includeDisabled) => {
     setLoading(true)
-    productApi.list().then(res => {
+    productApi.list(undefined, undefined, incDisabled).then(res => {
       if (res.success && res.data) setProducts(res.data)
     }).finally(() => setLoading(false))
   }
@@ -410,6 +412,17 @@ export function InventoryPage() {
   const loadCategories = () => productApi.listCategories().then(res => {
     if (res.success && res.data) setCategories(res.data)
   }).catch(() => {})
+
+  const handleToggleProductStatus = async (p: ProductResponse) => {
+    setSaving(true); setError('')
+    try {
+      const res = await productApi.updateStatus(p.id, !p.isActive)
+      if (res.success) { loadProducts() }
+      else { setError(res.message || 'Failed to update product status.') }
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Failed to update product status.')
+    } finally { setSaving(false) }
+  }
 
   useEffect(() => { loadProducts(); loadCategories() }, [])
 
@@ -583,18 +596,23 @@ export function InventoryPage() {
             <input type="checkbox" checked={lowOnly} onChange={e=>setLowOnly(e.target.checked)} />
             Low stock only
           </label>
+          <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, cursor:'pointer' }}>
+            <input type="checkbox" checked={includeDisabled} onChange={e=>{ const val = e.target.checked; setIncludeDisabled(val); loadProducts(val) }} />
+            Show disabled items
+          </label>
         </div>
         {loading ? (
           <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No products yet. Click "Add Product" to get started.</div>
+          <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No products found.</div>
         ) : (
           <DataTable
             headers={['Product', 'SKU', 'Category', 'Buy Price', 'Sell Price', 'Profit', 'Stock', 'Status', 'Actions']}
             rows={filtered.map(p => {
               const st = stockStatus(p)
+              const active = p.isActive !== false
               return [
-                <div style={{display:'flex',alignItems:'center',gap:9}}>{p.imageUrl ? <img src={p.imageUrl} alt="" style={{width:38,height:38,borderRadius:7,objectFit:'cover'}} /> : <div style={{width:38,height:38,borderRadius:7,background:'var(--b360-bg)',display:'grid',placeItems:'center'}}><Package size={16}/></div>}<strong>{p.name}</strong></div>,
+                <div style={{display:'flex',alignItems:'center',gap:9,opacity:active ? 1 : 0.5}}>{p.imageUrl ? <img src={p.imageUrl} alt="" style={{width:38,height:38,borderRadius:7,objectFit:'cover'}} /> : <div style={{width:38,height:38,borderRadius:7,background:'var(--b360-bg)',display:'grid',placeItems:'center'}}><Package size={16}/></div>}<div><strong>{p.name}</strong>{!active && <span style={{fontSize:10,marginLeft:6,padding:'2px 6px',borderRadius:4,background:'var(--b360-red)',color:'#fff'}}>Disabled</span>}</div></div>,
                 <span style={{ fontFamily:'monospace', fontSize:12, color:'var(--b360-text-secondary)' }}>{p.sku}</span>,
                 p.category,
                 `KES ${p.buyingPrice.toLocaleString()}`,
@@ -605,6 +623,7 @@ export function InventoryPage() {
                 <div style={{ display:'flex', gap:6 }}>
                   <Btn variant="secondary" small icon={<Edit size={12}/>} onClick={() => openEdit(p)}>Edit</Btn>
                   <Btn variant="secondary" small icon={<Plus size={12}/>} onClick={() => openStock(p)}>Stock</Btn>
+                  <Btn variant="secondary" small disabled={saving} onClick={() => handleToggleProductStatus(p)}>{active ? 'Disable' : 'Enable'}</Btn>
                 </div>
               ]
             })}
