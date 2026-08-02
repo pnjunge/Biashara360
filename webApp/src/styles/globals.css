@@ -223,5 +223,7 @@ input:focus, select:focus, textarea:focus {
 
 @media (max-width: 900px) {
   .hospitality-sale-grid { grid-template-columns: minmax(0, 1fr); }
-  .hospitality-sale-catalog { border-left: 0 !important; border-top: 1px solid var(--b360-border); }
+  .hospitality-sale-catalog { grid-row: 1; border-left: 0 !important; border-bottom: 1px solid var(--b360-border); border-top: 0 !important; padding: 0 0 16px !important; }
+  .hospitality-sale-details { grid-row: 2; padding: 16px 0 0 !important; }
+  .hospitality-sale-catalog > div[style*="max-height"] { max-height: none !important; overflow: visible !important; }
 }

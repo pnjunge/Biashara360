@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useId, useRef } from 'react'
 
 // ── KPI Card ──────────────────────────────────────────────────────────────────
 interface KpiCardProps { title: string; value: string; change: string; icon: React.ReactNode; color: string; bgColor?: string }
@@ -38,6 +38,14 @@ export function StatusBadge({ status }: { status: string }) {
     INACTIVE:   ['var(--b360-red)',    'var(--b360-red-bg)'],
     FREEMIUM:   ['var(--b360-blue)',   'var(--b360-blue-bg)'],
     PREMIUM:    ['var(--b360-green)',  'var(--b360-green-bg)'],
+    OPEN:       ['var(--b360-blue)',   'var(--b360-blue-bg)'],
+    AWAITING_PAYMENT: ['var(--b360-amber)', 'var(--b360-amber-bg)'],
+    NEW:        ['var(--b360-blue)',   'var(--b360-blue-bg)'],
+    PREPARING:  ['var(--b360-amber)',  'var(--b360-amber-bg)'],
+    READY:      ['var(--b360-green)',  'var(--b360-green-bg)'],
+    SERVED:     ['var(--b360-green)',  'var(--b360-green-bg)'],
+    DELAYED:    ['var(--b360-red)',    'var(--b360-red-bg)'],
+    CANCELLED:  ['var(--b360-red)',    'var(--b360-red-bg)'],
   }
   const [color, bg] = map[status.toUpperCase()] ?? ['var(--b360-text-secondary)', '#f1f5f9']
   return (
@@ -160,12 +168,34 @@ export function Input({ label, placeholder, value, onChange, type = 'text' }:
 export function Modal({ title, onClose, children, footer, wide, extraWide }: {
   title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean; extraWide?: boolean
 }) {
+  const titleId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') || [])
+    focusable()[0]?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { closeRef.current(); return }
+      if (event.key !== 'Tab') return
+      const items = focusable()
+      if (!items.length) { event.preventDefault(); return }
+      const first = items[0], last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', onKeyDown); document.body.style.overflow = overflow; previous?.focus() }
+  }, [])
   return (
-    <div className="ui-modal-backdrop" style={{ position:'fixed', inset:0, background:'rgba(15, 23, 42, 0.4)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
-      <div className="ui-modal" style={{ background:'white', borderRadius:'var(--radius-lg)', width:'100%', maxWidth: extraWide ? 1240 : wide ? 680 : 480, maxHeight: extraWide ? '94vh' : '90vh', overflow:'auto', boxShadow:'var(--shadow-lg)', display:'flex', flexDirection:'column', border:'1px solid var(--b360-border)' }}>
+    <div className="ui-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }} style={{ position:'fixed', inset:0, background:'rgba(15, 23, 42, 0.4)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="ui-modal" style={{ background:'white', borderRadius:'var(--radius-lg)', width:'100%', maxWidth: extraWide ? 1240 : wide ? 680 : 480, maxHeight: extraWide ? '94vh' : '90vh', overflow:'hidden', boxShadow:'var(--shadow-lg)', display:'flex', flexDirection:'column', border:'1px solid var(--b360-border)' }}>
         <div className="ui-modal-header" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 24px', borderBottom:'1px solid var(--b360-border)', flexShrink:0 }}>
-          <h2 style={{ fontSize:16, fontWeight:800, letterSpacing:'-0.25px', color:'var(--b360-text)' }}>{title}</h2>
-          <button className="btn" type="button" onClick={onClose} style={{ fontSize:22, lineHeight:1, color:'var(--b360-text-secondary)', cursor:'pointer', border:'none', background:'none', padding:'0 4px' }}>×</button>
+          <h2 id={titleId} style={{ fontSize:16, fontWeight:800, letterSpacing:'-0.25px', color:'var(--b360-text)' }}>{title}</h2>
+          <button aria-label="Close dialog" className="btn" type="button" onClick={onClose} style={{ fontSize:22, lineHeight:1, color:'var(--b360-text-secondary)', cursor:'pointer', border:'none', background:'none', padding:'4px 8px' }}>×</button>
         </div>
         <div className="ui-modal-body" style={{ padding:'20px 24px', flex:1, overflow:'auto' }}>{children}</div>
         {footer && (

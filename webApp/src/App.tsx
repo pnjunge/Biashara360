@@ -31,6 +31,7 @@ const StorefrontPage = lazy(() => import('./pages/StorefrontPage'))
 const HospitalityPage = lazy(() => import('./pages/HospitalityPage'))
 const HospitalityOperationsPage = lazy(() => import('./pages/HospitalityOperationsPage'))
 const OpenTabsPage = lazy(() => import('./pages/OpenTabsPage'))
+const KitchenDisplayPage = lazy(() => import('./pages/KitchenDisplayPage'))
 
 // ── Auth Context ──────────────────────────────────────────────────────────────
 interface AuthUser {
@@ -153,6 +154,7 @@ export default function App() {
             <Route path="hospitality" element={<HospitalityProtectedRoute><HospitalityPage /></HospitalityProtectedRoute>} />
             <Route path="hospitality-operations" element={<HospitalityProtectedRoute><HospitalityOperationsPage /></HospitalityProtectedRoute>} />
             <Route path="open-tabs" element={<HospitalityProtectedRoute><OpenTabsPage /></HospitalityProtectedRoute>} />
+            <Route path="kitchen-display" element={<HospitalityProtectedRoute><KitchenDisplayPage /></HospitalityProtectedRoute>} />
             <Route path="orders"     element={<OrdersPage />} />
             <Route path="customers"  element={<CustomersPage />} />
             <Route path="expenses"   element={<ExpensesPage />} />

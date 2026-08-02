@@ -118,9 +118,10 @@ private fun DesktopHospitalityContent(client: HttpClient, tabsOnly: Boolean) {
                     Text(if (tabsOnly) "Separate customer receipts awaiting settlement" else "Tables, customer tabs, kitchen and bar tickets", color = Color(0xFF64748B))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(onClick = { openDesktopWeb("/hospitality-operations") }) {
-                        Icon(Icons.Default.OpenInBrowser, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Manage")
+                    OutlinedButton(onClick = { openDesktopWeb(if (tabsOnly) "/open-tabs" else "/hospitality") }) {
+                        Icon(Icons.Default.OpenInBrowser, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(if (tabsOnly) "Settle tabs" else "Restaurant POS")
                     }
+                    if (!tabsOnly) OutlinedButton(onClick = { openDesktopWeb("/kitchen-display") }) { Text("Kitchen display") }
                     Button(onClick = ::load, enabled = !loading, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00B874))) {
                         if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
                         else Icon(Icons.Default.Refresh, "Refresh", Modifier.size(18.dp))

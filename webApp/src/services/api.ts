@@ -128,6 +128,7 @@ export interface ProductResponse {
 export interface OrderItemResponse {
   id: string; productId: string; productName: string; quantity: number
   unitPrice: number; buyingPrice: number; lineTotal: number; lineProfit: number
+  modifiers?: MenuOption[]; itemNote?: string; discountAmount?: number; complimentary?: boolean
 }
 
 export interface OrderResponse {
@@ -796,7 +797,7 @@ export const hospitalityApi = {
   setEnabled: async (enabled:boolean) => (await client.put<ApiResponse<HospitalityDashboard>>('/hospitality/enabled',{enabled})).data,
   createTable: async (data:{name:string;area:string;capacity:number}) => (await client.post<ApiResponse<HospitalityTable>>('/hospitality/tables',data)).data,
   updateTable: async (id:string,data:{name:string;area:string;capacity:number}) => (await client.put<ApiResponse<HospitalityTable>>(`/hospitality/tables/${id}`,data)).data,
-  createOrder: async (data:{tableId?:string;serviceType:string;guestCount:number;customerName:string;customerPhone:string;notes:string;items:Array<{productId:string;quantity:number;unitPrice:number}>}) => (await client.post<ApiResponse<OrderResponse>>('/hospitality/orders',data)).data,
+  createOrder: async (data:{tableId?:string;serviceType:string;guestCount:number;customerName:string;customerPhone:string;notes:string;ageVerified?:boolean;items:Array<{productId:string;quantity:number;unitPrice:number;modifiers?:MenuOption[];itemNote?:string;discountAmount?:number;complimentary?:boolean}>}) => (await client.post<ApiResponse<OrderResponse>>('/hospitality/orders',data)).data,
   updateTicket: async (id:string,status:string) => (await client.patch<ApiResponse<KitchenTicket>>(`/hospitality/tickets/${id}`,{status})).data,
   transferTab: async (orderId:string,tableId:string) => (await client.post<ApiResponse<OrderResponse>>(`/hospitality/tabs/${orderId}/transfer`,{tableId})).data,
   closeTab: async (orderId:string,paymentMethod:string) => (await client.post<ApiResponse<OrderResponse>>(`/hospitality/tabs/${orderId}/close`,{paymentMethod})).data,

@@ -27,16 +27,18 @@ import {
 import {
   BusinessProfileResponse,
   HospitalityDashboard,
+  HospitalityOperations,
   HospitalityTable,
   OrderResponse,
   ProductResponse,
   businessApi,
   hospitalityApi,
-  paymentApi,
+  hospitalityOpsApi,
   productApi,
 } from "../services/api";
 import { useAuth } from "../App";
 import { printOrderReceipt } from "../utils/receipt";
+import { SettlementModal } from "../components/hospitality/SettlementModal";
 
 type Cart = Record<string, number>;
 
@@ -47,6 +49,7 @@ export default function HospitalityPage() {
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
   const [showTable, setShowTable] = useState(false);
   const [tableDraft, setTableDraft] = useState({
     name: "",
@@ -57,18 +60,20 @@ export default function HospitalityPage() {
     null,
   );
   const [orderTable, setOrderTable] = useState<HospitalityTable | null>(null);
+  const [showOrder, setShowOrder] = useState(false);
   const [serviceType, setServiceType] = useState("DINE_IN");
   const [guests, setGuests] = useState("2");
   const [customerName, setCustomerName] = useState("Walk-in Guest");
   const [customerPhone, setCustomerPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [cart, setCart] = useState<Cart>({});
+  const [itemOptions, setItemOptions] = useState<Record<string,{modifiers:Array<{name:string;priceDelta:number}>;note:string;discount:string;complimentary:boolean}>>({});
+  const [menuProfiles, setMenuProfiles] = useState<HospitalityOperations["menuProfiles"]>([]);
+  const [ageVerified, setAgeVerified] = useState(false);
   const [menuSearch, setMenuSearch] = useState("");
   const [menuCategory, setMenuCategory] = useState("All");
   const [saving, setSaving] = useState(false);
   const [settleOrder, setSettleOrder] = useState<OrderResponse | null>(null);
-  const [settleMethod, setSettleMethod] = useState("CASH");
-  const [settlePhone, setSettlePhone] = useState("");
   const [receiptProfile, setReceiptProfile] =
     useState<BusinessProfileResponse | null>(null);
 
@@ -76,13 +81,15 @@ export default function HospitalityPage() {
     setLoading(true);
     setError("");
     try {
-      const [dashboard, catalog] = await Promise.all([
+      const [dashboard, catalog, operations] = await Promise.all([
         hospitalityApi.dashboard(),
         productApi.list(),
+        hospitalityOpsApi.dashboard().catch(()=>null),
       ]);
       if (dashboard.success && dashboard.data) setData(dashboard.data);
       if (catalog.success && catalog.data)
         setProducts(catalog.data.filter((p) => p.currentStock > 0));
+      if (operations?.success && operations.data) setMenuProfiles(operations.data.menuProfiles);
     } catch (e: any) {
       setError(
         e.response?.data?.message || "Could not load hospitality operations.",
@@ -128,7 +135,7 @@ export default function HospitalityPage() {
     [products, menuCategory, menuSearch],
   );
   const total = cartProducts.reduce(
-    (sum, p) => sum + p.sellingPrice * cart[p.id],
+    (sum, p) => sum + (p.sellingPrice+(itemOptions[p.id]?.modifiers.reduce((s,m)=>s+m.priceDelta,0)||0)) * cart[p.id]-(Number(itemOptions[p.id]?.discount)||0),
     0,
   );
   const change = (id: string, delta: number) =>
@@ -139,18 +146,32 @@ export default function HospitalityPage() {
       else delete copy[id];
       return copy;
     });
+  const optionState = (id:string) => itemOptions[id] || {modifiers:[],note:"",discount:"",complimentary:false};
+  const updateOption = (id:string, patch:Partial<ReturnType<typeof optionState>>) =>
+    setItemOptions(current=>({...current,[id]:{...optionState(id),...patch}}));
+  const toggleModifier=(id:string,modifier:{name:string;priceDelta:number})=>
+    updateOption(id,{modifiers:optionState(id).modifiers.some(item=>item.name===modifier.name)
+      ? optionState(id).modifiers.filter(item=>item.name!==modifier.name)
+      : [...optionState(id).modifiers,modifier]});
+  const selectOneModifier=(id:string,group:Array<{name:string;priceDelta:number}>,modifier:{name:string;priceDelta:number})=>
+    updateOption(id,{modifiers:[...optionState(id).modifiers.filter(item=>!group.some(candidate=>candidate.name===item.name)),modifier]});
   const openOrder = (table?: HospitalityTable) => {
+    setShowOrder(true);
     setOrderTable(table || null);
     setServiceType(table ? "DINE_IN" : "TAKEAWAY");
     setGuests("1");
     setCustomerName("Walk-in Guest");
     setCustomerPhone("");
     setCart({});
+    setItemOptions({});
+    setAgeVerified(false);
+    setModalError("");
     setNotes("");
     setMenuSearch("");
     setMenuCategory("All");
   };
   const openTableEditor = (table?: HospitalityTable) => {
+    setModalError("");
     setEditingTable(table || null);
     setTableDraft(
       table
@@ -165,7 +186,7 @@ export default function HospitalityPage() {
   };
   const saveTable = async () => {
     setSaving(true);
-    setError("");
+    setModalError("");
     try {
       const payload = {
         name: tableDraft.name,
@@ -180,7 +201,7 @@ export default function HospitalityPage() {
       setEditingTable(null);
       await load();
     } catch (e: any) {
-      setError(e.response?.data?.message || e.message);
+      setModalError(e.response?.data?.message || e.message);
     } finally {
       setSaving(false);
     }
@@ -188,7 +209,10 @@ export default function HospitalityPage() {
   const submitOrder = async () => {
     if (!cartProducts.length) return setError("Add at least one menu item.");
     setSaving(true);
-    setError("");
+    setModalError("");
+    if(serviceType==="DINE_IN"&&!orderTable) return setModalError("Select a table for dine-in service.");
+    const restricted=cartProducts.some(product=>menuProfiles.find(profile=>profile.productId===product.id)?.ageRestricted);
+    if(restricted&&!ageVerified) return setModalError("Confirm age verification before adding age-restricted items.");
     try {
       const res = await hospitalityApi.createOrder({
         tableId: orderTable?.id,
@@ -197,18 +221,24 @@ export default function HospitalityPage() {
         customerName,
         customerPhone,
         notes,
+        ageVerified,
         items: cartProducts.map((p) => ({
           productId: p.id,
           quantity: cart[p.id],
           unitPrice: p.sellingPrice,
+          modifiers:itemOptions[p.id]?.modifiers||[],
+          itemNote:itemOptions[p.id]?.note||"",
+          discountAmount:Number(itemOptions[p.id]?.discount)||0,
+          complimentary:itemOptions[p.id]?.complimentary||false,
         })),
       });
       if (!res.success) throw new Error(res.message);
       setOrderTable(null);
+      setShowOrder(false);
       setCart({});
       await load();
     } catch (e: any) {
-      setError(e.response?.data?.message || e.message);
+      setModalError(e.response?.data?.message || e.message);
     } finally {
       setSaving(false);
     }
@@ -223,39 +253,7 @@ export default function HospitalityPage() {
   };
   const openSettlement = (order: OrderResponse) => {
     setSettleOrder(order);
-    setSettleMethod("CASH");
-    setSettlePhone(order.customerPhone || "");
-    setError("");
-  };
-  const closeTab = async () => {
-    if (!settleOrder) return;
-    if (settleMethod === "MPESA" && !settlePhone.trim()) {
-      setError("Enter the customer M-Pesa phone number.");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    try {
-      const result = await hospitalityApi.closeTab(
-        settleOrder.id,
-        settleMethod,
-      );
-      if (!result.success) throw new Error(result.message);
-      if (settleMethod === "MPESA") {
-        const push = await paymentApi.initiate({
-          orderId: settleOrder.id,
-          phoneNumber: settlePhone.trim(),
-        });
-        if (!push.success)
-          throw new Error(push.message || "Could not send M-Pesa prompt");
-      }
-      setSettleOrder(null);
-      await load();
-    } catch (e: any) {
-      setError(e.response?.data?.message || e.message);
-    } finally {
-      setSaving(false);
-    }
+    setModalError("");
   };
   const transferTab = async (orderId: string, tableId: string) => {
     if (!tableId) return;
@@ -362,6 +360,7 @@ export default function HospitalityPage() {
             >
               Takeaway order
             </Btn>
+            <Btn variant="secondary" icon={<ChefHat size={14}/>} onClick={()=>window.location.assign('/kitchen-display')}>Kitchen display</Btn>
           </div>
         }
       />
@@ -406,6 +405,7 @@ export default function HospitalityPage() {
       </div>
 
       <h2 style={{ fontSize: 17 }}>Floor & tables</h2>
+      {data.tables.length===0&&<Card style={{padding:20,color:'var(--b360-text-secondary)'}}>No tables configured. Add a table to begin dine-in service, or use Takeaway order.</Card>}
       <div
         style={{
           display: "grid",
@@ -630,10 +630,11 @@ export default function HospitalityPage() {
                       Served
                     </Btn>
                   )}
+                  {ticket.status !== "DELAYED" && <Btn small variant="secondary" onClick={() => advanceTicket(ticket.id,"DELAYED")}>Delay</Btn>}
                   <Btn
                     small
-                    variant="secondary"
-                    onClick={() => advanceTicket(ticket.id, "CANCELLED")}
+                    variant="danger"
+                    onClick={() => window.confirm(`Cancel ticket ${ticket.orderNumber}? This cannot be undone.`) && advanceTicket(ticket.id, "CANCELLED")}
                   >
                     Cancel
                   </Btn>
@@ -674,6 +675,7 @@ export default function HospitalityPage() {
           }
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {modalError&&<div role="alert" style={{padding:10,borderRadius:8,background:'var(--b360-red-bg)',color:'var(--b360-red)',fontSize:12}}>{modalError}</div>}
             <Input
               label="Table name"
               value={tableDraft.name}
@@ -695,80 +697,16 @@ export default function HospitalityPage() {
         </Modal>
       )}
       {settleOrder && (
-        <Modal
-          title={`Settle ${settleOrder.orderNumber}`}
-          onClose={() => setSettleOrder(null)}
-          footer={
-            <>
-              <Btn variant="secondary" onClick={() => setSettleOrder(null)}>
-                Cancel
-              </Btn>
-              <Btn disabled={saving} onClick={closeTab}>
-                {saving
-                  ? "Processing…"
-                  : settleMethod === "MPESA"
-                    ? "Send M-Pesa prompt"
-                    : `Confirm ${settleMethod}`}
-              </Btn>
-            </>
-          }
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div
-              style={{
-                padding: 16,
-                background: "var(--b360-bg)",
-                borderRadius: 10,
-              }}
-            >
-              <div
-                style={{ fontSize: 12, color: "var(--b360-text-secondary)" }}
-              >
-                Amount due
-              </div>
-              <div style={{ fontSize: 25, fontWeight: 800 }}>
-                KES {settleOrder.subtotal.toLocaleString()}
-              </div>
-            </div>
-            <Select
-              label="Payment method"
-              value={settleMethod}
-              onChange={setSettleMethod}
-              options={[
-                { value: "CASH", label: "Cash" },
-                { value: "MPESA", label: "M-Pesa" },
-                { value: "CARD", label: "Card" },
-              ]}
-            />
-            {settleMethod === "MPESA" && (
-              <Input
-                label="M-Pesa phone"
-                value={settlePhone}
-                onChange={setSettlePhone}
-                placeholder="07… or 254…"
-              />
-            )}
-            <p
-              style={{
-                fontSize: 12,
-                color: "var(--b360-text-secondary)",
-                margin: 0,
-              }}
-            >
-              {settleMethod === "MPESA"
-                ? "The tab remains awaiting payment until Safaricom confirms the transaction."
-                : "This records the payment and closes the tab immediately."}
-            </p>
-          </div>
-        </Modal>
+        <SettlementModal order={settleOrder} onClose={() => setSettleOrder(null)} onComplete={load}/>
       )}
-      {(orderTable || serviceType === "TAKEAWAY") && (
+      {showOrder && (
         <Modal
           extraWide
           title={
             orderTable ? `New sale · ${orderTable.name}` : "New takeaway sale"
           }
           onClose={() => {
+            setShowOrder(false);
             setOrderTable(null);
             setServiceType("");
           }}
@@ -784,6 +722,7 @@ export default function HospitalityPage() {
               <Btn
                 variant="secondary"
                 onClick={() => {
+                  setShowOrder(false);
                   setOrderTable(null);
                   setServiceType("");
                 }}
@@ -800,13 +739,15 @@ export default function HospitalityPage() {
           }
         >
           <div className="hospitality-sale-grid">
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingRight:22 }}>
+            <div className="hospitality-sale-details" style={{ display: "flex", flexDirection: "column", gap: 14, paddingRight:22 }}>
+              {modalError&&<div role="alert" style={{padding:10,borderRadius:8,background:'var(--b360-red-bg)',color:'var(--b360-red)',fontSize:12}}>{modalError}</div>}
               <div>
                 <div style={{fontSize:12,fontWeight:700,marginBottom:7}}>Service</div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',border:'1px solid var(--b360-border)',borderRadius:9,overflow:'hidden'}}>
-                  {[["DINE_IN","Dine in"],["TAKEAWAY","Take away"],["DELIVERY","Delivery"]].map(([value,label],index)=><button key={value} type="button" onClick={()=>setServiceType(value)} style={{padding:'11px 6px',border:0,borderLeft:index ? '1px solid var(--b360-border)' : 0,background:serviceType===value ? 'var(--b360-green)' : 'white',color:serviceType===value ? 'white' : 'var(--b360-text)',fontWeight:700,cursor:'pointer'}}>{label}</button>)}
+                  {[["DINE_IN","Dine in"],["TAKEAWAY","Take away"],["DELIVERY","Delivery"]].map(([value,label],index)=><button key={value} type="button" onClick={()=>{setServiceType(value);if(value!=="DINE_IN")setOrderTable(null)}} style={{padding:'11px 6px',border:0,borderLeft:index ? '1px solid var(--b360-border)' : 0,background:serviceType===value ? 'var(--b360-green)' : 'white',color:serviceType===value ? 'white' : 'var(--b360-text)',fontWeight:700,cursor:'pointer'}}>{label}</button>)}
                 </div>
               </div>
+              {serviceType==="DINE_IN"&&<Select label="Table" value={orderTable?.id||""} onChange={id=>setOrderTable(data.tables.find(table=>table.id===id)||null)} placeholder="Select a table" options={data.tables.filter(table=>!table.mergedIntoTableId).map(table=>({value:table.id,label:`${table.name} · ${table.area}`}))}/>}
               <div>
                 <div style={{fontSize:12,fontWeight:700,marginBottom:7}}>Guests</div>
                 <div style={{display:'grid',gridTemplateColumns:'64px 1fr 64px',border:'1px solid var(--b360-border)',borderRadius:9,overflow:'hidden'}}>
@@ -839,7 +780,10 @@ export default function HospitalityPage() {
                   }}
                 >
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><b style={{ fontSize: 13,display:'flex',gap:7,alignItems:'center' }}><ShoppingBag size={15} color="var(--b360-green)"/>Current order</b><span style={{fontSize:11,fontWeight:700,color:'var(--b360-green)',background:'var(--b360-green-bg)',padding:'3px 8px',borderRadius:12}}>{cartProducts.reduce((sum,p)=>sum+cart[p.id],0)} items</span></div>
-                  {cartProducts.map((product) => (
+                  {cartProducts.map((product) => {
+                    const profile=menuProfiles.find(item=>item.productId===product.id);
+                    const state=optionState(product.id);
+                    return (
                     <div
                       key={product.id}
                       style={{
@@ -849,16 +793,23 @@ export default function HospitalityPage() {
                       }}
                     >
                       {product.imageUrl ? <img src={product.imageUrl} alt="" style={{width:42,height:42,objectFit:'cover',borderRadius:7}}/> : <div style={{width:42,height:42,borderRadius:7,background:'var(--b360-bg)',display:'grid',placeItems:'center'}}><ShoppingBag size={15}/></div>}
-                      <span style={{flex:1}}><b style={{display:'block'}}>{product.name}</b>{cart[product.id]} × KES {product.sellingPrice.toLocaleString()}</span>
+                      <span style={{flex:1}}><b style={{display:'block'}}>{product.name}</b>{cart[product.id]} × KES {product.sellingPrice.toLocaleString()}
+                        {(profile?.sizes.length||0)>0&&<span style={{display:'block',marginTop:5}}><small>Size: </small>{profile!.sizes.map(option=><label key={option.name} style={{display:'inline-flex',alignItems:'center',gap:3,marginRight:8,fontSize:10}}><input type="radio" name={`size-${product.id}`} checked={state.modifiers.some(item=>item.name===option.name)} onChange={()=>selectOneModifier(product.id,profile!.sizes,option)}/>{option.name}{option.priceDelta?` (+${option.priceDelta})`:''}</label>)}</span>}
+                        {(profile?.variants.length||0)>0&&<span style={{display:'block',marginTop:5}}><small>Variant: </small>{profile!.variants.map(option=><label key={option.name} style={{display:'inline-flex',alignItems:'center',gap:3,marginRight:8,fontSize:10}}><input type="radio" name={`variant-${product.id}`} checked={state.modifiers.some(item=>item.name===option.name)} onChange={()=>selectOneModifier(product.id,profile!.variants,option)}/>{option.name}{option.priceDelta?` (+${option.priceDelta})`:''}</label>)}</span>}
+                        {(profile?.extras.length||0)>0&&<span style={{display:'block',marginTop:5}}><small>Extras: </small>{profile!.extras.map(option=><label key={option.name} style={{display:'inline-flex',alignItems:'center',gap:3,marginRight:8,fontSize:10}}><input type="checkbox" checked={state.modifiers.some(item=>item.name===option.name)} onChange={()=>toggleModifier(product.id,option)}/>{option.name}{option.priceDelta?` (+${option.priceDelta})`:''}</label>)}</span>}
+                        <input aria-label={`Note for ${product.name}`} value={state.note} onChange={event=>updateOption(product.id,{note:event.target.value})} placeholder="Item note" style={{display:'block',width:'100%',marginTop:6,padding:6,border:'1px solid var(--b360-border)',borderRadius:6}}/>
+                        {isAdmin&&<span style={{display:'flex',gap:7,marginTop:5,alignItems:'center'}}><input aria-label={`Discount for ${product.name}`} type="number" value={state.discount} onChange={event=>updateOption(product.id,{discount:event.target.value})} placeholder="Discount" style={{width:85,padding:5,border:'1px solid var(--b360-border)',borderRadius:6}}/><label><input type="checkbox" checked={state.complimentary} onChange={event=>updateOption(product.id,{complimentary:event.target.checked})}/> Complimentary</label></span>}
+                      </span>
                       <b style={{whiteSpace:'nowrap'}}>
                         KES{" "}
                         {(
-                          cart[product.id] * product.sellingPrice
+                          cart[product.id] * (product.sellingPrice+state.modifiers.reduce((sum,item)=>sum+item.priceDelta,0))-(Number(state.discount)||0)
                         ).toLocaleString()}
                       </b>
                       <button type="button" aria-label={`Remove ${product.name}`} onClick={()=>change(product.id,-cart[product.id])} style={{border:'1px solid var(--b360-border)',background:'white',borderRadius:7,padding:7,cursor:'pointer',color:'var(--b360-text-secondary)'}}><Trash2 size={14}/></button>
                     </div>
-                  ))}
+                  )})}
+                  {cartProducts.some(product=>menuProfiles.find(profile=>profile.productId===product.id)?.ageRestricted)&&<label style={{display:'flex',gap:8,alignItems:'center',marginTop:12,padding:10,background:'var(--b360-amber-bg)',borderRadius:8,fontSize:12,fontWeight:700}}><input type="checkbox" checked={ageVerified} onChange={event=>setAgeVerified(event.target.checked)}/> I verified the customer meets the required minimum age</label>}
                   <div style={{borderTop:'1px solid var(--b360-border)',marginTop:12,paddingTop:11,display:'flex',justifyContent:'space-between'}}><b>Total</b><strong style={{fontSize:18,color:'var(--b360-green)'}}>KES {total.toLocaleString()}</strong></div>
                 </div>
               )}
@@ -940,7 +891,7 @@ export default function HospitalityPage() {
                     }}
                   >
                     {product.imageUrl ? <img src={product.imageUrl} alt="" style={{width:68,height:68,objectFit:'cover',borderRadius:8,background:'var(--b360-bg)'}}/> : <div style={{width:68,height:68,flexShrink:0,borderRadius:8,background:'var(--b360-bg)',display:'grid',placeItems:'center'}}><ShoppingBag size={22} color="var(--b360-text-secondary)"/></div>}
-                    <div style={{flex:1,minWidth:0}}><b style={{fontSize:14,display:'block'}}>{product.name}</b><span style={{fontSize:11,color:'var(--b360-text-secondary)'}}>{product.category || 'Menu'} · Stock {product.currentStock}</span><strong style={{display:'block',marginTop:7}}>KES {product.sellingPrice.toLocaleString()}</strong></div>
+                    <div style={{flex:1,minWidth:0}}><b style={{fontSize:14,display:'block'}}>{product.name}</b><span style={{fontSize:11,color:'var(--b360-text-secondary)'}}>{product.category || 'Menu'} · Stock {product.currentStock}</span>{(menuProfiles.find(profile=>profile.productId===product.id)?.comboProductIds.length||0)>0&&<span style={{fontSize:10,color:'var(--b360-blue)',display:'block'}}>Combo includes {menuProfiles.find(profile=>profile.productId===product.id)!.comboProductIds.map(id=>products.find(item=>item.id===id)?.name||id).join(', ')}</span>}<strong style={{display:'block',marginTop:7}}>KES {product.sellingPrice.toLocaleString()}</strong></div>
                     {cart[product.id] ? <div onClick={event=>event.stopPropagation()} style={{display:'flex',alignItems:'center',border:'1px solid var(--b360-border)',borderRadius:8,overflow:'hidden',background:'white'}}><button type="button" onClick={()=>change(product.id,-1)} style={{border:0,background:'white',padding:'8px 10px',color:'var(--b360-green)',cursor:'pointer'}}>−</button><b style={{minWidth:24,textAlign:'center'}}>{cart[product.id]}</b><button type="button" onClick={()=>change(product.id,1)} style={{border:0,background:'white',padding:'8px 10px',color:'var(--b360-green)',cursor:'pointer'}}>+</button></div> : <span style={{border:'1px solid var(--b360-green)',color:'var(--b360-green)',borderRadius:8,padding:'7px 12px',fontWeight:700,whiteSpace:'nowrap'}}>+ Add</span>}
                   </button>
                 ))}
