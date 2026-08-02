@@ -86,3 +86,5 @@ jobs:
         run: |
           aws apprunner start-deployment --service-arn $SERVICE_ARN --region us-east-1 || true
 
+# Deployment trigger test
+
