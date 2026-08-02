@@ -11,8 +11,12 @@ import java.time.Instant
 
 class ProductService {
 
-    fun getAll(businessId: String, query: String? = null, lowStockOnly: Boolean = false): List<ProductResponse> = transaction {
-        var stmt = ProductsTable.select { (ProductsTable.businessId eq businessId) and (ProductsTable.isActive eq true) }
+    fun getAll(businessId: String, query: String? = null, lowStockOnly: Boolean = false, includeInactive: Boolean = false): List<ProductResponse> = transaction {
+        var stmt = if (includeInactive) {
+            ProductsTable.select { ProductsTable.businessId eq businessId }
+        } else {
+            ProductsTable.select { (ProductsTable.businessId eq businessId) and (ProductsTable.isActive eq true) }
+        }
         if (!query.isNullOrBlank()) {
             stmt = stmt.andWhere {
                 (ProductsTable.name.lowerCase() like "%${query.lowercase()}%") or
@@ -23,6 +27,20 @@ class ProductService {
             stmt = stmt.andWhere { ProductsTable.currentStock lessEq ProductsTable.lowStockThreshold }
         }
         stmt.orderBy(ProductsTable.name).map { it.toResponse() }
+    }
+
+    fun toggleStatus(id: String, businessId: String, isActive: Boolean): ApiResponse<ProductResponse> = transaction {
+        val updated = ProductsTable.update({
+            (ProductsTable.id eq id) and (ProductsTable.businessId eq businessId)
+        }) {
+            it[ProductsTable.isActive] = isActive
+            it[updatedAt] = Clock.System.now()
+        }
+        if (updated == 0) ApiResponse(false, message = "Product not found")
+        else {
+            val product = ProductsTable.select { ProductsTable.id eq id }.first().toResponse()
+            ApiResponse(true, data = product, message = if (isActive) "Product enabled" else "Product disabled")
+        }
     }
 
     fun getById(id: String, businessId: String): ProductResponse? = transaction {
@@ -176,6 +194,7 @@ class ProductService {
             category = this[ProductsTable.category],
             barcode = this[ProductsTable.barcode],
             imageUrl = this[ProductsTable.imageUrl],
+            isActive = this[ProductsTable.isActive],
             createdAt = this[ProductsTable.createdAt].toString(),
             updatedAt = this[ProductsTable.updatedAt].toString()
         )

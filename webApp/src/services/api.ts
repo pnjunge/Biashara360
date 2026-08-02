@@ -460,6 +460,10 @@ export const productApi = {
     const res = await client.post<ApiResponse<ProductResponse>>(`/products/${id}/stock`, data)
     return res.data
   },
+  updateStatus: async (id: string, isActive: boolean) => {
+    const res = await client.put<ApiResponse<ProductResponse>>(`/products/${id}/status`, { isActive })
+    return res.data
+  },
   listCategories: async () => {
     const res = await client.get<ApiResponse<InventoryCategory[]>>('/products/categories')
     return res.data

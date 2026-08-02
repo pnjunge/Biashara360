@@ -108,9 +108,13 @@ data class ProductResponse(
     val category: String,
     val barcode: String? = null,
     val imageUrl: String?,
+    val isActive: Boolean = true,
     val createdAt: String,
     val updatedAt: String
 )
+
+@Serializable
+data class UpdateProductStatusRequest(val isActive: Boolean)
 
 @Serializable
 data class InventoryCategoryResponse(

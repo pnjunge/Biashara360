@@ -54,6 +54,7 @@ fun Route.productRoutesValidated() {
             val businessId = call.businessId()
             val query = call.request.queryParameters["q"]
             val lowStock = call.request.queryParameters["lowStock"]?.toBoolean() ?: false
+            val includeInactive = call.request.queryParameters["includeInactive"]?.toBoolean() ?: false
             
             // Validate pagination parameters
             val page = call.request.queryParameters["page"]?.toIntOrNull()
@@ -75,7 +76,7 @@ fun Route.productRoutesValidated() {
                 return@get
             }
             
-            val products = productService.getAll(businessId, query, lowStock)
+            val products = productService.getAll(businessId, query, lowStock, includeInactive)
             
             // Apply pagination if requested
             if (page != null) {
@@ -175,10 +176,9 @@ fun Route.productRoutesValidated() {
                 val businessId = call.businessId()
                 val id = call.parameters["id"] ?: throw IllegalArgumentException("Product ID required")
                 
-                // Validate UUID format
                 Validator.validate {
                     field("id", id) {
-                        uuid()
+                        required()
                     }
                 }
                 
@@ -197,10 +197,9 @@ fun Route.productRoutesValidated() {
                 val id = call.parameters["id"] ?: throw IllegalArgumentException("Product ID required")
                 val req = call.receive<ProductRequest>()
                 
-                // Validate UUID and update data
                 Validator.validate {
                     field("id", id) {
-                        uuid()
+                        required()
                     }
                     field("sku", req.sku) {
                         required()
@@ -242,22 +241,39 @@ fun Route.productRoutesValidated() {
             }
 
             /**
-             * Delete (soft delete) product
+             * Toggle product active status (enable/disable)
+             * PUT /products/{id}/status
+             */
+            put("/status") {
+                val businessId = call.businessId()
+                val id = call.parameters["id"] ?: throw IllegalArgumentException("Product ID required")
+                val req = call.receive<UpdateProductStatusRequest>()
+                
+                Validator.validate {
+                    field("id", id) {
+                        required()
+                    }
+                }
+                
+                val result = productService.toggleStatus(id, businessId, req.isActive)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
+            }
+
+            /**
+             * Delete (soft delete / disable) product
              * DELETE /products/{id}
              */
             delete {
                 val businessId = call.businessId()
                 val id = call.parameters["id"] ?: throw IllegalArgumentException("Product ID required")
                 
-                // Admin check
                 if (!call.hasRole("ADMIN")) {
                     throw ForbiddenException("Admin access required to delete products")
                 }
                 
-                // Validate UUID
                 Validator.validate {
                     field("id", id) {
-                        uuid()
+                        required()
                     }
                 }
                 
