@@ -46,11 +46,13 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      - name: Trigger Backend App Runner Deployment
+      - name: Update Backend App Runner Service
         env:
           SERVICE_ARN: ${{ secrets.APP_RUNNER_BACKEND_ARN || 'arn:aws:apprunner:us-east-1:403460914856:service/biashara360-api-service/2df2a68ea4e5430b913d1cc650b5e33b' }}
+          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/biashara360-api:${{ github.sha }}
         run: |
-          aws apprunner start-deployment --service-arn $SERVICE_ARN --region us-east-1 || true
+          SOURCE_CONFIG=$(aws apprunner describe-service --service-arn $SERVICE_ARN --region us-east-1 --query 'Service.SourceConfiguration' --output json | jq -c --arg img "$IMAGE_URI" '.ImageRepository.ImageIdentifier = $img')
+          aws apprunner update-service --service-arn $SERVICE_ARN --source-configuration "$SOURCE_CONFIG" --region us-east-1 || true
 
   deploy-frontend:
     name: Build & Deploy Web App
@@ -80,11 +82,13 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      - name: Trigger Web App Runner Deployment
+      - name: Update Web App Runner Service
         env:
           SERVICE_ARN: ${{ secrets.APP_RUNNER_WEB_ARN || 'arn:aws:apprunner:us-east-1:403460914856:service/biashara360-web-service/4639ba6f29344d74b95f46560fd0617e' }}
+          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/biashara360-web:${{ github.sha }}
         run: |
-          aws apprunner start-deployment --service-arn $SERVICE_ARN --region us-east-1 || true
+          SOURCE_CONFIG=$(aws apprunner describe-service --service-arn $SERVICE_ARN --region us-east-1 --query 'Service.SourceConfiguration' --output json | jq -c --arg img "$IMAGE_URI" '.ImageRepository.ImageIdentifier = $img')
+          aws apprunner update-service --service-arn $SERVICE_ARN --source-configuration "$SOURCE_CONFIG" --region us-east-1 || true
 
 # Deployment trigger test
 
