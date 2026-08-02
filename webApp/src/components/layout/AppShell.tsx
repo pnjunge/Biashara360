@@ -56,7 +56,8 @@ export default function AppShell() {
   const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
   const visibleNavItems = navItems.filter(item => {
     if (allowedMenus && !allowedMenus.has(item.key) && !(item.key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS'))) return false
-    if ((item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS') && hospitalityEnabled !== true) return false
+    const isHospitalityNav = item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS' || item.to === '/kitchen-display'
+    if (isHospitalityNav && hospitalityEnabled !== true) return false
     if (!isStaff) return true
     return item.to !== '/users' && item.to !== '/business' && item.to !== '/cybersource-settings'
   })

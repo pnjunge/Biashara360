@@ -18,16 +18,17 @@ class HospitalityService(private val orderService: OrderService) {
 
     private val logger = LoggerFactory.getLogger(HospitalityService::class.java)
     fun isEnabled(businessId: String): Boolean = transaction {
-        BusinessesTable.select { BusinessesTable.id eq businessId }
-            .firstOrNull()?.get(BusinessesTable.hospitalityEnabled) == true
+        val row = BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull() ?: return@transaction false
+        row[BusinessesTable.hospitalityEnabled] == true || row[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true)
     }
     fun dashboard(businessId: String): HospitalityDashboardResponse = transaction {
-        val enabled = BusinessesTable.select { BusinessesTable.id eq businessId }.first()[BusinessesTable.hospitalityEnabled]
+        val enabled = isEnabled(businessId)
         HospitalityDashboardResponse(enabled, tables(businessId), openTabs(businessId), tickets(businessId))
     }
 
     fun setEnabled(businessId: String, enabled: Boolean): HospitalityDashboardResponse = transaction {
-        if (!enabled) {
+        val isHospitalityType = BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull()?.get(BusinessesTable.type)?.equals("HOSPITALITY", ignoreCase = true) == true
+        if (!enabled && !isHospitalityType) {
             require(OrdersTable.select {
                 (OrdersTable.businessId eq businessId) and
                     (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES)
@@ -39,7 +40,7 @@ class HospitalityService(private val orderService: OrderService) {
         }
         BusinessesTable.update({ BusinessesTable.id eq businessId }) {
             it[hospitalityEnabled] = enabled
-            if (enabled) {
+            if (enabled || isHospitalityType) {
                 val currentMenus = BusinessesTable.select { BusinessesTable.id eq businessId }.first()[BusinessesTable.enabledMenus]
                     .split(',').map(String::trim).filter(String::isNotBlank).toMutableSet()
                 currentMenus += setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")

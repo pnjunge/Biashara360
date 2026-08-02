@@ -317,11 +317,12 @@ fun PosScreen(
                         verticalAlignment = Alignment.Top
                     ) {
                         Column {
+                            val isHospitalityActive = businessProfileState.profile?.hospitalityEnabled == true || businessProfileState.profile?.type == "HOSPITALITY"
                             Text("Point of Sale", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = Color(0xFF0F172A))
                             Text(
-                                if (businessProfileState.profile?.hospitalityEnabled == true) "Hospitality mode active · Retail sale" else "Find and select products to start a sale",
+                                if (isHospitalityActive) "Hospitality mode active · Unified POS interface" else "Find and select products to start a sale",
                                 fontSize = 13.sp,
-                                color = if (businessProfileState.profile?.hospitalityEnabled == true) B360Green else Color(0xFF64748B)
+                                color = if (isHospitalityActive) B360Green else Color(0xFF64748B)
                             )
                         }
                         Box(

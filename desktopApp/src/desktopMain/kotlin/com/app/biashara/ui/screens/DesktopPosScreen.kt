@@ -122,10 +122,11 @@ fun DesktopPosScreen(
             modifier = Modifier.weight(1.3f).fillMaxHeight().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        if (businessProfileState.profile?.hospitalityEnabled == true) {
+        val isHospitalityActive = businessProfileState.profile?.hospitalityEnabled == true || businessProfileState.profile?.type == "HOSPITALITY"
+        if (isHospitalityActive) {
             Surface(color = Color(0xFFE8F5EE), shape = RoundedCornerShape(8.dp)) {
                 Text(
-                    "Hospitality mode active · This window records retail counter sales",
+                    "Hospitality mode active · Unified POS interface",
                     color = B360Green,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ChefHat,
   Clock,
@@ -43,6 +44,7 @@ import { SettlementModal } from "../components/hospitality/SettlementModal";
 type Cart = Record<string, number>;
 
 export default function HospitalityPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
   const [data, setData] = useState<HospitalityDashboard | null>(null);
@@ -471,14 +473,24 @@ export default function HospitalityPage() {
                   <div style={{ fontSize: 11, color: "var(--b360-text-secondary)", marginBottom: 9 }}>
                     Receipts: {tableTabs.map((tab) => tab.orderNumber).join(", ")}
                   </div>
-                  <Btn small onClick={() => openOrder(table)}>
-                    New customer
-                  </Btn>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Btn small onClick={() => navigate(`/pos?tableId=${table.id}`)}>
+                      🛒 POS Order
+                    </Btn>
+                    <Btn small variant="secondary" onClick={() => openOrder(table)}>
+                      + Tab
+                    </Btn>
+                  </div>
                 </>
               ) : (
-                <Btn small variant="secondary" onClick={() => openOrder(table)}>
-                  Open table
-                </Btn>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Btn small onClick={() => navigate(`/pos?tableId=${table.id}`)}>
+                    🛒 Order in POS
+                  </Btn>
+                  <Btn small variant="secondary" onClick={() => openOrder(table)}>
+                    Quick Tab
+                  </Btn>
+                </div>
               )}
             </Card>
           );
@@ -719,6 +731,16 @@ export default function HospitalityPage() {
                 )}{" "}
                 items · KES {total.toLocaleString()}
               </div>
+              <Btn
+                variant="secondary"
+                onClick={() => {
+                  setShowOrder(false);
+                  const tableParam = orderTable ? `?tableId=${orderTable.id}` : "";
+                  navigate(`/pos${tableParam}`);
+                }}
+              >
+                🛒 Open Full POS
+              </Btn>
               <Btn
                 variant="secondary"
                 onClick={() => {

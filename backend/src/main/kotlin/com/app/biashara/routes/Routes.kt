@@ -822,7 +822,7 @@ fun ApplicationCall.hasAnyMenu(vararg requestedMenus: String): Boolean {
     return transaction {
         val business = BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull() ?: return@transaction false
         val enabled = business[BusinessesTable.enabledMenus].split(',').map { it.trim().uppercase() }.toMutableSet()
-        if (business[BusinessesTable.hospitalityEnabled]) enabled += setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
+        if (business[BusinessesTable.hospitalityEnabled] || business[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true)) enabled += setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
         if (enabled.intersect(requested).isEmpty()) return@transaction false
         if (userRole() == "ADMIN") return@transaction true
         val roleIds = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)

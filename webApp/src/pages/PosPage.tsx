@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { PageHeader, Card, Btn, Input, Select } from '../components/ui'
-import { Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard, CheckCircle, Store, Smartphone, Printer } from 'lucide-react'
-import { orderApi, productApi, customerApi, paymentApi, settingsApi, businessApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse, BusinessProfileResponse } from '../services/api'
+import { Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard, CheckCircle, Store, Smartphone, Printer, UtensilsCrossed } from 'lucide-react'
+import { orderApi, productApi, customerApi, paymentApi, settingsApi, businessApi, hospitalityApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse, BusinessProfileResponse, HospitalityTable } from '../services/api'
 import { printOrderReceipt } from '../utils/receipt'
 
 interface CartItem {
@@ -10,9 +11,18 @@ interface CartItem {
 }
 
 export function PosPage() {
+  const navigate = useNavigate()
   const [products, setProducts] = useState<ProductResponse[]>([])
   const [customers, setCustomers] = useState<CustomerResponse[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Hospitality Mode State
+  const [hospitalityEnabled, setHospitalityEnabled] = useState(false)
+  const [tables, setTables] = useState<HospitalityTable[]>([])
+  const [selectedTableId, setSelectedTableId] = useState('')
+  const [serviceType, setServiceType] = useState<'DINE_IN' | 'TAKEAWAY' | 'DELIVERY'>('DINE_IN')
+  const [guestCount, setGuestCount] = useState(1)
+  const [isOpeningTab, setIsOpeningTab] = useState(false)
   
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('')
@@ -68,8 +78,9 @@ export function PosPage() {
       productApi.list(),
       customerApi.list(),
       settingsApi.getMpesaChannels(),
-      businessApi.getProfile()
-    ]).then(([prodRes, custRes, mpesaRes, profileRes]) => {
+      businessApi.getProfile(),
+      hospitalityApi.status().catch(() => ({ success: false, data: { enabled: false } }))
+    ]).then(([prodRes, custRes, mpesaRes, profileRes, hospRes]) => {
       if (prodRes.success && prodRes.data) setProducts(prodRes.data)
       if (custRes.success && custRes.data) setCustomers(custRes.data)
       if (mpesaRes.success && mpesaRes.data) {
@@ -77,6 +88,22 @@ export function PosPage() {
         setMpesaAccountType(mpesaRes.data[0]?.accountType || '')
       }
       if (profileRes.success && profileRes.data) setReceiptProfile(profileRes.data)
+      if (hospRes.success && hospRes.data?.enabled) {
+        setHospitalityEnabled(true)
+        hospitalityApi.dashboard().then(dRes => {
+          if (dRes.success && dRes.data) {
+            setTables(dRes.data.tables)
+            const urlParams = new URLSearchParams(window.location.search)
+            const paramTableId = urlParams.get('tableId')
+            if (paramTableId && dRes.data.tables.some(t => t.id === paramTableId)) {
+              setSelectedTableId(paramTableId)
+              setServiceType('DINE_IN')
+            } else if (dRes.data.tables.length > 0) {
+              setSelectedTableId(dRes.data.tables[0].id)
+            }
+          }
+        })
+      }
     }).catch(err => {
       console.error("Failed to load POS resources", err)
     }).finally(() => setLoading(false))
@@ -202,6 +229,42 @@ export function PosPage() {
     const prodRes = await productApi.list()
     if (prodRes.success && prodRes.data) {
       setProducts(prodRes.data)
+    }
+  }
+
+  const handleOpenHospitalityTab = async () => {
+    if (cart.length === 0) { setError('Your shopping cart is empty.'); return }
+    setIsOpeningTab(true)
+    setError('')
+    try {
+      const res = await hospitalityApi.createOrder({
+        tableId: serviceType === 'DINE_IN' ? selectedTableId || undefined : undefined,
+        serviceType,
+        guestCount,
+        customerName: customerName.trim() || 'Walk-In Guest',
+        customerPhone: customerPhone.trim(),
+        notes: notes || 'POS Hospitality Order',
+        items: cart.map(item => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          unitPrice: item.product.sellingPrice
+        }))
+      })
+      if (res.success && res.data) {
+        setCreatedOrderNumber(res.data.orderNumber)
+        setCompletedOrder(res.data)
+        setCheckoutSuccess(true)
+        clearCart()
+        setNotes('')
+        const updatedProds = await productApi.list()
+        if (updatedProds.success && updatedProds.data) setProducts(updatedProds.data)
+      } else {
+        setError(res.message || 'Failed to send order to kitchen')
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error opening tab')
+    } finally {
+      setIsOpeningTab(false)
     }
   }
 
@@ -480,6 +543,9 @@ export function PosPage() {
             <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
               <Btn variant="secondary" icon={<Printer size={14} />} disabled={!completedOrder || !receiptProfile}
                 onClick={() => completedOrder && receiptProfile && printOrderReceipt(completedOrder, receiptProfile)}>Print Receipt</Btn>
+              {hospitalityEnabled && (
+                <Btn variant="secondary" icon={<UtensilsCrossed size={14} />} onClick={() => navigate('/hospitality')}>Return to Floor Plan</Btn>
+              )}
               <Btn onClick={() => { setCheckoutSuccess(false); setCompletedOrder(null) }} icon={<Store size={14} />}>Open New Session</Btn>
             </div>
           </div>
@@ -640,6 +706,52 @@ export function PosPage() {
               </div>
 
               <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {hospitalityEnabled && (
+                  <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--b360-sidebar-bg)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      🍽️ Hospitality Order Context
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                      {(['DINE_IN', 'TAKEAWAY', 'DELIVERY'] as const).map(st => (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={() => setServiceType(st)}
+                          style={{
+                            padding: '6px 0',
+                            borderRadius: 6,
+                            border: serviceType === st ? '2px solid var(--b360-green)' : '1px solid var(--b360-border)',
+                            background: serviceType === st ? '#F0FDF4' : 'white',
+                            color: serviceType === st ? 'var(--b360-green)' : 'var(--b360-text-secondary)',
+                            fontWeight: 700,
+                            fontSize: 11,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {st.replace('_', ' ')}
+                        </button>
+                      ))}
+                    </div>
+                    {serviceType === 'DINE_IN' && tables.length > 0 && (
+                      <Select
+                        label="Select Table"
+                        value={selectedTableId}
+                        onChange={setSelectedTableId}
+                        options={tables.map(t => ({
+                          value: t.id,
+                          label: `${t.name} (${t.area}) — ${t.status}`
+                        }))}
+                      />
+                    )}
+                    <Input
+                      label="Guest Count"
+                      type="number"
+                      value={String(guestCount)}
+                      onChange={v => setGuestCount(Math.max(1, parseInt(v) || 1))}
+                    />
+                  </div>
+                )}
+
                 <Select
                   label="Select Customer"
                   value={selectedCustomerId}
@@ -722,31 +834,53 @@ export function PosPage() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleCheckout}
-                disabled={cart.length === 0 || isCheckingOut}
-                style={{
-                  width: '100%',
-                  height: 48,
-                  fontSize: 15,
-                  fontWeight: 700,
-                  backgroundColor: paymentMethod === 'MPESA' ? '#16A34A' : 'var(--b360-green)',
-                  color: 'white',
-                  borderRadius: 8,
-                  border: 'none',
-                  cursor: (cart.length === 0 || isCheckingOut) ? 'not-allowed' : 'pointer',
-                  marginTop: 8,
-                  opacity: (cart.length === 0 || isCheckingOut) ? 0.6 : 1,
-                  transition: 'opacity 0.2s'
-                }}
-              >
-                {isCheckingOut
-                  ? 'Processing...'
-                  : paymentMethod === 'MPESA'
-                    ? '📱 Checkout & Send M-Pesa Prompt'
-                    : 'Complete Checkout Sale'}
-              </button>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                {hospitalityEnabled && (
+                  <button
+                    type="button"
+                    onClick={handleOpenHospitalityTab}
+                    disabled={cart.length === 0 || isOpeningTab || isCheckingOut}
+                    style={{
+                      flex: 1,
+                      height: 48,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      backgroundColor: '#2563EB',
+                      color: 'white',
+                      borderRadius: 8,
+                      border: 'none',
+                      cursor: (cart.length === 0 || isOpeningTab || isCheckingOut) ? 'not-allowed' : 'pointer',
+                      opacity: (cart.length === 0 || isOpeningTab || isCheckingOut) ? 0.6 : 1
+                    }}
+                  >
+                    {isOpeningTab ? 'Sending...' : '👨‍🍳 Open Tab'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCheckout}
+                  disabled={cart.length === 0 || isCheckingOut || isOpeningTab}
+                  style={{
+                    flex: 1,
+                    height: 48,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    backgroundColor: paymentMethod === 'MPESA' ? '#16A34A' : 'var(--b360-green)',
+                    color: 'white',
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: (cart.length === 0 || isCheckingOut || isOpeningTab) ? 'not-allowed' : 'pointer',
+                    opacity: (cart.length === 0 || isCheckingOut || isOpeningTab) ? 0.6 : 1,
+                    transition: 'opacity 0.2s'
+                  }}
+                >
+                  {isCheckingOut
+                    ? 'Processing...'
+                    : paymentMethod === 'MPESA'
+                      ? '📱 M-Pesa'
+                      : 'Complete Sale'}
+                </button>
+              </div>
             </Card>
           </div>
 
