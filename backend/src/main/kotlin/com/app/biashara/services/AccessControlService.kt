@@ -126,8 +126,11 @@ class AccessControlService {
     private fun businessMenus(businessId: String): List<String> {
         val business = BusinessesTable.select { BusinessesTable.id eq businessId }.first()
         val menus = csv(business[BusinessesTable.enabledMenus]).filter { it in MENU_KEYS }.toMutableSet()
-        if (business[BusinessesTable.hospitalityEnabled] || business[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true) || menus.contains("HOSPITALITY") || menus.contains("HOSPITALITY_OPS")) {
+        val isHospitalityActive = business[BusinessesTable.hospitalityEnabled] || business[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true)
+        if (isHospitalityActive) {
             menus += setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
+        } else {
+            menus -= setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
         }
         return menus.toList()
     }
