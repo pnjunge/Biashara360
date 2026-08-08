@@ -52,5 +52,13 @@ fun seedSuperuser() {
         }
 
         println("[Seeder] Superuser seeded successfully (id=$userId, email=$superuserEmail).")
+
+        // Ensure hospitality mode is enabled for existing business accounts
+        val updatedCount = BusinessesTable.update {
+            it[hospitalityEnabled] = true
+        }
+        if (updatedCount > 0) {
+            println("[Seeder] Updated $updatedCount businesses to enable hospitality mode.")
+        }
     }
 }

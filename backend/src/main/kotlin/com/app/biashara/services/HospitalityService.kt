@@ -19,7 +19,11 @@ class HospitalityService(private val orderService: OrderService) {
     private val logger = LoggerFactory.getLogger(HospitalityService::class.java)
     fun isEnabled(businessId: String): Boolean = transaction {
         val row = BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull() ?: return@transaction false
-        row[BusinessesTable.hospitalityEnabled] == true || row[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true)
+        val enabledMenusList = row[BusinessesTable.enabledMenus].split(',').map { it.trim().uppercase() }
+        row[BusinessesTable.hospitalityEnabled] == true ||
+            row[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true) ||
+            enabledMenusList.contains("HOSPITALITY") ||
+            enabledMenusList.contains("HOSPITALITY_OPS")
     }
     fun dashboard(businessId: String): HospitalityDashboardResponse = transaction {
         val enabled = isEnabled(businessId)
