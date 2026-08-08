@@ -142,22 +142,27 @@ fun Biashara360App() {
 
     var showMoreSheet by remember { mutableStateOf(false) }
 
-    val visiblePrimaryNavItems = primaryBottomNavItems.filter { item ->
-        val menu = when (item.screen) {
-            Screen.Dashboard -> "DASHBOARD"; Screen.Pos -> "POS"; Screen.Orders -> "ORDERS"
-            Screen.Inventory -> "INVENTORY"; else -> null
+    fun isMenuEnabled(item: com.app.biashara.ui.navigation.BottomNavItem): Boolean {
+        if (enabledMenus == null) {
+            return item.screen != Screen.HospitalityOperations || hospitalityEnabled
         }
-        menu == null || enabledMenus?.contains(menu) != false
+        return when (item.screen) {
+            Screen.Dashboard -> enabledMenus?.contains("DASHBOARD") == true
+            Screen.Pos -> enabledMenus?.contains("POS") == true
+            Screen.Orders -> enabledMenus?.contains("ORDERS") == true
+            Screen.Inventory -> enabledMenus?.contains("INVENTORY") == true
+            Screen.Customers -> enabledMenus?.contains("CUSTOMERS") == true
+            Screen.Social -> enabledMenus?.contains("SOCIAL") == true || enabledMenus?.contains("SOCIAL_SETUP") == true
+            Screen.HospitalityOperations -> (enabledMenus?.contains("HOSPITALITY_OPS") == true || enabledMenus?.contains("HOSPITALITY") == true) && hospitalityEnabled
+            Screen.Reports -> enabledMenus?.contains("REPORTS") == true
+            Screen.Payments -> enabledMenus?.contains("PAYMENTS") == true || enabledMenus?.contains("CARD_PAYMENTS") == true
+            Screen.Settings -> enabledMenus?.contains("SETTINGS") == true
+            else -> true
+        }
     }
 
-    val visibleSecondaryNavItems = secondaryNavItems.filter { item ->
-        val menu = when (item.screen) {
-            Screen.Customers -> "CUSTOMERS"; Screen.Payments -> "PAYMENTS"
-            Screen.HospitalityOperations -> "HOSPITALITY_OPS"; Screen.Settings -> "SETTINGS"; else -> null
-        }
-        (menu == null || enabledMenus?.contains(menu) != false) &&
-            (item.screen != Screen.HospitalityOperations || hospitalityEnabled)
-    }
+    val visiblePrimaryNavItems = primaryBottomNavItems.filter { isMenuEnabled(it) }
+    val visibleSecondaryNavItems = secondaryNavItems.filter { isMenuEnabled(it) }
 
     val showBottomBar = (visiblePrimaryNavItems + visibleSecondaryNavItems).any { item ->
         currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
