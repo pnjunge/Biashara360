@@ -59,7 +59,8 @@ fun appModule(config: ApplicationConfig) = module {
     single { BusinessSettingsService() }
     single { SystemSettingsService() }
     single { MpesaService(get(), config, get(), get()) }
-    single { UserManagementService(get()) }
+    single { UserManagementService(get(), get()) }
+    single { AuditLogService() }
     single { SuperAdminService() }
     single { BusinessProfileService() }
     single { DashboardService(get(), get(), get()) }

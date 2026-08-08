@@ -70,7 +70,26 @@ data class UserResponse(
     val businessId: String?,
     val preferredLanguage: String,
     val businessName: String? = null,
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val hasPinSet: Boolean = false,
+    val assignedGroups: List<String> = emptyList()
+)
+
+@Serializable
+data class AdminSetStaffPinRequest(val pin: String)
+
+@Serializable
+data class AuditLogResponse(
+    val id: String,
+    val businessId: String?,
+    val actorUserId: String?,
+    val actorName: String? = null,
+    val targetUserId: String?,
+    val targetName: String? = null,
+    val action: String,
+    val ipAddress: String?,
+    val details: String?,
+    val createdAt: String
 )
 
 // ─── Products ─────────────────────────────────────────────────────────────────

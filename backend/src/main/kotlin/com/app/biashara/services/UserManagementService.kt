@@ -10,11 +10,11 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 
-// Roles that a business ADMIN is allowed to assign
 private val ASSIGNABLE_ROLES = setOf("ADMIN", "MANAGER", "STAFF")
 
 class UserManagementService(
-    private val authService: AuthService
+    private val authService: AuthService,
+    private val auditLogService: AuditLogService
 ) {
 
     fun listUsers(businessId: String): List<UserResponse> = transaction {
@@ -23,7 +23,70 @@ class UserManagementService(
             .map { it.toUserResponse() }
     }
 
-    fun inviteUser(businessId: String, req: InviteUserRequest): ApiResponse<UserResponse> {
+    fun setStaffPin(
+        userId: String,
+        businessId: String,
+        callerUserId: String,
+        req: AdminSetStaffPinRequest,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> = transaction {
+        val pin = req.pin.trim()
+        if (pin.length !in 4..6 || !pin.all { it.isDigit() }) {
+            return@transaction ApiResponse(false, message = "PIN must be a 4 to 6 digit numeric code")
+        }
+
+        val exists = UsersTable.select {
+            (UsersTable.id eq userId) and (UsersTable.businessId eq businessId)
+        }.count() > 0
+        if (!exists) return@transaction ApiResponse(false, message = "User not found")
+
+        val now = Clock.System.now()
+        UsersTable.update({ (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }) {
+            it[loginPinHash] = PasswordUtils.hash(pin)
+            it[pinFailedAttempts] = 0
+            it[pinLockedUntil] = null
+            it[tokenValidAfter] = now
+            it[updatedAt] = now
+        }
+
+        auditLogService.logEvent(businessId, callerUserId, userId, "SET_STAFF_PIN", ipAddress, "Assigned new POS quick-switch PIN")
+
+        val updated = UsersTable.select { UsersTable.id eq userId }.first()
+        ApiResponse(success = true, data = updated.toUserResponse(), message = "Staff PIN assigned successfully")
+    }
+
+    fun removeStaffPin(
+        userId: String,
+        businessId: String,
+        callerUserId: String,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> = transaction {
+        val exists = UsersTable.select {
+            (UsersTable.id eq userId) and (UsersTable.businessId eq businessId)
+        }.count() > 0
+        if (!exists) return@transaction ApiResponse(false, message = "User not found")
+
+        val now = Clock.System.now()
+        UsersTable.update({ (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }) {
+            it[loginPinHash] = null
+            it[pinFailedAttempts] = 0
+            it[pinLockedUntil] = null
+            it[tokenValidAfter] = now
+            it[updatedAt] = now
+        }
+
+        auditLogService.logEvent(businessId, callerUserId, userId, "REMOVE_STAFF_PIN", ipAddress, "Cleared POS quick-switch PIN")
+
+        val updated = UsersTable.select { UsersTable.id eq userId }.first()
+        ApiResponse(success = true, data = updated.toUserResponse(), message = "Staff PIN removed")
+    }
+
+    fun inviteUser(
+        businessId: String,
+        req: InviteUserRequest,
+        callerUserId: String? = null,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> {
         val result = transaction {
             if (req.name.isBlank() || req.email.isBlank() || req.phone.isBlank()) {
                 return@transaction ApiResponse(false, message = "Name, email, and phone are required")
@@ -64,6 +127,8 @@ class UserManagementService(
                 it[updatedAt] = now
             }
 
+            auditLogService.logEvent(businessId, callerUserId, userId, "INVITE_USER", ipAddress, "Invited user with role $normalizedRole")
+
             val user = UserResponse(userId, req.name.trim(), email, phone, normalizedRole, businessId, "ENGLISH", isActive = true)
             ApiResponse(success = true, data = user)
         }
@@ -71,7 +136,7 @@ class UserManagementService(
         if (!result.success) return result
         val invitation = authService.requestPasswordReset(result.data!!.email, invitation = true)
         if (!invitation.success) {
-            result.data?.id?.let { userId ->
+            result.data.id.let { userId ->
                 transaction {
                     com.app.biashara.db.OtpTable.deleteWhere {
                         com.app.biashara.db.OtpTable.userId eq userId
@@ -84,7 +149,13 @@ class UserManagementService(
         return result.copy(message = "Invitation sent. The reset code expires in 10 minutes.")
     }
 
-    fun updateRole(userId: String, businessId: String, callerUserId: String, req: UpdateUserRoleRequest): ApiResponse<UserResponse> = transaction {
+    fun updateRole(
+        userId: String,
+        businessId: String,
+        callerUserId: String,
+        req: UpdateUserRoleRequest,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> = transaction {
         val normalizedRole = req.role.uppercase()
         if (normalizedRole !in ASSIGNABLE_ROLES) {
             return@transaction ApiResponse(false, message = "Role must be one of: ${ASSIGNABLE_ROLES.joinToString()}")
@@ -102,17 +173,27 @@ class UserManagementService(
             return@transaction ApiResponse(false, message = "The business must retain at least one active administrator")
         }
 
+        val now = Clock.System.now()
         UsersTable.update({ (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }) {
-            it[role]      = normalizedRole
-            it[updatedAt] = Clock.System.now()
+            it[role] = normalizedRole
+            it[tokenValidAfter] = now
+            it[updatedAt] = now
         }
         RefreshTokensTable.deleteWhere { RefreshTokensTable.userId eq userId }
+
+        auditLogService.logEvent(businessId, callerUserId, userId, "UPDATE_ROLE", ipAddress, "Role updated to $normalizedRole")
 
         val updated = UsersTable.select { UsersTable.id eq userId }.first()
         ApiResponse(success = true, data = updated.toUserResponse(), message = "Role updated")
     }
 
-    fun setActiveStatus(userId: String, businessId: String, callerUserId: String, req: UpdateUserStatusRequest): ApiResponse<UserResponse> = transaction {
+    fun setActiveStatus(
+        userId: String,
+        businessId: String,
+        callerUserId: String,
+        req: UpdateUserStatusRequest,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> = transaction {
         val row = UsersTable.select {
             (UsersTable.id eq userId) and (UsersTable.businessId eq businessId)
         }.firstOrNull() ?: return@transaction ApiResponse(false, message = "User not found")
@@ -125,17 +206,19 @@ class UserManagementService(
             return@transaction ApiResponse(false, message = "The business must retain at least one active administrator")
         }
 
+        val now = Clock.System.now()
         UsersTable.update({ (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }) {
-            it[isActive]  = req.isActive
-            it[updatedAt] = Clock.System.now()
+            it[isActive] = req.isActive
+            it[tokenValidAfter] = now
+            it[updatedAt] = now
         }
         if (!req.isActive) RefreshTokensTable.deleteWhere { RefreshTokensTable.userId eq userId }
+
+        auditLogService.logEvent(businessId, callerUserId, userId, if (req.isActive) "USER_ACTIVATED" else "USER_DEACTIVATED", ipAddress)
 
         val updated = UsersTable.select { UsersTable.id eq userId }.first()
         ApiResponse(success = true, data = updated.toUserResponse(), message = if (req.isActive) "User activated" else "User deactivated")
     }
-
-    // ── helpers ────────────────────────────────────────────────────────────────
 
     private fun ResultRow.toUserResponse() = UserResponse(
         id = this[UsersTable.id],
@@ -145,7 +228,8 @@ class UserManagementService(
         role = this[UsersTable.role],
         businessId = this[UsersTable.businessId],
         preferredLanguage = this[UsersTable.preferredLanguage],
-        isActive = this[UsersTable.isActive]
+        isActive = this[UsersTable.isActive],
+        hasPinSet = this[UsersTable.loginPinHash] != null
     )
 
     private fun activeAdminCount(businessId: String) = UsersTable.select {

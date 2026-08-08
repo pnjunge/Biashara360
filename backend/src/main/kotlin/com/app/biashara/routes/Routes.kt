@@ -595,6 +595,7 @@ fun Route.reportRoutes() {
 
 fun Route.userRoutes() {
     val userService: UserManagementService by inject()
+    val auditLogService: AuditLogService by inject()
 
     suspend fun ApplicationCall.resolveUserManagementBusinessId(role: String): String? {
         return if (role == "SUPERADMIN") {
@@ -624,6 +625,17 @@ fun Route.userRoutes() {
             call.respond(ApiResponse(true, data = userService.listUsers(businessId)))
         }
 
+        get("/audit-logs") {
+            val role = call.userRole()
+            if (role != "ADMIN" && role != "SUPERADMIN") {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                return@get
+            }
+            val businessId = call.resolveUserManagementBusinessId(role) ?: return@get
+            val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 100
+            call.respond(ApiResponse(true, data = auditLogService.listAuditLogs(businessId, limit)))
+        }
+
         post {
             val role = call.userRole()
             if (role != "ADMIN" && role != "SUPERADMIN") {
@@ -632,11 +644,42 @@ fun Route.userRoutes() {
             }
             val businessId = call.resolveUserManagementBusinessId(role) ?: return@post
             val req = call.receive<InviteUserRequest>()
-            val result = userService.inviteUser(businessId, req)
+            val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject
+            val ipAddress = call.request.local.remoteHost
+            val result = userService.inviteUser(businessId, req, callerUserId, ipAddress)
             call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
         }
 
         route("/{id}") {
+            put("/pin") {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN" && role != "MANAGER") {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin or Manager access required"))
+                    return@put
+                }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@put
+                val userId = call.parameters["id"]!!
+                val req = call.receive<AdminSetStaffPinRequest>()
+                val callerUserId = call.principal<JWTPrincipal>()!!.payload.subject
+                val ipAddress = call.request.local.remoteHost
+                val result = userService.setStaffPin(userId, businessId, callerUserId, req, ipAddress)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+
+            delete("/pin") {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN" && role != "MANAGER") {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin or Manager access required"))
+                    return@delete
+                }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@delete
+                val userId = call.parameters["id"]!!
+                val callerUserId = call.principal<JWTPrincipal>()!!.payload.subject
+                val ipAddress = call.request.local.remoteHost
+                val result = userService.removeStaffPin(userId, businessId, callerUserId, ipAddress)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+
             patch("/role") {
                 val role = call.userRole()
                 if (role != "ADMIN" && role != "SUPERADMIN") {
@@ -647,7 +690,8 @@ fun Route.userRoutes() {
                 val userId = call.parameters["id"]!!
                 val req = call.receive<UpdateUserRoleRequest>()
                 val callerUserId = call.principal<JWTPrincipal>()!!.payload.subject
-                val result = userService.updateRole(userId, businessId, callerUserId, req)
+                val ipAddress = call.request.local.remoteHost
+                val result = userService.updateRole(userId, businessId, callerUserId, req, ipAddress)
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
             }
 
@@ -661,7 +705,8 @@ fun Route.userRoutes() {
                 val userId = call.parameters["id"]!!
                 val req = call.receive<UpdateUserStatusRequest>()
                 val callerUserId = call.principal<JWTPrincipal>()!!.payload.subject
-                val result = userService.setActiveStatus(userId, businessId, callerUserId, req)
+                val ipAddress = call.request.local.remoteHost
+                val result = userService.setActiveStatus(userId, businessId, callerUserId, req, ipAddress)
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
             }
         }

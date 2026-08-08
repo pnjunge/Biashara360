@@ -98,9 +98,24 @@ object UsersTable : Table("users") {
     val role = varchar("role", 20).default("STAFF")
     val twoFactorEnabled = bool("two_factor_enabled").default(false)
     val preferredLanguage = varchar("preferred_language", 10).default("ENGLISH")
+    val tokenValidAfter = timestamp("token_valid_after").nullable()
     val isActive = bool("is_active").default(true)
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
+// ─── Audit Logs ────────────────────────────────────────────────────────────────
+
+object AuditLogsTable : Table("audit_logs") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, CASCADE, SET_NULL).nullable()
+    val actorUserId = varchar("actor_user_id", 36).references(UsersTable.id, CASCADE, SET_NULL).nullable()
+    val targetUserId = varchar("target_user_id", 36).references(UsersTable.id, CASCADE, SET_NULL).nullable()
+    val action = varchar("action", 80)
+    val ipAddress = varchar("ip_address", 45).nullable()
+    val details = text("details").nullable()
+    val createdAt = timestamp("created_at")
     override val primaryKey = PrimaryKey(id)
 }
 

@@ -53,10 +53,15 @@ fun Application.configureSecurity() {
                 val businessId = credential.payload.getClaim("businessId").asString()
                 val role = credential.payload.getClaim("role").asString()
                 val subject = credential.payload.subject
+                val issuedAt = credential.payload.issuedAt?.let { kotlinx.datetime.Instant.fromEpochMilliseconds(it.time) }
                 val accountCanAccess = transaction {
                     val user = UsersTable.select { UsersTable.id eq subject }.firstOrNull()
                         ?: return@transaction false
                     if (!user[UsersTable.isActive] || user[UsersTable.role] != role) return@transaction false
+                    val validAfter = user[UsersTable.tokenValidAfter]
+                    if (validAfter != null && issuedAt != null && issuedAt < validAfter) {
+                        return@transaction false
+                    }
                     if (role == "SUPERADMIN") return@transaction true
                     if (businessId.isNullOrBlank() || user[UsersTable.businessId] != businessId) return@transaction false
                     BusinessesTable
