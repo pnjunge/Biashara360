@@ -123,6 +123,41 @@ class AccessControlService {
         groups(businessId).first { it.id == groupId }
     }
 
+    fun deleteRole(businessId: String, roleId: String): Boolean = transaction {
+        val exists = AccessRolesTable.select { (AccessRolesTable.id eq roleId) and (AccessRolesTable.businessId eq businessId) }.any()
+        require(exists) { "Role not found" }
+        AccessGroupRolesTable.deleteWhere { AccessGroupRolesTable.roleId eq roleId }
+        AccessRolesTable.deleteWhere { (AccessRolesTable.id eq roleId) and (AccessRolesTable.businessId eq businessId) } > 0
+    }
+
+    fun toggleRoleStatus(businessId: String, roleId: String, isActive: Boolean): AccessRoleResponse = transaction {
+        val exists = AccessRolesTable.select { (AccessRolesTable.id eq roleId) and (AccessRolesTable.businessId eq businessId) }.any()
+        require(exists) { "Role not found" }
+        AccessRolesTable.update({ AccessRolesTable.id eq roleId }) {
+            it[AccessRolesTable.isActive] = isActive
+            it[updatedAt] = Clock.System.now()
+        }
+        roles(businessId).first { it.id == roleId }
+    }
+
+    fun deleteGroup(businessId: String, groupId: String): Boolean = transaction {
+        val exists = AccessGroupsTable.select { (AccessGroupsTable.id eq groupId) and (AccessGroupsTable.businessId eq businessId) }.any()
+        require(exists) { "Group not found" }
+        AccessGroupRolesTable.deleteWhere { AccessGroupRolesTable.groupId eq groupId }
+        UserAccessGroupsTable.deleteWhere { UserAccessGroupsTable.groupId eq groupId }
+        AccessGroupsTable.deleteWhere { (AccessGroupsTable.id eq groupId) and (AccessGroupsTable.businessId eq businessId) } > 0
+    }
+
+    fun toggleGroupStatus(businessId: String, groupId: String, isActive: Boolean): AccessGroupResponse = transaction {
+        val exists = AccessGroupsTable.select { (AccessGroupsTable.id eq groupId) and (AccessGroupsTable.businessId eq businessId) }.any()
+        require(exists) { "Group not found" }
+        AccessGroupsTable.update({ AccessGroupsTable.id eq groupId }) {
+            it[AccessGroupsTable.isActive] = isActive
+            it[updatedAt] = Clock.System.now()
+        }
+        groups(businessId).first { it.id == groupId }
+    }
+
     private fun businessMenus(businessId: String): List<String> {
         val business = BusinessesTable.select { BusinessesTable.id eq businessId }.first()
         val menus = csv(business[BusinessesTable.enabledMenus]).filter { it in MENU_KEYS }.toMutableSet()

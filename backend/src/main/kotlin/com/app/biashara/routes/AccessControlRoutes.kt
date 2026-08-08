@@ -37,11 +37,25 @@ fun Route.accessControlRoutes() {
             put("/roles/{id}") {
                 call.respondResult { service.updateRole(call.businessId(), call.parameters["id"].orEmpty(), call.receive()) }
             }
+            delete("/roles/{id}") {
+                call.respondResult { service.deleteRole(call.businessId(), call.parameters["id"].orEmpty()) }
+            }
+            patch("/roles/{id}/status") {
+                val req = call.receive<UpdateAccessStatusRequest>()
+                call.respondResult { service.toggleRoleStatus(call.businessId(), call.parameters["id"].orEmpty(), req.isActive) }
+            }
             post("/groups") {
                 call.respondResult(HttpStatusCode.Created) { service.createGroup(call.businessId(), call.receive()) }
             }
             put("/groups/{id}") {
                 call.respondResult { service.updateGroup(call.businessId(), call.parameters["id"].orEmpty(), call.receive()) }
+            }
+            delete("/groups/{id}") {
+                call.respondResult { service.deleteGroup(call.businessId(), call.parameters["id"].orEmpty()) }
+            }
+            patch("/groups/{id}/status") {
+                val req = call.receive<UpdateAccessStatusRequest>()
+                call.respondResult { service.toggleGroupStatus(call.businessId(), call.parameters["id"].orEmpty(), req.isActive) }
             }
             put("/groups/{id}/users") {
                 call.respondResult { service.assignUsers(call.businessId(), call.parameters["id"].orEmpty(), call.receive()) }

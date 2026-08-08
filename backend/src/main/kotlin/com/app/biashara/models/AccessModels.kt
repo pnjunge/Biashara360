@@ -11,3 +11,4 @@ import kotlinx.serialization.Serializable
 @Serializable data class SaveAccessRoleRequest(val name: String, val description: String = "", val allowedMenus: List<String>, val isActive: Boolean = true)
 @Serializable data class SaveAccessGroupRequest(val name: String, val description: String = "", val roleIds: List<String> = emptyList(), val isActive: Boolean = true)
 @Serializable data class AssignGroupUsersRequest(val userIds: List<String>)
+@Serializable data class UpdateAccessStatusRequest(val isActive: Boolean)
