@@ -346,7 +346,7 @@ fun LoginScreen(
     var isPinLoginMode by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf(if (BuildConfig.DEBUG) "admin@biashara360.co.ke" else "") }
     var password by remember { mutableStateOf(if (BuildConfig.DEBUG) "admin123" else "") }
-    var pin by remember { mutableStateOf("") }
+    var pin by remember { mutableStateOf(if (BuildConfig.DEBUG) "123456" else "") }
     var passwordVisible by remember { mutableStateOf(false) }
     var showPasswordReset by remember { mutableStateOf(false) }
     var resetEmail by remember { mutableStateOf("") }
