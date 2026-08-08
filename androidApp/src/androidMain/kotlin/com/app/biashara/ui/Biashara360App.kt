@@ -26,12 +26,17 @@ import androidx.navigation.NavController
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Close
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.app.biashara.ui.navigation.Screen
 import com.app.biashara.ui.navigation.bottomNavItems
+import com.app.biashara.ui.navigation.primaryBottomNavItems
+import com.app.biashara.ui.navigation.secondaryNavItems
 import com.app.biashara.ui.screens.auth.LoginScreen
 import com.app.biashara.ui.screens.auth.RegisterScreen
 import com.app.biashara.ui.screens.customers.CustomersScreen
@@ -77,15 +82,6 @@ fun Biashara360App() {
     val currentDestination = navBackStackEntry?.destination
     var hospitalityEnabled by remember { mutableStateOf(false) }
     var enabledMenus by remember { mutableStateOf<Set<String>?>(null) }
-    val visibleBottomNavItems = bottomNavItems.filter {
-        val menu = when (it.screen) {
-            Screen.Dashboard -> "DASHBOARD"; Screen.Pos -> "POS"; Screen.Orders -> "ORDERS"
-            Screen.Inventory -> "INVENTORY"; Screen.Customers -> "CUSTOMERS"; Screen.Payments -> "PAYMENTS"
-            Screen.HospitalityOperations -> "HOSPITALITY_OPS"; Screen.Settings -> "SETTINGS"; else -> null
-        }
-        (menu == null || enabledMenus?.contains(menu) != false) &&
-            (it.screen != Screen.HospitalityOperations || hospitalityEnabled)
-    }
 
     LaunchedEffect(currentDestination?.route) {
         if (currentDestination?.route !in setOf(Screen.Login.route, Screen.Register.route, Screen.OtpVerify.route)) {
@@ -144,8 +140,35 @@ fun Biashara360App() {
         )
     }
 
-    val showBottomBar = visibleBottomNavItems.any { item ->
+    var showMoreSheet by remember { mutableStateOf(false) }
+
+    val visiblePrimaryNavItems = primaryBottomNavItems.filter { item ->
+        val menu = when (item.screen) {
+            Screen.Dashboard -> "DASHBOARD"; Screen.Pos -> "POS"; Screen.Orders -> "ORDERS"
+            Screen.Inventory -> "INVENTORY"; else -> null
+        }
+        menu == null || enabledMenus?.contains(menu) != false
+    }
+
+    val visibleSecondaryNavItems = secondaryNavItems.filter { item ->
+        val menu = when (item.screen) {
+            Screen.Customers -> "CUSTOMERS"; Screen.Payments -> "PAYMENTS"
+            Screen.HospitalityOperations -> "HOSPITALITY_OPS"; Screen.Settings -> "SETTINGS"; else -> null
+        }
+        (menu == null || enabledMenus?.contains(menu) != false) &&
+            (item.screen != Screen.HospitalityOperations || hospitalityEnabled)
+    }
+
+    val showBottomBar = (visiblePrimaryNavItems + visibleSecondaryNavItems).any { item ->
         currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
+    }
+
+    if (showMoreSheet) {
+        MoreAppsBottomSheet(
+            onDismiss = { showMoreSheet = false },
+            navController = navController,
+            secondaryItems = visibleSecondaryNavItems
+        )
     }
 
     CompositionLocalProvider(LocalNetworkAvailable provides networkAvailable) {
@@ -174,7 +197,9 @@ fun Biashara360App() {
                 CustomBottomNavigation(
                     navController = navController,
                     currentDestination = currentDestination,
-                    items = visibleBottomNavItems
+                    primaryItems = visiblePrimaryNavItems,
+                    secondaryItems = visibleSecondaryNavItems,
+                    onOpenMoreSheet = { showMoreSheet = true }
                 )
             }
         }
@@ -334,109 +359,281 @@ fun Biashara360App() {
 fun CustomBottomNavigation(
     navController: NavController,
     currentDestination: NavDestination?,
-    items: List<com.app.biashara.ui.navigation.BottomNavItem>
+    primaryItems: List<com.app.biashara.ui.navigation.BottomNavItem>,
+    secondaryItems: List<com.app.biashara.ui.navigation.BottomNavItem>,
+    onOpenMoreSheet: () -> Unit
 ) {
+    val isAnySecondarySelected = secondaryItems.any { item ->
+        currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
+    }
+
     Surface(
         color = Color.White,
         tonalElevation = 8.dp,
         shadowElevation = 16.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val totalWidth = maxWidth
-            val minItemWidth = 64.dp
-            val needsScroll = items.isNotEmpty() && (totalWidth / items.size) < minItemWidth
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(vertical = 4.dp, horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            primaryItems.forEach { item ->
+                val isSelected = currentDestination?.hierarchy?.any {
+                    it.route == item.screen.route
+                } == true
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .then(if (needsScroll) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
-                    .padding(vertical = 4.dp, horizontal = 2.dp),
-                horizontalArrangement = if (needsScroll) Arrangement.Start else Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                items.forEach { item ->
-                    val isSelected = currentDestination?.hierarchy?.any {
-                        it.route == item.screen.route
-                    } == true
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .then(if (needsScroll) Modifier.widthIn(min = minItemWidth) else Modifier.weight(1f))
-                            .semantics {
-                                selected = isSelected
-                                contentDescription = "${item.label} tab${if (isSelected) ", selected" else ""}"
-                            }
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                role = Role.Tab
-                            ) {
-                                navController.navigate(item.screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics {
+                            selected = isSelected
+                            contentDescription = "${item.label} tab${if (isSelected) ", selected" else ""}"
+                        }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            role = Role.Tab
+                        ) {
+                            navController.navigate(item.screen.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
                                 }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                            .padding(vertical = 4.dp, horizontal = 2.dp)
-                    ) {
-                        if (isSelected) {
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = B360Green,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = item.icon,
-                                        contentDescription = item.label,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                            Text(
-                                text = item.label,
-                                color = B360Green,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        } else {
+                        }
+                        .padding(vertical = 4.dp)
+                ) {
+                    if (isSelected) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = B360Green,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        ) {
                             Box(
-                                modifier = Modifier.padding(vertical = 5.dp, horizontal = 12.dp),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = item.icon,
                                     contentDescription = item.label,
-                                    tint = Color(0xFF64748B),
+                                    tint = Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
-                            Text(
-                                text = item.label,
-                                color = Color(0xFF64748B),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis
+                        }
+                        Text(
+                            text = item.label,
+                            color = B360Green,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier.padding(vertical = 5.dp, horizontal = 14.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(20.dp)
                             )
                         }
+                        Text(
+                            text = item.label,
+                            color = Color(0xFF64748B),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics {
+                        selected = isAnySecondarySelected
+                        contentDescription = "More Apps & Operations tab${if (isAnySecondarySelected) ", selected" else ""}"
+                    }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        role = Role.Tab,
+                        onClick = onOpenMoreSheet
+                    )
+                    .padding(vertical = 4.dp)
+            ) {
+                if (isAnySecondarySelected) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = B360Green,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.GridView,
+                                contentDescription = "More",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "More",
+                        color = B360Green,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.padding(vertical = 5.dp, horizontal = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.GridView,
+                            contentDescription = "More",
+                            tint = Color(0xFF64748B),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = "More",
+                        color = Color(0xFF64748B),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MoreAppsBottomSheet(
+    onDismiss: () -> Unit,
+    navController: NavController,
+    secondaryItems: List<com.app.biashara.ui.navigation.BottomNavItem>
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        scrimColor = Color.Black.copy(alpha = 0.4f),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Apps & Operations",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F172A)
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color(0xFF64748B))
+                }
+            }
+
+            val tileColors = mapOf(
+                Screen.Customers.route to Pair(Color(0xFFEA580C), Color(0xFFFEF3C7)),
+                Screen.Social.route to Pair(Color(0xFF9333EA), Color(0xFFF3E8FF)),
+                Screen.HospitalityOperations.route to Pair(Color(0xFF00B074), Color(0xFFE6F4EA)),
+                Screen.Reports.route to Pair(Color(0xFF0284C7), Color(0xFFE0F2FE)),
+                Screen.Payments.route to Pair(Color(0xFF2563EB), Color(0xFFE8F0FE)),
+                Screen.Settings.route to Pair(Color(0xFF475569), Color(0xFFF1F5F9))
+            )
+
+            val chunkedItems = secondaryItems.chunked(3)
+            chunkedItems.forEach { rowItems ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    rowItems.forEach { item ->
+                        val (iconColor, bgColor) = tileColors[item.screen.route]
+                            ?: Pair(Color(0xFF2563EB), Color(0xFFE8F0FE))
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(88.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable {
+                                    onDismiss()
+                                    navController.navigate(item.screen.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                            color = bgColor,
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.label,
+                                    tint = iconColor,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    text = item.label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = iconColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                    repeat(3 - rowItems.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
         }
     }
 }

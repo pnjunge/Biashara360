@@ -2,6 +2,7 @@ package com.app.biashara.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.ui.graphics.vector.ImageVector
 
 sealed class Screen(val route: String) {
@@ -48,13 +49,20 @@ data class BottomNavItem(
     val labelSw: String   // Swahili label
 )
 
-val bottomNavItems = listOf(
+val primaryBottomNavItems = listOf(
     BottomNavItem(Screen.Dashboard, "Dashboard", Icons.Filled.Home, "Nyumbani"),
     BottomNavItem(Screen.Pos, "POS", Icons.Filled.Storefront, "Mauzo"),
-    BottomNavItem(Screen.Orders, "Orders", Icons.Filled.Assignment, "Maagizo"),
-    BottomNavItem(Screen.Inventory, "Stock", Icons.Filled.Archive, "Hifadhi"),
+    BottomNavItem(Screen.Orders, "Orders", Icons.AutoMirrored.Filled.Assignment, "Maagizo"),
+    BottomNavItem(Screen.Inventory, "Stock", Icons.Filled.Inventory, "Hifadhi")
+)
+
+val secondaryNavItems = listOf(
     BottomNavItem(Screen.Customers, "Customers", Icons.Filled.People, "Wateja"),
     BottomNavItem(Screen.Social, "Social", Icons.Filled.Share, "Mitandao"),
     BottomNavItem(Screen.HospitalityOperations, "Hospitality", Icons.Filled.Restaurant, "Mgahawa"),
+    BottomNavItem(Screen.Reports, "Reports", Icons.Filled.PieChart, "Ripoti"),
+    BottomNavItem(Screen.Payments, "Payments", Icons.Filled.CreditCard, "Malipo"),
     BottomNavItem(Screen.Settings, "Settings", Icons.Filled.Settings, "Mipangilio")
 )
+
+val bottomNavItems = primaryBottomNavItems + secondaryNavItems
