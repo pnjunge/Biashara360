@@ -323,6 +323,33 @@ export function SettingsPage() {
     finally { setPinSaving(false) }
   }
 
+  const [changeCurrPass, setChangeCurrPass] = useState('')
+  const [changeNewPass, setChangeNewPass] = useState('')
+  const [changeConfirmPass, setChangeConfirmPass] = useState('')
+  const [passSaving, setPassSaving] = useState(false)
+
+  const handleChangePassword = async () => {
+    if (!changeCurrPass) return setSecMsg({ ok: false, text: 'Enter your current password.' })
+    if (!changeNewPass || changeNewPass.length < 6) return setSecMsg({ ok: false, text: 'New password must be at least 6 characters.' })
+    if (changeNewPass !== changeConfirmPass) return setSecMsg({ ok: false, text: 'New passwords do not match.' })
+    if (changeCurrPass === changeNewPass) return setSecMsg({ ok: false, text: 'New password must be different from current password.' })
+    setPassSaving(true)
+    setSecMsg(null)
+    try {
+      const res = await authApi.changePassword({ currentPassword: changeCurrPass, newPassword: changeNewPass })
+      setSecMsg({ ok: res.success, text: res.message || 'Password updated successfully!' })
+      if (res.success) {
+        setChangeCurrPass('')
+        setChangeNewPass('')
+        setChangeConfirmPass('')
+      }
+    } catch (e: any) {
+      setSecMsg({ ok: false, text: e.response?.data?.message || 'Could not update password.' })
+    } finally {
+      setPassSaving(false)
+    }
+  }
+
   const tabs = [
     { key: 'storefront', label: 'Storefront', icon: <ExternalLink size={15} /> },
     { key: 'general', label: 'Store Profile', icon: <Building2 size={15} /> },
@@ -743,6 +770,16 @@ export function SettingsPage() {
               <Input label="Confirm PIN" type="password" value={confirmLoginPin} onChange={value=>setConfirmLoginPin(value.replace(/\D/g,'').slice(0,6))} />
             </div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end',flexWrap:'wrap'}}><Btn variant="secondary" disabled={pinSaving || !pinPassword} onClick={()=>handleLoginPin(true)}>Disable PIN</Btn><Btn disabled={pinSaving || !pinPassword || loginPin.length!==6 || confirmLoginPin.length!==6} onClick={()=>handleLoginPin(false)}>{pinSaving ? 'Saving…' : 'Set PIN'}</Btn></div>
+          </Section>
+
+          <Section title="Change Account Password">
+            <p style={{fontSize:12,color:'var(--b360-text-secondary)',margin:0,lineHeight:1.5}}>Update your login password. Changing your password invalidates active sessions across all devices for security.</p>
+            <Input label="Current password" type="password" value={changeCurrPass} onChange={setChangeCurrPass} />
+            <div className="responsive-grid responsive-grid-2" style={{gap:14}}>
+              <Input label="New password (min 6 chars)" type="password" value={changeNewPass} onChange={setChangeNewPass} />
+              <Input label="Confirm new password" type="password" value={changeConfirmPass} onChange={setChangeConfirmPass} />
+            </div>
+            <div style={{display:'flex',justifyContent:'flex-end'}}><Btn disabled={passSaving || !changeCurrPass || !changeNewPass || changeNewPass.length < 6 || changeNewPass !== changeConfirmPass} onClick={handleChangePassword}>{passSaving ? 'Updating Password…' : 'Update Password'}</Btn></div>
           </Section>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

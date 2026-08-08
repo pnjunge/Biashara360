@@ -893,6 +893,21 @@ export const authApi = {
       localStorage.setItem('refreshToken', res.data.data.refreshToken)
     }
     return res.data
+  },
+
+  forgotPassword: async (email: string) => {
+    const res = await client.post<ApiResponse<null>>('/auth/forgot-password', { email })
+    return res.data
+  },
+
+  resetPassword: async (data: { token: string; newPassword: string }) => {
+    const res = await client.post<ApiResponse<null>>('/auth/reset-password', data)
+    return res.data
+  },
+
+  changePassword: async (data: { currentPassword: string; newPassword: string }) => {
+    const res = await client.post<ApiResponse<null>>('/auth/change-password', data)
+    return res.data
   }
 }
 

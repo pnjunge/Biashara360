@@ -112,9 +112,12 @@ export default function LoginPage() {
   const [loginMode, setLoginMode] = useState<'PASSWORD'|'PIN'>('PASSWORD')
   const [otp, setOtp] = useState('')
   const [userId, setUserId] = useState('')
-  const [step, setStep] = useState<'login' | 'otp'>('login')
+  const [step, setStep] = useState<'login' | 'otp' | 'forgot' | 'reset'>('login')
+  const [resetToken, setResetToken] = useState('')
+  const [newPassword, setNewPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -122,6 +125,7 @@ export default function LoginPage() {
     if (!email.trim() || (loginMode === 'PASSWORD' ? !password : pin.length !== 6)) { setError(loginMode === 'PASSWORD' ? 'Email and password are required' : 'Email and a 6-digit PIN are required'); return }
     setLoading(true)
     setError('')
+    setSuccessMsg('')
     try {
       const result = loginMode === 'PASSWORD' ? await authApi.login({ email, password }) : await authApi.loginWithPin({ email, pin })
       if (result.success && result.data) {
@@ -173,6 +177,52 @@ export default function LoginPage() {
     }
   }
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) { setError('Email address is required'); return }
+    setLoading(true)
+    setError('')
+    setSuccessMsg('')
+    try {
+      const result = await authApi.forgotPassword(email.trim())
+      if (result.success) {
+        setSuccessMsg(result.message || 'Reset code sent to your registered contact! Check your SMS/Email.')
+        setStep('reset')
+      } else {
+        setError(result.message || 'Could not request password reset')
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Network error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!resetToken.trim() || resetToken.trim().length !== 6) { setError('Enter the 6-digit reset code'); return }
+    if (!newPassword.trim() || newPassword.trim().length < 6) { setError('New password must be at least 6 characters'); return }
+    setLoading(true)
+    setError('')
+    setSuccessMsg('')
+    try {
+      const result = await authApi.resetPassword({ token: resetToken.trim(), newPassword: newPassword.trim() })
+      if (result.success) {
+        setSuccessMsg('Password reset successfully! Please sign in with your new password.')
+        setPassword('')
+        setResetToken('')
+        setNewPassword('')
+        setStep('login')
+      } else {
+        setError(result.message || 'Password reset failed')
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Network error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="auth-page"
       style={{
@@ -214,7 +264,45 @@ export default function LoginPage() {
             gap: 20
           }}
         >
-          {step === 'login' ? (
+          {successMsg && (
+            <div
+              style={{
+                background: '#ECFDF5',
+                border: '1px solid #A7F3D0',
+                borderRadius: 8,
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: '#065F46',
+                fontSize: 13
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          {error && (
+            <div
+              style={{
+                background: '#FEE2E2',
+                border: '1px solid #FCA5A5',
+                borderRadius: 8,
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: '#991B1B',
+                fontSize: 13
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {step === 'login' && (
             <>
               {/* Header Logo */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -238,29 +326,10 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {error && (
-                <div
-                  style={{
-                    background: '#FEE2E2',
-                    border: '1px solid #FCA5A5',
-                    borderRadius: 8,
-                    padding: '12px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    color: '#991B1B',
-                    fontSize: 13
-                  }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                  <span>{error}</span>
-                </div>
-              )}
-
               <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <CustomLoginTextField
                   value={email}
-                  onChange={v => { setEmail(v); setError('') }}
+                  onChange={v => { setEmail(v); setError(''); setSuccessMsg('') }}
                   placeholder="Email / Username"
                   disabled={loading}
                   icon={
@@ -269,19 +338,19 @@ export default function LoginPage() {
                 />
 
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',padding:3,borderRadius:9,background:'#F1F5F9'}}>
-                  {(['PASSWORD','PIN'] as const).map(mode=><button key={mode} type="button" onClick={()=>{setLoginMode(mode);setError('')}} style={{border:0,borderRadius:7,padding:9,background:loginMode===mode ? 'white' : 'transparent',color:loginMode===mode ? 'var(--b360-green)' : '#64748B',fontWeight:700,cursor:'pointer',boxShadow:loginMode===mode ? '0 1px 3px #0001' : 'none'}}>{mode === 'PASSWORD' ? 'Password' : '6-digit PIN'}</button>)}
+                  {(['PASSWORD','PIN'] as const).map(mode=><button key={mode} type="button" onClick={()=>{setLoginMode(mode);setError('');setSuccessMsg('')}} style={{border:0,borderRadius:7,padding:9,background:loginMode===mode ? 'white' : 'transparent',color:loginMode===mode ? 'var(--b360-green)' : '#64748B',fontWeight:700,cursor:'pointer',boxShadow:loginMode===mode ? '0 1px 3px #0001' : 'none'}}>{mode === 'PASSWORD' ? 'Password' : '6-digit PIN'}</button>)}
                 </div>
 
                 {loginMode === 'PASSWORD' ? <CustomLoginTextField
                   value={password}
-                  onChange={v => { setPassword(v); setError('') }}
+                  onChange={v => { setPassword(v); setError(''); setSuccessMsg('') }}
                   placeholder="Password"
                   type="password"
                   disabled={loading}
                   icon={
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                   }
-                /> : <CustomLoginTextField value={pin} onChange={v=>{setPin(v.replace(/\D/g,'').slice(0,6));setError('')}} placeholder="6-digit PIN" type="password" disabled={loading} icon={<span style={{fontWeight:900,color:'var(--b360-green)'}}>••</span>} />}
+                /> : <CustomLoginTextField value={pin} onChange={v=>{setPin(v.replace(/\D/g,'').slice(0,6));setError('');setSuccessMsg('')}} placeholder="6-digit PIN" type="password" disabled={loading} icon={<span style={{fontWeight:900,color:'var(--b360-green)'}}>••</span>} />}
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: '#475569' }}>
@@ -300,6 +369,7 @@ export default function LoginPage() {
                   </label>
                   <button
                     type="button"
+                    onClick={() => { setStep('forgot'); setError(''); setSuccessMsg('') }}
                     style={{
                       border: 'none',
                       background: 'none',
@@ -376,7 +446,9 @@ export default function LoginPage() {
                 </button>
               </form>
             </>
-          ) : (
+          )}
+
+          {step === 'otp' && (
             <>
               <div style={{ textAlign: 'center', marginBottom: 20 }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>📱</div>
@@ -403,7 +475,6 @@ export default function LoginPage() {
                     boxSizing: 'border-box'
                   }}
                 />
-                {error && <p style={{ color: 'var(--b360-red)', fontSize: 12, textAlign: 'center', margin: 0 }}>{error}</p>}
                 <button
                   type="submit"
                   disabled={loading || otp.length < 6}
@@ -439,6 +510,117 @@ export default function LoginPage() {
                 >
                   ← Back to login
                 </button>
+              </form>
+            </>
+          )}
+
+          {step === 'forgot' && (
+            <>
+              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>🔑</div>
+                <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Reset your password</h2>
+                <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>Enter your registered email address to receive a 6-digit reset code.</p>
+              </div>
+
+              <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <CustomLoginTextField
+                  value={email}
+                  onChange={v => { setEmail(v); setError(''); setSuccessMsg('') }}
+                  placeholder="Registered Email Address"
+                  disabled={loading}
+                  icon={
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                  }
+                />
+
+                <button
+                  type="submit"
+                  disabled={loading || !email.trim()}
+                  style={{
+                    height: 48,
+                    background: 'var(--b360-green)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    cursor: (loading || !email.trim()) ? 'not-allowed' : 'pointer',
+                    opacity: (loading || !email.trim()) ? 0.6 : 1,
+                    width: '100%'
+                  }}
+                >
+                  {loading ? 'Sending Code...' : 'Send Reset Code'}
+                </button>
+
+                <div style={{ textAlign: 'center', marginTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setStep('login'); setError(''); setSuccessMsg('') }}
+                    style={{ background: 'none', border: 'none', color: '#64748B', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    ← Back to Sign In
+                  </button>
+                </div>
+              </form>
+            </>
+          )}
+
+          {step === 'reset' && (
+            <>
+              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>🔒</div>
+                <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Enter Reset Code</h2>
+                <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>Enter the 6-digit code and choose a new password.</p>
+              </div>
+
+              <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <CustomLoginTextField
+                  value={resetToken}
+                  onChange={v => { setResetToken(v.replace(/\D/g, '').slice(0, 6)); setError(''); setSuccessMsg('') }}
+                  placeholder="6-digit Reset Code"
+                  disabled={loading}
+                  icon={<span style={{ fontWeight: 900, color: 'var(--b360-green)' }}>#</span>}
+                />
+
+                <CustomLoginTextField
+                  value={newPassword}
+                  onChange={v => { setNewPassword(v); setError(''); setSuccessMsg('') }}
+                  placeholder="New Password (min 6 chars)"
+                  type="password"
+                  disabled={loading}
+                  icon={
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                  }
+                />
+
+                <button
+                  type="submit"
+                  disabled={loading || resetToken.length !== 6 || newPassword.length < 6}
+                  style={{
+                    height: 48,
+                    background: 'var(--b360-green)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    cursor: (loading || resetToken.length !== 6 || newPassword.length < 6) ? 'not-allowed' : 'pointer',
+                    opacity: (loading || resetToken.length !== 6 || newPassword.length < 6) ? 0.6 : 1,
+                    width: '100%'
+                  }}
+                >
+                  {loading ? 'Updating Password...' : 'Update Password & Sign In'}
+                </button>
+
+                <div style={{ textAlign: 'center', marginTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setStep('login'); setError(''); setSuccessMsg('') }}
+                    style={{ background: 'none', border: 'none', color: '#64748B', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    ← Back to Sign In
+                  </button>
+                </div>
               </form>
             </>
           )}
