@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
@@ -118,11 +119,14 @@ fun DashboardScreen(
                             )
                             Box(
                                 modifier = Modifier
-                                    .size(8.dp)
-                                    .background(B360Green, CircleShape)
+                                    .size(18.dp)
+                                    .background(Color(0xFFEF4444), CircleShape)
                                     .align(Alignment.TopEnd)
-                                    .offset(x = (-10).dp, y = 10.dp)
-                            )
+                                    .offset(x = 2.dp, y = (-2).dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("3", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.width(10.dp))
@@ -316,6 +320,11 @@ fun DashboardScreen(
             // Revenue Trend Smooth Line Chart
             item {
                 RevenueBarChart(weeklyRevenue = state.weeklyRevenue)
+            }
+
+            // Quick Nav Tiles (POS, Orders, Stock, Customers, Reports)
+            item {
+                QuickNavTilesRow(navController = navController)
             }
 
             // Quick Actions
@@ -515,38 +524,44 @@ fun KpiCard(
                     ) {
                         Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
                     }
+                    Icon(
+                        imageVector = Icons.Filled.MoreHoriz,
+                        contentDescription = "Options",
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
                 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(title, fontSize = 13.sp, color = Color(0xFF475569), fontWeight = FontWeight.SemiBold)
-                    Text(value, fontSize = 23.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                    Text(value, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
                     
-                    val annotatedChange = buildAnnotatedString {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val isRed = color == Color(0xFFEF4444) || title.contains("Pending")
                         val parts = change.split(" ")
-                        if (parts.isNotEmpty()) {
-                            val firstPart = parts[0]
-                            if (firstPart.startsWith("↑") || firstPart.startsWith("↓") || firstPart.any { it.isDigit() }) {
-                                val percentPart = if (parts.size > 1 && parts[1].contains("%")) "${parts[0]} ${parts[1]}" else parts[0]
-                                withStyle(SpanStyle(color = B360Green, fontWeight = FontWeight.Bold)) {
-                                    append(percentPart)
-                                }
-                                append(" ")
-                                val rest = parts.drop(if (parts.size > 1 && parts[1].contains("%")) 2 else 1).joinToString(" ")
-                                withStyle(SpanStyle(color = Color(0xFF64748B))) {
-                                    append(rest)
-                                }
-                            } else if (change == "orders pending") {
-                                withStyle(SpanStyle(color = B360Green, fontWeight = FontWeight.Bold)) {
-                                    append("orders pending")
-                                }
-                            } else {
-                                withStyle(SpanStyle(color = B360Green, fontWeight = FontWeight.Bold)) {
-                                    append(change)
-                                }
-                            }
+                        val badgeText = if (parts.size >= 2 && parts[1].contains("%")) "${parts[0]} ${parts[1]}" else parts[0]
+                        val subText = change.removePrefix(badgeText).trim()
+
+                        Surface(
+                            color = if (isRed) Color(0xFFFEE2E2) else Color(0xFFDCFCE7),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = badgeText,
+                                color = if (isRed) Color(0xFFEF4444) else Color(0xFF00B074),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        if (subText.isNotBlank()) {
+                            Text(subText, fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                         }
                     }
-                    Text(annotatedChange, fontSize = 11.sp)
                 }
             }
         }
@@ -600,19 +615,30 @@ fun RevenueBarChart(
                         Text("Last 7 days", fontSize = 12.sp, color = Color(0xFF64748B))
                     }
                 }
-                Surface(
-                    color = Color(0xFFF8FAFC),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    Surface(
+                        color = Color(0xFFF8FAFC),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
                     ) {
-                        Text("7 Days", fontSize = 12.sp, color = Color(0xFF00B074), fontWeight = FontWeight.Bold)
-                        Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF00B074), modifier = Modifier.size(16.dp))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("7 Days", fontSize = 12.sp, color = Color(0xFF00B074), fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF00B074), modifier = Modifier.size(16.dp))
+                        }
                     }
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = "Options",
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
             
@@ -992,6 +1018,84 @@ fun TopCustomersSection(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun QuickNavTilesRow(navController: NavController) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        QuickNavTile(
+            modifier = Modifier.weight(1f),
+            label = "POS",
+            icon = Icons.Filled.Store,
+            color = Color(0xFF00B074),
+            bgColor = Color(0xFFE6F4EA),
+            onClick = { navController.navigate(Screen.Pos.route) }
+        )
+        QuickNavTile(
+            modifier = Modifier.weight(1f),
+            label = "Orders",
+            icon = Icons.AutoMirrored.Filled.Assignment,
+            color = Color(0xFF2563EB),
+            bgColor = Color(0xFFE8F0FE),
+            onClick = { navController.navigate(Screen.Orders.route) }
+        )
+        QuickNavTile(
+            modifier = Modifier.weight(1f),
+            label = "Stock",
+            icon = Icons.Filled.Inventory,
+            color = Color(0xFF9333EA),
+            bgColor = Color(0xFFF3E8FF),
+            onClick = { navController.navigate(Screen.Inventory.route) }
+        )
+        QuickNavTile(
+            modifier = Modifier.weight(1f),
+            label = "Customers",
+            icon = Icons.Filled.People,
+            color = Color(0xFFEA580C),
+            bgColor = Color(0xFFFEF3C7),
+            onClick = { navController.navigate(Screen.Customers.route) }
+        )
+        QuickNavTile(
+            modifier = Modifier.weight(1f),
+            label = "Reports",
+            icon = Icons.Filled.PieChart,
+            color = Color(0xFF0284C7),
+            bgColor = Color(0xFFE0F2FE),
+            onClick = { navController.navigate(Screen.Reports.route) }
+        )
+    }
+}
+
+@Composable
+fun QuickNavTile(
+    modifier: Modifier = Modifier,
+    label: String,
+    icon: ImageVector,
+    color: Color,
+    bgColor: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .height(78.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
+        color = bgColor,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(26.dp))
+            Spacer(Modifier.height(4.dp))
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color)
         }
     }
 }
