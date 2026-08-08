@@ -80,7 +80,7 @@ fun Biashara360App() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    var hospitalityEnabled by remember { mutableStateOf(false) }
+    var hospitalityEnabled by remember { mutableStateOf(true) }
     var enabledMenus by remember { mutableStateOf<Set<String>?>(null) }
 
     LaunchedEffect(currentDestination?.route) {
