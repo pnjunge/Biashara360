@@ -13,10 +13,7 @@ class Biashara360Application : Application() {
         super.onCreate()
         com.app.biashara.data.remote.CLIENT_PLATFORM = "android"
         com.app.biashara.data.remote.SESSION_IDLE_TIMEOUT_SECONDS = BuildConfig.SESSION_IDLE_TIMEOUT_SECONDS
-        val isDebug = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        if (isDebug) {
-            com.app.biashara.data.remote.BASE_URL = "http://10.0.3.2:8081/v1"
-        }
+        // BASE_URL defaults to "https://api.biashara360.co.ke/v1" in shared ApiClient
         startKoin {
             androidLogger(Level.ERROR)
             androidContext(this@Biashara360Application)

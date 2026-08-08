@@ -75,8 +75,9 @@ fun Route.orderRoutesValidated() {
                     length(2, 255)
                 }
                 field("customerPhone", req.customerPhone) {
-                    required()
-                    phone()
+                    optional {
+                        phone()
+                    }
                 }
                 field("deliveryLocation", req.deliveryLocation) {
                     maxLength(500)
