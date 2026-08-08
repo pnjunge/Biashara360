@@ -1,8 +1,10 @@
 package com.app.biashara.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudOff
@@ -12,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -339,86 +342,98 @@ fun CustomBottomNavigation(
         shadowElevation = 16.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            items.forEach { item ->
-                val isSelected = currentDestination?.hierarchy?.any {
-                    it.route == item.screen.route
-                } == true
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val totalWidth = maxWidth
+            val minItemWidth = 64.dp
+            val needsScroll = items.isNotEmpty() && (totalWidth / items.size) < minItemWidth
 
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier
-                        .weight(1f)
-                        .semantics {
-                            selected = isSelected
-                            contentDescription = "${item.label} tab${if (isSelected) ", selected" else ""}"
-                        }
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            role = Role.Tab
-                        ) {
-                            navController.navigate(item.screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .then(if (needsScroll) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
+                    .padding(vertical = 4.dp, horizontal = 2.dp),
+                horizontalArrangement = if (needsScroll) Arrangement.Start else Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items.forEach { item ->
+                    val isSelected = currentDestination?.hierarchy?.any {
+                        it.route == item.screen.route
+                    } == true
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .then(if (needsScroll) Modifier.widthIn(min = minItemWidth) else Modifier.weight(1f))
+                            .semantics {
+                                selected = isSelected
+                                contentDescription = "${item.label} tab${if (isSelected) ", selected" else ""}"
                             }
-                        }
-                        .padding(vertical = 4.dp)
-                ) {
-                    if (isSelected) {
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = B360Green,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        ) {
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                role = Role.Tab
+                            ) {
+                                navController.navigate(item.screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                            .padding(vertical = 4.dp, horizontal = 2.dp)
+                    ) {
+                        if (isSelected) {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = B360Green,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = item.icon,
+                                        contentDescription = item.label,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = item.label,
+                                color = B360Green,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        } else {
                             Box(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(vertical = 5.dp, horizontal = 12.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = item.icon,
                                     contentDescription = item.label,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(22.dp)
+                                    tint = Color(0xFF64748B),
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
-                        }
-                        Text(
-                            text = item.label,
-                            color = B360Green,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .padding(vertical = 6.dp, horizontal = 16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = item.icon,
-                                contentDescription = item.label,
-                                tint = Color(0xFF64748B),
-                                modifier = Modifier.size(22.dp)
+                            Text(
+                                text = item.label,
+                                color = Color(0xFF64748B),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Text(
-                            text = item.label,
-                            color = Color(0xFF64748B),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
                     }
                 }
             }
