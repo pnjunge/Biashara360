@@ -10,6 +10,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -419,6 +422,11 @@ fun SettingsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Settings / Mipangilio", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
+                actions = {
+                    IconButton(onClick = { showLogoutDialog = true }) {
+                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Sign Out", tint = B360Red)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         }
@@ -430,16 +438,25 @@ fun SettingsScreen(
                     border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
                     colors = CardDefaults.cardColors(containerColor = Color.White)
                 ) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Surface(shape = RoundedCornerShape(50), color = B360Green, modifier = Modifier.size(56.dp)) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(userInitial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Row(
+                        Modifier.padding(16.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.weight(1f)) {
+                            Surface(shape = RoundedCornerShape(50), color = B360Green, modifier = Modifier.size(56.dp)) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(userInitial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                }
+                            }
+                            Column {
+                                Text(userName.ifBlank { "User" }, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
+                                if (userEmail.isNotBlank()) Text(userEmail, fontSize = 13.sp, color = Color(0xFF64748B))
+                                currentUser?.role?.let { Text(it.name, fontSize = 12.sp, color = B360Green, fontWeight = FontWeight.Bold) }
                             }
                         }
-                        Column {
-                            Text(userName.ifBlank { "User" }, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
-                            if (userEmail.isNotBlank()) Text(userEmail, fontSize = 13.sp, color = Color(0xFF64748B))
-                            currentUser?.role?.let { Text(it.name, fontSize = 12.sp, color = B360Green, fontWeight = FontWeight.Bold) }
+                        IconButton(onClick = { showLogoutDialog = true }) {
+                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Sign Out", tint = B360Red)
                         }
                     }
                 }
@@ -491,14 +508,14 @@ fun SettingsScreen(
                 SettingsSection("Integrations") {
                     SettingsNavItem("M-Pesa Configuration (Read-only)", Icons.Filled.PhoneAndroid) { onNavigateToPayments?.invoke() }
                     SettingsNavItem("CyberSource Configuration (Read-only)", Icons.Filled.CreditCard) { onNavigateToCyberSourceSettings?.invoke() }
-                    SettingsNavItem("KRA eTIMS", Icons.Filled.Assignment) { onNavigateToKra?.invoke() }
+                    SettingsNavItem("KRA eTIMS", Icons.AutoMirrored.Filled.Assignment) { onNavigateToKra?.invoke() }
                     SettingsNavItem("Social Channels", Icons.Filled.Share) { onNavigateToSocial?.invoke() }
                 }
             }
             item {
                 SettingsSection("Account") {
                     SettingsNavItem("Change Password", Icons.Filled.Lock) { showChangePasswordDialog = true }
-                    SettingsNavItem("Help & Support", Icons.Filled.Help) {
+                    SettingsNavItem("Help & Support", Icons.AutoMirrored.Filled.Help) {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://biashara360.co.ke/support"))
                         context.startActivity(intent)
                     }
@@ -513,7 +530,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(24.dp),
                     contentPadding = PaddingValues(14.dp)
                 ) {
-                    Icon(Icons.Filled.Logout, contentDescription = null, tint = B360Red)
+                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = B360Red)
                     Spacer(Modifier.width(8.dp))
                     Text("Sign Out / Toka", color = B360Red, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }

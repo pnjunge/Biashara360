@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -185,7 +186,7 @@ fun OrderDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Order ${order?.orderNumber ?: "#${orderId.take(8).uppercase()}"}", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null, tint = Color(0xFF0F172A)) } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color(0xFF0F172A)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         }
@@ -261,7 +262,7 @@ fun CreateOrderScreen(onBack: () -> Unit, onOrderCreated: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text("New Order", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 20.sp) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null, tint = Color(0xFF0F172A)) } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color(0xFF0F172A)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = B360Surface)
             )
         },

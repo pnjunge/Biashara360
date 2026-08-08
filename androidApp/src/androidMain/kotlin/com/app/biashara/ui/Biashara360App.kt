@@ -215,7 +215,17 @@ fun Biashara360App() {
             }
             // Main screens
             composable(Screen.Dashboard.route) {
-                DashboardScreen(navController = navController)
+                DashboardScreen(
+                    navController = navController,
+                    onLogout = {
+                        coroutineScope.launch {
+                            authRepository.logout()
+                            navController.navigate(Screen.Login.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        }
+                    }
+                )
             }
             composable(Screen.Pos.route) {
                 PosScreen()
@@ -294,8 +304,11 @@ fun Biashara360App() {
             composable(Screen.Settings.route) {
                 com.app.biashara.ui.screens.settings.SettingsScreen(
                     onLogout = {
-                        navController.navigate(Screen.Login.route) {
-                            popUpTo(0) { inclusive = true }
+                        coroutineScope.launch {
+                            authRepository.logout()
+                            navController.navigate(Screen.Login.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     },
                     onNavigateToPayments = { navController.navigate(Screen.Payments.route) },
@@ -330,7 +343,7 @@ fun CustomBottomNavigation(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(vertical = 8.dp),
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {

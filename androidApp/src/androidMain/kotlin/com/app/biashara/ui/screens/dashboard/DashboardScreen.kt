@@ -45,9 +45,11 @@ import com.app.biashara.domain.model.UserRole
 @Composable
 fun DashboardScreen(
     navController: NavController,
+    onLogout: () -> Unit = {},
     viewModel: DashboardViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.loadDashboard() }
 
@@ -60,6 +62,21 @@ fun DashboardScreen(
         UserRole.STAFF -> "Staff Member"
         UserRole.VIEWER -> "Viewer"
         null -> "System Administrator"
+    }
+
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Sign Out / Toka", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to sign out?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLogoutDialog = false
+                    onLogout()
+                }) { Text("Sign Out", color = B360Red, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") } }
+        )
     }
 
     Scaffold(
@@ -121,6 +138,24 @@ fun DashboardScreen(
                                 contentDescription = "Settings",
                                 tint = Color(0xFF1E293B),
                                 modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White,
+                        shadowElevation = 2.dp,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clickable { showLogoutDialog = true }
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(
+                                imageVector = Icons.Filled.Logout,
+                                contentDescription = "Sign Out",
+                                tint = B360Red,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }

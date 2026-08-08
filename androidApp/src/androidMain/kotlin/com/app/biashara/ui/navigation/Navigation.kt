@@ -55,5 +55,6 @@ val bottomNavItems = listOf(
     BottomNavItem(Screen.Inventory, "Stock", Icons.Filled.Archive, "Hifadhi"),
     BottomNavItem(Screen.Customers, "Customers", Icons.Filled.People, "Wateja"),
     BottomNavItem(Screen.Social, "Social", Icons.Filled.Share, "Mitandao"),
-    BottomNavItem(Screen.HospitalityOperations, "Hospitality", Icons.Filled.Restaurant, "Mgahawa")
+    BottomNavItem(Screen.HospitalityOperations, "Hospitality", Icons.Filled.Restaurant, "Mgahawa"),
+    BottomNavItem(Screen.Settings, "Settings", Icons.Filled.Settings, "Mipangilio")
 )

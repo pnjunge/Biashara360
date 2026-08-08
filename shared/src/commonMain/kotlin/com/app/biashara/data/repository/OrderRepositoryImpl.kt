@@ -382,15 +382,15 @@ class OrderRepositoryImpl(
             unitPrice = it.unitPrice,
             buyingPrice = it.buyingPrice
         ) },
-        paymentStatus = runCatching { PaymentStatus.valueOf(paymentStatus) }.getOrDefault(PaymentStatus.PENDING),
-        deliveryStatus = runCatching { DeliveryStatus.valueOf(deliveryStatus) }.getOrDefault(DeliveryStatus.PENDING),
-        paymentMethod = runCatching { PaymentMethod.valueOf(paymentMethod) }.getOrDefault(PaymentMethod.MPESA),
+        paymentStatus = PaymentStatus.fromString(paymentStatus),
+        deliveryStatus = DeliveryStatus.fromString(deliveryStatus),
+        paymentMethod = PaymentMethod.fromString(paymentMethod),
         mpesaTransactionCode = mpesaTransactionCode,
         includeTax = taxIncluded,
         taxRate = taxRate,
         notes = notes,
-        createdAt = Instant.parse(createdAt),
-        updatedAt = Instant.parse(updatedAt)
+        createdAt = runCatching { Instant.parse(createdAt) }.getOrDefault(kotlinx.datetime.Clock.System.now()),
+        updatedAt = runCatching { Instant.parse(updatedAt) }.getOrDefault(kotlinx.datetime.Clock.System.now())
     )
 
      private fun OrderEntity.toDomainWithItems(): Order {
@@ -412,12 +412,9 @@ class OrderRepositoryImpl(
              customerPhone = customer_phone,
              deliveryLocation = delivery_location,
              items = items,
-             paymentStatus = runCatching { PaymentStatus.valueOf(payment_status) }
-                 .getOrDefault(PaymentStatus.PENDING),
-             deliveryStatus = runCatching { DeliveryStatus.valueOf(delivery_status) }
-                 .getOrDefault(DeliveryStatus.PENDING),
-             paymentMethod = runCatching { PaymentMethod.valueOf(payment_method) }
-                 .getOrDefault(PaymentMethod.MPESA),
+             paymentStatus = PaymentStatus.fromString(payment_status),
+             deliveryStatus = DeliveryStatus.fromString(delivery_status),
+             paymentMethod = PaymentMethod.fromString(payment_method),
              mpesaTransactionCode = mpesa_transaction_code,
              notes = notes,
              createdAt = runCatching { Instant.parse(created_at) }

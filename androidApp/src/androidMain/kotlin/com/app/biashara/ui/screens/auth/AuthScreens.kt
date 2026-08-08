@@ -10,11 +10,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import com.app.biashara.BuildConfig
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -213,9 +221,12 @@ fun AndroidCustomLoginTextField(
     isPassword: Boolean = false,
     passwordVisible: Boolean = false,
     onPasswordToggle: (() -> Unit)? = null,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
     val borderColor = if (isFocused) B360Green else Color(0xFFE2E8F0)
 
     Row(
@@ -224,7 +235,8 @@ fun AndroidCustomLoginTextField(
             .height(56.dp)
             .border(1.dp, borderColor, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White),
+            .background(Color.White)
+            .clickable { focusRequester.requestFocus() },
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Icon Box
@@ -264,9 +276,12 @@ fun AndroidCustomLoginTextField(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(focusRequester)
                     .onFocusChanged { isFocused = it.isFocused },
                 singleLine = true,
                 enabled = enabled,
+                keyboardOptions = keyboardOptions,
+                keyboardActions = keyboardActions,
                 visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
                 textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 15.sp),
                 decorationBox = { innerTextField: @Composable () -> Unit ->
@@ -329,8 +344,8 @@ fun LoginScreen(
         }
     }
     var isPinLoginMode by remember { mutableStateOf(false) }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf(if (BuildConfig.DEBUG) "admin@biashara360.co.ke" else "") }
+    var password by remember { mutableStateOf(if (BuildConfig.DEBUG) "admin123" else "") }
     var pin by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var showPasswordReset by remember { mutableStateOf(false) }
@@ -542,7 +557,8 @@ fun LoginScreen(
                             onValueChange = { email = it; viewModel.dismissError() },
                             placeholder = "Email / Phone",
                             leadingIcon = Icons.Filled.Person,
-                            enabled = !state.isLoading
+                            enabled = !state.isLoading,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
                         )
 
                         if (!isPinLoginMode) {
@@ -566,7 +582,9 @@ fun LoginScreen(
                                 isPassword = true,
                                 passwordVisible = passwordVisible,
                                 onPasswordToggle = { passwordVisible = !passwordVisible },
-                                enabled = !state.isLoading
+                                enabled = !state.isLoading,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = { if (email.isNotBlank() && password.isNotBlank()) viewModel.login(email, password) })
                             )
 
                             Button(
@@ -581,7 +599,7 @@ fun LoginScreen(
                                 } else {
                                     Box(modifier = Modifier.fillMaxWidth()) {
                                         Text("Login / Ingia", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
-                                        Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
                                     }
                                 }
                             }
@@ -615,7 +633,7 @@ fun LoginScreen(
                                 } else {
                                     Box(modifier = Modifier.fillMaxWidth()) {
                                         Text("Login with PIN / Ingia na PIN", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
-                                        Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
                                     }
                                 }
                             }
@@ -702,7 +720,7 @@ fun LoginScreen(
                                     Icon(Icons.Default.Fingerprint, contentDescription = null, tint = B360Green, modifier = Modifier.size(22.dp))
                                 }
                                 Text("Login with fingerprint", modifier = Modifier.weight(1f), color = Color(0xFF0F172A), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = Color(0xFF64748B))
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Color(0xFF64748B))
                             }
                         }
 
@@ -769,7 +787,7 @@ fun RegisterScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) { 
-                    Icon(Icons.Filled.ArrowBack, null, tint = Color.White) 
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White) 
                 }
                 Spacer(Modifier.width(8.dp))
                 Text("Back", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -923,7 +941,7 @@ fun RegisterScreen(
                             } else {
                                 Box(modifier = Modifier.fillMaxWidth()) {
                                     Text("Register / Jisajili", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
-                                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
                                 }
                             }
                         }
@@ -1043,7 +1061,7 @@ fun OtpScreen(
                             } else {
                                 Box(modifier = Modifier.fillMaxWidth()) {
                                     Text("Verify / Thibitisha", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
-                                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
                                 }
                             }
                         }

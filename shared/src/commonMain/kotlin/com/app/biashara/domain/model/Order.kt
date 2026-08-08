@@ -43,11 +43,24 @@ data class OrderItem(
 
 @Serializable
 enum class PaymentStatus {
-    PAID, PENDING, COD, FAILED, REFUNDED, CANCELLED, VOIDED;
+    PAID, PENDING, PROCESSING, COMPLETED, COD, FAILED, REFUNDED, CANCELLED, VOIDED;
+
+    companion object {
+        fun fromString(value: String?): PaymentStatus {
+            if (value.isNullOrBlank()) return PENDING
+            val upper = value.trim().uppercase()
+            return entries.find { it.name == upper } ?: when (upper) {
+                "COMPLETED" -> PAID
+                "CANCELED" -> CANCELLED
+                else -> PENDING
+            }
+        }
+    }
 
     fun displayLabel(): String = when (this) {
-        PAID -> "Paid"
+        PAID, COMPLETED -> "Paid"
         PENDING -> "Pending"
+        PROCESSING -> "Processing"
         COD -> "Cash on Delivery"
         FAILED -> "Failed"
         REFUNDED -> "Refunded"
@@ -58,18 +71,40 @@ enum class PaymentStatus {
 
 @Serializable
 enum class DeliveryStatus {
-    PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED;
+    PENDING, PROCESSING, PREPARING, READY_FOR_PICKUP, IN_TRANSIT, OUT_FOR_DELIVERY, SHIPPED, DELIVERED, CANCELLED, FAILED, RETURNED;
+
+    companion object {
+        fun fromString(value: String?): DeliveryStatus {
+            if (value.isNullOrBlank()) return PENDING
+            val upper = value.trim().uppercase()
+            return entries.find { it.name == upper } ?: when (upper) {
+                "CANCELED" -> CANCELLED
+                "PREPARING", "READY_FOR_PICKUP", "IN_TRANSIT", "OUT_FOR_DELIVERY" -> PROCESSING
+                else -> PENDING
+            }
+        }
+    }
 
     fun displayLabel(): String = when (this) {
         PENDING -> "Pending"
-        PROCESSING -> "Processing"
+        PROCESSING, PREPARING, READY_FOR_PICKUP, IN_TRANSIT, OUT_FOR_DELIVERY -> "Processing"
         SHIPPED -> "Shipped"
         DELIVERED -> "Delivered"
         CANCELLED -> "Cancelled"
+        FAILED -> "Failed"
+        RETURNED -> "Returned"
     }
 }
 
 @Serializable
 enum class PaymentMethod {
-    MPESA, AIRTEL_MONEY, TKASH, CASH, COD, CARD, BANK_TRANSFER
+    MPESA, AIRTEL_MONEY, TKASH, CASH, COD, CARD, BANK_TRANSFER, CREDIT;
+
+    companion object {
+        fun fromString(value: String?): PaymentMethod {
+            if (value.isNullOrBlank()) return MPESA
+            val upper = value.trim().uppercase()
+            return entries.find { it.name == upper } ?: MPESA
+        }
+    }
 }
