@@ -343,7 +343,7 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
             val tabs = listOf(
                 "Floor Plan & Tables (${dashboard?.tables?.size ?: 0})" to Icons.Default.TableRestaurant,
                 "Open Tabs (${dashboard?.openTabs?.size ?: 0})" to Icons.Default.ReceiptLong,
-                "Kitchen & Bar KDS (${dashboard?.tickets?.count { it.status in setOf("NEW", "PREPARING", "READY") } ?: 0})" to Icons.Default.Restaurant,
+                "Kitchen KDS (${dashboard?.tickets?.count { it.station == "KITCHEN" && it.status in setOf("NEW", "PREPARING", "READY", "DELAYED") } ?: 0})" to Icons.Default.Restaurant,
                 "Operations & Stock" to Icons.Default.Inventory
             )
             tabs.forEachIndexed { index, (label, icon) ->
@@ -673,33 +673,9 @@ private fun DesktopKDSTab(
     tickets: List<DesktopKitchenTicket>,
     onUpdateStatus: (ticketId: String, status: String) -> Unit
 ) {
-    var selectedStation by remember { mutableStateOf("ALL") }
-
-    val filteredTickets = when (selectedStation) {
-        "KITCHEN" -> tickets.filter { it.station == "KITCHEN" }
-        "BAR" -> tickets.filter { it.station == "BAR" }
-        else -> tickets
-    }
+    val filteredTickets = tickets.filter { it.station == "KITCHEN" }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Station Filter:", fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A))
-            listOf("ALL", "KITCHEN", "BAR").forEach { station ->
-                FilterChip(
-                    selected = selectedStation == station,
-                    onClick = { selectedStation = station },
-                    label = { Text(if (station == "ALL") "All Stations" else station) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Color(0xFF00B874),
-                        selectedLabelColor = Color.White
-                    )
-                )
-            }
-        }
-
         if (filteredTickets.isEmpty()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -708,7 +684,7 @@ private fun DesktopKDSTab(
                 border = BorderStroke(1.dp, Color(0xFFE2E8F0))
             ) {
                 Box(Modifier.padding(50.dp), contentAlignment = Alignment.Center) {
-                    Text("No active kitchen or bar order tickets.", color = Color(0xFF64748B))
+                    Text("No active kitchen order tickets.", color = Color(0xFF64748B))
                 }
             }
         } else {

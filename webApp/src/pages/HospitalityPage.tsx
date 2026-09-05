@@ -397,10 +397,10 @@ export default function HospitalityPage() {
           title="Active tickets"
           value={String(
             data.tickets.filter(
-              (t) => !["SERVED", "CANCELLED"].includes(t.status),
+              (t) => t.station === "KITCHEN" && !["SERVED", "CANCELLED"].includes(t.status),
             ).length,
           )}
-          change="Kitchen and bar"
+          change="Kitchen"
           icon={<ChefHat size={18} />}
           color="var(--b360-green)"
         />
@@ -562,15 +562,15 @@ export default function HospitalityPage() {
         </Card>
       )}
 
-      <h2 style={{ fontSize: 17 }}>Kitchen & bar tickets</h2>
-      {data.tickets.every((t) => ["SERVED", "CANCELLED"].includes(t.status)) ? (
+      <h2 style={{ fontSize: 17 }}>Kitchen tickets</h2>
+      {data.tickets.every((t) => t.station !== "KITCHEN" || ["SERVED", "CANCELLED"].includes(t.status)) ? (
         <Card style={{ padding: 20, color: "var(--b360-text-secondary)" }}>
-          No active kitchen or bar tickets.
+          No active kitchen tickets.
         </Card>
       ) : (
         <div className="responsive-grid responsive-grid-3">
-          {data.tickets
-            .filter((t) => !["SERVED", "CANCELLED"].includes(t.status))
+          {data.tickets.filter(ticket => ticket.station === "KITCHEN")
+            .filter((t) => t.station === "KITCHEN" && !["SERVED", "CANCELLED"].includes(t.status))
             .map((ticket) => {
               const ticketStatusLabel: Record<string, string> = {
                 NEW: "Waiting to start",
@@ -588,7 +588,7 @@ export default function HospitalityPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "start" }}>
                   <div>
                     <div style={{ fontSize: 10, textTransform: "uppercase", color: "var(--b360-text-secondary)", fontWeight: 700 }}>Preparation station</div>
-                    <b style={{ fontSize: 16 }}>{ticket.station === "BAR" ? "Bar" : "Kitchen"}</b>
+                    <b style={{ fontSize: 16 }}>Kitchen</b>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <StatusBadge status={ticket.status} />

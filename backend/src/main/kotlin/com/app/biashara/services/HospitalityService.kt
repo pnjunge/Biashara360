@@ -33,10 +33,9 @@ class HospitalityService(private val orderService: OrderService) {
                 (OrdersTable.businessId eq businessId) and
                     (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES)
             }.none()) { "Settle all open and awaiting-payment tabs before disabling hospitality mode" }
-            require(KitchenTicketsTable.select {
-                (KitchenTicketsTable.businessId eq businessId) and
-                    (KitchenTicketsTable.status inList listOf("NEW", "PREPARING", "READY", "DELAYED"))
-            }.none()) { "Complete or cancel all active kitchen and bar tickets before disabling hospitality mode" }
+            require(tickets(businessId).none {
+                it.status in setOf("NEW", "PREPARING", "READY", "DELAYED")
+            }) { "Complete or cancel all active kitchen tickets before disabling hospitality mode" }
         }
         BusinessesTable.update({ BusinessesTable.id eq businessId }) {
             it[hospitalityEnabled] = enabled
@@ -119,7 +118,13 @@ class HospitalityService(private val orderService: OrderService) {
         transaction {
             table?.let { HospitalityTablesTable.update({ HospitalityTablesTable.id eq it[HospitalityTablesTable.id] }) { row -> row[status]="OCCUPIED"; row[updatedAt]=Clock.System.now() } }
             pricedItems.forEach{item->ProductRecipesTable.select{ProductRecipesTable.productId eq item.productId}.forEach{line->InventoryIngredientsTable.update({InventoryIngredientsTable.id eq line[ProductRecipesTable.ingredientId]}){with(SqlExpressionBuilder){it.update(quantity,quantity-line[ProductRecipesTable.quantity]*item.quantity)};it[updatedAt]=Clock.System.now()}}}
-            val stations=pricedItems.mapNotNull { item -> profiles[item.productId]?.get(HospitalityMenuProfilesTable.preparationStation) ?: hospitalityStationFor(productRows[item.productId]?.get(ProductsTable.category).orEmpty()) }.toSet()
+            // The customer tab contains every ordered item, but the kitchen display
+            // must receive food only. Drinks and other retail items remain on the tab
+            // for settlement without creating a preparation ticket.
+            val foodItems = kitchenItems(pricedItems) { item ->
+                productRows[item.productId]?.get(ProductsTable.category).orEmpty()
+            }
+            val stations = if (foodItems.isEmpty()) emptySet() else setOf("KITCHEN")
             val now=Clock.System.now()
             stations.forEach { station -> KitchenTicketsTable.insert { it[id]=generateId(); it[KitchenTicketsTable.businessId]=businessId; it[orderId]=order.id; it[KitchenTicketsTable.station]=station; it[status]="NEW"; it[notes]=request.notes.take(500); it[createdAt]=now; it[updatedAt]=now } }
         }
@@ -127,6 +132,7 @@ class HospitalityService(private val orderService: OrderService) {
     }
 
     fun updateTicket(businessId: String, ticketId: String, request: UpdateTicketStatusRequest): KitchenTicketResponse = transaction {
+        require(tickets(businessId).any { it.id == ticketId }) { "Kitchen ticket not found" }
         val status=request.status.trim().uppercase(); require(status in setOf("NEW","PREPARING","READY","SERVED","DELAYED","CANCELLED")) { "Invalid ticket status" }
         require(KitchenTicketsTable.update({ (KitchenTicketsTable.id eq ticketId) and (KitchenTicketsTable.businessId eq businessId) }) { it[KitchenTicketsTable.status]=status; it[updatedAt]=Clock.System.now() } == 1) { "Ticket not found" }
         logger.info("""{"event":"hospitality_ticket_status_changed","business_id":"$businessId","ticket_id":"$ticketId","status":"$status"}""")
@@ -212,12 +218,15 @@ class HospitalityService(private val orderService: OrderService) {
     }
     private fun openTabs(businessId: String)=OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES) }.orderBy(OrdersTable.createdAt,SortOrder.DESC).mapNotNull { orderService.getById(it[OrdersTable.id],businessId) }
     private fun tickets(businessId: String): List<KitchenTicketResponse> {
-        val rows=KitchenTicketsTable.select { KitchenTicketsTable.businessId eq businessId }.orderBy(KitchenTicketsTable.createdAt,SortOrder.ASC).toList()
+        val rows=KitchenTicketsTable.select {
+            (KitchenTicketsTable.businessId eq businessId) and
+                (KitchenTicketsTable.station eq "KITCHEN")
+        }.orderBy(KitchenTicketsTable.createdAt,SortOrder.ASC).toList()
         return rows.mapNotNull { ticket ->
-            val order=orderService.getById(ticket[KitchenTicketsTable.orderId],businessId)!!
+            val order=orderService.getById(ticket[KitchenTicketsTable.orderId],businessId) ?: return@mapNotNull null
             val tableName=order.hospitalityTableId?.let { id -> HospitalityTablesTable.select { HospitalityTablesTable.id eq id }.firstOrNull()?.get(HospitalityTablesTable.name) }
             val productCategories=ProductsTable.select { ProductsTable.id inList order.items.map { it.productId } }.associate { it[ProductsTable.id] to it[ProductsTable.category] }
-            val stationItems=order.items.filter { hospitalityStationFor(productCategories[it.productId].orEmpty()) == ticket[KitchenTicketsTable.station] }
+            val stationItems=kitchenItems(order.items) { productCategories[it.productId].orEmpty() }
             if (stationItems.isEmpty()) return@mapNotNull null
             KitchenTicketResponse(ticket[KitchenTicketsTable.id],order.id,order.orderNumber,tableName,ticket[KitchenTicketsTable.station],ticket[KitchenTicketsTable.status],ticket[KitchenTicketsTable.notes],stationItems,ticket[KitchenTicketsTable.createdAt].toString())
         }
@@ -239,3 +248,7 @@ internal fun hospitalityStationFor(category: String): String? {
         else -> null
     }
 }
+
+// Return a separate preparation list; the complete order remains available for billing.
+internal fun <T> kitchenItems(items: List<T>, categoryOf: (T) -> String): List<T> =
+    items.filter { hospitalityStationFor(categoryOf(it)) == "KITCHEN" }
