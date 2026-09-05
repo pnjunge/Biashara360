@@ -47,7 +47,7 @@ fun Route.hospitalityRoutes() {
             val userId=call.principal<JWTPrincipal>()!!.payload.subject
             val request=call.receive<HospitalityOrderRequest>()
             if(request.items.any{it.complimentary||it.discountAmount>0}&&!call.hasRole("ADMIN")) return@post call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Manager approval is required for discounts or complimentary items"))
-            val result=service.createOrder(call.businessId(),userId,request); call.respond(if(result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest,result)
+            val result=service.createOrder(call.businessId(),userId,request,call.request.headers["X-Client-Platform"]); call.respond(if(result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest,result)
         }
         patch("/tickets/{id}") { call.respondHospitality { service.updateTicket(call.businessId(),call.parameters["id"].orEmpty(),call.receive()) } }
         post("/tabs/{orderId}/transfer") { call.respondHospitality { service.transferTab(call.businessId(),call.parameters["orderId"].orEmpty(),call.receive()) } }

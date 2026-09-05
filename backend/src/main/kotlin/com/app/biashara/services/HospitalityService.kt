@@ -90,7 +90,7 @@ class HospitalityService(private val orderService: OrderService) {
         tables(businessId).first { it.id == tableId }
     }
 
-    fun createOrder(businessId: String, serverUserId: String?, request: HospitalityOrderRequest): ApiResponse<OrderResponse> {
+    fun createOrder(businessId: String, serverUserId: String?, request: HospitalityOrderRequest, clientPlatform: String? = null): ApiResponse<OrderResponse> {
         val enabled = transaction { BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull()?.get(BusinessesTable.hospitalityEnabled) == true }
         if (!enabled) return ApiResponse(false, message = "Hospitality mode is disabled")
         val serviceType=request.serviceType.trim().uppercase()
@@ -112,7 +112,7 @@ class HospitalityService(private val orderService: OrderService) {
             paymentMethod="TAB", paymentStatus="PENDING", deliveryStatus="PROCESSING", notes=request.notes.trim().take(1000),
             serviceType=serviceType, hospitalityTableId=table?.get(HospitalityTablesTable.id), serverUserId=serverUserId,
             guestCount=request.guestCount, tabStatus="OPEN"
-        ), "WEB")
+        ), clientPlatform)
         val order=result.data ?: return result
         logger.info("""{"event":"hospitality_tab_opened","business_id":"$businessId","order_id":"${order.id}","service_type":"$serviceType","guest_count":${request.guestCount}}""")
         transaction {
