@@ -90,30 +90,40 @@ class HospitalityService(private val orderService: OrderService) {
         tables(businessId).first { it.id == tableId }
     }
 
-    fun createOrder(businessId: String, serverUserId: String?, request: HospitalityOrderRequest, clientPlatform: String? = null): ApiResponse<OrderResponse> {
+    fun createOrder(businessId: String, serverUserId: String?, request: HospitalityOrderRequest, clientPlatform: String? = null, clientReference: String? = null, paymentMethod: String = "TAB"): ApiResponse<OrderResponse> = transaction {
+        // Serialize public retries for this business so stock and kitchen tickets are created once.
+        if (clientReference != null) {
+            BusinessesTable.select { BusinessesTable.id eq businessId }.forUpdate().firstOrNull()
+        }
+        val existingId = clientReference?.let { reference ->
+            OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.clientReference eq reference) }
+                .firstOrNull()?.get(OrdersTable.id)
+        }
         val enabled = transaction { BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull()?.get(BusinessesTable.hospitalityEnabled) == true }
-        if (!enabled) return ApiResponse(false, message = "Hospitality mode is disabled")
+        if (!enabled) return@transaction ApiResponse(false, message = "Hospitality mode is disabled")
         val serviceType=request.serviceType.trim().uppercase()
-        if (serviceType !in setOf("DINE_IN","TAKEAWAY","DELIVERY")) return ApiResponse(false,message="Invalid service type")
-        if (request.guestCount !in 1..100) return ApiResponse(false,message="Guest count must be between 1 and 100")
+        if (serviceType !in setOf("DINE_IN","TAKEAWAY","DELIVERY")) return@transaction ApiResponse(false,message="Invalid service type")
+        if (request.guestCount !in 1..100) return@transaction ApiResponse(false,message="Guest count must be between 1 and 100")
         val table = request.tableId?.let { tableId -> transaction { HospitalityTablesTable.select { (HospitalityTablesTable.id eq tableId) and (HospitalityTablesTable.businessId eq businessId) and (HospitalityTablesTable.isActive eq true) }.firstOrNull() } }
-        if (serviceType == "DINE_IN" && table == null) return ApiResponse(false,message="Select a table for dine-in service")
+        if (serviceType == "DINE_IN" && table == null) return@transaction ApiResponse(false,message="Select a table for dine-in service")
         val productRows=transaction{ProductsTable.select{(ProductsTable.businessId eq businessId) and (ProductsTable.id inList request.items.map{it.productId})}.associateBy{it[ProductsTable.id]}}
         val profiles=transaction{HospitalityMenuProfilesTable.select{(HospitalityMenuProfilesTable.businessId eq businessId) and (HospitalityMenuProfilesTable.productId inList request.items.map{it.productId})}.associateBy{it[HospitalityMenuProfilesTable.productId]}}
-        if(request.items.any{profiles[it.productId]?.get(HospitalityMenuProfilesTable.soldOut)==true}) return ApiResponse(false,message="One or more menu items are sold out")
-        if(!request.ageVerified&&request.items.any{profiles[it.productId]?.get(HospitalityMenuProfilesTable.ageRestricted)==true}) return ApiResponse(false,message="Age verification is required for this order")
+        if(request.items.any{profiles[it.productId]?.get(HospitalityMenuProfilesTable.soldOut)==true}) return@transaction ApiResponse(false,message="One or more menu items are sold out")
+        if(!request.ageVerified&&request.items.any{profiles[it.productId]?.get(HospitalityMenuProfilesTable.ageRestricted)==true}) return@transaction ApiResponse(false,message="Age verification is required for this order")
         val currentTime=Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).time.toString().take(5)
-        val pricedItems=request.items.map{item->val product=productRows[item.productId]?:return ApiResponse(false,message="Product not found");val profile=profiles[item.productId];val happy=profile?.get(HospitalityMenuProfilesTable.happyHourPrice);val start=profile?.get(HospitalityMenuProfilesTable.happyHourStart);val end=profile?.get(HospitalityMenuProfilesTable.happyHourEnd);val active=happy!=null&&start!=null&&end!=null&&if(start<=end)currentTime in start..end else currentTime>=start||currentTime<=end;item.copy(unitPrice=if(active)happy!! else product[ProductsTable.sellingPrice])}
+        val pricedItems=request.items.map{item->val product=productRows[item.productId]?:return@transaction ApiResponse(false,message="Product not found");val profile=profiles[item.productId];val happy=profile?.get(HospitalityMenuProfilesTable.happyHourPrice);val start=profile?.get(HospitalityMenuProfilesTable.happyHourStart);val end=profile?.get(HospitalityMenuProfilesTable.happyHourEnd);val active=happy!=null&&start!=null&&end!=null&&if(start<=end)currentTime in start..end else currentTime>=start||currentTime<=end;item.copy(unitPrice=if(active)happy!! else product[ProductsTable.sellingPrice])}
         val insufficient=transaction{pricedItems.firstOrNull{item->ProductRecipesTable.select{ProductRecipesTable.productId eq item.productId}.any{line->val stock=InventoryIngredientsTable.select{InventoryIngredientsTable.id eq line[ProductRecipesTable.ingredientId]}.firstOrNull()?.get(InventoryIngredientsTable.quantity)?:0.0;stock<line[ProductRecipesTable.quantity]*item.quantity}}}
-        if(insufficient!=null)return ApiResponse(false,message="Insufficient ingredients for ${productRows[insufficient.productId]?.get(ProductsTable.name)?:"menu item"}")
+        if(existingId == null && insufficient!=null)return@transaction ApiResponse(false,message="Insufficient ingredients for ${productRows[insufficient.productId]?.get(ProductsTable.name)?:"menu item"}")
         val result=orderService.create(businessId, CreateOrderRequest(
+            clientReference=clientReference,
             customerName=request.customerName.trim().ifBlank { "Walk-in Guest" }, customerPhone=request.customerPhone.trim(),
             deliveryLocation=table?.get(HospitalityTablesTable.name) ?: serviceType.replace('_',' '), items=pricedItems,
-            paymentMethod="TAB", paymentStatus="PENDING", deliveryStatus="PROCESSING", notes=request.notes.trim().take(1000),
+            paymentMethod=paymentMethod, paymentStatus=if(paymentMethod == "COD") "COD" else "PENDING", deliveryStatus="PROCESSING", notes=request.notes.trim().take(1000),
             serviceType=serviceType, hospitalityTableId=table?.get(HospitalityTablesTable.id), serverUserId=serverUserId,
             guestCount=request.guestCount, tabStatus="OPEN"
         ), clientPlatform)
-        val order=result.data ?: return result
+        val order=result.data ?: return@transaction result
+        if (order.id == existingId) return@transaction result
         logger.info("""{"event":"hospitality_tab_opened","business_id":"$businessId","order_id":"${order.id}","service_type":"$serviceType","guest_count":${request.guestCount}}""")
         transaction {
             table?.let { HospitalityTablesTable.update({ HospitalityTablesTable.id eq it[HospitalityTablesTable.id] }) { row -> row[status]="OCCUPIED"; row[updatedAt]=Clock.System.now() } }
@@ -128,7 +138,7 @@ class HospitalityService(private val orderService: OrderService) {
             val now=Clock.System.now()
             stations.forEach { station -> KitchenTicketsTable.insert { it[id]=generateId(); it[KitchenTicketsTable.businessId]=businessId; it[orderId]=order.id; it[KitchenTicketsTable.station]=station; it[status]="NEW"; it[notes]=request.notes.take(500); it[createdAt]=now; it[updatedAt]=now } }
         }
-        return ApiResponse(true,data=orderService.getById(order.id,businessId),message="Tab ${order.orderNumber} opened")
+        return@transaction ApiResponse(true,data=orderService.getById(order.id,businessId),message="Tab ${order.orderNumber} opened")
     }
 
     fun updateTicket(businessId: String, ticketId: String, request: UpdateTicketStatusRequest): KitchenTicketResponse = transaction {

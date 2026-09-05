@@ -17,6 +17,7 @@ data class StorefrontResponse(
     val description: String = "",
     val bannerUrl: String? = null,
     val layout: String = "GRID",
+    val tables: List<StorefrontTableResponse> = emptyList(),
     val products: List<StorefrontProductResponse>
 )
 
@@ -43,7 +44,9 @@ data class StorefrontCheckoutRequest(
     val deliveryLocation: String,
     val paymentMethod: String = "MPESA",
     val items: List<StorefrontCheckoutItemRequest>,
-    val notes: String = ""
+    val notes: String = "",
+    val tableId: String? = null,
+    val guestCount: Int = 1
 )
 
 @Serializable
@@ -72,3 +75,6 @@ data class StorefrontOrderStatusResponse(
     val paymentStatus: String,
     val deliveryStatus: String
 )
+
+@Serializable
+data class StorefrontTableResponse(val id: String, val name: String, val area: String)

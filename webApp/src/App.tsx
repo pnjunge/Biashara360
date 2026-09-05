@@ -27,6 +27,7 @@ const BusinessPage = lazy(() => import('./pages/BusinessPage'))
 const DownloadsPage = lazy(() => import('./pages/DownloadsPage'))
 
 const CardCheckoutPage = lazy(() => import('./pages/CardCheckoutPage'))
+const OrderingQrPage = lazy(() => import('./pages/OrderingQrPage'))
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage'))
 const HospitalityPage = lazy(() => import('./pages/HospitalityPage'))
 const HospitalityOperationsPage = lazy(() => import('./pages/HospitalityOperationsPage'))
@@ -145,6 +146,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/card-checkout" element={<CardCheckoutPage />} />
           <Route path="/pay/card" element={<CardCheckoutPage />} />
+          <Route path="/shop/:storeSlug/qr" element={<OrderingQrPage />} />
           <Route path="/shop/:storeSlug" element={<StorefrontPage />} />
           <Route path="/" element={<PrivateRoute><AppShell /></PrivateRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />

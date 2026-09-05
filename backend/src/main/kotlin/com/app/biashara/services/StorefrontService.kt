@@ -2,6 +2,7 @@ package com.app.biashara.services
 
 import com.app.biashara.db.BusinessesTable
 import com.app.biashara.db.OrdersTable
+import com.app.biashara.db.HospitalityTablesTable
 import com.app.biashara.db.ProductsTable
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
@@ -24,7 +25,8 @@ internal fun normalizeStorefrontPaymentMethod(value: String): String? =
 
 class StorefrontService(
     private val orderService: OrderService,
-    private val mpesaService: MpesaService
+    private val mpesaService: MpesaService,
+    private val hospitalityService: HospitalityService
 ) {
     fun getStorefront(storeIdentifier: String): StorefrontResponse? = transaction {
         val business = BusinessesTable.select {
@@ -63,12 +65,19 @@ class StorefrontService(
             description = business[BusinessesTable.storefrontDescription],
             bannerUrl = business[BusinessesTable.storefrontBannerUrl],
             layout = business[BusinessesTable.storefrontLayout],
+            tables = if (business[BusinessesTable.hospitalityEnabled]) {
+                HospitalityTablesTable.select {
+                    (HospitalityTablesTable.businessId eq businessId) and (HospitalityTablesTable.isActive eq true)
+                }.orderBy(HospitalityTablesTable.name).map {
+                    StorefrontTableResponse(it[HospitalityTablesTable.id], it[HospitalityTablesTable.name], it[HospitalityTablesTable.area])
+                }
+            } else emptyList(),
             products = products
         )
     }
 
     suspend fun checkout(storeIdentifier: String, req: StorefrontCheckoutRequest): ApiResponse<StorefrontCheckoutResponse> {
-        val validationError = validateCheckout(req)
+        val validationError = validateStorefrontCheckout(req)
         if (validationError != null) return ApiResponse(false, message = validationError)
         val paymentMethod = normalizeStorefrontPaymentMethod(req.paymentMethod)
             ?: return ApiResponse(false, message = "Payment method must be M-Pesa, card, or cash on delivery")
@@ -96,7 +105,12 @@ class StorefrontService(
             }
         } ?: return ApiResponse(false, message = "One or more products are unavailable")
 
-        val orderResult = orderService.create(
+        val orderResult = if (req.tableId != null) hospitalityService.createOrder(
+            businessId, null,
+            HospitalityOrderRequest(tableId = req.tableId, guestCount = req.guestCount,
+                customerName = req.customerName.trim(), customerPhone = phone, notes = req.notes.trim().take(500), items = pricedItems),
+            clientPlatform = "ECOMMERCE", clientReference = req.clientReference, paymentMethod = paymentMethod
+        ) else orderService.create(
             businessId,
             CreateOrderRequest(
                 clientReference = req.clientReference,
@@ -123,7 +137,7 @@ class StorefrontService(
             paymentStatus = order.paymentStatus,
             paymentMethod = paymentMethod,
             customerMessage = if (paymentMethod == "COD")
-                "Order placed. Pay when your order is delivered."
+                if (req.tableId != null) "Order sent to your table. Please pay your server after your meal." else "Order placed. Pay when your order is delivered."
             else "Continue to secure card payment."
         ))
     }
@@ -219,14 +233,17 @@ class StorefrontService(
         }
     }
 
-    private fun validateCheckout(req: StorefrontCheckoutRequest): String? = when {
+}
+
+internal fun validateStorefrontCheckout(req: StorefrontCheckoutRequest): String? = when {
         !req.clientReference.matches(Regex("^[A-Za-z0-9._:-]{8,64}$")) -> "Invalid checkout reference"
         req.customerName.trim().length !in 2..100 -> "Customer name must be between 2 and 100 characters"
-        req.deliveryLocation.trim().length !in 2..500 -> "Enter a delivery or pickup location"
+        req.tableId == null && req.deliveryLocation.trim().length !in 2..500 -> "Enter a delivery or pickup location"
+        req.tableId != null && req.tableId.isBlank() -> "Invalid table"
+        req.guestCount !in 1..100 -> "Guest count must be between 1 and 100"
         req.items.isEmpty() -> "Your cart is empty"
         req.items.size > 50 -> "A maximum of 50 different products is allowed"
         req.items.map { it.productId }.distinct().size != req.items.size -> "Duplicate products are not allowed"
         req.items.any { it.quantity !in 1..100 } -> "Product quantity must be between 1 and 100"
         else -> null
     }
-}

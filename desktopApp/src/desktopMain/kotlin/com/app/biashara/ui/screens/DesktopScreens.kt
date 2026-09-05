@@ -441,7 +441,7 @@ fun DesktopDashboardScreen(
 
     var periodMenuExpanded by remember { mutableStateOf(false) }
     val storefrontUrl = businessState.profile?.storefrontSlug?.takeIf { it.isNotBlank() }
-        ?.let { "https://enw9p7mvty.us-east-1.awsapprunner.com/shop/$it" }
+        ?.let { "https://biashara360.co.ke/shop/$it" }
         .orEmpty()
 
     val scrollState = rememberScrollState()
@@ -482,6 +482,7 @@ fun DesktopDashboardScreen(
                         )
                         toastMessage = "Shop link copied."
                     }) { Icon(Icons.Default.ContentCopy, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Copy link") }
+                    OutlinedButton(onClick = { openExternalUrl("$storefrontUrl/qr") }) { Text("Ordering QR") }
                     Button(
                         onClick = { openExternalUrl(storefrontUrl) },
                         colors = ButtonDefaults.buttonColors(containerColor = B360Green)

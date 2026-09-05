@@ -407,6 +407,7 @@ export default function HospitalityPage() {
       </div>
 
       <h2 style={{ fontSize: 17 }}>Floor & tables</h2>
+      {receiptProfile?.storefrontSlug && <a href={`/shop/${encodeURIComponent(receiptProfile.storefrontSlug)}/qr`} target="_blank" rel="noreferrer">Print customer ordering QR codes for your shop and tables</a>}
       {data.tables.length===0&&<Card style={{padding:20,color:'var(--b360-text-secondary)'}}>No tables configured. Add a table to begin dine-in service, or use Takeaway order.</Card>}
       <div
         style={{

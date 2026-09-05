@@ -1,7 +1,9 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Minus, Plus, Search, ShoppingBag, Trash2 } from 'lucide-react'
 import { Storefront, StorefrontCheckoutResult, StorefrontProduct, storefrontApi } from '../services/api'
+
+type CustomerStore = Storefront & { tables?: Array<{ id: string; name: string; area: string }> }
 
 type Cart = Record<string, number>
 
@@ -13,7 +15,10 @@ const transactionReference = () =>
 
 export default function StorefrontPage() {
   const { storeSlug = '' } = useParams()
-  const [store, setStore] = useState<Storefront | null>(null)
+  const [searchParams] = useSearchParams()
+  const tableId = searchParams.get('table')
+  const [guestCount, setGuestCount] = useState(1)
+  const [store, setStore] = useState<CustomerStore | null>(null)
   const [cart, setCart] = useState<Cart>({})
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('ALL')
@@ -27,6 +32,7 @@ export default function StorefrontPage() {
   const [clientReference, setClientReference] = useState(transactionReference)
   const [order, setOrder] = useState<StorefrontCheckoutResult | null>(null)
   const [paymentStatus, setPaymentStatus] = useState('')
+  const table = store?.tables?.find(item => item.id === tableId)
   const [paymentMethod, setPaymentMethod] = useState<'MPESA' | 'COD' | 'CARD'>('MPESA')
 
   useEffect(() => {
@@ -107,15 +113,19 @@ export default function StorefrontPage() {
     setSubmitting(true)
     setError('')
     try {
-      const response = await storefrontApi.checkout(storeSlug, {
+      if (tableId !== null && !table) throw new Error('This table is unavailable. Ask your server for the correct QR code.')
+      const request = {
         clientReference,
         customerName,
         customerPhone,
-        deliveryLocation,
+        deliveryLocation: table ? table.name : deliveryLocation,
+        tableId: table?.id,
+        guestCount,
         paymentMethod,
         notes,
         items: cartProducts.map(product => ({ productId: product.id, quantity: cart[product.id] }))
-      })
+      }
+      const response = await storefrontApi.checkout(storeSlug, request)
       if (response.success && response.data) {
         if (response.data.paymentMethod === 'CARD') {
           window.location.assign(`/pay/card?orderId=${encodeURIComponent(response.data.orderId)}&businessId=${encodeURIComponent(storeBusinessId)}&storeSlug=${encodeURIComponent(storeSlug)}`)
@@ -130,7 +140,7 @@ export default function StorefrontPage() {
         setOrder(response.data)
         setPaymentStatus(response.data.paymentStatus)
       }
-      setError(response?.message || 'Checkout could not be completed.')
+      setError(response?.message || err.message || 'Checkout could not be completed.')
     } finally {
       setSubmitting(false)
     }
@@ -199,17 +209,19 @@ export default function StorefrontPage() {
           </div>
         </section>
         <aside className="store-checkout">
-          <h2>Your cart</h2>
+          <h2>{table ? `Order for ${table.name}` : 'Your cart'}</h2>
+          {tableId !== null && !table && <p className="store-error">This table is unavailable. Please ask your server for a new QR code.</p>}
+          {table && <p className="store-muted">{table.area} · Food goes to the kitchen; drinks stay on your bill.</p>}
           {!cartProducts.length ? <p className="store-muted">Your cart is empty.</p> : cartProducts.map(product => <div className="store-cart-line" key={product.id}><div><strong>{product.name}</strong><span>{cart[product.id]} × {money(store.currency, product.sellingPrice)}</span></div><button aria-label={`Remove ${product.name}`} onClick={() => setCart(current => { const copy = {...current}; delete copy[product.id]; return copy })}><Trash2 size={16} /></button></div>)}
           <div className="store-total"><span>Total</span><strong>{money(store.currency, total)}</strong></div>
           <form onSubmit={checkout} className="store-form">
             <label>Full name<input required minLength={2} maxLength={100} value={customerName} onChange={event => setCustomerName(event.target.value)} /></label>
             <label>Customer phone<input required inputMode="tel" placeholder="0712 345 678" value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} /></label>
-            <label>Delivery or pickup location<textarea required minLength={2} maxLength={500} value={deliveryLocation} onChange={event => setDeliveryLocation(event.target.value)} /></label>
-            <fieldset className="store-payment-options"><legend>Payment method</legend>{([['MPESA','M-Pesa'],['CARD','Card'],['COD','Cash on delivery']] as const).map(([value,label]) => <label key={value} className={paymentMethod === value ? 'active' : ''}><input type="radio" name="paymentMethod" value={value} checked={paymentMethod === value} onChange={() => setPaymentMethod(value)} /><span><b>{label}</b><small>{value === 'MPESA' ? 'Pay now using an STK push' : value === 'CARD' ? 'Secure CyberSource checkout' : 'Pay when the order arrives'}</small></span></label>)}</fieldset>
+            {table ? <label>Number of guests<input type="number" min={1} max={100} required value={guestCount} onChange={event => setGuestCount(Number(event.target.value))} /></label> : <label>Delivery or pickup location<textarea required minLength={2} maxLength={500} value={deliveryLocation} onChange={event => setDeliveryLocation(event.target.value)} /></label>}
+            <fieldset className="store-payment-options"><legend>Payment method</legend>{([['MPESA','M-Pesa'],['CARD','Card'],['COD','Cash on delivery']] as const).map(([value,label]) => <label key={value} className={paymentMethod === value ? 'active' : ''}><input type="radio" name="paymentMethod" value={value} checked={paymentMethod === value} onChange={() => setPaymentMethod(value)} /><span><b>{value === 'COD' && table ? 'Pay your server' : label}</b><small>{value === 'MPESA' ? 'Pay now using an STK push' : value === 'CARD' ? 'Secure CyberSource checkout' : table ? 'Settle with your server after your meal' : 'Pay when the order arrives'}</small></span></label>)}</fieldset>
             <label>Order notes (optional)<textarea maxLength={500} value={notes} onChange={event => setNotes(event.target.value)} /></label>
             {error && <div className="store-error"><AlertCircle size={16} />{error}</div>}
-            <button className="store-primary" disabled={submitting || !cartProducts.length}>{submitting ? 'Creating order…' : paymentMethod === 'COD' ? `Place COD order · ${money(store.currency, total)}` : paymentMethod === 'CARD' ? `Pay ${money(store.currency, total)} by card` : `Pay ${money(store.currency, total)} with M-Pesa`}</button>
+            <button className="store-primary" disabled={submitting || !cartProducts.length || (tableId !== null && !table)}>{submitting ? 'Creating order…' : paymentMethod === 'COD' ? `${table ? "Place table order" : "Place COD order"} · ${money(store.currency, total)}` : paymentMethod === 'CARD' ? `Pay ${money(store.currency, total)} by card` : `Pay ${money(store.currency, total)} with M-Pesa`}</button>
           </form>
         </aside>
       </div>

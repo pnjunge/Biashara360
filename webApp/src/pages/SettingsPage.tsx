@@ -60,6 +60,7 @@ export function SettingsPage() {
   })
   const [receiptHeader, setReceiptHeader] = useState('Thank you for shopping with us!')
   const [receiptFooter, setReceiptFooter] = useState('Goods once sold are not returnable.')
+  const [storefrontSlug, setStorefrontSlug] = useState('')
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -127,6 +128,7 @@ export function SettingsPage() {
       businessApi.getProfile().then(res => {
         if (res.success && res.data) {
           const d = res.data
+          setStorefrontSlug(d.storefrontSlug)
           setSubscriptionTier(d.subscriptionTier || 'FREEMIUM')
           setSubscriptionEnabled(d.subscriptionEnabled !== false)
           setHospitalityEnabled(d.hospitalityEnabled === true)
@@ -459,6 +461,7 @@ export function SettingsPage() {
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {profileMsg && <div style={{ padding:12, background:profileMsg.ok ? 'var(--b360-green-bg)' : 'var(--b360-red-bg)', color:profileMsg.ok ? 'var(--b360-green)' : 'var(--b360-red)', borderRadius:8, fontSize:13, fontWeight:600 }}>{profileMsg.text}</div>}
           {profileLoading ? <div style={{padding:32,textAlign:'center',color:'var(--b360-text-secondary)'}}>Loading storefront settings…</div> : <>
+            {storefrontSlug && <Section title="Customer ordering"><p>Share your online shop or print a QR code for each table. Customers can order without an account.</p><a href={`/shop/${encodeURIComponent(storefrontSlug)}/qr`} target="_blank" rel="noreferrer">Open shop and table QR codes</a></Section>}
             <Section title="Storefront Appearance">
               <Input label="Welcome headline" value={profile.storefrontHeadline || ''} onChange={value => setProfile(current => ({...current, storefrontHeadline:value}))} placeholder="Shop with us online" />
               <Input label="Store description" value={profile.storefrontDescription || ''} onChange={value => setProfile(current => ({...current, storefrontDescription:value}))} placeholder="Tell customers about your store" />
