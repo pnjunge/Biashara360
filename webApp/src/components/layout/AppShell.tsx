@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Menu, FileCheck, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Link, Download, ChefHat
 } from 'lucide-react'
 import styles from './AppShell.module.css'
+import PortalOrdersInbox from '../orders/PortalOrdersInbox'
 import { accessApi, hospitalityApi } from '../../services/api'
 
 const navItems = [
@@ -141,6 +142,7 @@ export default function AppShell() {
           </div>
 
           <div className={styles.topbarRight}>
+            {user?.businessId && <PortalOrdersInbox key={`${user.businessId}:${user.id}`} />}
             <button className={styles.iconBtn} title="Notifications">
               <Bell size={18} />
               <span className={styles.notifDot} />

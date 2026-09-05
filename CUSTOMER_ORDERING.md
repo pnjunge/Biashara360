@@ -20,3 +20,10 @@ Repeated checkout references reuse the original order and preparation ticket.
 
 Stores must be active with an enabled subscription. Table ordering also requires
 hospitality mode and active tables. Products must be active and in stock.
+
+New portal orders automatically open the **Portal orders** popup on signed-in
+web and desktop apps within about five seconds. Any active user in the same
+business can select **Claim order**. Only one user can claim each order; it moves
+to that user's **My orders** list and leaves everyone else's waiting queue.
+Claiming does not change payment status. The top-bar button reopens the queue.
+Completed, cancelled, and refunded orders are excluded.

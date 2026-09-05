@@ -84,6 +84,7 @@ fun Application.module() {
                 dashboardRoute()
                 productRoutesValidated()
                 orderRoutes()
+                portalOrderRoutes()
                 customerRoutes()
                 expenseRoutes()
                 paymentRoutes()

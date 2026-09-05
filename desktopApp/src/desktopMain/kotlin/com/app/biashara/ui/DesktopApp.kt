@@ -408,6 +408,8 @@ fun Biashara360DesktopAppContent(
 
                         Spacer(Modifier.weight(1f))
 
+                        PortalOrdersButton(client)
+
                         IconButton(onClick = { navigationViewModel.navigateTo(AppScreen.Inventory) }) {
                             BadgedBox(
                                 badge = {
