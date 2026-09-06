@@ -18,6 +18,7 @@ data class StorefrontResponse(
     val bannerUrl: String? = null,
     val layout: String = "GRID",
     val tables: List<StorefrontTableResponse> = emptyList(),
+    val services: List<ServiceCatalogResponse> = emptyList(),
     val products: List<StorefrontProductResponse>
 )
 

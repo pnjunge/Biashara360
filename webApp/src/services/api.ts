@@ -283,6 +283,8 @@ export interface Storefront {
   description: string
   bannerUrl: string | null
   layout: 'GRID' | 'LIST'
+  tables?: Array<{ id: string; name: string; area: string }>
+  services: ServiceCatalogItem[]
   products: StorefrontProduct[]
 }
 
@@ -336,7 +338,11 @@ export const storefrontApi = {
       `/public/store/${encodeURIComponent(businessId)}/orders/${encodeURIComponent(orderId)}?${params}`
     )
     return res.data
-  }
+  },
+  bookAppointment: async (businessId: string, data: { serviceId: string; resourceId?: string | null; customerName: string; customerPhone?: string; startsAt: string; durationMinutes?: number; notes?: string }) => {
+    const res = await client.post<ApiResponse<ServiceAppointment>>(`/public/store/${encodeURIComponent(businessId)}/appointments`, data)
+    return res.data
+  },
 }
 
 export interface ConversationSummary {
@@ -430,6 +436,19 @@ export interface AccessRole { id: string; name: string; description: string; all
 export interface AccessGroup { id: string; name: string; description: string; roleIds: string[]; userIds: string[]; isActive: boolean }
 export interface AccessConfig { menus: MenuDefinition[]; enabledMenus: string[]; roles: AccessRole[]; groups: AccessGroup[] }
 export interface InventoryCategory { id: string; name: string; isActive: boolean; productCount: number; imageUrl?: string | null }
+
+export interface ServiceCatalogItem {
+  id: string; name: string; description: string; category: string
+  durationMinutes: number; price: number; isActive: boolean; createdAt: string; updatedAt: string
+}
+export interface ServiceResource { id: string; name: string; type: string; isActive: boolean }
+export interface ServiceAppointment {
+  id: string; serviceId: string; serviceName: string; resourceId?: string | null; resourceName?: string | null
+  customerId?: string | null; customerName: string; customerPhone: string; staffUserId?: string | null
+  startsAt: string; durationMinutes: number; status: string; notes: string; orderId?: string | null
+  createdAt: string; updatedAt: string
+}
+export interface ServiceSchedule { services: ServiceCatalogItem[]; resources: ServiceResource[]; appointments: ServiceAppointment[] }
 
 // ── API Service Objects ───────────────────────────────────────────────────────
 
@@ -846,6 +865,20 @@ export const hospitalityOpsApi = {
   decideApproval: async (id:string,approved:boolean) => (await client.post(`/hospitality/operations/approvals/${id}/decision`,{approved})).data,
   splitBill: async (orderId:string,payments:any[]) => (await client.post(`/hospitality/operations/tabs/${orderId}/split`,{payments})).data,
   report: async (startDate:string,endDate:string) => (await client.get(`/hospitality/operations/report`,{params:{startDate,endDate}})).data,
+}
+
+export const servicesApi = {
+  schedule: async (params?: { from?: string; to?: string }) => (await client.get<ApiResponse<ServiceSchedule>>('/services', { params })).data,
+  catalog: async () => (await client.get<ApiResponse<ServiceCatalogItem[]>>('/services/catalog')).data,
+  createCatalog: async (data: { name: string; description: string; category: string; durationMinutes: number; price: number; isActive?: boolean }) => (await client.post<ApiResponse<ServiceCatalogItem>>('/services/catalog', data)).data,
+  updateCatalog: async (id: string, data: { name: string; description: string; category: string; durationMinutes: number; price: number; isActive: boolean }) => (await client.put<ApiResponse<ServiceCatalogItem>>(`/services/catalog/${id}`, data)).data,
+  createResource: async (data: { name: string; type: string; isActive?: boolean }) => (await client.post<ApiResponse<ServiceResource>>('/services/resources', data)).data,
+  updateResource: async (id: string, data: { name: string; type: string; isActive: boolean }) => (await client.put<ApiResponse<ServiceResource>>(`/services/resources/${id}`, data)).data,
+  appointments: async (params?: { from?: string; to?: string }) => (await client.get<ApiResponse<ServiceAppointment[]>>('/services/appointments', { params })).data,
+  createAppointment: async (data: { serviceId: string; resourceId?: string | null; customerId?: string | null; customerName: string; customerPhone?: string; staffUserId?: string | null; startsAt: string; durationMinutes?: number; notes?: string }) => (await client.post<ApiResponse<ServiceAppointment>>('/services/appointments', data)).data,
+  updateAppointment: async (id: string, data: { serviceId: string; resourceId?: string | null; customerId?: string | null; customerName: string; customerPhone?: string; staffUserId?: string | null; startsAt: string; durationMinutes?: number; notes?: string }) => (await client.put<ApiResponse<ServiceAppointment>>(`/services/appointments/${id}`, data)).data,
+  updateAppointmentStatus: async (id: string, status: string) => (await client.patch<ApiResponse<ServiceAppointment>>(`/services/appointments/${id}/status`, { status })).data,
+  seedTemplates: async () => (await client.post<ApiResponse<ServiceSchedule>>('/services/templates')).data,
 }
 
 export const cyberSourceApi = {

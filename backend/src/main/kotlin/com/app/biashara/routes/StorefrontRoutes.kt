@@ -2,6 +2,7 @@ package com.app.biashara.routes
 
 import com.app.biashara.models.*
 import com.app.biashara.services.StorefrontService
+import com.app.biashara.services.ServiceManagementService
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.RateLimitName
@@ -13,6 +14,7 @@ import org.koin.ktor.ext.inject
 
 fun Route.storefrontRoutes() {
     val storefrontService: StorefrontService by inject()
+    val serviceManagement: ServiceManagementService by inject()
 
     route("/public/store/{storeIdentifier}") {
         get {
@@ -23,6 +25,24 @@ fun Route.storefrontRoutes() {
                     ApiResponse<Unit>(false, message = "Store not found")
                 )
             call.respond(ApiResponse(true, data = storefront))
+        }
+
+        post("/appointments") {
+            val storeIdentifier = call.parameters["storeIdentifier"].orEmpty()
+            val businessId = storefrontService.resolveActiveBusinessId(storeIdentifier)
+                ?: return@post call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(false, message = "Store not found"))
+            val request = call.receive<ServiceAppointmentRequest>()
+            val result = runCatching {
+                serviceManagement.createAppointment(
+                    businessId,
+                    null,
+                    request.copy(customerId = null, staffUserId = null)
+                )
+            }.fold(
+                { ApiResponse(true, data = it) },
+                { ApiResponse<ServiceAppointmentResponse>(false, message = it.message ?: "Appointment could not be booked") }
+            )
+            call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
         }
 
         rateLimit(RateLimitName("public-payment-limiter")) {

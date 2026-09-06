@@ -6,6 +6,18 @@ import { Btn, Input, Select } from '../components/ui'
 
 const BUSINESS_TYPES = [
   { value: 'RETAIL', label: 'Retail Seller / Mchuuzi' },
+  { value: 'GROCERY', label: 'Grocery' },
+  { value: 'BOUTIQUE', label: 'Boutique' },
+  { value: 'WHOLESALE', label: 'Wholesale' },
+  { value: 'DISTRIBUTION', label: 'Distribution' },
+  { value: 'SALON', label: 'Salon' },
+  { value: 'BARBERSHOP', label: 'Barbershop' },
+  { value: 'SPA', label: 'Spa' },
+  { value: 'LAUNDRY', label: 'Laundry' },
+  { value: 'CAR_WASH', label: 'Car wash' },
+  { value: 'HOTEL', label: 'Hotel' },
+  { value: 'LODGE', label: 'Lodge' },
+  { value: 'GYM', label: 'Gym' },
   { value: 'SERVICE', label: 'Service Provider / Mhudumu' },
   { value: 'HYBRID', label: 'Hybrid Business / Biashara Mseto' },
   { value: 'ONLINE_SELLER', label: 'Online Seller / Muuzaji Mtandaoni' }

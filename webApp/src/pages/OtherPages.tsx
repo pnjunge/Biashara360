@@ -1100,6 +1100,14 @@ const emptyProfile: BusinessProfileRequest = {
   storefrontDescription: '', storefrontBannerUrl: null, storefrontLayout: 'GRID',
 }
 
+const BUSINESS_TYPE_OPTIONS = [
+  { value: 'RETAIL', label: 'Retail' }, { value: 'GROCERY', label: 'Grocery' }, { value: 'BOUTIQUE', label: 'Boutique' },
+  { value: 'WHOLESALE', label: 'Wholesale' }, { value: 'DISTRIBUTION', label: 'Distribution' }, { value: 'SALON', label: 'Salon' },
+  { value: 'BARBERSHOP', label: 'Barbershop' }, { value: 'SPA', label: 'Spa' }, { value: 'LAUNDRY', label: 'Laundry' },
+  { value: 'CAR_WASH', label: 'Car wash' }, { value: 'HOTEL', label: 'Hotel' }, { value: 'LODGE', label: 'Lodge' },
+  { value: 'GYM', label: 'Gym' }, { value: 'SERVICE', label: 'Service' }, { value: 'HYBRID', label: 'Hybrid' }, { value: 'ONLINE_SELLER', label: 'Online seller' },
+]
+
 const BizSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <Card style={{ padding: 20, marginBottom: 16 }}>
     <h3 style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>{title}</h3>
@@ -1251,12 +1259,7 @@ export function BusinessPage() {
 
   // ── SuperAdmin view: list of all businesses ──
   if (isSuperAdmin) {
-    const BIZ_TYPES = [
-      { value: 'RETAIL', label: 'Retail' },
-      { value: 'SERVICE', label: 'Service' },
-      { value: 'HYBRID', label: 'Hybrid' },
-      { value: 'ONLINE_SELLER', label: 'Online Seller' },
-    ]
+    const BIZ_TYPES = BUSINESS_TYPE_OPTIONS
     return (
       <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -1364,7 +1367,7 @@ export function BusinessPage() {
         <BizField label="Owner Name"    value={form.owner} onChange={f('owner')} />
         <BizField label="Phone Number"  value={form.phone} onChange={f('phone')} />
         <BizField label="Email Address" value={form.email} onChange={f('email')} />
-        <BizField label="Business Type" value={form.type} onChange={f('type')} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontSize: 13, color: 'var(--b360-text-secondary)', width: 160 }}>Business Type</span><select value={form.type || 'RETAIL'} onChange={event => f('type')(event.target.value)} style={{ flex: 1, maxWidth: 320, padding: '8px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}>{BUSINESS_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
         <BizField label="County"        value={form.county} onChange={f('county')} />
         <BizField label="Address"       value={form.address} onChange={f('address')} />
       </BizSection>

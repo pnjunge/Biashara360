@@ -1,6 +1,6 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { AlertCircle, CheckCircle2, Minus, Plus, Search, ShoppingBag, Trash2 } from 'lucide-react'
+import { AlertCircle, CalendarClock, CheckCircle2, Minus, Plus, Search, ShoppingBag, Trash2 } from 'lucide-react'
 import { Storefront, StorefrontCheckoutResult, StorefrontProduct, storefrontApi } from '../services/api'
 
 type CustomerStore = Storefront & { tables?: Array<{ id: string; name: string; area: string }> }
@@ -32,6 +32,9 @@ export default function StorefrontPage() {
   const [clientReference, setClientReference] = useState(transactionReference)
   const [order, setOrder] = useState<StorefrontCheckoutResult | null>(null)
   const [paymentStatus, setPaymentStatus] = useState('')
+  const [appointmentServiceId, setAppointmentServiceId] = useState('')
+  const [appointmentStartsAt, setAppointmentStartsAt] = useState('')
+  const [appointmentMessage, setAppointmentMessage] = useState('')
   const table = store?.tables?.find(item => item.id === tableId)
   const [paymentMethod, setPaymentMethod] = useState<'MPESA' | 'COD' | 'CARD'>('MPESA')
 
@@ -146,6 +149,25 @@ export default function StorefrontPage() {
     }
   }
 
+  const bookAppointment = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!store || !appointmentServiceId || !appointmentStartsAt || !customerName.trim() || !customerPhone.trim()) {
+      setAppointmentMessage('Choose a service, date and time, name, and phone number.')
+      return
+    }
+    const startsAt = new Date(appointmentStartsAt)
+    if (Number.isNaN(startsAt.getTime())) { setAppointmentMessage('Choose a valid date and time.'); return }
+    setSubmitting(true); setAppointmentMessage('')
+    try {
+      const response = await storefrontApi.bookAppointment(storeSlug, { serviceId: appointmentServiceId, customerName, customerPhone, startsAt: startsAt.toISOString(), notes })
+      if (response.success) {
+        setAppointmentMessage('Appointment requested. The business will confirm it shortly.')
+        setAppointmentStartsAt('')
+      } else setAppointmentMessage(response.message || 'Could not book the appointment.')
+    } catch (err: any) { setAppointmentMessage(err.response?.data?.message || 'Could not book the appointment.') }
+    finally { setSubmitting(false) }
+  }
+
   const retryPayment = async () => {
     if (!order) return
     setSubmitting(true)
@@ -214,6 +236,16 @@ export default function StorefrontPage() {
           {table && <p className="store-muted">{table.area} · Food goes to the kitchen; drinks stay on your bill.</p>}
           {!cartProducts.length ? <p className="store-muted">Your cart is empty.</p> : cartProducts.map(product => <div className="store-cart-line" key={product.id}><div><strong>{product.name}</strong><span>{cart[product.id]} × {money(store.currency, product.sellingPrice)}</span></div><button aria-label={`Remove ${product.name}`} onClick={() => setCart(current => { const copy = {...current}; delete copy[product.id]; return copy })}><Trash2 size={16} /></button></div>)}
           <div className="store-total"><span>Total</span><strong>{money(store.currency, total)}</strong></div>
+          {store.services?.length > 0 && <form onSubmit={bookAppointment} className="store-service-booking">
+            <h3><CalendarClock size={17} /> Book a service</h3>
+            <p className="store-muted">Choose a service and time. The business can confirm or reschedule it from Appointments & Services.</p>
+            <label>Service<select required value={appointmentServiceId} onChange={event => setAppointmentServiceId(event.target.value)}><option value="">Choose a service</option>{store.services.map(item => <option key={item.id} value={item.id}>{item.name} · {item.durationMinutes} min · {money(store.currency, item.price)}</option>)}</select></label>
+            <label>Preferred date and time<input required type="datetime-local" value={appointmentStartsAt} onChange={event => setAppointmentStartsAt(event.target.value)} /></label>
+            <label>Full name<input required minLength={2} maxLength={100} value={customerName} onChange={event => setCustomerName(event.target.value)} /></label>
+            <label>Phone<input required inputMode="tel" value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} /></label>
+            <button className="store-secondary" disabled={submitting}>{submitting ? 'Requesting…' : 'Request appointment'}</button>
+            {appointmentMessage && <div className="store-muted">{appointmentMessage}</div>}
+          </form>}
           <form onSubmit={checkout} className="store-form">
             <label>Full name<input required minLength={2} maxLength={100} value={customerName} onChange={event => setCustomerName(event.target.value)} /></label>
             <label>Customer phone<input required inputMode="tel" placeholder="0712 345 678" value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} /></label>
@@ -255,6 +287,7 @@ const STORE_STYLES = `
   .store-form input,.store-form textarea { box-sizing:border-box; display:block; width:100%; margin-top:5px; padding:11px 12px; border:1px solid #cbdad7; border-radius:9px; font:inherit; color:#132a27; } .store-form textarea { resize:vertical; min-height:62px; }
   .store-payment-options { border:0; padding:0; margin:2px 0; display:grid; gap:8px; } .store-payment-options legend { font-size:12px; font-weight:800; color:#52635f; margin-bottom:7px; } .store-payment-options label { display:flex; align-items:center; gap:10px; padding:10px 11px; border:1px solid #cbdad7; border-radius:10px; cursor:pointer; } .store-payment-options label.active { border-color:var(--store-primary); background:#f0f8f6; } .store-payment-options input { width:auto; margin:0; } .store-payment-options span,.store-payment-options small { display:block; } .store-payment-options small { margin-top:2px; color:#72817e; font-weight:500; }
   .store-primary { border:0; border-radius:10px; padding:13px 18px; background:var(--store-primary); color:white; font-weight:800; cursor:pointer; width:100%; } .store-primary:disabled { opacity:.55; cursor:not-allowed; }
+  .store-service-booking { display:flex; flex-direction:column; gap:10px; margin:8px 0 18px; padding:15px; border:1px solid #b8ddd5; border-radius:12px; background:#f0f8f6; } .store-service-booking h3 { display:flex; align-items:center; gap:7px; margin:0; color:#075e56; font-size:15px; } .store-service-booking label { font-size:12px; font-weight:700; color:#52635f; } .store-service-booking input,.store-service-booking select { box-sizing:border-box; display:block; width:100%; margin-top:5px; padding:10px 11px; border:1px solid #cbdad7; border-radius:9px; font:inherit; background:white; } .store-secondary { border:1px solid var(--store-primary); border-radius:10px; padding:11px 16px; background:white; color:#075e56; font-weight:800; cursor:pointer; } .store-secondary:disabled { opacity:.55; cursor:not-allowed; }
   .store-error { display:flex; align-items:flex-start; gap:8px; padding:10px 12px; color:#b42318; background:#fff0ee; border-radius:9px; font-size:12px; }
   .store-muted { color:#72817e; font-size:13px; } .store-footer { text-align:center; padding:20px; color:#72817e; font-size:12px; }
   .store-state,.store-result { min-height:70vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; gap:10px; padding:30px; } .store-result { max-width:520px; margin:auto; }

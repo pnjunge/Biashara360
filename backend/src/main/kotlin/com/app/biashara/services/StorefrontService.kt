@@ -4,6 +4,7 @@ import com.app.biashara.db.BusinessesTable
 import com.app.biashara.db.OrdersTable
 import com.app.biashara.db.HospitalityTablesTable
 import com.app.biashara.db.ProductsTable
+import com.app.biashara.db.BusinessServicesTable
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
@@ -72,6 +73,15 @@ class StorefrontService(
                     StorefrontTableResponse(it[HospitalityTablesTable.id], it[HospitalityTablesTable.name], it[HospitalityTablesTable.area])
                 }
             } else emptyList(),
+            services = BusinessServicesTable.select {
+                (BusinessServicesTable.businessId eq businessId) and (BusinessServicesTable.isActive eq true)
+            }.orderBy(BusinessServicesTable.name).map {
+                ServiceCatalogResponse(
+                    id = it[BusinessServicesTable.id], name = it[BusinessServicesTable.name], description = it[BusinessServicesTable.description],
+                    category = it[BusinessServicesTable.category], durationMinutes = it[BusinessServicesTable.durationMinutes], price = it[BusinessServicesTable.price],
+                    isActive = it[BusinessServicesTable.isActive], createdAt = it[BusinessServicesTable.createdAt].toString(), updatedAt = it[BusinessServicesTable.updatedAt].toString(),
+                )
+            },
             products = products
         )
     }
@@ -171,7 +181,7 @@ class StorefrontService(
         )
     }
 
-    private fun resolveActiveBusinessId(storeIdentifier: String): String? = transaction {
+    fun resolveActiveBusinessId(storeIdentifier: String): String? = transaction {
         BusinessesTable.select {
             ((BusinessesTable.storefrontSlug eq storeIdentifier) or (BusinessesTable.id eq storeIdentifier)) and
                 (BusinessesTable.isActive eq true) and

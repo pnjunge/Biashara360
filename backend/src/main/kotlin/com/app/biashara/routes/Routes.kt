@@ -828,6 +828,7 @@ fun ApplicationCall.hasModule(module: String): Boolean {
         val moduleMenus = when (normalizedModule) {
             "INVENTORY" -> setOf("INVENTORY")
             "SALES" -> setOf("POS", "ORDERS", "HOSPITALITY")
+            "SERVICES" -> setOf("SERVICES")
             "CRM" -> setOf("CUSTOMERS")
             "EXPENSES" -> setOf("EXPENSES")
             "PAYMENTS" -> setOf("PAYMENTS", "CARD_PAYMENTS")

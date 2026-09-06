@@ -31,7 +31,7 @@ object BusinessesTable : Table("businesses") {
     val subscriptionTier = varchar("subscription_tier", 20).default("FREEMIUM")
     val subscriptionEnabled = bool("subscription_enabled").default(true)
     val enabledModules = text("enabled_modules").default("INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS")
-    val enabledMenus = text("enabled_menus").default("DASHBOARD,POS,HOSPITALITY,HOSPITALITY_OPS,OPEN_TABS,INVENTORY,ORDERS,CUSTOMERS,EXPENSES,PAYMENTS,CARD_PAYMENTS,TAX,KRA,SOCIAL,SOCIAL_SETUP,USERS,REPORTS,DOWNLOADS,SETTINGS")
+    val enabledMenus = text("enabled_menus").default("DASHBOARD,POS,HOSPITALITY,HOSPITALITY_OPS,SERVICES,OPEN_TABS,INVENTORY,ORDERS,CUSTOMERS,EXPENSES,PAYMENTS,CARD_PAYMENTS,TAX,KRA,SOCIAL,SOCIAL_SETUP,USERS,REPORTS,DOWNLOADS,SETTINGS")
     val hospitalityEnabled = bool("hospitality_enabled").default(false)
     val dayStartTime = varchar("day_start_time", 5).default("06:00")
     val dayCloseTime = varchar("day_close_time", 5).default("23:00")
@@ -202,6 +202,56 @@ object CustomersTable : Table("customers") {
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
+}
+
+// ─── Services & appointments ────────────────────────────────────────────────
+
+object BusinessServicesTable : Table("business_services") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
+    val name = varchar("name", 160)
+    val description = varchar("description", 500).default("")
+    val category = varchar("category", 80).default("")
+    val durationMinutes = integer("duration_minutes").default(60)
+    val price = double("price").default(0.0)
+    val isActive = bool("is_active").default(true)
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+    val businessNameIdx = index("idx_business_services_business_name", false, businessId, name)
+}
+
+object ServiceResourcesTable : Table("service_resources") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
+    val name = varchar("name", 120)
+    val type = varchar("type", 50).default("RESOURCE")
+    val isActive = bool("is_active").default(true)
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+    val businessNameIdx = index("idx_service_resources_business_name", false, businessId, name)
+}
+
+object ServiceAppointmentsTable : Table("service_appointments") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
+    val serviceId = varchar("service_id", 36).references(BusinessServicesTable.id, onDelete = CASCADE)
+    val resourceId = varchar("resource_id", 36).references(ServiceResourcesTable.id, onDelete = SET_NULL).nullable()
+    val customerId = varchar("customer_id", 36).references(CustomersTable.id, onDelete = SET_NULL).nullable()
+    val staffUserId = varchar("staff_user_id", 36).references(UsersTable.id, onDelete = SET_NULL).nullable()
+    val customerName = varchar("customer_name", 255)
+    val customerPhone = varchar("customer_phone", 20).default("")
+    val startsAt = timestamp("starts_at")
+    val durationMinutes = integer("duration_minutes").default(60)
+    val status = varchar("status", 20).default("BOOKED")
+    val notes = varchar("notes", 500).default("")
+    val orderId = varchar("order_id", 36).references(OrdersTable.id, onDelete = SET_NULL).nullable()
+    val createdBy = varchar("created_by", 36).references(UsersTable.id, onDelete = SET_NULL).nullable()
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+    val businessStartsIdx = index("idx_service_appointments_business_starts", false, businessId, startsAt)
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────

@@ -92,6 +92,7 @@ fun Application.module() {
                 userRoutes()
                 accessControlRoutes()
                 hospitalityRoutes()
+                serviceRoutes()
                 cyberSourceRoutes()
                 taxRoutes()
                 kraRoutes()
