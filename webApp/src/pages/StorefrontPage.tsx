@@ -74,8 +74,10 @@ export default function StorefrontPage() {
     return () => window.clearInterval(timer)
   }, [storeSlug, order, paymentStatus])
 
+  const orderComplete = Boolean(order && (paymentStatus === 'PAID' || (order.paymentMethod === 'COD' && !error)))
+
   useEffect(() => {
-    if (paymentStatus !== 'PAID') return
+    if (!orderComplete) return
     const timer = window.setTimeout(() => {
       setCart({})
       setOrder(null)
@@ -88,10 +90,14 @@ export default function StorefrontPage() {
       setClientReference(transactionReference())
       setSearch('')
       setCategory('ALL')
+      setFavoritesOnly(false)
+      setCheckoutOpen(false)
+      setGuestCount(1)
+      setPaymentMethod('MPESA')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }, 2_500)
     return () => window.clearTimeout(timer)
-  }, [paymentStatus])
+  }, [orderComplete])
 
   const categories = useMemo(() => ['ALL', ...new Set(store?.products.map(product => product.category).filter(Boolean) || [])], [store])
   const visibleProducts = useMemo(() => {
@@ -207,7 +213,7 @@ export default function StorefrontPage() {
         <h1>{paymentStatus === 'PAID' ? 'Payment received' : order.paymentMethod === 'COD' ? 'Order placed' : 'Order created'}</h1>
         <p>Order <strong>{order.orderNumber}</strong> · {money(store.currency, order.amount)}</p>
         <div className={`store-payment-status ${paymentStatus === 'PAID' ? 'paid' : ''}`}>{paymentStatus || 'PENDING'}</div>
-        {paymentStatus === 'PAID' && <p>Returning to the store…</p>}
+        {orderComplete && <p>Returning to the store…</p>}
         {paymentStatus !== 'PAID' && <p>{order.customerMessage || (order.paymentMethod === 'COD' ? 'Pay when your order is delivered.' : 'Complete the M-Pesa prompt on your phone. This page checks payment automatically.')}</p>}
         {error && <div className="store-error"><AlertCircle size={16} />{error}</div>}
         {paymentStatus !== 'PAID' && order.paymentMethod === 'MPESA' && <button className="store-primary" disabled={submitting} onClick={retryPayment}>{submitting ? 'Requesting…' : 'Retry M-Pesa push'}</button>}
@@ -277,4 +283,3 @@ export default function StorefrontPage() {
     </main>
   )
 }
-
