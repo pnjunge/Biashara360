@@ -29,10 +29,6 @@ export function printOrderReceipt(order: OrderResponse, profile: BusinessProfile
   const tax = profile?.receiptShowTax === false ? '' : `
     <div class="line"><span>VAT (${Math.round((order.taxRate ?? 0) * 100)}%):</span><span>${money(taxAmount)}</span></div>`
 
-  const banner = isUnpaid
-    ? `<div class="center" style="font-weight:bold; font-size:12px; margin: 4px 0; background:#fffbeb; padding:5px; border:1px dashed #d97706; color:#92400e;">*** PRO-FORMA BILL (PENDING SETTLEMENT) ***</div>`
-    : `<div class="center" style="font-weight:bold; font-size:12px; margin: 4px 0; background:#f0fdf4; padding:5px; border:1px solid #16a34a; color:#166534;">*** OFFICIAL RECEIPT (PAID) ***</div>`
-
   const statusText = isUnpaid
     ? `<span style="color:#d97706; font-weight:bold;">PENDING SETTLEMENT</span>`
     : `<span style="color:#16a34a; font-weight:bold;">PAID (${escapeHtml(order.paymentMethod)})</span>`
@@ -48,7 +44,6 @@ export function printOrderReceipt(order: OrderResponse, profile: BusinessProfile
       @media print { .no-print { display: none; } body { width: auto; } }
     </style></head><body>
       <div class="center">${logo}<h1>${escapeHtml(profile?.name || 'Biashara360 POS')}</h1><div>${escapeHtml(profile?.address)}</div><div>${escapeHtml(profile?.county)}${profile?.county ? ', Kenya' : ''}</div><div>${escapeHtml(profile?.phone)}</div>${profile?.kraPin ? `<div>PIN: ${escapeHtml(profile.kraPin)}</div>` : ''}</div>
-      ${banner}
       <div class="rule"></div><div class="line"><span>REF / ORDER</span><strong>${escapeHtml(order.orderNumber)}</strong></div><div class="line"><span>DATE</span><span>${escapeHtml(new Date(order.createdAt).toLocaleString('en-KE'))}</span></div><div class="line"><span>STATUS</span>${statusText}</div>
       ${customer}<div class="rule"></div>
       ${order.items.map(item => `<div class="item"><div class="item-name">${escapeHtml(item.productName)}</div><div class="line"><span>${item.quantity} × ${money(item.unitPrice)}</span><span>${money(item.lineTotal)}</span></div></div>`).join('')}

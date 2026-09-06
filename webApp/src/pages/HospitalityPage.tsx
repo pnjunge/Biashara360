@@ -102,6 +102,12 @@ export default function HospitalityPage() {
   };
   useEffect(() => {
     load();
+    const timer = window.setInterval(() => {
+      hospitalityApi.dashboard().then((result) => {
+        if (result.success && result.data) setData(result.data)
+      }).catch(() => undefined)
+    }, 5000)
+    return () => window.clearInterval(timer)
   }, []);
   useEffect(() => {
     businessApi

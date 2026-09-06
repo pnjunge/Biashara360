@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { Btn, Input, Modal, Select } from '../ui'
-import { BusinessProfileResponse, OrderResponse, businessApi, hospitalityApi, hospitalityOpsApi, paymentApi } from '../../services/api'
+import { BusinessProfileResponse, OrderResponse, businessApi, hospitalityApi, hospitalityOpsApi, orderApi, paymentApi } from '../../services/api'
 import { printOrderReceipt } from '../../utils/receipt'
 
 type SplitLine = { method: string; amount: string; phone: string }
@@ -21,10 +21,21 @@ export function SettlementModal({ order, onClose, onComplete }: { order: OrderRe
   const splitTotal = useMemo(() => lines.reduce((sum,line)=>sum+(Number(line.amount)||0),0),[lines])
   const methods = [{value:'CASH',label:'Cash'},{value:'MPESA',label:'M-Pesa'},{value:'CARD',label:'Card'}]
   const splitMethods = methods.filter(item=>item.value==='CASH')
+  const waitForMpesa = async () => {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise(resolve => window.setTimeout(resolve, 2000))
+      const latest = await orderApi.get(order.id)
+      if (latest.success && latest.data?.paymentStatus === 'PAID') return latest.data
+    }
+    return null
+  }
   const submit = async () => {
     setError('')
     setSaving(true)
     try {
+      let settledOrder: OrderResponse | null = mode === 'split'
+        ? { ...order, paymentStatus: 'PAID', paymentMethod: 'SPLIT' }
+        : method === 'MPESA' ? null : { ...order, paymentStatus: 'PAID', paymentMethod: method }
       if (mode === 'split') {
         if (lines.length < 2 || lines.some(line => !(Number(line.amount)>0))) throw new Error('Enter at least two valid payment amounts.')
         if (Math.abs(splitTotal-order.subtotal)>0.01) throw new Error(`Split total must equal KES ${order.subtotal.toLocaleString()}.`)
@@ -38,6 +49,9 @@ export function SettlementModal({ order, onClose, onComplete }: { order: OrderRe
         if(method==='MPESA') {
           const push=await paymentApi.initiate({orderId:order.id,phoneNumber:phone.trim()})
           if(!push.success) throw new Error(push.message||'Could not send the M-Pesa prompt.')
+          const confirmed = await waitForMpesa()
+          if (confirmed) settledOrder = confirmed
+          else throw new Error('M-Pesa prompt sent. Payment confirmation is still pending; this tab will close automatically when it arrives.')
         }
         if(method==='CARD') {
           window.location.assign(`/pay/card?orderId=${encodeURIComponent(order.id)}&businessId=${encodeURIComponent(order.businessId)}`)
@@ -45,7 +59,7 @@ export function SettlementModal({ order, onClose, onComplete }: { order: OrderRe
         }
       }
       try {
-        printOrderReceipt({ ...order, paymentStatus: 'PAID', paymentMethod: method }, profile, false)
+        if (settledOrder?.paymentStatus === 'PAID') printOrderReceipt(settledOrder, profile, false)
       } catch (err) {
         console.warn('Auto print receipt error:', err)
       }

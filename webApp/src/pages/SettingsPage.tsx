@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Building2, Shield, Wifi, CreditCard, Lock, Bell, CheckCircle, AlertTriangle,
-  Receipt, Save, ExternalLink, Zap, Key, RefreshCw, Layers
+  Receipt, Save, ExternalLink, Zap, Key, RefreshCw, Layers, ImagePlus, Trash2
 } from 'lucide-react'
 import { PageHeader, Card, Btn, Input, Select } from '../components/ui'
 import {
@@ -200,6 +200,24 @@ export function SettingsPage() {
     } finally {
       setProfileSaving(false)
     }
+  }
+
+  const handleReceiptLogo = (file?: File) => {
+    if (!file) return
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setProfileMsg({ ok: false, text: 'Receipt logo must be a PNG, JPEG, or WebP image.' })
+      return
+    }
+    if (file.size > 500 * 1024) {
+      setProfileMsg({ ok: false, text: 'Receipt logo must be smaller than 500 KB.' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setProfile(current => ({ ...current, receiptLogo: String(reader.result) }))
+      setProfileMsg(null)
+    }
+    reader.readAsDataURL(file)
   }
 
   const handleHospitalityToggle = async (enabled: boolean) => {
@@ -421,6 +439,21 @@ export function SettingsPage() {
               </Section>
 
               <Section title="Receipt Template Configurations">
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-text-secondary)', display: 'block', marginBottom: 6 }}>Receipt Logo</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 96, height: 64, border: '1px dashed var(--b360-border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'var(--b360-surface)' }}>
+                      {profile.receiptLogo ? <img src={profile.receiptLogo} alt="Receipt logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <ImagePlus size={22} color="var(--b360-text-secondary)" />}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label className="btn" style={{ cursor: 'pointer', padding: '8px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 12, fontWeight: 600, width: 'fit-content' }}>
+                        Choose image<input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => handleReceiptLogo(event.target.files?.[0])} />
+                      </label>
+                      {profile.receiptLogo && <button type="button" onClick={() => setProfile(current => ({ ...current, receiptLogo: null }))} style={{ border: 0, background: 'transparent', color: 'var(--b360-red)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, width: 'fit-content' }}><Trash2 size={12} /> Remove</button>}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)', marginTop: 5 }}>PNG, JPEG, or WebP; maximum 500 KB. It appears at the top of printed receipts.</div>
+                </div>
                 <Input label="Receipt Header Message" value={receiptHeader} onChange={setReceiptHeader} placeholder="e.g. Welcome to Kamau Store!" />
                 <Input label="Receipt Footer Message" value={receiptFooter} onChange={setReceiptFooter} placeholder="e.g. Thank you for your purchase!" />
               </Section>
