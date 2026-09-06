@@ -1,0 +1,3 @@
+ALTER TABLE hospitality_shifts
+    ADD COLUMN IF NOT EXISTS mpesa_actual DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS card_actual DOUBLE PRECISION;

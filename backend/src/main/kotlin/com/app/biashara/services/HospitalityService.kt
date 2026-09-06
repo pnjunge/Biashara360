@@ -103,6 +103,9 @@ class HospitalityService(private val orderService: OrderService) {
         if (!enabled) return@transaction ApiResponse(false, message = "Hospitality mode is disabled")
         val serviceType=request.serviceType.trim().uppercase()
         if (serviceType !in setOf("DINE_IN","TAKEAWAY","DELIVERY")) return@transaction ApiResponse(false,message="Invalid service type")
+        if (!HospitalityShiftsTable.select {
+            (HospitalityShiftsTable.businessId eq businessId) and (HospitalityShiftsTable.status eq "OPEN")
+        }.any()) return@transaction ApiResponse(false, message = "Start the day by opening a shift before taking hospitality orders")
         if (request.guestCount !in 1..100) return@transaction ApiResponse(false,message="Guest count must be between 1 and 100")
         val table = request.tableId?.let { tableId -> transaction { HospitalityTablesTable.select { (HospitalityTablesTable.id eq tableId) and (HospitalityTablesTable.businessId eq businessId) and (HospitalityTablesTable.isActive eq true) }.firstOrNull() } }
         if (serviceType == "DINE_IN" && table == null) return@transaction ApiResponse(false,message="Select a table for dine-in service")
@@ -151,6 +154,9 @@ class HospitalityService(private val orderService: OrderService) {
 
     fun closeTab(businessId: String, orderId: String, request: CloseHospitalityTabRequest): OrderResponse = transaction {
         val method=request.paymentMethod.trim().uppercase(); require(method in setOf("CASH","CARD","MPESA")) { "Payment method must be CASH, CARD, or MPESA" }
+        require(HospitalityShiftsTable.select {
+            (HospitalityShiftsTable.businessId eq businessId) and (HospitalityShiftsTable.status eq "OPEN")
+        }.any()) { "Open a shift before settling hospitality payments" }
         val order=OrdersTable.select {
             (OrdersTable.id eq orderId) and
                 (OrdersTable.businessId eq businessId) and

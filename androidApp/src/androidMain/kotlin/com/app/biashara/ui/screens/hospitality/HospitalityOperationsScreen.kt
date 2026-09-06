@@ -126,7 +126,7 @@ private data class AndroidIngredient(
 
 @Serializable private data class AndroidMenuOption(val name: String = "", val priceDelta: Double = 0.0)
 @Serializable private data class AndroidMenuProfile(val productId: String = "", val preparationStation: String? = null, val mealPeriods: List<String> = emptyList(), val sizes: List<AndroidMenuOption> = emptyList(), val extras: List<AndroidMenuOption> = emptyList(), val variants: List<AndroidMenuOption> = emptyList(), val comboProductIds: List<String> = emptyList(), val soldOut: Boolean = false, val happyHourPrice: Double? = null, val happyHourStart: String? = null, val happyHourEnd: String? = null, val ageRestricted: Boolean = false, val minimumAge: Int? = null)
-@Serializable private data class AndroidShift(val id: String = "", val openedBy: String = "", val openedAt: String = "", val closedAt: String? = null, val openingFloat: Double = 0.0, val expectedCash: Double? = null, val actualCash: Double? = null, val mpesaTotal: Double? = null, val cardTotal: Double? = null, val tipsTotal: Double = 0.0, val expensesTotal: Double = 0.0, val status: String = "OPEN", val variance: Double? = null)
+@Serializable private data class AndroidShift(val id: String = "", val openedBy: String = "", val openedAt: String = "", val closedAt: String? = null, val openingFloat: Double = 0.0, val expectedCash: Double? = null, val actualCash: Double? = null, val mpesaTotal: Double? = null, val cardTotal: Double? = null, val tipsTotal: Double = 0.0, val expensesTotal: Double = 0.0, val status: String = "OPEN", val variance: Double? = null, val actualMpesa: Double? = null, val actualCard: Double? = null, val mpesaVariance: Double? = null, val cardVariance: Double? = null, val totalVariance: Double? = null)
 @Serializable private data class AndroidSupplier(val id: String = "", val name: String = "", val phone: String = "", val email: String? = null, val address: String? = null, val isActive: Boolean = true)
 @Serializable private data class AndroidPurchaseOrder(val id: String = "", val orderNumber: String = "", val supplierId: String = "", val status: String = "ORDERED", val totalCost: Double = 0.0, val orderedAt: String = "", val receivedAt: String? = null)
 @Serializable private data class AndroidApproval(val id: String = "", val actionType: String = "", val entityType: String = "", val entityId: String = "", val requestedBy: String = "", val approvedBy: String? = null, val status: String = "PENDING", val reason: String = "", val requestedAt: String = "")
@@ -154,7 +154,7 @@ private data class AndroidOperationsData(
 @Serializable private data class TransferTabReq(val tableId: String)
 @Serializable private data class CloseTabReq(val paymentMethod: String)
 @Serializable private data class AndroidShiftOpenReq(val openingFloat: Double, val notes: String = "")
-@Serializable private data class AndroidShiftCloseReq(val actualCash: Double, val tipsTotal: Double = 0.0, val expensesTotal: Double = 0.0, val notes: String = "")
+@Serializable private data class AndroidShiftCloseReq(val actualCash: Double, val actualMpesa: Double, val actualCard: Double, val tipsTotal: Double = 0.0, val expensesTotal: Double = 0.0, val notes: String = "")
 @Serializable private data class AndroidApprovalDecisionReq(val approved: Boolean)
 @Serializable private data class AndroidMenuProfileReq(val preparationStation: String? = null, val mealPeriods: List<String> = emptyList(), val sizes: List<AndroidMenuOption> = emptyList(), val extras: List<AndroidMenuOption> = emptyList(), val variants: List<AndroidMenuOption> = emptyList(), val comboProductIds: List<String> = emptyList(), val soldOut: Boolean = false, val happyHourPrice: Double? = null, val happyHourStart: String? = null, val happyHourEnd: String? = null, val ageRestricted: Boolean = false, val minimumAge: Int? = null)
 @Serializable private data class AndroidSupplierReq(val name: String, val phone: String = "", val email: String? = null, val address: String? = null)
@@ -314,7 +314,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     fun receivePurchaseOrder(id: String) = operationAction("Purchase order received.") { client.post("$BASE_URL/hospitality/operations/purchase-orders/$id/receive").body<ApiResponse<AndroidPurchaseOrder>>() }
     fun decideApproval(id: String, approved: Boolean) = operationAction(if (approved) "Approval granted." else "Approval rejected.") { client.post("$BASE_URL/hospitality/operations/approvals/$id/decision") { contentType(ContentType.Application.Json); setBody(AndroidApprovalDecisionReq(approved)) }.body<ApiResponse<AndroidApproval>>() }
     fun openShift(openingFloat: Double) = operationAction("Shift opened.") { client.post("$BASE_URL/hospitality/operations/shifts/open") { contentType(ContentType.Application.Json); setBody(AndroidShiftOpenReq(openingFloat)) }.body<ApiResponse<AndroidShift>>() }
-    fun closeShift(id: String, actualCash: Double, tips: Double, expenses: Double) = operationAction("Shift closed.") { client.post("$BASE_URL/hospitality/operations/shifts/$id/close") { contentType(ContentType.Application.Json); setBody(AndroidShiftCloseReq(actualCash, tips, expenses)) }.body<ApiResponse<AndroidShift>>() }
+    fun closeShift(id: String, actualCash: Double, actualMpesa: Double, actualCard: Double, tips: Double, expenses: Double) = operationAction("Day closed and payments reconciled.") { client.post("$BASE_URL/hospitality/operations/shifts/$id/close") { contentType(ContentType.Application.Json); setBody(AndroidShiftCloseReq(actualCash, actualMpesa, actualCard, tips, expenses)) }.body<ApiResponse<AndroidShift>>() }
     fun saveMenuProfile(profile: AndroidMenuProfile, station: String, soldOut: Boolean) = operationAction("Menu controls saved.") { client.put("$BASE_URL/hospitality/operations/menu/${profile.productId}") { contentType(ContentType.Application.Json); setBody(AndroidMenuProfileReq(station.takeUnless { it == "NONE" }, profile.mealPeriods, profile.sizes, profile.extras, profile.variants, profile.comboProductIds, soldOut, profile.happyHourPrice, profile.happyHourStart, profile.happyHourEnd, profile.ageRestricted, profile.minimumAge)) }.body<ApiResponse<AndroidMenuProfile>>() }
     fun createSupplier(name: String, phone: String, email: String) = operationAction("Supplier created.") { client.post("$BASE_URL/hospitality/operations/suppliers") { contentType(ContentType.Application.Json); setBody(AndroidSupplierReq(name, phone, email.takeIf { it.isNotBlank() })) }.body<ApiResponse<AndroidSupplier>>() }
     fun loadReport(startDate: String, endDate: String) {
@@ -392,6 +392,16 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
                     IconButton(onClick = { successMsg = null }, modifier = Modifier.size(20.dp)) {
                         Icon(Icons.Default.Close, null, tint = Color(0xFF15803D))
                     }
+                }
+            }
+        }
+
+        if (operations != null && operations?.shifts?.none { it.status == "OPEN" } == true) {
+            Surface(color = Color(0xFFFFF7ED), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFFFCD34D))) {
+                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Schedule, null, tint = Color(0xFFB45309), modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Start of day required: open a shift before taking hospitality orders or settling payments.", color = Color(0xFF92400E), fontSize = 12.sp)
                 }
             }
         }
@@ -711,7 +721,7 @@ private fun AndroidOperationsSection(
     onReceivePurchaseOrder: (String) -> Unit,
     onDecideApproval: (String, Boolean) -> Unit,
     onOpenShift: (Double) -> Unit,
-    onCloseShift: (String, Double, Double, Double) -> Unit,
+    onCloseShift: (String, Double, Double, Double, Double, Double) -> Unit,
     onSaveMenuProfile: (AndroidMenuProfile, String, Boolean) -> Unit,
     onCreateSupplier: (String, String, String) -> Unit,
     onRunReport: (String, String) -> Unit
@@ -846,26 +856,33 @@ private fun AndroidMenuProfilesCard(profiles: List<AndroidMenuProfile>, products
 }
 
 @Composable
-private fun AndroidShiftsCard(shifts: List<AndroidShift>, onOpen: (Double) -> Unit, onClose: (String, Double, Double, Double) -> Unit) {
+private fun AndroidShiftsCard(shifts: List<AndroidShift>, onOpen: (Double) -> Unit, onClose: (String, Double, Double, Double, Double, Double) -> Unit) {
     var openingFloat by remember { mutableStateOf("") }
     var actualCash by remember { mutableStateOf("") }
+    var actualMpesa by remember { mutableStateOf("") }
+    var actualCard by remember { mutableStateOf("") }
     var tips by remember { mutableStateOf("") }
     var expenses by remember { mutableStateOf("") }
     val openShift = shifts.firstOrNull { it.status == "OPEN" }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Shift management", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F1F3A))
+        Text("Start and end of day", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F1F3A))
         if (openShift == null) {
+            Text("Open a shift before taking hospitality orders or settling payments.", fontSize = 11.sp, color = Color(0xFF64748B))
             OutlinedTextField(openingFloat, { openingFloat = it }, label = { Text("Opening float") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             Button(onClick = { onOpen(openingFloat.toDoubleOrNull() ?: 0.0) }, modifier = Modifier.fillMaxWidth()) { Text("Open shift") }
         } else {
-            Text("Open since ${openShift.openedAt} · Float KES ${String.format("%,.0f", openShift.openingFloat)}", fontSize = 12.sp, color = Color(0xFF475569))
+            Text("End of day · Open since ${openShift.openedAt} · Float KES ${String.format("%,.0f", openShift.openingFloat)}", fontSize = 12.sp, color = Color(0xFF475569))
+            Text("Settle all open tabs and reconcile successful payments before closing.", fontSize = 11.sp, color = Color(0xFF64748B))
             OutlinedTextField(actualCash, { actualCash = it }, label = { Text("Actual cash") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(actualMpesa, { actualMpesa = it }, label = { Text("M-Pesa received") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(actualCard, { actualCard = it }, label = { Text("Card receipts") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedTextField(tips, { tips = it }, label = { Text("Tips") }, modifier = Modifier.weight(1f), singleLine = true)
                 OutlinedTextField(expenses, { expenses = it }, label = { Text("Expenses") }, modifier = Modifier.weight(1f), singleLine = true)
             }
-            Button(onClick = { onClose(openShift.id, actualCash.toDoubleOrNull() ?: 0.0, tips.toDoubleOrNull() ?: 0.0, expenses.toDoubleOrNull() ?: 0.0) }, modifier = Modifier.fillMaxWidth()) { Text("Close shift") }
+            Button(onClick = { onClose(openShift.id, actualCash.toDoubleOrNull() ?: 0.0, actualMpesa.toDoubleOrNull() ?: 0.0, actualCard.toDoubleOrNull() ?: 0.0, tips.toDoubleOrNull() ?: 0.0, expenses.toDoubleOrNull() ?: 0.0) }, modifier = Modifier.fillMaxWidth()) { Text("Close day") }
         }
+        shifts.filter { it.status == "CLOSED" }.take(5).forEach { shift -> Text("${shift.openedAt} · Cash variance ${shift.variance?.let { String.format("%,.0f", it) } ?: "—"} · M-Pesa variance ${shift.mpesaVariance?.let { String.format("%,.0f", it) } ?: "—"} · Card variance ${shift.cardVariance?.let { String.format("%,.0f", it) } ?: "—"}", fontSize = 11.sp, color = Color(0xFF64748B)) }
     }
 }
 

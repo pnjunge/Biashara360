@@ -127,7 +127,7 @@ private data class DesktopIngredient(
 @Serializable
 private data class DesktopMenuOption(val name: String = "", val priceDelta: Double = 0.0)
 @Serializable private data class DesktopMenuProfile(val productId: String = "", val preparationStation: String? = null, val mealPeriods: List<String> = emptyList(), val sizes: List<DesktopMenuOption> = emptyList(), val extras: List<DesktopMenuOption> = emptyList(), val variants: List<DesktopMenuOption> = emptyList(), val comboProductIds: List<String> = emptyList(), val soldOut: Boolean = false, val happyHourPrice: Double? = null, val happyHourStart: String? = null, val happyHourEnd: String? = null, val ageRestricted: Boolean = false, val minimumAge: Int? = null)
-@Serializable private data class DesktopShift(val id: String = "", val openedBy: String = "", val openedAt: String = "", val closedAt: String? = null, val openingFloat: Double = 0.0, val expectedCash: Double? = null, val actualCash: Double? = null, val mpesaTotal: Double? = null, val cardTotal: Double? = null, val tipsTotal: Double = 0.0, val expensesTotal: Double = 0.0, val status: String = "OPEN", val variance: Double? = null)
+@Serializable private data class DesktopShift(val id: String = "", val openedBy: String = "", val openedAt: String = "", val closedAt: String? = null, val openingFloat: Double = 0.0, val expectedCash: Double? = null, val actualCash: Double? = null, val mpesaTotal: Double? = null, val cardTotal: Double? = null, val tipsTotal: Double = 0.0, val expensesTotal: Double = 0.0, val status: String = "OPEN", val variance: Double? = null, val actualMpesa: Double? = null, val actualCard: Double? = null, val mpesaVariance: Double? = null, val cardVariance: Double? = null, val totalVariance: Double? = null)
 @Serializable private data class DesktopSupplier(val id: String = "", val name: String = "", val phone: String = "", val email: String? = null, val address: String? = null, val isActive: Boolean = true)
 @Serializable private data class DesktopPurchaseOrder(val id: String = "", val orderNumber: String = "", val supplierId: String = "", val status: String = "ORDERED", val totalCost: Double = 0.0, val orderedAt: String = "", val receivedAt: String? = null)
 @Serializable private data class DesktopApproval(val id: String = "", val actionType: String = "", val entityType: String = "", val entityId: String = "", val requestedBy: String = "", val approvedBy: String? = null, val status: String = "PENDING", val reason: String = "", val requestedAt: String = "")
@@ -141,7 +141,7 @@ private data class DesktopMenuOption(val name: String = "", val priceDelta: Doub
 @Serializable private data class UpdateTableReq(val name: String, val area: String = "Main Floor", val capacity: Int = 4)
 @Serializable private data class TransferTabReq(val tableId: String)
 @Serializable private data class DesktopShiftOpenReq(val openingFloat: Double, val notes: String = "")
-@Serializable private data class DesktopShiftCloseReq(val actualCash: Double, val tipsTotal: Double = 0.0, val expensesTotal: Double = 0.0, val notes: String = "")
+@Serializable private data class DesktopShiftCloseReq(val actualCash: Double, val actualMpesa: Double, val actualCard: Double, val tipsTotal: Double = 0.0, val expensesTotal: Double = 0.0, val notes: String = "")
 @Serializable private data class DesktopApprovalDecisionReq(val approved: Boolean)
 @Serializable private data class DesktopMenuProfileReq(val preparationStation: String? = null, val mealPeriods: List<String> = emptyList(), val sizes: List<DesktopMenuOption> = emptyList(), val extras: List<DesktopMenuOption> = emptyList(), val variants: List<DesktopMenuOption> = emptyList(), val comboProductIds: List<String> = emptyList(), val soldOut: Boolean = false, val happyHourPrice: Double? = null, val happyHourStart: String? = null, val happyHourEnd: String? = null, val ageRestricted: Boolean = false, val minimumAge: Int? = null)
 @Serializable private data class DesktopSupplierReq(val name: String, val phone: String = "", val email: String? = null, val address: String? = null)
@@ -316,10 +316,10 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
         }.body()
     }
 
-    fun closeShift(id: String, actualCash: Double, tips: Double, expenses: Double) = operationAction("Shift closed.") {
+    fun closeShift(id: String, actualCash: Double, actualMpesa: Double, actualCard: Double, tips: Double, expenses: Double) = operationAction("Day closed and payments reconciled.") {
         client.post("$BASE_URL/hospitality/operations/shifts/$id/close") {
             contentType(ContentType.Application.Json)
-            setBody(DesktopShiftCloseReq(actualCash, tips, expenses))
+            setBody(DesktopShiftCloseReq(actualCash, actualMpesa, actualCard, tips, expenses))
         }.body()
     }
 
@@ -453,6 +453,16 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
                         }
                     }
                 )
+            }
+        }
+
+        if (operations != null && operations?.shifts?.none { it.status == "OPEN" } == true) {
+            Surface(color = Color(0xFFFFF7ED), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFFFCD34D))) {
+                Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Schedule, null, tint = Color(0xFFB45309), modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Start of day required: open a shift before taking hospitality orders or settling payments.", color = Color(0xFF92400E), fontSize = 12.sp)
+                }
             }
         }
 
@@ -900,7 +910,7 @@ private fun DesktopOperationsTab(
     onReceivePurchaseOrder: (String) -> Unit,
     onDecideApproval: (String, Boolean) -> Unit,
     onOpenShift: (Double) -> Unit,
-    onCloseShift: (String, Double, Double, Double) -> Unit,
+    onCloseShift: (String, Double, Double, Double, Double, Double) -> Unit,
     onSaveMenuProfile: (String, DesktopMenuProfile, String, Boolean) -> Unit,
     onCreateSupplier: (String, String) -> Unit,
     onCreatePurchaseOrder: (String, String, Double, Double) -> Unit,
@@ -980,16 +990,18 @@ private fun DesktopMenuSection(profiles: List<DesktopMenuProfile>, products: Lis
 }
 
 @Composable
-private fun DesktopShiftsSection(shifts: List<DesktopShift>, onOpen: (Double) -> Unit, onClose: (String, Double, Double, Double) -> Unit) {
+private fun DesktopShiftsSection(shifts: List<DesktopShift>, onOpen: (Double) -> Unit, onClose: (String, Double, Double, Double, Double, Double) -> Unit) {
     val open = shifts.firstOrNull { it.status == "OPEN" }
     var opening by remember { mutableStateOf("0") }
     var actual by remember { mutableStateOf("0") }
+    var actualMpesa by remember { mutableStateOf("0") }
+    var actualCard by remember { mutableStateOf("0") }
     var tips by remember { mutableStateOf("0") }
     var expenses by remember { mutableStateOf("0") }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (open == null) { Text("No shift is open.", fontWeight = FontWeight.Bold); Row(verticalAlignment = Alignment.CenterVertically) { OutlinedTextField(opening, { opening = it }, label = { Text("Opening float") }, modifier = Modifier.width(180.dp)); Spacer(Modifier.width(8.dp)); Button(onClick = { onOpen(opening.toDoubleOrNull() ?: 0.0) }) { Text("Open shift") } } }
-        else { Text("Open shift · Float KES ${String.format("%,.0f", open.openingFloat)}", fontWeight = FontWeight.Bold); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(actual, { actual = it }, label = { Text("Actual cash") }, modifier = Modifier.width(150.dp)); OutlinedTextField(tips, { tips = it }, label = { Text("Tips") }, modifier = Modifier.width(120.dp)); OutlinedTextField(expenses, { expenses = it }, label = { Text("Expenses") }, modifier = Modifier.width(140.dp)); Button(onClick = { onClose(open.id, actual.toDoubleOrNull() ?: 0.0, tips.toDoubleOrNull() ?: 0.0, expenses.toDoubleOrNull() ?: 0.0) }) { Text("Close shift") } } }
-        shifts.forEach { shift -> Text("${shift.openedAt} · ${shift.status} · Expected cash ${shift.expectedCash?.let { String.format("%,.0f", it) } ?: "—"} · Variance ${shift.variance?.let { String.format("%,.0f", it) } ?: "—"}", fontSize = 12.sp, color = Color(0xFF64748B)) }
+        if (open == null) { Text("Start of day · no shift is open.", fontWeight = FontWeight.Bold); Text("Open a shift before taking hospitality orders or settling payments.", fontSize = 12.sp, color = Color(0xFF64748B)); Row(verticalAlignment = Alignment.CenterVertically) { OutlinedTextField(opening, { opening = it }, label = { Text("Opening float") }, modifier = Modifier.width(180.dp)); Spacer(Modifier.width(8.dp)); Button(onClick = { onOpen(opening.toDoubleOrNull() ?: 0.0) }) { Text("Open shift") } } }
+        else { Text("End of day · shift opened ${open.openedAt}", fontWeight = FontWeight.Bold); Text("Settle all open tabs and reconcile every successful payment before closing.", fontSize = 12.sp, color = Color(0xFF64748B)); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(actual, { actual = it }, label = { Text("Cash counted") }, modifier = Modifier.width(145.dp)); OutlinedTextField(actualMpesa, { actualMpesa = it }, label = { Text("M-Pesa counted") }, modifier = Modifier.width(145.dp)); OutlinedTextField(actualCard, { actualCard = it }, label = { Text("Card counted") }, modifier = Modifier.width(135.dp)); OutlinedTextField(tips, { tips = it }, label = { Text("Tips") }, modifier = Modifier.width(110.dp)); OutlinedTextField(expenses, { expenses = it }, label = { Text("Expenses") }, modifier = Modifier.width(120.dp)); Button(onClick = { onClose(open.id, actual.toDoubleOrNull() ?: 0.0, actualMpesa.toDoubleOrNull() ?: 0.0, actualCard.toDoubleOrNull() ?: 0.0, tips.toDoubleOrNull() ?: 0.0, expenses.toDoubleOrNull() ?: 0.0) }) { Text("Close day") } } }
+        shifts.forEach { shift -> Text("${shift.openedAt} · ${shift.status} · Expected cash ${shift.expectedCash?.let { String.format("%,.0f", it) } ?: "—"} · M-Pesa ${shift.mpesaTotal?.let { String.format("%,.0f", it) } ?: "—"}/${shift.actualMpesa?.let { String.format("%,.0f", it) } ?: "—"} · Card ${shift.cardTotal?.let { String.format("%,.0f", it) } ?: "—"}/${shift.actualCard?.let { String.format("%,.0f", it) } ?: "—"} · Total variance ${shift.totalVariance?.let { String.format("%,.0f", it) } ?: "—"}", fontSize = 12.sp, color = Color(0xFF64748B)) }
     }
 }
 
