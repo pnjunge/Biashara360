@@ -160,6 +160,25 @@ input:focus, select:focus, textarea:focus {
   gap: 20px;
 }
 
+.settings-layout > aside {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .settings-layout > aside {
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--b360-border);
+    max-height: 360px;
+    overflow-y: auto;
+  }
+  .settings-layout > main {
+    padding: 22px 18px !important;
+  }
+}
+
 /* Horizontal scrolling for tables on mobile */
 .table-container {
   width: 100%;
