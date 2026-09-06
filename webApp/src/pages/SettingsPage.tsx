@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { Card, Btn, Input, Select } from '../components/ui'
 import {
-  settingsApi, businessApi, kraApi, authApi, hospitalityApi, BusinessProfileRequest,
+  settingsApi, businessApi, kraApi, authApi, hospitalityApi, servicesApi, BusinessProfileRequest,
   MpesaConfigResponse, SessionTimeoutConfig
 } from '../services/api'
 import { useAuth } from '../App'
@@ -70,6 +70,8 @@ export function SettingsPage() {
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [servicesEnabled, setServicesEnabled] = useState(false)
+  const [servicesSaving, setServicesSaving] = useState(false)
   const [hospitalityEnabled, setHospitalityEnabled] = useState(false)
   const [hospitalitySaving, setHospitalitySaving] = useState(false)
 
@@ -138,6 +140,7 @@ export function SettingsPage() {
           setSubscriptionTier(d.subscriptionTier || 'FREEMIUM')
           setSubscriptionEnabled(d.subscriptionEnabled !== false)
           setHospitalityEnabled(d.hospitalityEnabled === true)
+          setServicesEnabled(d.servicesEnabled === true)
           setProfile({
             name: d.name || '', owner: d.owner || '', phone: d.phone || '',
             email: d.email || '', type: d.type || '', county: d.county || '',
@@ -224,6 +227,21 @@ export function SettingsPage() {
       setProfileMsg(null)
     }
     reader.readAsDataURL(file)
+  }
+
+  const handleServicesToggle = async (enabled: boolean) => {
+    if (!isMerchantAdmin) return
+    setServicesSaving(true)
+    setProfileMsg(null)
+    try {
+      const res = await servicesApi.setEnabled(enabled)
+      if (!res.success) throw new Error(res.message || 'Could not update Appointments & Services')
+      setServicesEnabled(enabled)
+      window.dispatchEvent(new CustomEvent('services-mode-changed', { detail: { enabled } }))
+      setProfileMsg({ ok: true, text: `Appointments & Services ${enabled ? 'enabled' : 'disabled'}.` })
+    } catch (e: any) {
+      setProfileMsg({ ok: false, text: e.response?.data?.message || e.message || 'Could not update Appointments & Services.' })
+    } finally { setServicesSaving(false) }
   }
 
   const handleHospitalityToggle = async (enabled: boolean) => {
@@ -568,6 +586,13 @@ export function SettingsPage() {
                   <Input label="Close of day" type="time" value={profile.dayCloseTime || '23:00'} onChange={v => setProfile(p => ({...p, dayCloseTime:v}))} />
                 </div>
                 <div style={{fontSize:12,color:'var(--b360-text-secondary)',lineHeight:1.5}}>These times define the merchant operating day. A closing time earlier than the start time means the business closes after midnight.</div>
+              </Section>
+
+              <Section title="Appointments & Services">
+                <Toggle label={servicesEnabled ? 'Appointments & Services is enabled' : 'Enable Appointments & Services'} checked={servicesEnabled} onChange={handleServicesToggle} disabled={!isMerchantAdmin || servicesSaving} />
+                <div style={{fontSize:12,color:'var(--b360-text-secondary)',lineHeight:1.5}}>Enables the service catalog, resources, appointments, and online shop booking. Disabling preserves existing records for when you reactivate the module.</div>
+                {!isMerchantAdmin && <div style={{fontSize:12,color:'var(--b360-amber)'}}>Only a business administrator can change this setting.</div>}
+                {servicesSaving && <div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>Updating Appointments & Services…</div>}
               </Section>
 
               <Section title="Hospitality Mode">

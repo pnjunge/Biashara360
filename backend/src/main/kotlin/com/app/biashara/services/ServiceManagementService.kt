@@ -15,6 +15,18 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 
 class ServiceManagementService {
+    fun isEnabled(businessId: String): Boolean = transaction {
+        BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull()?.get(BusinessesTable.servicesEnabled) == true
+    }
+
+    fun setEnabled(businessId: String, enabled: Boolean): Map<String, Boolean> = transaction {
+        require(BusinessesTable.update({ BusinessesTable.id eq businessId }) {
+            it[servicesEnabled] = enabled
+            it[updatedAt] = Clock.System.now()
+        } == 1) { "Business not found" }
+        mapOf("enabled" to enabled)
+    }
+
     private val activeStatuses = setOf("BOOKED", "CONFIRMED", "CHECKED_IN", "IN_PROGRESS")
     private val statuses = setOf("BOOKED", "CONFIRMED", "CHECKED_IN", "IN_PROGRESS", "COMPLETED", "CANCELLED", "NO_SHOW")
 

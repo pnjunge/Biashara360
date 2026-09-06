@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import styles from './AppShell.module.css'
 import PortalOrdersInbox from '../orders/PortalOrdersInbox'
-import { accessApi, hospitalityApi } from '../../services/api'
+import { accessApi, hospitalityApi, servicesApi } from '../../services/api'
 
 const navItems = [
   { key:'DASHBOARD', to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
@@ -46,6 +46,7 @@ export default function AppShell() {
   const [search, setSearch] = useState('')
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [allowedMenus, setAllowedMenus] = useState<Set<string> | null>(null)
+  const [servicesEnabled, setServicesEnabled] = useState(false)
   const [hospitalityEnabled, setHospitalityEnabled] = useState<boolean | null>(null)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     OPERATIONS: true,
@@ -57,6 +58,7 @@ export default function AppShell() {
     accessApi.me().then(result => {
       if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
     }).catch(() => setAllowedMenus(null))
+    servicesApi.status().then(result => setServicesEnabled(result.success && result.data?.enabled === true)).catch(() => setServicesEnabled(false))
     hospitalityApi.status().then(result => {
       if (result.success && result.data) setHospitalityEnabled(result.data.enabled)
     }).catch(() => setHospitalityEnabled(null))
@@ -64,11 +66,19 @@ export default function AppShell() {
       const enabled = (event as CustomEvent<{ enabled: boolean }>).detail?.enabled
       if (typeof enabled === 'boolean') setHospitalityEnabled(enabled)
     }
+    const handleServicesChange = (event: Event) => {
+      setServicesEnabled((event as CustomEvent<{ enabled: boolean }>).detail?.enabled === true)
+      accessApi.me().then(result => {
+        if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
+      }).catch(() => {})
+    }
+    window.addEventListener('services-mode-changed', handleServicesChange)
     window.addEventListener('hospitality-mode-changed', handleModeChange)
-    return () => window.removeEventListener('hospitality-mode-changed', handleModeChange)
+    return () => { window.removeEventListener('hospitality-mode-changed', handleModeChange); window.removeEventListener('services-mode-changed', handleServicesChange) }
   }, [user?.id])
   const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
   const visibleNavItems = navItems.filter(item => {
+    if (item.key === 'SERVICES' && !servicesEnabled) return false
     const accessKeys = [item.key]
     if (allowedMenus && !accessKeys.some(key => allowedMenus.has(key) || (key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS')))) return false
     const isHospitalityNav = item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS' || item.to === '/kitchen-display'

@@ -536,6 +536,7 @@ data class BusinessProfileResponse(
     val subscriptionTier: String,
     val subscriptionEnabled: Boolean,
     val hospitalityEnabled: Boolean = false,
+    val servicesEnabled: Boolean = false,
     val receiptHeader: String = "Welcome to our store!",
     val receiptFooter: String = "Thank you for shopping with us!",
     val receiptLogo: String? = null,

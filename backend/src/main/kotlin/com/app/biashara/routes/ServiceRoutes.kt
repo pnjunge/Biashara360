@@ -15,7 +15,21 @@ import org.koin.ktor.ext.inject
 fun Route.serviceRoutes() {
     val service: ServiceManagementService by inject()
     route("/services") {
-        menuGuardAny("SERVICES")
+        intercept(ApplicationCallPipeline.Call) {
+            val isStatus = call.request.httpMethod == HttpMethod.Get && call.request.path().endsWith("/services/status")
+            val isToggle = call.request.httpMethod == HttpMethod.Put && call.request.path().endsWith("/services/enabled")
+            if (!isStatus && !isToggle && (!service.isEnabled(call.businessId()) || !call.hasAnyMenu("SERVICES"))) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Appointments & Services is disabled or access is not permitted"))
+                finish()
+            }
+        }
+        get("/status") { call.respond(ApiResponse(true, data = mapOf("enabled" to service.isEnabled(call.businessId())))) }
+        put("/enabled") {
+            if (!call.hasRole("ADMIN")) return@put call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+            val request = call.receive<Map<String, Boolean>>()
+            val enabled = request["enabled"] ?: return@put call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "enabled is required"))
+            call.respondService { service.setEnabled(call.businessId(), enabled) }
+        }
 
         get {
             val from = call.request.queryParameters["from"]?.let { Instant.parse(it) }

@@ -31,6 +31,9 @@ fun Route.storefrontRoutes() {
             val storeIdentifier = call.parameters["storeIdentifier"].orEmpty()
             val businessId = storefrontService.resolveActiveBusinessId(storeIdentifier)
                 ?: return@post call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(false, message = "Store not found"))
+            if (!serviceManagement.isEnabled(businessId)) return@post call.respond(
+                HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Appointments & Services is disabled for this business")
+            )
             val request = call.receive<ServiceAppointmentRequest>()
             val result = runCatching {
                 serviceManagement.createAppointment(

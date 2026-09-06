@@ -30,6 +30,7 @@ class BusinessProfileService {
                     accountNumber   = it[BusinessesTable.accountNumber] ?: "",
                     subscriptionTier = it[BusinessesTable.subscriptionTier],
                     subscriptionEnabled = it[BusinessesTable.subscriptionEnabled],
+                    servicesEnabled = it[BusinessesTable.servicesEnabled],
                     hospitalityEnabled = it[BusinessesTable.hospitalityEnabled],
                     receiptHeader   = it[BusinessesTable.receiptHeader],
                     receiptFooter   = it[BusinessesTable.receiptFooter],

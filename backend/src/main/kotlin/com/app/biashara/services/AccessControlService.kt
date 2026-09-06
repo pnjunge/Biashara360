@@ -174,6 +174,7 @@ class AccessControlService {
         } else {
             menus -= setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
         }
+        if (business[BusinessesTable.servicesEnabled]) menus += "SERVICES" else menus -= "SERVICES"
         return menus.toList()
     }
     private fun roles(businessId: String) = AccessRolesTable.select { AccessRolesTable.businessId eq businessId }.orderBy(AccessRolesTable.name).map { AccessRoleResponse(it[AccessRolesTable.id],it[AccessRolesTable.name],it[AccessRolesTable.description],csv(it[AccessRolesTable.allowedMenus]),it[AccessRolesTable.isActive]) }

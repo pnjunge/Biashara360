@@ -869,6 +869,8 @@ export const hospitalityOpsApi = {
 }
 
 export const servicesApi = {
+  status: async () => (await client.get<ApiResponse<{ enabled: boolean }>>('/services/status')).data,
+  setEnabled: async (enabled: boolean) => (await client.put<ApiResponse<{ enabled: boolean }>>('/services/enabled', { enabled })).data,
   schedule: async (params?: { from?: string; to?: string }) => (await client.get<ApiResponse<ServiceSchedule>>('/services', { params })).data,
   catalog: async () => (await client.get<ApiResponse<ServiceCatalogItem[]>>('/services/catalog')).data,
   createCatalog: async (data: { name: string; description: string; category: string; durationMinutes: number; price: number; isActive?: boolean }) => (await client.post<ApiResponse<ServiceCatalogItem>>('/services/catalog', data)).data,
@@ -973,6 +975,7 @@ export interface BusinessResponse {
   ownerEmail: string
   subscriptionTier: string
   subscriptionEnabled: boolean
+  servicesEnabled?: boolean
   hospitalityEnabled: boolean
   isActive: boolean
   createdAt: string
@@ -1046,6 +1049,7 @@ export interface BusinessProfileResponse {
   accountNumber: string
   subscriptionTier: string
   subscriptionEnabled: boolean
+  servicesEnabled?: boolean
   hospitalityEnabled: boolean
   receiptHeader?: string
   receiptFooter?: string

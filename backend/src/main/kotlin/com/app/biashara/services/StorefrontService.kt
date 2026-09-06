@@ -73,7 +73,7 @@ class StorefrontService(
                     StorefrontTableResponse(it[HospitalityTablesTable.id], it[HospitalityTablesTable.name], it[HospitalityTablesTable.area])
                 }
             } else emptyList(),
-            services = BusinessServicesTable.select {
+            services = if (!business[BusinessesTable.servicesEnabled]) emptyList() else BusinessServicesTable.select {
                 (BusinessServicesTable.businessId eq businessId) and (BusinessServicesTable.isActive eq true)
             }.orderBy(BusinessServicesTable.name).map {
                 ServiceCatalogResponse(

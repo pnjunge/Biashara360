@@ -32,6 +32,7 @@ object BusinessesTable : Table("businesses") {
     val subscriptionEnabled = bool("subscription_enabled").default(true)
     val enabledModules = text("enabled_modules").default("INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS")
     val enabledMenus = text("enabled_menus").default("DASHBOARD,POS,HOSPITALITY,HOSPITALITY_OPS,SERVICES,OPEN_TABS,INVENTORY,ORDERS,CUSTOMERS,EXPENSES,PAYMENTS,CARD_PAYMENTS,TAX,KRA,SOCIAL,SOCIAL_SETUP,USERS,REPORTS,DOWNLOADS,SETTINGS")
+    val servicesEnabled = bool("services_enabled").default(false)
     val hospitalityEnabled = bool("hospitality_enabled").default(false)
     val dayStartTime = varchar("day_start_time", 5).default("06:00")
     val dayCloseTime = varchar("day_close_time", 5).default("23:00")

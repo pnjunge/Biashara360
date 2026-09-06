@@ -1,7 +1,7 @@
 import React, { Suspense, createContext, lazy, useContext, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
-import { hospitalityApi, settingsApi } from './services/api'
+import { hospitalityApi, settingsApi, servicesApi } from './services/api'
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
@@ -72,6 +72,18 @@ function HospitalityProtectedRoute({ children }: { children: React.ReactNode }) 
   }, [])
   if (enabled === null) return <div style={{ padding: 32, textAlign: 'center' }}>Checking hospitality settings…</div>
   return enabled ? <>{children}</> : <Navigate to="/dashboard" replace />
+}
+
+function ServicesProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth()
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  useEffect(() => {
+    let active = true
+    servicesApi.status().then(result => { if (active) setEnabled(result.success && result.data?.enabled === true) }).catch(() => { if (active) setEnabled(false) })
+    return () => { active = false }
+  }, [])
+  if (enabled === null) return <div style={{ padding: 32 }}>Checking Appointments & Services…</div>
+  return enabled ? <>{children}</> : <Navigate to={user?.role === 'ADMIN' ? '/settings?tab=general' : '/dashboard'} replace />
 }
 
 export default function App() {
@@ -158,7 +170,7 @@ export default function App() {
             <Route path="hospitality-operations" element={<HospitalityProtectedRoute><HospitalityOperationsPage /></HospitalityProtectedRoute>} />
             <Route path="open-tabs" element={<HospitalityProtectedRoute><OpenTabsPage /></HospitalityProtectedRoute>} />
             <Route path="kitchen-display" element={<HospitalityProtectedRoute><KitchenDisplayPage /></HospitalityProtectedRoute>} />
-            <Route path="services" element={<ServicesPage />} />
+            <Route path="services" element={<ServicesProtectedRoute><ServicesPage /></ServicesProtectedRoute>} />
             <Route path="orders"     element={<OrdersPage />} />
             <Route path="customers"  element={<CustomersPage />} />
             <Route path="expenses"   element={<ExpensesPage />} />
