@@ -88,22 +88,41 @@ sealed class AppScreen(
     object Settings : AppScreen("settings", "Settings", Icons.Default.Settings)
 }
 
-private val appScreens = listOf(
+private data class DesktopNavGroup(
+    val key: String,
+    val label: String,
+    val screens: List<AppScreen>
+)
+
+private val topNavScreens = listOf(
     AppScreen.Dashboard,
     AppScreen.Pos,
-    AppScreen.Hospitality,
-    AppScreen.OpenTabs,
-    AppScreen.Inventory,
-    AppScreen.Orders,
-    AppScreen.Customers,
-    AppScreen.Expenses,
-    AppScreen.Payments,
-    AppScreen.Reports,
-    AppScreen.Tax,
-    AppScreen.KRA,
-    AppScreen.Social,
-    AppScreen.Settings
 )
+
+private val desktopNavGroups = listOf(
+    DesktopNavGroup(
+        key = "OPERATIONS",
+        label = "OPERATIONS",
+        screens = listOf(AppScreen.Hospitality, AppScreen.OpenTabs, AppScreen.Inventory, AppScreen.Orders, AppScreen.Customers)
+    ),
+    DesktopNavGroup(
+        key = "FINANCE",
+        label = "FINANCE",
+        screens = listOf(AppScreen.Expenses, AppScreen.Payments, AppScreen.Tax, AppScreen.KRA)
+    ),
+    DesktopNavGroup(
+        key = "ENGAGEMENT",
+        label = "ENGAGEMENT",
+        screens = listOf(AppScreen.Social, AppScreen.Reports)
+    ),
+    DesktopNavGroup(
+        key = "ADMINISTRATION",
+        label = "ADMINISTRATION",
+        screens = listOf(AppScreen.Settings)
+    ),
+)
+
+private val appScreens = topNavScreens + desktopNavGroups.flatMap { it.screens }
 
 private fun isDesktopFingerprintAvailable(): Boolean {
     val osName = System.getProperty("os.name").lowercase()
@@ -131,6 +150,61 @@ private fun isDesktopFingerprintAvailable(): Boolean {
         }
     } catch (e: Exception) {
         false
+    }
+}
+
+@Composable
+private fun DesktopSidebarItem(
+    screen: AppScreen,
+    isExpanded: Boolean,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val bg = if (isSelected) B360SidebarSelected else Color.Transparent
+    val iconColor = if (isSelected) B360Green else Color(0xFF94A3B8)
+    val textColor = if (isSelected) Color.White else Color(0xFF94A3B8)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+    ) {
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .background(B360Green)
+                    .align(Alignment.CenterStart)
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = if (isSelected) 16.dp else 12.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
+        ) {
+            Icon(
+                imageVector = screen.icon,
+                contentDescription = screen.title,
+                tint = iconColor,
+                modifier = Modifier.size(20.dp)
+            )
+            if (isExpanded) {
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = screen.title,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                    ),
+                    color = textColor
+                )
+            }
+        }
     }
 }
 
@@ -185,7 +259,12 @@ fun Biashara360DesktopAppContent(
         (menu == null || enabledMenus?.contains(menu) != false) &&
             (screen !in setOf(AppScreen.Hospitality, AppScreen.OpenTabs) || hospitalityEnabled)
     }
+    val visibleTopScreens = topNavScreens.filter { it in visibleScreens }
+    val visibleNavGroups = desktopNavGroups.map { group ->
+        group.copy(screens = group.screens.filter { it in visibleScreens })
+    }.filter { it.screens.isNotEmpty() }
     var isExpanded by remember { mutableStateOf(true) }
+    var openNavGroups by remember { mutableStateOf(desktopNavGroups.associate { it.key to true }) }
     var searchQuery by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
     val rootFocusRequester = remember { FocusRequester() }
@@ -276,52 +355,47 @@ fun Biashara360DesktopAppContent(
                             modifier = Modifier.fillMaxSize().verticalScroll(scrollState),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            visibleScreens.forEach { screen ->
-                                val isSelected = currentScreen == screen
-                                val bg = if (isSelected) B360SidebarSelected else Color.Transparent
-                                val iconColor = if (isSelected) B360Green else Color(0xFF94A3B8)
-                                val textColor = if (isSelected) Color.White else Color(0xFF94A3B8)
-
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(44.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(bg)
-                                        .clickable { navigationViewModel.navigateTo(screen) }
-                                ) {
-                                    if (isSelected) {
-                                        Box(
-                                            modifier = Modifier
-                                                .width(3.dp)
-                                                .fillMaxHeight()
-                                                .background(B360Green)
-                                                .align(Alignment.CenterStart)
-                                        )
-                                    }
+                            visibleTopScreens.forEach { screen ->
+                                DesktopSidebarItem(
+                                    screen = screen,
+                                    isExpanded = isExpanded,
+                                    isSelected = currentScreen == screen,
+                                    onClick = { navigationViewModel.navigateTo(screen) }
+                                )
+                            }
+                            visibleNavGroups.forEach { group ->
+                                if (isExpanded) {
                                     Row(
                                         modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(start = if (isSelected) 16.dp else 12.dp, end = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
+                                            .fillMaxWidth()
+                                            .padding(start = 12.dp, top = 10.dp, end = 8.dp, bottom = 2.dp)
+                                            .clickable { openNavGroups = openNavGroups + (group.key to !(openNavGroups[group.key] ?: true)) },
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(
-                                            imageVector = screen.icon,
-                                            contentDescription = screen.title,
-                                            tint = iconColor,
-                                            modifier = Modifier.size(20.dp)
+                                        Text(
+                                            text = group.label,
+                                            color = Color(0xFFCBD5E1),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 0.6.sp
                                         )
-                                        if (isExpanded) {
-                                            Spacer(Modifier.width(12.dp))
-                                            Text(
-                                                text = screen.title,
-                                                style = MaterialTheme.typography.bodyMedium.copy(
-                                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
-                                                ),
-                                                color = textColor
-                                            )
-                                        }
+                                        Spacer(Modifier.weight(1f))
+                                        Icon(
+                                            imageVector = if (openNavGroups[group.key] == true) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                            contentDescription = "Toggle ${group.label}",
+                                            tint = Color(0xFF94A3B8),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                                if (!isExpanded || openNavGroups[group.key] == true) {
+                                    group.screens.forEach { screen ->
+                                        DesktopSidebarItem(
+                                            screen = screen,
+                                            isExpanded = isExpanded,
+                                            isSelected = currentScreen == screen,
+                                            onClick = { navigationViewModel.navigateTo(screen) }
+                                        )
                                     }
                                 }
                             }
@@ -407,6 +481,32 @@ fun Biashara360DesktopAppContent(
                         )
 
                         Spacer(Modifier.weight(1f))
+
+                        if (currentScreen == AppScreen.Pos && isWideScreen) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(color = Color(0xFFECFDF5), shape = RoundedCornerShape(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Box(Modifier.size(7.dp).clip(CircleShape).background(B360Green))
+                                        Text("Shift active", color = Color(0xFF047857), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                Surface(color = Color(0xFFF1F5F9), shape = RoundedCornerShape(16.dp)) {
+                                    Text("Terminal 01", modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = Color(0xFF475569), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                                Surface(color = Color(0xFFECFDF5), shape = RoundedCornerShape(16.dp)) {
+                                    Text("eTIMS ready", modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = Color(0xFF047857), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            Spacer(Modifier.width(12.dp))
+                        }
 
                         PortalOrdersButton(client)
 

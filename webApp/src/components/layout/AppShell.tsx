@@ -31,6 +31,14 @@ const navItems = [
   { key:'USERS', to: '/users',         icon: UserPlus,         label: 'Users & Access' },
   { key:'REPORTS', to: '/reports',       icon: BarChart3,        label: 'Reports' },
   { key:'DOWNLOADS', to: '/downloads',     icon: Download,         label: 'Download Apps' },
+  { key:'SETTINGS', to: '/settings',     icon: Settings,         label: 'Settings' },
+]
+
+const navSectionDefinitions = [
+  { key: 'OPERATIONS', label: 'OPERATIONS', itemKeys: ['HOSPITALITY', 'HOSPITALITY_OPS', 'OPEN_TABS', 'INVENTORY', 'ORDERS', 'CUSTOMERS'] },
+  { key: 'FINANCE', label: 'FINANCE', itemKeys: ['EXPENSES', 'PAYMENTS', 'TAX_COMPLIANCE'] },
+  { key: 'ENGAGEMENT', label: 'ENGAGEMENT', itemKeys: ['SOCIAL', 'SOCIAL_SETUP', 'REPORTS', 'DOWNLOADS'] },
+  { key: 'ADMINISTRATION', label: 'ADMINISTRATION', itemKeys: ['USERS', 'SETTINGS'] },
 ]
 
 export default function AppShell() {
@@ -44,6 +52,12 @@ export default function AppShell() {
   const [allowedMenus, setAllowedMenus] = useState<Set<string> | null>(null)
   const [hospitalityEnabled, setHospitalityEnabled] = useState<boolean | null>(null)
   const [taxComplianceOpen, setTaxComplianceOpen] = useState(() => location.pathname === '/tax' || location.pathname === '/kra')
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    OPERATIONS: true,
+    FINANCE: true,
+    ENGAGEMENT: true,
+    ADMINISTRATION: true,
+  })
   useEffect(() => {
     if (location.pathname === '/tax' || location.pathname === '/kra') setTaxComplianceOpen(true)
   }, [location.pathname])
@@ -68,8 +82,48 @@ export default function AppShell() {
     const isHospitalityNav = item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS' || item.to === '/kitchen-display'
     if (isHospitalityNav && hospitalityEnabled !== true) return false
     if (!isStaff) return true
-    return item.to !== '/users' && item.to !== '/business' && item.to !== '/cybersource-settings'
+    return item.to !== '/users' && item.to !== '/settings' && item.to !== '/business' && item.to !== '/cybersource-settings'
   })
+
+  const visibleTopNavItems = visibleNavItems.filter(item => item.key === 'DASHBOARD' || item.key === 'POS')
+  const visibleNavSections = navSectionDefinitions.map(section => ({
+    ...section,
+    items: section.itemKeys.flatMap(key => visibleNavItems.filter(item => item.key === key))
+  })).filter(section => section.items.length > 0)
+
+  const renderNavItem = (item: typeof navItems[number]) => {
+    const Icon = item.icon
+    if (item.children) {
+      const childActive = item.children.some(child => location.pathname === child.to || location.pathname.startsWith(`${child.to}/`))
+      return (
+        <div key={item.key} className={styles.navGroup}>
+          <button
+            className={`${styles.navItem} ${childActive ? styles.active : ''}`}
+            title={collapsed ? item.label : undefined}
+            onClick={() => setTaxComplianceOpen(open => !open)}
+          >
+            <Icon size={18} className={styles.navIcon} />
+            {!collapsed && <><span>{item.label}</span><ChevronDown size={14} className={`${styles.groupChevron} ${taxComplianceOpen ? styles.groupChevronOpen : ''}`} /></>}
+          </button>
+          {!collapsed && taxComplianceOpen && (
+            <div className={styles.navSubItems}>
+              {item.children.map(child => (
+                <NavLink key={child.to} to={child.to} className={({ isActive }) => `${styles.navSubItem} ${isActive ? styles.navSubItemActive : ''}`} onClick={() => setMobileOpen(false)}>
+                  <span>{child.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    return (
+      <NavLink key={item.to} to={item.to!} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`} title={collapsed ? item.label : undefined} onClick={() => setMobileOpen(false)}>
+        <Icon size={18} className={styles.navIcon} />
+        {!collapsed && <span>{item.label}</span>}
+      </NavLink>
+    )
+  }
 
   const userInitials = user?.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'
 
@@ -95,54 +149,26 @@ export default function AppShell() {
         </div>
 
         <nav className={styles.nav}>
-          {visibleNavItems.map(item => {
-            const Icon = item.icon
-            if (item.children) {
-              const childActive = item.children.some(child => location.pathname === child.to || location.pathname.startsWith(`${child.to}/`))
-              return (
-                <div key={item.key} className={styles.navGroup}>
-                  <button
-                    className={`${styles.navItem} ${childActive ? styles.active : ''}`}
-                    title={collapsed ? item.label : undefined}
-                    onClick={() => setTaxComplianceOpen(open => !open)}
-                  >
-                    <Icon size={18} className={styles.navIcon} />
-                    {!collapsed && <><span>{item.label}</span><ChevronDown size={14} className={`${styles.groupChevron} ${taxComplianceOpen ? styles.groupChevronOpen : ''}`} /></>}
-                  </button>
-                  {!collapsed && taxComplianceOpen && (
-                    <div className={styles.navSubItems}>
-                      {item.children.map(child => (
-                        <NavLink key={child.to} to={child.to} className={({ isActive }) => `${styles.navSubItem} ${isActive ? styles.navSubItemActive : ''}`} onClick={() => setMobileOpen(false)}>
-                          <span>{child.label}</span>
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            }
-            return (
-              <NavLink key={item.to} to={item.to!} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`} title={collapsed ? item.label : undefined} onClick={() => setMobileOpen(false)}>
-                <Icon size={18} className={styles.navIcon} />
-                {!collapsed && <span>{item.label}</span>}
-              </NavLink>
-            )
-          })}
+          {visibleTopNavItems.map(renderNavItem)}
+          {visibleNavSections.map(section => (
+            <div key={section.key} className={styles.navSection}>
+              {!collapsed && (
+                <button
+                  type="button"
+                  className={styles.navSectionHeader}
+                  onClick={() => setOpenSections(current => ({ ...current, [section.key]: !current[section.key] }))}
+                  aria-expanded={openSections[section.key]}
+                >
+                  <span>{section.label}</span>
+                  <ChevronDown size={14} className={`${styles.groupChevron} ${openSections[section.key] ? styles.groupChevronOpen : ''}`} />
+                </button>
+              )}
+              {(collapsed || openSections[section.key]) && section.items.map(renderNavItem)}
+            </div>
+          ))}
         </nav>
 
         <div className={styles.sidebarBottom}>
-          {!isStaff && (!allowedMenus || allowedMenus.has('SETTINGS')) && (
-            <NavLink
-              to="/settings"
-              className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
-              title={collapsed ? 'Settings' : undefined}
-              onClick={() => setMobileOpen(false)}
-            >
-              <Settings size={18} className={styles.navIcon} />
-              {!collapsed && <span>Settings</span>}
-            </NavLink>
-          )}
-          
           <button
             className={styles.collapseBtn}
             onClick={() => setCollapsed(c => !c)}

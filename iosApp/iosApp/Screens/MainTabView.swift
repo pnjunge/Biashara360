@@ -38,31 +38,50 @@ struct MoreView: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
-                Section("Business") {
-                    NavigationLink(destination: SocialView()) {
-                        Label("Social Inbox", systemImage: "message.badge.fill")
+                Section("Operations") {
+                    NavigationLink(destination: InventoryView()) {
+                        Label("Inventory", systemImage: "shippingbox.fill")
                     }
+                    NavigationLink(destination: OrdersView()) {
+                        Label("Orders", systemImage: "cart.fill")
+                    }
+                    NavigationLink(destination: CustomersView()) {
+                        Label("Customers", systemImage: "person.2.fill")
+                    }
+                }
+
+                Section("Finance") {
                     NavigationLink(destination: ExpensesView()) {
-                        Label("Expenses & Profit", systemImage: "receipt.fill")
+                        Label("Expenses", systemImage: "receipt.fill")
                     }
                     NavigationLink(destination: PaymentsView()) {
-                        Label("Payments / Mpesa", systemImage: "creditcard.fill")
-                    }
-                    NavigationLink(destination: ReportsView()) {
-                        Label("Reports", systemImage: "chart.bar.fill")
-                    }
-                    NavigationLink(destination: TaxView()) {
-                        Label("Tax", systemImage: "percent")
-                    }
-                    NavigationLink(destination: KraView()) {
-                        Label("KRA iTax", systemImage: "doc.badge.checkmark")
+                        Label("Payments", systemImage: "creditcard.fill")
                     }
                     NavigationLink(destination: CyberSourceView()) {
                         Label("Card Payments", systemImage: "creditcard.and.123")
                     }
+                    DisclosureGroup {
+                        NavigationLink(destination: TaxView()) {
+                            Label("Tax Settings", systemImage: "percent")
+                        }
+                        NavigationLink(destination: KraView()) {
+                            Label("KRA iTax", systemImage: "doc.badge.checkmark")
+                        }
+                    } label: {
+                        Label("Tax & Compliance", systemImage: "doc.text.fill")
+                    }
                 }
 
-                Section("Account") {
+                Section("Engagement") {
+                    NavigationLink(destination: SocialView()) {
+                        Label("Social Inbox", systemImage: "message.badge.fill")
+                    }
+                    NavigationLink(destination: ReportsView()) {
+                        Label("Reports", systemImage: "chart.bar.fill")
+                    }
+                }
+
+                Section("Administration") {
                     NavigationLink(destination: SettingsView()) {
                         Label("Settings", systemImage: "gearshape.fill")
                     }
