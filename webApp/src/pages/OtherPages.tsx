@@ -1105,7 +1105,7 @@ const BUSINESS_TYPE_OPTIONS = [
   { value: 'WHOLESALE', label: 'Wholesale' }, { value: 'DISTRIBUTION', label: 'Distribution' }, { value: 'SALON', label: 'Salon' },
   { value: 'BARBERSHOP', label: 'Barbershop' }, { value: 'SPA', label: 'Spa' }, { value: 'LAUNDRY', label: 'Laundry' },
   { value: 'CAR_WASH', label: 'Car wash' }, { value: 'HOTEL', label: 'Hotel' }, { value: 'LODGE', label: 'Lodge' },
-  { value: 'GYM', label: 'Gym' }, { value: 'SERVICE', label: 'Service' }, { value: 'HYBRID', label: 'Hybrid' }, { value: 'ONLINE_SELLER', label: 'Online seller' },
+  { value: 'GYM', label: 'Gym' }, { value: 'CLINIC', label: 'Clinic' }, { value: 'REPAIR_SHOP', label: 'Repair shop' }, { value: 'SERVICE', label: 'Service' }, { value: 'HYBRID', label: 'Hybrid' }, { value: 'ONLINE_SELLER', label: 'Online seller' },
 ]
 
 const BizSection = ({ title, children }: { title: string; children: React.ReactNode }) => (

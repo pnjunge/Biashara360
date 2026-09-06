@@ -197,6 +197,8 @@ enum class BusinessType(val value: String) {
     HOTEL("HOTEL"),
     LODGE("LODGE"),
     GYM("GYM"),
+    CLINIC("CLINIC"),
+    REPAIR_SHOP("REPAIR_SHOP"),
     DISTRIBUTION("DISTRIBUTION"),
     MANUFACTURING("MANUFACTURING"),
     OTHER("OTHER");

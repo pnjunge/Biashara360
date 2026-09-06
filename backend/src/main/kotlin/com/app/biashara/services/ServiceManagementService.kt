@@ -321,6 +321,14 @@ class ServiceManagementService {
             ServiceCatalogRequest("Personal training", category = "Training", durationMinutes = 60), ServiceCatalogRequest("Group class", category = "Classes", durationMinutes = 60),
             ServiceCatalogRequest("Fitness assessment", category = "Membership", durationMinutes = 45),
         )
+        type.contains("CLINIC") -> listOf(
+            ServiceCatalogRequest("Consultation", category = "Clinical", durationMinutes = 30), ServiceCatalogRequest("Follow-up visit", category = "Clinical", durationMinutes = 20),
+            ServiceCatalogRequest("Procedure", category = "Clinical", durationMinutes = 60),
+        )
+        type.contains("REPAIR") -> listOf(
+            ServiceCatalogRequest("Diagnostics", category = "Repair", durationMinutes = 30), ServiceCatalogRequest("Repair slot", category = "Repair", durationMinutes = 120),
+            ServiceCatalogRequest("Collection and delivery", category = "Fulfilment", durationMinutes = 30),
+        )
         type.contains("HOTEL") || type.contains("LODGE") -> listOf(
             ServiceCatalogRequest("Room cleaning", category = "Housekeeping", durationMinutes = 60), ServiceCatalogRequest("Airport transfer", category = "Guest services", durationMinutes = 90),
             ServiceCatalogRequest("Spa treatment", category = "Guest services", durationMinutes = 60),

@@ -18,6 +18,8 @@ const BUSINESS_TYPES = [
   { value: 'HOTEL', label: 'Hotel' },
   { value: 'LODGE', label: 'Lodge' },
   { value: 'GYM', label: 'Gym' },
+  { value: 'CLINIC', label: 'Clinic' },
+  { value: 'REPAIR_SHOP', label: 'Repair shop' },
   { value: 'SERVICE', label: 'Service Provider / Mhudumu' },
   { value: 'HYBRID', label: 'Hybrid Business / Biashara Mseto' },
   { value: 'ONLINE_SELLER', label: 'Online Seller / Muuzaji Mtandaoni' }

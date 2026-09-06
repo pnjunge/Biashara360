@@ -56,6 +56,8 @@ enum class BusinessType {
     HOTEL,
     LODGE,
     GYM,
+    CLINIC,
+    REPAIR_SHOP,
     HYBRID,          // Bakeries with catering
     ONLINE_SELLER    // Instagram/WhatsApp sellers
 }
