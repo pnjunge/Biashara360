@@ -826,13 +826,13 @@ export interface AuditLogResponse {
 
 export const accessApi = {
   me: async () => (await client.get<ApiResponse<{ enabledMenus: string[] }>>('/access/me')).data,
-  config: async () => (await client.get<ApiResponse<AccessConfig>>('/access/config')).data,
-  updateMenus: async (enabledMenus: string[]) => (await client.put<ApiResponse<AccessConfig>>('/access/config/menus', { enabledMenus })).data,
-  createRole: async (data: { name: string; description: string; allowedMenus: string[] }) => (await client.post<ApiResponse<AccessRole>>('/access/config/roles', data)).data,
-  updateRole: async (id: string, data: { name: string; description: string; allowedMenus: string[]; isActive: boolean }) => (await client.put<ApiResponse<AccessRole>>(`/access/config/roles/${id}`, data)).data,
-  createGroup: async (data: { name: string; description: string; roleIds: string[] }) => (await client.post<ApiResponse<AccessGroup>>('/access/config/groups', data)).data,
-  updateGroup: async (id: string, data: { name: string; description: string; roleIds: string[]; isActive: boolean }) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${id}`, data)).data,
-  assignUsers: async (groupId: string, userIds: string[]) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${groupId}/users`, { userIds })).data,
+  config: async (businessId?: string) => (await client.get<ApiResponse<AccessConfig>>('/access/config', { params: businessId ? { businessId } : undefined })).data,
+  updateMenus: async (enabledMenus: string[], businessId?: string) => (await client.put<ApiResponse<AccessConfig>>('/access/config/menus', { enabledMenus }, { params: businessId ? { businessId } : undefined })).data,
+  createRole: async (data: { name: string; description: string; allowedMenus: string[] }, businessId?: string) => (await client.post<ApiResponse<AccessRole>>('/access/config/roles', data, { params: businessId ? { businessId } : undefined })).data,
+  updateRole: async (id: string, data: { name: string; description: string; allowedMenus: string[]; isActive: boolean }, businessId?: string) => (await client.put<ApiResponse<AccessRole>>(`/access/config/roles/${id}`, data, { params: businessId ? { businessId } : undefined })).data,
+  createGroup: async (data: { name: string; description: string; roleIds: string[] }, businessId?: string) => (await client.post<ApiResponse<AccessGroup>>('/access/config/groups', data, { params: businessId ? { businessId } : undefined })).data,
+  updateGroup: async (id: string, data: { name: string; description: string; roleIds: string[]; isActive: boolean }, businessId?: string) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${id}`, data, { params: businessId ? { businessId } : undefined })).data,
+  assignUsers: async (groupId: string, userIds: string[], businessId?: string) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${groupId}/users`, { userIds }, { params: businessId ? { businessId } : undefined })).data,
 }
 
 export const hospitalityApi = {

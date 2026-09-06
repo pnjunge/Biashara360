@@ -665,6 +665,7 @@ export function UserCreationPage() {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [inviteGroupId, setInviteGroupId] = useState('')
   const [accessSaving, setAccessSaving] = useState<'MENUS'|'ROLE'|'GROUP'|'INVITE_GROUP'|null>(null)
+  const accessBusinessId = isSuperAdmin ? selectedBusinessId : undefined
 
   const loadUsers = () => {
     if (isSuperAdmin && !selectedBusinessId) {
@@ -678,8 +679,11 @@ export function UserCreationPage() {
   }
 
   const loadAccess = () => {
-    if (isSuperAdmin) return
-    return accessApi.config().then(res => { if (res.success && res.data) setAccessConfig(res.data) }).catch((e:any) => setAccessMessage(e.response?.data?.message || 'Could not load roles and groups.'))
+    if (isSuperAdmin && !selectedBusinessId) {
+      setAccessConfig(null)
+      return
+    }
+    return accessApi.config(accessBusinessId).then(res => { if (res.success && res.data) setAccessConfig(res.data) }).catch((e:any) => setAccessMessage(e.response?.data?.message || 'Could not load roles and groups.'))
   }
 
   const loadAuditLogs = () => {
@@ -726,7 +730,7 @@ export function UserCreationPage() {
     if (!accessConfig) return
     setAccessSaving('MENUS'); setAccessMessage('')
     try {
-      const res = await accessApi.updateMenus(accessConfig.enabledMenus)
+      const res = await accessApi.updateMenus(accessConfig.enabledMenus, accessBusinessId)
       if (res.success && res.data) { setAccessConfig(res.data); setAccessMessage('Menu availability saved.') }
       else setAccessMessage(res.message || 'Could not save menu availability.')
     } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not save menu availability.') }
@@ -739,8 +743,8 @@ export function UserCreationPage() {
     try {
       const current = editingRoleId ? accessConfig?.roles.find(role => role.id === editingRoleId) : undefined
       const res = editingRoleId
-        ? await accessApi.updateRole(editingRoleId, { ...roleDraft, isActive: current?.isActive ?? true })
-        : await accessApi.createRole(roleDraft)
+        ? await accessApi.updateRole(editingRoleId, { ...roleDraft, isActive: current?.isActive ?? true }, accessBusinessId)
+        : await accessApi.createRole(roleDraft, accessBusinessId)
       if (res.success) {
         setRoleDraft({name:'',description:'',allowedMenus:[]})
         setEditingRoleId(null)
@@ -757,8 +761,8 @@ export function UserCreationPage() {
     try {
       const current = editingGroupId ? accessConfig?.groups.find(group => group.id === editingGroupId) : undefined
       const res = editingGroupId
-        ? await accessApi.updateGroup(editingGroupId, { ...groupDraft, isActive: current?.isActive ?? true })
-        : await accessApi.createGroup(groupDraft)
+        ? await accessApi.updateGroup(editingGroupId, { ...groupDraft, isActive: current?.isActive ?? true }, accessBusinessId)
+        : await accessApi.createGroup(groupDraft, accessBusinessId)
       if (res.success) {
         setGroupDraft({name:'',description:'',roleIds:[]})
         setEditingGroupId(null)
@@ -771,21 +775,21 @@ export function UserCreationPage() {
   const toggleGroupUser = async (groupId: string, current: string[], userId: string) => {
     setAccessMessage('')
     try {
-      const res = await accessApi.assignUsers(groupId, toggleValue(current, userId))
+      const res = await accessApi.assignUsers(groupId, toggleValue(current, userId), accessBusinessId)
       if (res.success) await loadAccess(); else setAccessMessage(res.message || 'Could not update group members.')
     } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update group members.') }
   }
   const updateAccessRole = async (role: AccessConfig['roles'][number], isActive = role.isActive) => {
     setAccessMessage('')
     try {
-      const res = await accessApi.updateRole(role.id, {...role,isActive})
+      const res = await accessApi.updateRole(role.id, {...role,isActive}, accessBusinessId)
       if (res.success) await loadAccess(); else setAccessMessage(res.message || 'Could not update role.')
     } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update role.') }
   }
   const updateAccessGroup = async (group: AccessConfig['groups'][number], isActive = group.isActive) => {
     setAccessMessage('')
     try {
-      const res = await accessApi.updateGroup(group.id, {...group,isActive})
+      const res = await accessApi.updateGroup(group.id, {...group,isActive}, accessBusinessId)
       if (res.success) await loadAccess(); else setAccessMessage(res.message || 'Could not update group.')
     } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update group.') }
   }
@@ -831,7 +835,7 @@ export function UserCreationPage() {
           if (group) {
             try {
               setAccessSaving('INVITE_GROUP')
-              const groupRes = await accessApi.assignUsers(group.id, [...group.userIds, res.data.id])
+              const groupRes = await accessApi.assignUsers(group.id, [...group.userIds, res.data.id], accessBusinessId)
               if (!groupRes.success) inviteMessage = `User created, but group assignment failed: ${groupRes.message || 'try again from Access groups.'}`
               await loadAccess()
             } catch (e:any) {
@@ -1030,9 +1034,10 @@ export function UserCreationPage() {
         </>
       )}
 
-      {!isSuperAdmin && accessConfig && (
+      {accessConfig && (
         <>
-          <PageHeader title="Menus, Roles & Groups" />
+          {isSuperAdmin && <Card style={{ padding: 16 }}><Select label="Business to manage" value={selectedBusinessId} onChange={setSelectedBusinessId} options={businesses.map(b => ({ value: b.id, label: `${b.name} · ${b.type}` }))} placeholder={bizLoading ? 'Loading businesses…' : 'Select business'} /></Card>}
+          <PageHeader title={`Menus, Roles & Groups${isSuperAdmin ? ` · ${businesses.find(b => b.id === selectedBusinessId)?.name || 'Selected business'}` : ''}`} />
           {accessMessage && <div style={{fontSize:13,color:'var(--b360-blue)'}}>{accessMessage}</div>}
           <div style={{fontSize:12,color:'var(--b360-text-secondary)',background:'var(--b360-surface)',border:'1px solid var(--b360-border)',borderRadius:8,padding:'10px 12px'}}>Account roles control authentication and administrative authority. Custom access roles are bundled into groups, then assigned to users to control menu access.</div>
           <div className="responsive-grid responsive-grid-2" style={{gap:16}}>
