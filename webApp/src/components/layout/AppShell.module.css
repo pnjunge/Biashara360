@@ -91,6 +91,50 @@
   padding-left: 9px;
 }
 
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navGroup > .navItem {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  background: transparent;
+}
+
+.groupChevron {
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+
+.groupChevronOpen {
+  transform: rotate(180deg);
+}
+
+.navSubItems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 30px;
+}
+
+.navSubItem {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.navSubItem:hover,
+.navSubItemActive {
+  color: white;
+  background: var(--b360-sidebar-hover);
+}
+
 .sidebar.collapsed .navItem {
   justify-content: center;
   padding: 10px 0;

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../App'
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
@@ -22,8 +22,10 @@ const navItems = [
   { key:'CUSTOMERS', to: '/customers',     icon: Users,           label: 'Customers' },
   { key:'EXPENSES', to: '/expenses',      icon: Receipt,         label: 'Expenses' },
   { key:'PAYMENTS', to: '/payments',      icon: CreditCard,      label: 'Payments' },
-  { key:'TAX', to: '/tax',           icon: Receipt,          label: 'Tax' },
-  { key:'KRA', to: '/kra',           icon: FileCheck,        label: 'KRA iTax' },
+  { key:'TAX_COMPLIANCE', icon: FileCheck, label: 'Tax & Compliance', children: [
+    { key:'TAX', to:'/tax', label:'Tax Settings' },
+    { key:'KRA', to:'/kra', label:'KRA iTax' },
+  ] },
   { key:'SOCIAL', to: '/social',        icon: MessageSquare,    label: 'Social Inbox' },
   { key:'SOCIAL_SETUP', to: '/social-onboarding', icon: Link,         label: 'Social Setup' },
   { key:'USERS', to: '/users',         icon: UserPlus,         label: 'Users & Access' },
@@ -33,6 +35,7 @@ const navItems = [
 
 export default function AppShell() {
   const { logout, user } = useAuth()
+  const location = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -40,6 +43,7 @@ export default function AppShell() {
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [allowedMenus, setAllowedMenus] = useState<Set<string> | null>(null)
   const [hospitalityEnabled, setHospitalityEnabled] = useState<boolean | null>(null)
+  const [taxComplianceOpen, setTaxComplianceOpen] = useState(() => location.pathname === '/tax' || location.pathname === '/kra')
   useEffect(() => {
     accessApi.me().then(result => {
       if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
@@ -56,7 +60,8 @@ export default function AppShell() {
   }, [user?.id])
   const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
   const visibleNavItems = navItems.filter(item => {
-    if (allowedMenus && !allowedMenus.has(item.key) && !(item.key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS'))) return false
+    const accessKeys = [item.key, ...(item.children?.map(child => child.key) || [])]
+    if (allowedMenus && !accessKeys.some(key => allowedMenus.has(key) || (key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS')))) return false
     const isHospitalityNav = item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS' || item.to === '/kitchen-display'
     if (isHospitalityNav && hospitalityEnabled !== true) return false
     if (!isStaff) return true
@@ -87,17 +92,39 @@ export default function AppShell() {
         </div>
 
         <nav className={styles.nav}>
-          {visibleNavItems.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to} to={to}
-              className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
-              title={collapsed ? label : undefined}
-              onClick={() => setMobileOpen(false)}
-            >
-              <Icon size={18} className={styles.navIcon} />
-              {!collapsed && <span>{label}</span>}
-            </NavLink>
-          ))}
+          {visibleNavItems.map(item => {
+            const Icon = item.icon
+            if (item.children) {
+              const childActive = item.children.some(child => location.pathname === child.to || location.pathname.startsWith(`${child.to}/`))
+              return (
+                <div key={item.key} className={styles.navGroup}>
+                  <button
+                    className={`${styles.navItem} ${childActive ? styles.active : ''}`}
+                    title={collapsed ? item.label : undefined}
+                    onClick={() => setTaxComplianceOpen(open => !open)}
+                  >
+                    <Icon size={18} className={styles.navIcon} />
+                    {!collapsed && <><span>{item.label}</span><ChevronDown size={14} className={`${styles.groupChevron} ${taxComplianceOpen ? styles.groupChevronOpen : ''}`} /></>}
+                  </button>
+                  {!collapsed && taxComplianceOpen && (
+                    <div className={styles.navSubItems}>
+                      {item.children.map(child => (
+                        <NavLink key={child.to} to={child.to} className={({ isActive }) => `${styles.navSubItem} ${isActive ? styles.navSubItemActive : ''}`} onClick={() => setMobileOpen(false)}>
+                          <span>{child.label}</span>
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+            return (
+              <NavLink key={item.to} to={item.to!} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`} title={collapsed ? item.label : undefined} onClick={() => setMobileOpen(false)}>
+                <Icon size={18} className={styles.navIcon} />
+                {!collapsed && <span>{item.label}</span>}
+              </NavLink>
+            )
+          })}
         </nav>
 
         <div className={styles.sidebarBottom}>
