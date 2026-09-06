@@ -31,6 +31,8 @@ import io.ktor.client.call.body
 import io.ktor.client.request.*
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
@@ -167,7 +169,13 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
         }
     }
 
-    LaunchedEffect(Unit) { loadData() }
+    LaunchedEffect(Unit) {
+        loadData()
+        while (isActive) {
+            delay(5000)
+            loadData()
+        }
+    }
 
     fun updateTicketStatus(ticketId: String, newStatus: String) {
         scope.launch {
