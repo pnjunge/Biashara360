@@ -108,7 +108,7 @@ private val desktopNavGroups = listOf(
     DesktopNavGroup(
         key = "FINANCE",
         label = "FINANCE",
-        screens = listOf(AppScreen.Expenses, AppScreen.Payments, AppScreen.Tax, AppScreen.KRA)
+        screens = listOf(AppScreen.Expenses, AppScreen.Payments)
     ),
     DesktopNavGroup(
         key = "ENGAGEMENT",

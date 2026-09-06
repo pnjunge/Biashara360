@@ -4,7 +4,7 @@ import { useAuth } from '../../App'
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
   CreditCard, BarChart3, Settings, LogOut, Bell, Search,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, FileCheck, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Link, Download, ChefHat
+  ChevronLeft, ChevronRight, ChevronDown, Menu, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Download, ChefHat
 } from 'lucide-react'
 import styles from './AppShell.module.css'
 import PortalOrdersInbox from '../orders/PortalOrdersInbox'
@@ -22,12 +22,7 @@ const navItems = [
   { key:'CUSTOMERS', to: '/customers',     icon: Users,           label: 'Customers' },
   { key:'EXPENSES', to: '/expenses',      icon: Receipt,         label: 'Expenses' },
   { key:'PAYMENTS', to: '/payments',      icon: CreditCard,      label: 'Payments' },
-  { key:'TAX_COMPLIANCE', icon: FileCheck, label: 'Tax & Compliance', children: [
-    { key:'TAX', to:'/tax', label:'Tax Settings' },
-    { key:'KRA', to:'/kra', label:'KRA iTax' },
-  ] },
   { key:'SOCIAL', to: '/social',        icon: MessageSquare,    label: 'Social Inbox' },
-  { key:'SOCIAL_SETUP', to: '/social-onboarding', icon: Link,         label: 'Social Setup' },
   { key:'USERS', to: '/users',         icon: UserPlus,         label: 'Users & Access' },
   { key:'REPORTS', to: '/reports',       icon: BarChart3,        label: 'Reports' },
   { key:'DOWNLOADS', to: '/downloads',     icon: Download,         label: 'Download Apps' },
@@ -36,8 +31,8 @@ const navItems = [
 
 const navSectionDefinitions = [
   { key: 'OPERATIONS', label: 'OPERATIONS', itemKeys: ['HOSPITALITY', 'HOSPITALITY_OPS', 'OPEN_TABS', 'INVENTORY', 'ORDERS', 'CUSTOMERS'] },
-  { key: 'FINANCE', label: 'FINANCE', itemKeys: ['EXPENSES', 'PAYMENTS', 'TAX_COMPLIANCE'] },
-  { key: 'ENGAGEMENT', label: 'ENGAGEMENT', itemKeys: ['SOCIAL', 'SOCIAL_SETUP', 'REPORTS', 'DOWNLOADS'] },
+  { key: 'FINANCE', label: 'FINANCE', itemKeys: ['EXPENSES', 'PAYMENTS'] },
+  { key: 'ENGAGEMENT', label: 'ENGAGEMENT', itemKeys: ['SOCIAL', 'REPORTS', 'DOWNLOADS'] },
   { key: 'ADMINISTRATION', label: 'ADMINISTRATION', itemKeys: ['USERS', 'SETTINGS'] },
 ]
 
@@ -51,16 +46,12 @@ export default function AppShell() {
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [allowedMenus, setAllowedMenus] = useState<Set<string> | null>(null)
   const [hospitalityEnabled, setHospitalityEnabled] = useState<boolean | null>(null)
-  const [taxComplianceOpen, setTaxComplianceOpen] = useState(() => location.pathname === '/tax' || location.pathname === '/kra')
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     OPERATIONS: true,
     FINANCE: true,
     ENGAGEMENT: true,
     ADMINISTRATION: true,
   })
-  useEffect(() => {
-    if (location.pathname === '/tax' || location.pathname === '/kra') setTaxComplianceOpen(true)
-  }, [location.pathname])
   useEffect(() => {
     accessApi.me().then(result => {
       if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
@@ -77,7 +68,7 @@ export default function AppShell() {
   }, [user?.id])
   const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
   const visibleNavItems = navItems.filter(item => {
-    const accessKeys = [item.key, ...(item.children?.map(child => child.key) || [])]
+    const accessKeys = [item.key]
     if (allowedMenus && !accessKeys.some(key => allowedMenus.has(key) || (key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS')))) return false
     const isHospitalityNav = item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS' || item.to === '/kitchen-display'
     if (isHospitalityNav && hospitalityEnabled !== true) return false
@@ -93,30 +84,6 @@ export default function AppShell() {
 
   const renderNavItem = (item: typeof navItems[number]) => {
     const Icon = item.icon
-    if (item.children) {
-      const childActive = item.children.some(child => location.pathname === child.to || location.pathname.startsWith(`${child.to}/`))
-      return (
-        <div key={item.key} className={styles.navGroup}>
-          <button
-            className={`${styles.navItem} ${childActive ? styles.active : ''}`}
-            title={collapsed ? item.label : undefined}
-            onClick={() => setTaxComplianceOpen(open => !open)}
-          >
-            <Icon size={18} className={styles.navIcon} />
-            {!collapsed && <><span>{item.label}</span><ChevronDown size={14} className={`${styles.groupChevron} ${taxComplianceOpen ? styles.groupChevronOpen : ''}`} /></>}
-          </button>
-          {!collapsed && taxComplianceOpen && (
-            <div className={styles.navSubItems}>
-              {item.children.map(child => (
-                <NavLink key={child.to} to={child.to} className={({ isActive }) => `${styles.navSubItem} ${isActive ? styles.navSubItemActive : ''}`} onClick={() => setMobileOpen(false)}>
-                  <span>{child.label}</span>
-                </NavLink>
-              ))}
-            </div>
-          )}
-        </div>
-      )
-    }
     return (
       <NavLink key={item.to} to={item.to!} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`} title={collapsed ? item.label : undefined} onClick={() => setMobileOpen(false)}>
         <Icon size={18} className={styles.navIcon} />

@@ -60,16 +60,6 @@ struct MoreView: View {
                     NavigationLink(destination: CyberSourceView()) {
                         Label("Card Payments", systemImage: "creditcard.and.123")
                     }
-                    DisclosureGroup {
-                        NavigationLink(destination: TaxView()) {
-                            Label("Tax Settings", systemImage: "percent")
-                        }
-                        NavigationLink(destination: KraView()) {
-                            Label("KRA iTax", systemImage: "doc.badge.checkmark")
-                        }
-                    } label: {
-                        Label("Tax & Compliance", systemImage: "doc.text.fill")
-                    }
                 }
 
                 Section("Engagement") {
@@ -82,6 +72,19 @@ struct MoreView: View {
                 }
 
                 Section("Administration") {
+                    DisclosureGroup {
+                        NavigationLink(destination: TaxView()) {
+                            Label("Tax Settings", systemImage: "percent")
+                        }
+                        NavigationLink(destination: KraView()) {
+                            Label("KRA iTax", systemImage: "doc.badge.checkmark")
+                        }
+                    } label: {
+                        Label("Tax & Compliance", systemImage: "doc.text.fill")
+                    }
+                    Link(destination: URL(string: "https://biashara360.co.ke/social-onboarding")!) {
+                        Label("Social Setup", systemImage: "link")
+                    }
                     NavigationLink(destination: SettingsView()) {
                         Label("Settings", systemImage: "gearshape.fill")
                     }

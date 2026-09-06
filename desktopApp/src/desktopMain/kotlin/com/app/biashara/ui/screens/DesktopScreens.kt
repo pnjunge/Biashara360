@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import java.io.File
+import java.util.Base64
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -2961,14 +2962,17 @@ enum class SettingsTab(val title: String, val icon: ImageVector) {
     General("General Settings", Icons.Default.Settings),
     Mpesa("M-Pesa Config", Icons.Default.Phone),
     CyberSource("CyberSource Config", Icons.Default.CreditCard),
-    Receipt("Receipt Customization", Icons.Default.ReceiptLong)
+    Receipt("Receipt Customization", Icons.Default.ReceiptLong),
+    TaxCompliance("Tax & Compliance", Icons.Default.AccountBalance),
+    SocialSetup("Social Setup", Icons.Default.Share)
 }
 
 @Composable
 fun SettingsTabChip(
     tab: SettingsTab,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    titleOverride: String? = null
 ) {
     val bg = if (isSelected) Color(0xFFE6F7F0) else Color.White
     val border = if (isSelected) null else BorderStroke(1.dp, Color(0xFFE2E8F0))
@@ -2995,7 +2999,7 @@ fun SettingsTabChip(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = tab.title,
+                text = titleOverride ?: tab.title,
                 color = contentColor,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp
@@ -3009,6 +3013,7 @@ fun DesktopSettingsScreen(
     viewModel: BusinessViewModel = remember { inject() }
 ) {
     var activeTab by remember { mutableStateOf(SettingsTab.General) }
+    var activeTaxSection by remember { mutableStateOf("tax") }
 
     Column(
         Modifier
@@ -3198,7 +3203,7 @@ fun DesktopSettingsScreen(
                                                 java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)
                                             ) {
                                                 java.awt.Desktop.getDesktop().browse(
-                                                    java.net.URI("https://enw9p7mvty.us-east-1.awsapprunner.com/settings")
+                                                    java.net.URI("https://biashara360.co.ke/settings")
                                                 )
                                             }
                                         }
@@ -3247,6 +3252,50 @@ fun DesktopSettingsScreen(
                 }
                 SettingsTab.Receipt -> {
                     DesktopReceiptTemplateScreen()
+                }
+                SettingsTab.TaxCompliance -> {
+                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            listOf("tax" to "Tax Settings", "kra" to "KRA iTax").forEach { (key, label) ->
+                                SettingsTabChip(
+                                    tab = SettingsTab.TaxCompliance,
+                                    isSelected = activeTaxSection == key,
+                                    onClick = { activeTaxSection = key },
+                                    titleOverride = label
+                                )
+                            }
+                        }
+                        Box(Modifier.fillMaxWidth().weight(1f)) {
+                            if (activeTaxSection == "tax") DesktopTaxModernScreen() else DesktopKraModernScreen()
+                        }
+                    }
+                }
+                SettingsTab.SocialSetup -> {
+                    Column(
+                        Modifier.fillMaxSize().padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        SettingsSection(
+                            title = "Social Setup",
+                            subtitle = "Connect and manage customer messaging channels",
+                            icon = Icons.Default.Share
+                        ) {
+                            Text(
+                                "Social channel connection and onboarding are managed in the secure web settings workspace.",
+                                color = Color(0xFF64748B),
+                                fontSize = 13.sp
+                            )
+                            Button(
+                                onClick = { openDesktopWeb("/social-onboarding") },
+                                colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Default.OpenInNew, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("Open Social Setup")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -3979,6 +4028,7 @@ fun DesktopReceiptTemplateScreen(
 
     var header by remember { mutableStateOf("Welcome to our store!") }
     var footer by remember { mutableStateOf("Thank you for shopping with us!") }
+    var receiptLogo by remember { mutableStateOf<String?>(null) }
     var showTax by remember { mutableStateOf(true) }
     var showCustomer by remember { mutableStateOf(true) }
 
@@ -3988,6 +4038,7 @@ fun DesktopReceiptTemplateScreen(
             footer = prof.receiptFooter.take(60)
             showTax = prof.receiptShowTax
             showCustomer = prof.receiptShowCustomer
+            receiptLogo = prof.receiptLogo
         }
     }
 
@@ -4027,6 +4078,7 @@ fun DesktopReceiptTemplateScreen(
                             prof.copy(
                                 receiptHeader = header,
                                 receiptFooter = footer,
+                                receiptLogo = receiptLogo,
                                 receiptShowTax = showTax,
                                 receiptShowCustomer = showCustomer
                             )
@@ -4134,6 +4186,34 @@ fun DesktopReceiptTemplateScreen(
                             style = MaterialTheme.typography.titleMedium,
                             color = Color(0xFF1E293B)
                         )
+                        HorizontalDivider(color = Color(0xFFE2E8F0))
+
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Receipt Logo", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF1E293B))
+                            Text("Add a PNG, JPEG, or WebP logo (maximum 500 KB)", fontSize = 11.sp, color = Color(0xFF64748B))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Button(onClick = {
+                                    val dialog = java.awt.FileDialog(null as java.awt.Frame?, "Choose receipt logo", java.awt.FileDialog.LOAD)
+                                    dialog.setFilenameFilter(java.io.FilenameFilter { _, name -> name.lowercase().endsWith(".png") || name.lowercase().endsWith(".jpg") || name.lowercase().endsWith(".jpeg") || name.lowercase().endsWith(".webp") })
+                                    dialog.isVisible = true
+                                    val selectedName = dialog.file
+                                    val selected = if (selectedName != null && dialog.directory != null) File(dialog.directory, selectedName) else null
+                                    if (selected != null && selected.length() <= 500 * 1024) {
+                                        val extension = selected.extension.lowercase().let { if (it == "jpg") "jpeg" else it }
+                                        receiptLogo = "data:image/$extension;base64,${Base64.getEncoder().encodeToString(selected.readBytes())}"
+                                    }
+                                }, colors = ButtonDefaults.buttonColors(containerColor = B360Green), shape = RoundedCornerShape(8.dp)) {
+                                    Icon(Icons.Default.Image, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Choose image")
+                                }
+                                if (!receiptLogo.isNullOrBlank()) {
+                                    Text("Logo selected", color = B360Green, fontSize = 12.sp)
+                                    TextButton(onClick = { receiptLogo = null }) { Text("Remove", color = Color(0xFFDC2626)) }
+                                }
+                            }
+                        }
+
                         HorizontalDivider(color = Color(0xFFE2E8F0))
 
                         // Header Message

@@ -347,8 +347,8 @@ fun Biashara360App() {
                         }
                     },
                     onNavigateToPayments = { navController.navigate(Screen.Payments.route) },
+                    onNavigateToTax = { navController.navigate(Screen.Tax.route) },
                     onNavigateToKra = { navController.navigate(Screen.Kra.route) },
-                    onNavigateToSocial = { navController.navigate(Screen.Social.route) },
                     onNavigateToCyberSourceSettings = { navController.navigate(Screen.CyberSourceSettings.route) }
                 )
             }
@@ -582,15 +582,13 @@ fun MoreAppsBottomSheet(
                 Screen.HospitalityOperations.route to Pair(Color(0xFF00B074), Color(0xFFE6F4EA)),
                 Screen.Reports.route to Pair(Color(0xFF0284C7), Color(0xFFE0F2FE)),
                 Screen.Payments.route to Pair(Color(0xFF2563EB), Color(0xFFE8F0FE)),
-                Screen.Tax.route to Pair(Color(0xFFB45309), Color(0xFFFEF3C7)),
-                Screen.Kra.route to Pair(Color(0xFF0F766E), Color(0xFFCCFBF1)),
                 Screen.Settings.route to Pair(Color(0xFF475569), Color(0xFFF1F5F9))
             )
 
             val itemByRoute = secondaryItems.associateBy { it.screen.route }
             val groupedItems = listOf(
                 "OPERATIONS" to listOf(Screen.HospitalityOperations.route, Screen.Customers.route),
-                "FINANCE" to listOf(Screen.Payments.route, Screen.Tax.route, Screen.Kra.route),
+                "FINANCE" to listOf(Screen.Payments.route),
                 "ENGAGEMENT" to listOf(Screen.Social.route, Screen.Reports.route),
                 "ADMINISTRATION" to listOf(Screen.Settings.route)
             )
