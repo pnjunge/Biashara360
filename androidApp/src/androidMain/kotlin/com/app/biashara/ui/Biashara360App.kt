@@ -156,6 +156,8 @@ fun Biashara360App() {
             Screen.HospitalityOperations -> (enabledMenus?.contains("HOSPITALITY_OPS") == true || enabledMenus?.contains("HOSPITALITY") == true) && hospitalityEnabled
             Screen.Reports -> enabledMenus?.contains("REPORTS") == true
             Screen.Payments -> enabledMenus?.contains("PAYMENTS") == true || enabledMenus?.contains("CARD_PAYMENTS") == true
+            Screen.Tax -> enabledMenus?.contains("TAX") == true || enabledMenus?.contains("TAX_COMPLIANCE") == true
+            Screen.Kra -> enabledMenus?.contains("KRA") == true || enabledMenus?.contains("TAX_COMPLIANCE") == true
             Screen.Settings -> enabledMenus?.contains("SETTINGS") == true
             else -> true
         }
@@ -580,61 +582,83 @@ fun MoreAppsBottomSheet(
                 Screen.HospitalityOperations.route to Pair(Color(0xFF00B074), Color(0xFFE6F4EA)),
                 Screen.Reports.route to Pair(Color(0xFF0284C7), Color(0xFFE0F2FE)),
                 Screen.Payments.route to Pair(Color(0xFF2563EB), Color(0xFFE8F0FE)),
+                Screen.Tax.route to Pair(Color(0xFFB45309), Color(0xFFFEF3C7)),
+                Screen.Kra.route to Pair(Color(0xFF0F766E), Color(0xFFCCFBF1)),
                 Screen.Settings.route to Pair(Color(0xFF475569), Color(0xFFF1F5F9))
             )
 
-            val chunkedItems = secondaryItems.chunked(3)
-            chunkedItems.forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    rowItems.forEach { item ->
-                        val (iconColor, bgColor) = tileColors[item.screen.route]
-                            ?: Pair(Color(0xFF2563EB), Color(0xFFE8F0FE))
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(88.dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .clickable {
-                                    onDismiss()
-                                    navController.navigate(item.screen.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                            color = bgColor,
-                            shape = RoundedCornerShape(18.dp)
+            val itemByRoute = secondaryItems.associateBy { it.screen.route }
+            val groupedItems = listOf(
+                "OPERATIONS" to listOf(Screen.HospitalityOperations.route, Screen.Customers.route),
+                "FINANCE" to listOf(Screen.Payments.route, Screen.Tax.route, Screen.Kra.route),
+                "ENGAGEMENT" to listOf(Screen.Social.route, Screen.Reports.route),
+                "ADMINISTRATION" to listOf(Screen.Settings.route)
+            )
+
+            groupedItems.forEach { (groupLabel, routes) ->
+                val groupItems = routes.mapNotNull { itemByRoute[it] }
+                if (groupItems.isNotEmpty()) {
+                    Text(
+                        text = groupLabel,
+                        modifier = Modifier.padding(top = 4.dp),
+                        color = Color(0xFF64748B),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.6.sp
+                    )
+                    groupItems.chunked(3).forEach { rowItems ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = item.label,
-                                    tint = iconColor,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = item.label,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = iconColor,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                            rowItems.forEach { item ->
+                                val (iconColor, bgColor) = tileColors[item.screen.route]
+                                    ?: Pair(Color(0xFF2563EB), Color(0xFFE8F0FE))
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(88.dp)
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .clickable {
+                                            onDismiss()
+                                            navController.navigate(item.screen.route) {
+                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        },
+                                    color = bgColor,
+                                    shape = RoundedCornerShape(18.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxSize(),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = item.icon,
+                                            contentDescription = item.label,
+                                            tint = iconColor,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            text = item.label,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = iconColor,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                            repeat(3 - rowItems.size) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
-                    }
-                    repeat(3 - rowItems.size) {
-                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
