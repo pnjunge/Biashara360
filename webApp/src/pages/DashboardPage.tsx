@@ -4,12 +4,18 @@ import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
 import { productApi, orderApi, customerApi, reportApi, businessApi, socialApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse, InventoryCategory } from '../services/api'
 import { useAuth } from '../App'
+import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+
+const nairobiDate = (date: Date) => {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date)
+  return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type)?.value).join('-')
+}
 
 function getCurrentMonthRange() {
-  const now = new Date()
-  const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-  const endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  const now = new Date(`${nairobiDate(new Date())}T12:00:00Z`)
+  const startDate = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`
+  const lastDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate()
+  const endDate = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
   return { startDate, endDate }
 }
 
@@ -18,6 +24,9 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [dashboardPeriod, setDashboardPeriod] = useState<string>('This Month')
+  const [revenueLoading, setRevenueLoading] = useState(true)
+  const [revenueError, setRevenueError] = useState('')
+  const [revenueRetry, setRevenueRetry] = useState(0)
   const [profitSummary, setProfitSummary] = useState<ProfitSummaryResponse | null>(null)
   const [recentOrders, setRecentOrders] = useState<OrderResponse[]>([])
   const [lowStockProducts, setLowStockProducts] = useState<ProductResponse[]>([])
@@ -43,7 +52,7 @@ export default function DashboardPage() {
 
   const getDashboardDates = (period: string) => {
     const now = new Date()
-    const fmt = (d: Date) => d.toISOString().slice(0, 10)
+    const fmt = nairobiDate
     if (period === 'Today') {
       const todayStr = fmt(now)
       return { startDate: todayStr, endDate: todayStr }
@@ -55,28 +64,38 @@ export default function DashboardPage() {
     }
   }
 
-  const fetchDashboardData = (period: string) => {
-    const { startDate, endDate } = getDashboardDates(period)
+  useEffect(() => {
+    let active = true
+    setRevenueLoading(true)
+    setRevenueError('')
+    setProfitSummary(null)
+    const { startDate, endDate } = getDashboardDates(dashboardPeriod)
+    reportApi.profitSummary(startDate, endDate).then(response => {
+      if (!active) return
+      if (!response.success || !response.data) throw new Error(response.message || 'Unable to load revenue.')
+      setProfitSummary(response.data)
+      if (!response.data.dailyRevenue) setRevenueError('Daily revenue is currently unavailable. Please try again later.')
+    }).catch(error => {
+      if (active) setRevenueError(error.response?.data?.message || error.message || 'Unable to load revenue.')
+    }).finally(() => { if (active) setRevenueLoading(false) })
+    return () => { active = false }
+  }, [dashboardPeriod, revenueRetry])
+
+  useEffect(() => {
     Promise.all([
-      reportApi.profitSummary(startDate, endDate),
       orderApi.list(undefined, undefined, 5),
       productApi.list(undefined, true),
       customerApi.list(),
       customerApi.top(4),
       socialApi.getChannels().catch(() => ({ success: false, data: [] }))
-    ]).then(([ps, ord, prods, custs, topCusts, soc]) => {
-      if (ps.success && ps.data) setProfitSummary(ps.data)
+    ]).then(([ord, prods, custs, topCusts, soc]) => {
       if (ord.success && ord.data) setRecentOrders(ord.data.data)
       if (prods.success && prods.data) setLowStockProducts(prods.data)
       if (custs.success && custs.data) setCustomerCount(custs.data.length)
       if (topCusts.success && topCusts.data) setTopCustomers(topCusts.data)
       if (soc && soc.success && soc.data) setSocialChannels(soc.data)
     }).catch(() => {}).finally(() => setLoading(false))
-  }
-
-  useEffect(() => {
-    fetchDashboardData(dashboardPeriod)
-  }, [dashboardPeriod])
+  }, [])
 
   const fmt = (v: number) => `KES ${v.toLocaleString()}`
   const storefrontUrl = storefrontSlug ? `${window.location.origin}/shop/${storefrontSlug}` : ''
@@ -215,6 +234,7 @@ export default function DashboardPage() {
                   <span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Period: {dashboardPeriod}</span>
                 </div>
                 <select
+                  aria-label="Revenue period"
                   value={dashboardPeriod}
                   onChange={e => setDashboardPeriod(e.target.value)}
                   style={{
@@ -237,38 +257,20 @@ export default function DashboardPage() {
                 </select>
               </div>
 
-              {/* Custom SVG Bar Chart */}
-              <div style={{ display:'flex', width:'100%', height:200, alignItems:'flex-end', gap:12, marginTop:20 }}>
-                {/* Y Axis */}
-                <div style={{ display:'flex', flexDirection:'column', justifyContent:'space-between', height:'100%', paddingBottom:20, fontSize:10, color:'var(--b360-text-secondary)', textAlign:'right', minWidth:30 }}>
-                  <span>400K</span>
-                  <span>300K</span>
-                  <span>200K</span>
-                  <span>100K</span>
-                  <span>0</span>
-                </div>
-                {/* Bars */}
-                <div style={{ display:'flex', flex:1, height:'100%', justifyContent:'space-around', alignItems:'flex-end' }}>
-                  {[
-                    { day: 'Mon', val: 18000 },
-                    { day: 'Tue', val: 24000 },
-                    { day: 'Wed', val: 19000 },
-                    { day: 'Thu', val: 31000 },
-                    { day: 'Fri', val: 27000 },
-                    { day: 'Sat', val: 22000 },
-                    { day: 'Sun', val: 34000 }
-                  ].map((d, idx) => {
-                    const maxVal = 34000
-                    const heightPercent = `${(d.val / maxVal) * 80}%`
-                    return (
-                      <div key={idx} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:8 }}>
-                        <div style={{ width:24, height:heightPercent, background:'var(--b360-green)', borderRadius:'4px 4px 0 0' }} />
-                        <span style={{ fontSize:11, color:'var(--b360-text-secondary)', fontWeight:500 }}>{d.day}</span>
-                      </div>
-                    )
-                  })}
-                </div>
+              <div style={{ width:'100%', height:240, minWidth:0 }} aria-label="Daily revenue chart">
+                {revenueLoading ? <Skeleton height={220} /> : revenueError ? <div role="alert" style={{ padding:20, color:'var(--b360-red)' }}>{revenueError}<div style={{ marginTop:12 }}><Btn small variant="secondary" onClick={() => setRevenueRetry(value => value + 1)}>Retry</Btn></div></div> : !profitSummary?.dailyRevenue?.some(point => point.revenue !== 0) ? <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No paid sales in this period.</div> : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={profitSummary.dailyRevenue} margin={{ top:10, right:12, bottom:8, left:0 }} accessibilityLayer>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5ebe8" />
+                      <XAxis dataKey="date" tickFormatter={value => new Date(`${value}T12:00:00Z`).toLocaleDateString('en-KE', { day:'numeric', month:'short', timeZone:'Africa/Nairobi' })} tick={{ fontSize:10 }} minTickGap={24} />
+                      <YAxis width={65} tick={{ fontSize:10 }} tickFormatter={value => new Intl.NumberFormat('en-KE', { notation:'compact' }).format(value)} />
+                      <Tooltip formatter={(value: number) => [fmt(value), 'Revenue']} labelFormatter={value => `Date: ${value}`} />
+                      <Bar dataKey="revenue" name="Revenue" fill="var(--b360-green)" radius={[4,4,0,0]} maxBarSize={40} isAnimationActive={false} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
+              <p style={{ marginTop:8, fontSize:11, color:'var(--b360-text-secondary)' }}>Paid orders by order date · KES · Nairobi time</p>
             </Card>
 
             {/* Quick Alerts Card */}

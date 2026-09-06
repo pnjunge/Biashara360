@@ -453,8 +453,12 @@ data class ProfitSummaryResponse(
     val netProfit: Double,
     val netMargin: Double,
     val cashflowIn: Double,
-    val cashflowOut: Double
+    val cashflowOut: Double,
+    val dailyRevenue: List<DailyRevenueResponse> = emptyList()
 )
+
+@Serializable
+data class DailyRevenueResponse(val date: String, val revenue: Double)
 
 // ─── User Management ──────────────────────────────────────────────────────────
 

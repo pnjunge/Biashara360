@@ -183,6 +183,7 @@ export interface ProfitSummaryResponse {
   period: string; totalRevenue: number; totalCostOfGoods: number
   grossProfit: number; grossMargin: number; totalExpenses: number
   netProfit: number; netMargin: number; cashflowIn: number; cashflowOut: number
+  dailyRevenue?: Array<{ date: string; revenue: number }>
 }
 
 export interface ReportBreakdown { label: string; count: number; amount: number }
