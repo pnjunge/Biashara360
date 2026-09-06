@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PageHeader, Card, Btn, Input, Select } from '../components/ui'
-import { Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard, CheckCircle, Store, Smartphone, Printer, UtensilsCrossed } from 'lucide-react'
-import { orderApi, productApi, customerApi, paymentApi, settingsApi, businessApi, hospitalityApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse, BusinessProfileResponse, HospitalityTable } from '../services/api'
+import { Card, Btn, Input, Select } from '../components/ui'
+import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, CheckCircle, Store, Smartphone, Printer, UtensilsCrossed, ChevronRight, Clock3, Grid2X2, List, MoreVertical, Utensils, WalletCards } from 'lucide-react'
+import { orderApi, productApi, customerApi, paymentApi, settingsApi, businessApi, hospitalityApi, hospitalityOpsApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse, BusinessProfileResponse, HospitalityTable } from '../services/api'
 import { printOrderReceipt } from '../utils/receipt'
 
 interface CartItem {
@@ -18,6 +18,7 @@ export function PosPage() {
   
   // Hospitality Mode State
   const [hospitalityEnabled, setHospitalityEnabled] = useState(false)
+  const [shiftOpen, setShiftOpen] = useState(false)
   const [tables, setTables] = useState<HospitalityTable[]>([])
   const [selectedTableId, setSelectedTableId] = useState('')
   const [serviceType, setServiceType] = useState<'DINE_IN' | 'TAKEAWAY' | 'DELIVERY'>('DINE_IN')
@@ -79,8 +80,9 @@ export function PosPage() {
       customerApi.list(),
       settingsApi.getMpesaChannels(),
       businessApi.getProfile(),
-      hospitalityApi.status().catch(() => ({ success: false, data: { enabled: false } }))
-    ]).then(([prodRes, custRes, mpesaRes, profileRes, hospRes]) => {
+      hospitalityApi.status().catch(() => ({ success: false, data: { enabled: false } })),
+      hospitalityOpsApi.dashboard().catch(() => ({ success: false, data: null }))
+    ]).then(([prodRes, custRes, mpesaRes, profileRes, hospRes, opsRes]) => {
       if (prodRes.success && prodRes.data) setProducts(prodRes.data)
       if (custRes.success && custRes.data) setCustomers(custRes.data)
       if (mpesaRes.success && mpesaRes.data) {
@@ -98,12 +100,11 @@ export function PosPage() {
             if (paramTableId && dRes.data.tables.some(t => t.id === paramTableId)) {
               setSelectedTableId(paramTableId)
               setServiceType('DINE_IN')
-            } else if (dRes.data.tables.length > 0) {
-              setSelectedTableId(dRes.data.tables[0].id)
             }
           }
         })
       }
+      if (opsRes.success && opsRes.data) setShiftOpen(opsRes.data.shifts?.some((shift: { status: string }) => shift.status === 'OPEN') ?? false)
     }).catch(err => {
       console.error("Failed to load POS resources", err)
     }).finally(() => setLoading(false))
@@ -234,6 +235,7 @@ export function PosPage() {
 
   const handleOpenHospitalityTab = async () => {
     if (cart.length === 0) { setError('Your shopping cart is empty.'); return }
+    if (hospitalityEnabled && serviceType === 'DINE_IN' && !selectedTableId) { setError('Select a table before placing a dine-in order.'); return }
     setIsOpeningTab(true)
     setError('')
     try {
@@ -272,6 +274,7 @@ export function PosPage() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) { setError('Your shopping cart is empty.'); return }
+    if (hospitalityEnabled && serviceType === 'DINE_IN' && !selectedTableId) { setError('Select a table before completing a dine-in order.'); return }
     if (paymentMethod !== 'CASH' && (!customerName.trim() || !customerPhone.trim())) {
       setError('Please provide customer name and phone number for M-Pesa or card payment.');
       return
@@ -332,8 +335,20 @@ export function PosPage() {
 
   return (
     <div className="fade-in pos-page-layout" style={{ display: 'flex', flexDirection: 'column', gap: 20, height: 'calc(100vh - 120px)' }}>
-      <PageHeader title="Point of Sale" />
-      <p style={{ color: 'var(--b360-text-secondary)', fontSize: 13, marginTop: -15, marginBottom: 10 }}>Process in-store checkout orders instantly</p>
+      <div className="pos-page-heading">
+        <div>
+          <div className="pos-breadcrumb"><Store size={16} /> <span>Point of Sale</span></div>
+          <h1>Point of Sale</h1>
+          <p>Fast checkout · touch and keyboard ready</p>
+        </div>
+        <div className="pos-heading-actions">
+          <span className="pos-state-pill"><Clock3 size={13} /><span className={`pos-state-dot ${shiftOpen ? '' : 'is-muted'}`} /> {shiftOpen ? 'Shift active' : 'Shift closed'}</span>
+          <span className="pos-state-pill">Terminal 01</span>
+          <span className="pos-state-pill"><WalletCards size={13} /> eTIMS ready</span>
+          <span className="pos-online-pill"><span /> Oracle POS online</span>
+        </div>
+      </div>
+      {hospitalityEnabled && <div className="pos-hospitality-banner"><div><Utensils size={19} /><strong>Hospitality mode active · Unified POS interface</strong></div><button type="button" onClick={() => document.querySelector('.pos-order-context')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>Select a table <ChevronRight size={17} /></button></div>}
 
       {/* ── Card Payment Link Modal ── */}
       {cardModalOrder && (
@@ -551,13 +566,13 @@ export function PosPage() {
           </div>
         </Card>
       ) : (
-        <div className="split-layout" style={{ flex: 1, minHeight: 0 }}>
+        <div className="split-layout pos-workspace" style={{ flex: 1, minHeight: 0 }}>
           
           {/* Left Column: Product Catalog */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0 }}>
             
             <Card style={{ padding: 16 }}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="pos-catalog-toolbar-main" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
                   <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'gray' }} />
                   <input
@@ -567,7 +582,9 @@ export function PosPage() {
                     onChange={e => setSearchQuery(e.target.value)}
                   />
                 </div>
-                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+                <div className="pos-view-toggle"><button type="button" aria-label="List view"><List size={16} /></button><button type="button" aria-label="Grid view" className="active"><Grid2X2 size={16} /></button><button type="button" className="pos-all-toggle">All</button></div>
+              </div>
+              <div className="pos-category-strip" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
                   {categories.map(cat => (
                     <button
                       key={cat}
@@ -575,8 +592,8 @@ export function PosPage() {
                       style={{
                         padding: '8px 14px',
                         borderRadius: 20,
-                        border: 'none',
-                        backgroundColor: selectedCategory === cat ? 'var(--b360-green)' : 'var(--b360-border)',
+                        backgroundColor: selectedCategory === cat ? 'var(--b360-green)' : 'white',
+                        border: selectedCategory === cat ? '1px solid var(--b360-green)' : '1px solid var(--b360-border)',
                         color: selectedCategory === cat ? 'white' : 'var(--b360-sidebar-bg)',
                         fontSize: 13,
                         fontWeight: 600,
@@ -585,10 +602,9 @@ export function PosPage() {
                         transition: 'all 0.2s'
                       }}
                     >
-                      {cat}
+                      {cat === 'All' ? <><Grid2X2 size={13} /> All Items</> : cat}
                     </button>
                   ))}
-                </div>
               </div>
             </Card>
 
@@ -598,11 +614,12 @@ export function PosPage() {
               ) : filteredProducts.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 40, color: 'var(--b360-text-secondary)' }}>No active products match your criteria.</div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
+                <div className="pos-product-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
                   {filteredProducts.map(p => {
                     const isOutOfStock = p.currentStock <= 0
                     return (
-                      <div
+                        <div
+                        className="pos-product-card"
                         key={p.id}
                         onClick={() => !isOutOfStock && addToCart(p)}
                         style={{
@@ -621,8 +638,8 @@ export function PosPage() {
                         onMouseEnter={e => { if(!isOutOfStock) e.currentTarget.style.borderColor = 'var(--b360-green)' }}
                         onMouseLeave={e => { if(!isOutOfStock) e.currentTarget.style.borderColor = 'var(--b360-border)' }}
                       >
-                        <div style={{ height: 100, backgroundColor: 'var(--b360-surface)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--b360-green)', fontWeight: 800, fontSize: 24 }}>
-                          {p.name.substring(0, 2).toUpperCase()}
+                        <div className="pos-product-media" style={{ height: 100, backgroundColor: 'var(--b360-surface)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--b360-green)', fontWeight: 800, fontSize: 24 }}>
+                          {p.imageUrl ? <img src={p.imageUrl} alt="" onError={event => { event.currentTarget.style.display = 'none' }} /> : p.name.substring(0, 2).toUpperCase()}
                         </div>
                         <div>
                           <div style={{ fontSize: 12, color: 'gray', fontFamily: 'monospace' }}>{p.sku}</div>
@@ -651,18 +668,14 @@ export function PosPage() {
           </div>
 
           {/* Right Column: Checkout Cart */}
-          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div className="pos-order-column" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <Card style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 20, gap: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--b360-border)', paddingBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: 'var(--b360-sidebar-bg)', fontSize: 16 }}>
-                  <ShoppingCart size={18} />
-                  Checkout Cart ({cart.reduce((sum, i) => sum + i.quantity, 0)})
+              <div className="pos-order-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--b360-border)', paddingBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700, color: 'var(--b360-sidebar-bg)', fontSize: 17 }}>
+                  <span className="pos-order-icon"><ShoppingCart size={18} /></span>
+                  Current Order
                 </div>
-                {cart.length > 0 && (
-                  <button onClick={clearCart} style={{ color: 'var(--b360-red)', border: 'none', background: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                    Clear
-                  </button>
-                )}
+                <button className="pos-more-button" type="button" aria-label={cart.length ? 'Clear order' : 'Order actions'} disabled={!cart.length} onClick={cart.length ? clearCart : undefined}><MoreVertical size={19} /></button>
               </div>
 
               {error && (
@@ -673,10 +686,10 @@ export function PosPage() {
 
               <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {cart.length === 0 ? (
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--b360-text-secondary)', gap: 8 }}>
-                    <ShoppingCart size={32} style={{ opacity: 0.3 }} />
-                    <span style={{ fontSize: 13 }}>Cart is currently empty.</span>
-                    <span style={{ fontSize: 11, textAlign: 'center', opacity: 0.7 }}>Click on catalog products to assemble an order.</span>
+                  <div className="pos-empty-order" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--b360-text-secondary)', gap: 8 }}>
+                    <span className="pos-empty-icon"><ShoppingCart size={35} /></span>
+                    <strong>Your order is empty</strong>
+                    <span>Search and add items to get started</span>
                   </div>
                 ) : (
                   cart.map(item => (
@@ -707,7 +720,7 @@ export function PosPage() {
 
               <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {hospitalityEnabled && (
-                  <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div className="pos-order-context" style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--b360-sidebar-bg)', display: 'flex', alignItems: 'center', gap: 6 }}>
                       🍽️ Hospitality Order Context
                     </div>
@@ -732,15 +745,15 @@ export function PosPage() {
                         </button>
                       ))}
                     </div>
-                    {serviceType === 'DINE_IN' && tables.length > 0 && (
+                    {serviceType === 'DINE_IN' && (
                       <Select
-                        label="Select Table"
+                        label="Table *"
                         value={selectedTableId}
                         onChange={setSelectedTableId}
-                        options={tables.map(t => ({
+                        options={[{ value: '', label: tables.length ? 'Select a table (required)' : 'No tables configured' }, ...tables.map(t => ({
                           value: t.id,
                           label: `${t.name} (${t.area}) — ${t.status}`
-                        }))}
+                        }))]}
                       />
                     )}
                     <Input
