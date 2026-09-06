@@ -158,10 +158,11 @@ export default function AppShell() {
             <Search size={16} className={styles.searchIcon} />
             <input
               className={styles.searchInput}
-              placeholder="Search anything..."
+              placeholder="Search orders, tables, menu items..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
+            <span className={styles.searchShortcut}>Ctrl + K</span>
           </div>
 
           <div className={styles.topbarRight}>

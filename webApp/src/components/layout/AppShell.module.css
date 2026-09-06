@@ -244,6 +244,20 @@
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
   background: white;
 }
+.searchShortcut {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  padding: 3px 7px;
+  color: var(--b360-text-secondary);
+  font-size: 10px;
+  line-height: 1.2;
+  border: 1px solid var(--b360-border);
+  border-radius: 5px;
+  background: white;
+  pointer-events: none;
+}
 
 .topbarRight {
   display: flex;
@@ -452,6 +466,7 @@
   .searchWrap { max-width: none; min-width: 0; }
   .searchInput { padding: 9px 10px 9px 34px; font-size: 12px; }
   .searchIcon { left: 11px; }
+  .searchShortcut { display: none; }
   .topbarRight { gap: 6px; }
   .topbarUserCard { padding: 5px; border: 0; }
   .topbarUserInfo, .chevronDown { display: none; }

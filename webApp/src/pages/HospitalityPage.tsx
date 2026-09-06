@@ -2,8 +2,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChefHat,
+  CheckCircle2,
   Clock,
+  Home,
+  MoreHorizontal,
   Minus,
+  Package,
   Pencil,
   Plus,
   Printer,
@@ -51,6 +55,8 @@ export default function HospitalityPage() {
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [hubTab, setHubTab] = useState<"FLOOR" | "TABS" | "KDS" | "OPS">("KDS");
   const [modalError, setModalError] = useState("");
   const [showTable, setShowTable] = useState(false);
   const [tableDraft, setTableDraft] = useState({
@@ -254,6 +260,7 @@ export default function HospitalityPage() {
   const advanceTicket = async (id: string, status: string) => {
     try {
       await hospitalityApi.updateTicket(id, status);
+      setSuccessMessage(`Ticket updated to ${status}`);
       await load();
     } catch (e: any) {
       setError(e.response?.data?.message || "Could not update ticket.");
@@ -311,360 +318,67 @@ export default function HospitalityPage() {
       <Card style={{ padding: 32, maxWidth: 620 }}>
         <PageHeader title="Bar & Restaurant" />
         <p style={{ color: "var(--b360-text-secondary)", marginBottom: 18 }}>
-          Enable hospitality mode to manage tables, tabs, kitchen tickets, and
-          bar orders.
+          Enable hospitality mode to manage tables, tabs, kitchen tickets, and bar orders.
         </p>
         {error && <p style={{ color: "var(--b360-red)" }}>{error}</p>}
-        {isAdmin ? (
-          <Btn disabled={saving} onClick={() => toggleHospitality(true)}>
-            {saving ? "Enabling…" : "Enable hospitality mode"}
-          </Btn>
-        ) : (
-          <p>An administrator must enable hospitality mode.</p>
-        )}
+        {isAdmin ? <Btn disabled={saving} onClick={() => toggleHospitality(true)}>{saving ? "Enabling…" : "Enable hospitality mode"}</Btn> : <p>An administrator must enable hospitality mode.</p>}
       </Card>
     );
 
   return (
-    <div
-      className="fade-in"
-      style={{ display: "flex", flexDirection: "column", gap: 18 }}
-    >
-      <PageHeader
-        title="Bar & Restaurant"
-        action={
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Btn
-              variant="secondary"
-              icon={<RefreshCw size={14} />}
-              onClick={load}
-            >
-              Refresh
-            </Btn>
-            {isAdmin && (
-              <Btn
-                variant="secondary"
-                onClick={async () => {
-                  if (
-                    window.confirm(
-                      "Disable hospitality mode? All tabs and kitchen/bar tickets must be completed first.",
-                    )
-                  ) {
-                    await toggleHospitality(false);
-                  }
-                }}
-              >
-                Disable mode
-              </Btn>
-            )}
-            {isAdmin && (
-              <Btn icon={<Plus size={14} />} onClick={() => openTableEditor()}>
-                Add table
-              </Btn>
-            )}
-            <Btn
-              icon={<UtensilsCrossed size={14} />}
-              onClick={() => openOrder()}
-            >
-              Takeaway order
-            </Btn>
-            <Btn variant="secondary" icon={<ChefHat size={14}/>} onClick={()=>window.location.assign('/kitchen-display')}>Kitchen display</Btn>
-          </div>
-        }
-      />
-      {error && (
-        <div
-          style={{
-            padding: 10,
-            background: "var(--b360-red-bg)",
-            color: "var(--b360-red)",
-            borderRadius: 8,
-          }}
-        >
-          {error}
+    <div className="hospitality-hub fade-in">
+      <div className="hub-header">
+        <div>
+          <div className="hub-breadcrumb"><Home size={16} /> <span>Bar &amp; Restaurant</span></div>
+          <h1>Hospitality &amp; Restaurant Hub</h1>
+          <p>Live floor plan, kitchen display system (KDS), open tabs and settlement controls</p>
         </div>
-      )}
-      <div className="responsive-grid responsive-grid-3">
-        <KpiCard
-          title="Tables"
-          value={String(data.tables.length)}
-          change={`${data.tables.filter((t) => t.status === "OCCUPIED").length} occupied`}
-          icon={<Users size={18} />}
-          color="var(--b360-blue)"
-        />
-        <KpiCard
-          title="Open tabs"
-          value={String(data.openTabs.length)}
-          change={`KES ${data.openTabs.reduce((s, o) => s + o.subtotal, 0).toLocaleString()}`}
-          icon={<UtensilsCrossed size={18} />}
-          color="var(--b360-amber)"
-        />
-        <KpiCard
-          title="Active tickets"
-          value={String(
-            data.tickets.filter(
-              (t) => t.station === "KITCHEN" && !["SERVED", "CANCELLED"].includes(t.status),
-            ).length,
-          )}
-          change="Kitchen"
-          icon={<ChefHat size={18} />}
-          color="var(--b360-green)"
-        />
+        <div className="hub-header-actions">
+          <div className="hub-date"><Clock size={17} /><span>{new Date().toLocaleDateString('en-KE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}<strong>{new Date().toLocaleTimeString('en-KE', { hour:'2-digit', minute:'2-digit' })}</strong></span></div>
+          {isAdmin && <Btn icon={<Plus size={15} />} onClick={() => openTableEditor()}>Add Table</Btn>}
+          <Btn variant="secondary" icon={<RefreshCw size={14} />} onClick={load}>Refresh</Btn>
+        </div>
       </div>
 
-      <h2 style={{ fontSize: 17 }}>Floor & tables</h2>
-      {receiptProfile?.storefrontSlug && <a href={`/shop/${encodeURIComponent(receiptProfile.storefrontSlug)}/qr`} target="_blank" rel="noreferrer">Print customer ordering QR codes for your shop and tables</a>}
-      {data.tables.length===0&&<Card style={{padding:20,color:'var(--b360-text-secondary)'}}>No tables configured. Add a table to begin dine-in service, or use Takeaway order.</Card>}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))",
-          gap: 12,
-        }}
-      >
-        {data.tables.map((table) => {
-          const tableTabs = data.openTabs.filter(
-            (tab) => tab.hospitalityTableId === table.id,
-          );
-          return (
-            <Card
-              key={table.id}
-              style={{
-                padding: 16,
-                borderTop: `4px solid ${table.status === "OCCUPIED" ? "var(--b360-amber)" : "var(--b360-green)"}`,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 8,
-                }}
-              >
-                <b>{table.name}</b>
-                <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-                  {isAdmin && (
-                    <button
-                      aria-label={`Edit ${table.name}`}
-                      onClick={() => openTableEditor(table)}
-                      style={{
-                        border: 0,
-                        background: "transparent",
-                        cursor: "pointer",
-                        color: "var(--b360-text-secondary)",
-                      }}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  )}
-                  <StatusBadge status={table.status} />
-                </div>
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "var(--b360-text-secondary)",
-                  margin: "7px 0",
-                }}
-              >
-                {table.area} · {table.capacity} seats
-              </div>
-              {tableTabs.length > 0 ? (
-                <>
-                  <div style={{ fontSize: 12, marginBottom: 4 }}>
-                    {tableTabs.length} customer tab{tableTabs.length === 1 ? "" : "s"} · {tableTabs.reduce((sum, tab) => sum + (tab.guestCount || 1), 0)} guest(s)
-                  </div>
-                  <strong style={{ display: "block", marginBottom: 9 }}>
-                    KES {table.openAmount.toLocaleString()}
-                  </strong>
-                  <div style={{ fontSize: 11, color: "var(--b360-text-secondary)", marginBottom: 9 }}>
-                    Receipts: {tableTabs.map((tab) => tab.orderNumber).join(", ")}
-                  </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <Btn small onClick={() => navigate(`/pos?tableId=${table.id}`)}>
-                      🛒 POS Order
-                    </Btn>
-                    <Btn small variant="secondary" onClick={() => openOrder(table)}>
-                      + Tab
-                    </Btn>
-                  </div>
-                </>
-              ) : (
-                <div style={{ display: "flex", gap: 6 }}>
-                  <Btn small onClick={() => navigate(`/pos?tableId=${table.id}`)}>
-                    🛒 Order in POS
-                  </Btn>
-                  <Btn small variant="secondary" onClick={() => openOrder(table)}>
-                    Quick Tab
-                  </Btn>
-                </div>
-              )}
-            </Card>
-          );
-        })}
+      {error && <div className="hub-alert hub-alert-error">{error}<button onClick={() => setError("")} aria-label="Dismiss error">×</button></div>}
+      {successMessage && <div className="hub-alert hub-alert-success"><CheckCircle2 size={20} /><div><strong>{successMessage}</strong><span>The update has been applied in the Kitchen Display System.</span></div><button onClick={() => setSuccessMessage("")} aria-label="Dismiss success">×</button></div>}
+
+      <div className="hub-tabs" role="tablist" aria-label="Hospitality areas">
+        <button className={hubTab === "FLOOR" ? "active" : ""} onClick={() => setHubTab("FLOOR")}><Users size={18} /><span>Floor Plan &amp; Tables <b>({data.tables.length})</b></span></button>
+        <button className={hubTab === "TABS" ? "active" : ""} onClick={() => setHubTab("TABS")}><ShoppingBag size={18} /><span>Open Tabs <b>({data.openTabs.length})</b></span></button>
+        <button className={hubTab === "KDS" ? "active" : ""} onClick={() => setHubTab("KDS")}><ChefHat size={18} /><span>Kitchen KDS <b>({data.tickets.filter(t => t.station === "KITCHEN" && !["SERVED", "CANCELLED"].includes(t.status)).length})</b></span></button>
+        <button className={hubTab === "OPS" ? "active" : ""} onClick={() => setHubTab("OPS")}><Package size={18} /><span>Operations &amp; Stock</span></button>
       </div>
 
-      <h2 style={{ fontSize: 17 }}>Open tabs</h2>
-      {data.openTabs.length === 0 ? (
-        <Card style={{ padding: 20, color: "var(--b360-text-secondary)" }}>
-          No open tabs. Select an available table or create a takeaway order.
-        </Card>
-      ) : (
-        <Card>
-          <DataTable
-            headers={["Table", "Receipt / Tab", "Customer", "Guests / Items", "Open", "Amount", "Status", "Actions"]}
-            rows={data.openTabs.map((order) => {
-            const table = data.tables.find(
-              (item) => item.id === order.hospitalityTableId,
-            );
-            const available = data.tables.filter(
-              (item) => item.id !== order.hospitalityTableId,
-            );
-            return [
-              <div><b>{table?.name || order.serviceType?.replace("_", " ") || "Takeaway"}</b><div style={{fontSize:10,color:"var(--b360-text-secondary)"}}>{table?.area || "Off premises"}</div></div>,
-              <span style={{fontFamily:"monospace",fontWeight:800,color:"var(--b360-green)"}}>{order.orderNumber}</span>,
-              <div><b>{order.customerName || "Walk-in Guest"}</b><div style={{fontSize:10,color:"var(--b360-text-secondary)"}}>{order.customerPhone || "No phone"}</div></div>,
-              `${order.guestCount || 1} guest(s) · ${order.items.length} item(s)`,
-              <span><Clock size={12} style={{verticalAlign:"-2px",marginRight:4}}/>{age(order.createdAt)}</span>,
-              <strong>KES {order.subtotal.toLocaleString()}</strong>,
-              <StatusBadge status={order.tabStatus || "OPEN"} />,
-              <div style={{ display: "flex", gap: 7, flexWrap: "wrap", minWidth: 250 }}>
-                  <Btn small onClick={() => openSettlement(order)}>
-                    Settle
-                  </Btn>
-                  <Btn
-                    small
-                    variant="secondary"
-                    icon={<Printer size={12} />}
-                    onClick={() => printOrderReceipt(order, receiptProfile)}
-                  >
-                    Receipt
-                  </Btn>
-                  {table && available.length > 0 && (
-                    <select
-                      aria-label={`Transfer ${order.orderNumber}`}
-                      defaultValue=""
-                      onChange={(event) =>
-                        transferTab(order.id, event.target.value)
-                      }
-                      style={{
-                        padding: "6px 8px",
-                        border: "1px solid var(--b360-border)",
-                        borderRadius: 7,
-                        fontSize: 12,
-                      }}
-                    >
-                      <option value="">Transfer table…</option>
-                      {available.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} · {item.area}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>,
-            ];
-          })}
-          />
-        </Card>
-      )}
+      {hubTab === "FLOOR" && <section className="hub-panel">
+        <div className="hub-panel-heading"><div><h2>Live floor plan</h2><p>Select a table to start a tab, open POS, or manage seating.</p></div><div className="hub-heading-actions"><Btn icon={<UtensilsCrossed size={14} />} onClick={() => openOrder()}>Takeaway order</Btn>{receiptProfile?.storefrontSlug && <a className="hub-link-button" href={`/shop/${encodeURIComponent(receiptProfile.storefrontSlug)}/qr`} target="_blank" rel="noreferrer">Print customer QR</a>}</div></div>
+        {data.tables.length === 0 ? <div className="hub-empty">No tables configured. Add a table to begin dine-in service.</div> : <div className="hub-table-grid">{data.tables.map(table => {
+          const tableTabs = data.openTabs.filter(tab => tab.hospitalityTableId === table.id);
+          return <Card key={table.id} style={{ padding: 16, borderTop: `4px solid ${table.status === "OCCUPIED" ? "var(--b360-amber)" : "var(--b360-green)"}` }}>
+            <div className="hub-card-row"><strong>{table.name}</strong><StatusBadge status={table.status} /></div>
+            <div className="hub-muted">{table.area} · {table.capacity} seats</div>
+            <div className="hub-table-amount">KES {table.openAmount.toLocaleString()}</div>
+            <div className="hub-muted">{tableTabs.length ? `${tableTabs.length} open tab${tableTabs.length === 1 ? "" : "s"}` : "Available for service"}</div>
+            <div className="hub-card-actions"><Btn small onClick={() => navigate(`/pos?tableId=${table.id}`)}>POS Order</Btn><Btn small variant="secondary" onClick={() => openOrder(table)}>+ Tab</Btn>{isAdmin && <button className="hub-icon-button" onClick={() => openTableEditor(table)} aria-label={`Edit ${table.name}`}><MoreHorizontal size={17} /></button>}</div>
+          </Card>
+        })}</div>}
+      </section>}
 
-      <h2 style={{ fontSize: 17 }}>Kitchen tickets</h2>
-      {data.tickets.every((t) => t.station !== "KITCHEN" || ["SERVED", "CANCELLED"].includes(t.status)) ? (
-        <Card style={{ padding: 20, color: "var(--b360-text-secondary)" }}>
-          No active kitchen tickets.
-        </Card>
-      ) : (
-        <div className="responsive-grid responsive-grid-3">
-          {data.tickets.filter(ticket => ticket.station === "KITCHEN")
-            .filter((t) => t.station === "KITCHEN" && !["SERVED", "CANCELLED"].includes(t.status))
-            .map((ticket) => {
-              const ticketStatusLabel: Record<string, string> = {
-                NEW: "Waiting to start",
-                PREPARING: "Being prepared",
-                READY: "Ready for service",
-              };
-              return (
-              <Card
-                key={ticket.id}
-                style={{
-                  padding: 16,
-                  borderLeft: `4px solid ${ticket.status === "READY" ? "var(--b360-green)" : "var(--b360-amber)"}`,
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "start" }}>
-                  <div>
-                    <div style={{ fontSize: 10, textTransform: "uppercase", color: "var(--b360-text-secondary)", fontWeight: 700 }}>Preparation station</div>
-                    <b style={{ fontSize: 16 }}>Kitchen</b>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <StatusBadge status={ticket.status} />
-                    <div style={{ fontSize: 10, color: "var(--b360-text-secondary)", marginTop: 3 }}>{ticketStatusLabel[ticket.status] || ticket.status}</div>
-                  </div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "12px 0", padding: 10, background: "var(--b360-bg)", borderRadius: 8 }}>
-                  <div><div style={{ fontSize: 10, color: "var(--b360-text-secondary)" }}>Table / service</div><b style={{ fontSize: 12 }}>{ticket.tableName || "Takeaway"}</b></div>
-                  <div><div style={{ fontSize: 10, color: "var(--b360-text-secondary)" }}>Receipt / tab</div><b style={{ fontSize: 12, fontFamily: "monospace", color: "var(--b360-green)" }}>{ticket.orderNumber}</b></div>
-                  <div><div style={{ fontSize: 10, color: "var(--b360-text-secondary)" }}>Opened</div><span style={{ fontSize: 12 }}><Clock size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />{age(ticket.createdAt)} ago</span></div>
-                  <div><div style={{ fontSize: 10, color: "var(--b360-text-secondary)" }}>Ticket ID</div><span title={ticket.id} style={{ fontSize: 12, fontFamily: "monospace" }}>{ticket.id.slice(0, 8)}</span></div>
-                </div>
-                {ticket.items.map((item) => (
-                  <div key={item.id} style={{ fontSize: 13, marginBottom: 4 }}>
-                    <b>{item.quantity}×</b> {item.productName}
-                  </div>
-                ))}
-                {ticket.notes && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      marginTop: 8,
-                      color: "var(--b360-amber)",
-                    }}
-                  >
-                    {ticket.notes}
-                  </div>
-                )}
-                <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-                  {ticket.status === "NEW" && (
-                    <Btn
-                      small
-                      onClick={() => advanceTicket(ticket.id, "PREPARING")}
-                    >
-                      Start
-                    </Btn>
-                  )}
-                  {ticket.status === "PREPARING" && (
-                    <Btn
-                      small
-                      onClick={() => advanceTicket(ticket.id, "READY")}
-                    >
-                      Ready
-                    </Btn>
-                  )}
-                  {ticket.status === "READY" && (
-                    <Btn
-                      small
-                      onClick={() => advanceTicket(ticket.id, "SERVED")}
-                    >
-                      Served
-                    </Btn>
-                  )}
-                  {ticket.status !== "DELAYED" && <Btn small variant="secondary" onClick={() => advanceTicket(ticket.id,"DELAYED")}>Delay</Btn>}
-                  <Btn
-                    small
-                    variant="danger"
-                    onClick={() => window.confirm(`Cancel ticket ${ticket.orderNumber}? This cannot be undone.`) && advanceTicket(ticket.id, "CANCELLED")}
-                  >
-                    Cancel
-                  </Btn>
-                </div>
-              </Card>
-              );
-            })}
-        </div>
-      )}
+      {hubTab === "TABS" && <section className="hub-panel"><div className="hub-panel-heading"><div><h2>Open customer tabs</h2><p>Manage active tables, receipts and settlement.</p></div><Btn icon={<UtensilsCrossed size={14} />} onClick={() => openOrder()}>New tab</Btn></div>{data.openTabs.length === 0 ? <div className="hub-empty">No open customer tabs currently awaiting settlement.</div> : <div className="hub-tabs-grid">{data.openTabs.map(order => { const table = data.tables.find(item => item.id === order.hospitalityTableId); return <Card key={order.id} style={{ padding: 16 }}><div className="hub-card-row"><strong>#{order.orderNumber}</strong><StatusBadge status={order.tabStatus || "OPEN"} /></div><div className="hub-muted">{table?.name || order.serviceType?.replace("_", " ") || "Takeaway"} · {order.customerName || "Walk-in Guest"}</div><div className="hub-tab-total">KES {order.subtotal.toLocaleString()}</div><div className="hub-muted">{order.items.length} item(s) · {age(order.createdAt)}</div><div className="hub-card-actions"><Btn small onClick={() => openSettlement(order)}>Settle</Btn><Btn small variant="secondary" icon={<Printer size={12} />} onClick={() => printOrderReceipt(order, receiptProfile)}>Receipt</Btn></div></Card> })}</div>}</section>}
+
+      {hubTab === "KDS" && <section className="hub-panel"><div className="hub-panel-heading"><div><h2>Kitchen Display System</h2><p>Track food preparation tickets in real time.</p></div><span className="hub-live-dot">● Live</span></div>{data.tickets.filter(ticket => ticket.station === "KITCHEN" && !["SERVED", "CANCELLED"].includes(ticket.status)).length === 0 ? <div className="hub-empty">No active kitchen tickets.</div> : <div className="hub-kds-grid">{data.tickets.filter(ticket => ticket.station === "KITCHEN" && !["SERVED", "CANCELLED"].includes(ticket.status)).map(ticket => <Card key={ticket.id} style={{ padding: 16, border: ticket.status === "PREPARING" ? "2px solid var(--b360-amber)" : "1px solid var(--b360-border)", background: ticket.status === "PREPARING" ? "#FFF9E8" : "white" }}><div className="hub-kds-order"><strong>Order #{ticket.orderNumber}</strong><span>KITCHEN</span></div><div className="hub-muted">{ticket.tableName || "Takeaway"} <span>·</span> {new Date(ticket.createdAt).toLocaleTimeString('en-KE', { hour:'2-digit', minute:'2-digit' })}</div><div className="hub-divider" />{ticket.items.map(item => <div className="hub-kds-item" key={item.id}><b>{item.quantity}x</b> {item.productName}</div>)}{ticket.notes && <div className="hub-kds-note">Note: {ticket.notes}</div>}<div className="hub-kds-footer"><StatusBadge status={ticket.status} />{ticket.status === "NEW" && <Btn small onClick={() => advanceTicket(ticket.id, "PREPARING")}>Start preparing</Btn>}{ticket.status === "PREPARING" && <Btn small onClick={() => advanceTicket(ticket.id, "READY")}>Mark Ready</Btn>}{ticket.status === "READY" && <Btn small onClick={() => advanceTicket(ticket.id, "SERVED")}>Mark Served</Btn>}</div></Card>)}</div>}</section>}
+
+      {hubTab === "OPS" && <section className="hub-panel"><div className="hub-panel-heading"><div><h2>Operations &amp; stock</h2><p>Reservations, shifts, menu profiles, purchasing, approvals and reports.</p></div><Btn onClick={() => navigate('/hospitality-operations')}>Open operations</Btn></div><div className="hub-ops-summary"><div><strong>{data.tables.filter(t => t.status === "OCCUPIED").length}</strong><span>Occupied tables</span></div><div><strong>{data.openTabs.length}</strong><span>Open tabs</span></div><div><strong>{data.tickets.filter(t => !["SERVED", "CANCELLED"].includes(t.status)).length}</strong><span>Active tickets</span></div><div><strong>Live</strong><span>Stock monitoring</span></div></div></section>}
+
+      <div className="hub-capability-grid">
+        <button onClick={() => setHubTab("FLOOR")}><span className="hub-capability-icon"><Users size={21} /></span><span><strong>Live Floor Plan</strong><small>View table status and manage seating in real time.</small></span></button>
+        <button onClick={() => setHubTab("KDS")}><span className="hub-capability-icon"><ChefHat size={21} /></span><span><strong>Kitchen Display System</strong><small>Track and manage orders across kitchen stations.</small></span></button>
+        <button onClick={() => setHubTab("TABS")}><span className="hub-capability-icon"><ShoppingBag size={21} /></span><span><strong>Open Tabs</strong><small>Manage customer tabs and payments effortlessly.</small></span></button>
+        <button onClick={() => setHubTab("OPS")}><span className="hub-capability-icon"><Package size={21} /></span><span><strong>Operations &amp; Stock</strong><small>Monitor inventory, ingredients and stock levels.</small></span></button>
+      </div>
 
       {showTable && (
+
         <Modal
           title={
             editingTable ? "Edit restaurant table" : "Add restaurant table"
