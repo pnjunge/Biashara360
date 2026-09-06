@@ -786,6 +786,23 @@ export function UserCreationPage() {
       if (res.success) await loadAccess(); else setAccessMessage(res.message || 'Could not update role.')
     } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update role.') }
   }
+  const deleteAccessRole = async (role: AccessConfig['roles'][number]) => {
+    if (!window.confirm(`Delete the role “${role.name}”? This cannot be undone.`)) return
+    setAccessMessage('')
+    try {
+      const res = await accessApi.deleteRole(role.id, accessBusinessId)
+      if (res.success) {
+        if (editingRoleId === role.id) {
+          setEditingRoleId(null)
+          setRoleDraft({ name: '', description: '', allowedMenus: [] })
+        }
+        await loadAccess()
+        setAccessMessage('Role deleted.')
+      } else setAccessMessage(res.message || 'Could not delete role.')
+    } catch (e: any) {
+      setAccessMessage(e.response?.data?.message || 'Could not delete role. Remove it from access groups first.')
+    }
+  }
   const updateAccessGroup = async (group: AccessConfig['groups'][number], isActive = group.isActive) => {
     setAccessMessage('')
     try {
@@ -1063,7 +1080,7 @@ export function UserCreationPage() {
             <div style={{display:'flex',gap:14,flexWrap:'wrap',margin:'12px 0'}}>{accessConfig.roles.map(role=><label key={role.id} style={{fontSize:12}}><input type="checkbox" checked={groupDraft.roleIds.includes(role.id)} onChange={()=>setGroupDraft({...groupDraft,roleIds:toggleValue(groupDraft.roleIds,role.id)})}/> {role.name}</label>)}</div>
             <Btn small disabled={accessSaving!==null} onClick={createAccessGroup}>{accessSaving==='GROUP'?(editingGroupId?'Saving…':'Creating…'):(editingGroupId?'Save group':'Create group')}</Btn>
           </Card>
-          <Card style={{padding:20}}><h3 style={{margin:'0 0 12px'}}>Existing roles</h3>{accessConfig.roles.map(role=><div key={role.id} style={{display:'flex',justifyContent:'space-between',gap:12,padding:'10px 0',borderTop:'1px solid var(--b360-border)'}}><div><b>{role.name}</b><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{role.allowedMenus.length} menus · {role.isActive?'Active':'Disabled'}</div></div><div style={{display:'flex',gap:6}}><Btn small variant="secondary" onClick={()=>{setEditingRoleId(role.id);setRoleDraft({name:role.name,description:role.description,allowedMenus:role.allowedMenus});window.scrollTo({top:0,behavior:'smooth'})}}>Edit</Btn><Btn small variant="secondary" onClick={()=>updateAccessRole(role,!role.isActive)}>{role.isActive?'Disable':'Enable'}</Btn></div></div>)}</Card>
+          <Card style={{padding:20}}><h3 style={{margin:'0 0 12px'}}>Existing roles</h3>{accessConfig.roles.map(role=><div key={role.id} style={{display:'flex',justifyContent:'space-between',gap:12,padding:'10px 0',borderTop:'1px solid var(--b360-border)'}}><div><b>{role.name}</b><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{role.allowedMenus.length} menus · {role.isActive?'Active':'Disabled'}</div></div><div style={{display:'flex',gap:6}}><Btn small variant="secondary" onClick={()=>{setEditingRoleId(role.id);setRoleDraft({name:role.name,description:role.description,allowedMenus:role.allowedMenus});window.scrollTo({top:0,behavior:'smooth'})}}>Edit</Btn><Btn small variant="secondary" onClick={()=>updateAccessRole(role,!role.isActive)}>{role.isActive?'Disable':'Enable'}</Btn><Btn small variant="danger" onClick={()=>deleteAccessRole(role)}>Delete</Btn></div></div>)}</Card>
           {accessConfig.groups.map(group => <Card key={group.id} style={{padding:16,opacity:group.isActive?1:.65}}><div style={{display:'flex',justifyContent:'space-between',gap:12}}><div><div style={{fontWeight:700}}>{group.name}</div><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{group.description || 'No description'} · Roles: {accessConfig.roles.filter(r=>group.roleIds.includes(r.id)).map(r=>r.name).join(', ') || 'None'}</div></div><div style={{display:'flex',gap:6}}><Btn small variant="secondary" onClick={()=>{setEditingGroupId(group.id);setGroupDraft({name:group.name,description:group.description,roleIds:group.roleIds});window.scrollTo({top:0,behavior:'smooth'})}}>Edit</Btn><Btn small variant="secondary" onClick={()=>updateAccessGroup(group,!group.isActive)}>{group.isActive?'Disable':'Enable'}</Btn></div></div><div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:10}}>{users.map(member=><label key={member.id} style={{fontSize:12}}><input type="checkbox" disabled={!group.isActive} checked={group.userIds.includes(member.id)} onChange={()=>toggleGroupUser(group.id,group.userIds,member.id)}/> {member.name}</label>)}</div></Card>)}
         </>
       )}
