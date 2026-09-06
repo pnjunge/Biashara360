@@ -103,34 +103,61 @@ private data class AndroidFullDashboard(
 
 @Serializable
 private data class AndroidReservation(
-    val id: String,
-    val customerName: String,
-    val guestCount: Int,
-    val reservedAt: String,
-    val status: String
+    val id: String = "",
+    val tableId: String? = null,
+    val customerName: String = "",
+    val customerPhone: String = "",
+    val guestCount: Int = 1,
+    val reservedAt: String = "",
+    val durationMinutes: Int = 90,
+    val status: String = "BOOKED",
+    val notes: String = ""
 )
 
 @Serializable
 private data class AndroidIngredient(
-    val id: String,
-    val name: String,
+    val id: String = "",
+    val name: String = "",
     val unit: String = "",
     val quantity: Double = 0.0,
     val reorderLevel: Double = 0.0,
     val isLowStock: Boolean = false
 )
 
+@Serializable private data class AndroidMenuOption(val name: String = "", val priceDelta: Double = 0.0)
+@Serializable private data class AndroidMenuProfile(val productId: String = "", val preparationStation: String? = null, val mealPeriods: List<String> = emptyList(), val sizes: List<AndroidMenuOption> = emptyList(), val extras: List<AndroidMenuOption> = emptyList(), val variants: List<AndroidMenuOption> = emptyList(), val comboProductIds: List<String> = emptyList(), val soldOut: Boolean = false, val happyHourPrice: Double? = null, val happyHourStart: String? = null, val happyHourEnd: String? = null, val ageRestricted: Boolean = false, val minimumAge: Int? = null)
+@Serializable private data class AndroidShift(val id: String = "", val openedBy: String = "", val openedAt: String = "", val closedAt: String? = null, val openingFloat: Double = 0.0, val expectedCash: Double? = null, val actualCash: Double? = null, val mpesaTotal: Double? = null, val cardTotal: Double? = null, val tipsTotal: Double = 0.0, val expensesTotal: Double = 0.0, val status: String = "OPEN", val variance: Double? = null)
+@Serializable private data class AndroidSupplier(val id: String = "", val name: String = "", val phone: String = "", val email: String? = null, val address: String? = null, val isActive: Boolean = true)
+@Serializable private data class AndroidPurchaseOrder(val id: String = "", val orderNumber: String = "", val supplierId: String = "", val status: String = "ORDERED", val totalCost: Double = 0.0, val orderedAt: String = "", val receivedAt: String? = null)
+@Serializable private data class AndroidApproval(val id: String = "", val actionType: String = "", val entityType: String = "", val entityId: String = "", val requestedBy: String = "", val approvedBy: String? = null, val status: String = "PENDING", val reason: String = "", val requestedAt: String = "")
+@Serializable private data class AndroidProduct(val id: String = "", val name: String = "", val category: String = "", val sellingPrice: Double = 0.0)
+@Serializable private data class AndroidReportBreakdown(val label: String = "", val count: Int = 0, val amount: Double = 0.0)
+@Serializable private data class AndroidReport(val byLocation: List<AndroidReportBreakdown> = emptyList(), val byChannel: List<AndroidReportBreakdown> = emptyList(), val foodCost: Double = 0.0, val beverageCost: Double = 0.0, val wastageCost: Double = 0.0, val grossMargin: Double = 0.0, val averageTableTurnoverMinutes: Double = 0.0)
 @Serializable
 private data class AndroidOperationsData(
     val reservations: List<AndroidReservation> = emptyList(),
-    val ingredients: List<AndroidIngredient> = emptyList()
+    val menuProfiles: List<AndroidMenuProfile> = emptyList(),
+    val ingredients: List<AndroidIngredient> = emptyList(),
+    val shifts: List<AndroidShift> = emptyList(),
+    val suppliers: List<AndroidSupplier> = emptyList(),
+    val purchaseOrders: List<AndroidPurchaseOrder> = emptyList(),
+    val approvals: List<AndroidApproval> = emptyList()
 )
+
+@Serializable private data class AndroidPortalOrderItem(val name: String = "", val quantity: Int = 1)
+@Serializable private data class AndroidPortalOrder(val id: String = "", val orderNumber: String = "", val customerName: String = "", val location: String = "", val amount: Double = 0.0, val paymentStatus: String = "", val createdAt: String = "", val claimedBy: String? = null, val items: List<AndroidPortalOrderItem> = emptyList())
+@Serializable private data class AndroidPortalQueue(val waiting: List<AndroidPortalOrder> = emptyList(), val mine: List<AndroidPortalOrder> = emptyList())
 
 @Serializable private data class UpdateTicketReq(val status: String)
 @Serializable private data class CreateTableReq(val name: String, val area: String = "Main Floor", val capacity: Int = 4)
 @Serializable private data class UpdateTableReq(val name: String, val area: String = "Main Floor", val capacity: Int = 4)
 @Serializable private data class TransferTabReq(val tableId: String)
 @Serializable private data class CloseTabReq(val paymentMethod: String)
+@Serializable private data class AndroidShiftOpenReq(val openingFloat: Double, val notes: String = "")
+@Serializable private data class AndroidShiftCloseReq(val actualCash: Double, val tipsTotal: Double = 0.0, val expensesTotal: Double = 0.0, val notes: String = "")
+@Serializable private data class AndroidApprovalDecisionReq(val approved: Boolean)
+@Serializable private data class AndroidMenuProfileReq(val preparationStation: String? = null, val mealPeriods: List<String> = emptyList(), val sizes: List<AndroidMenuOption> = emptyList(), val extras: List<AndroidMenuOption> = emptyList(), val variants: List<AndroidMenuOption> = emptyList(), val comboProductIds: List<String> = emptyList(), val soldOut: Boolean = false, val happyHourPrice: Double? = null, val happyHourStart: String? = null, val happyHourEnd: String? = null, val ageRestricted: Boolean = false, val minimumAge: Int? = null)
+@Serializable private data class AndroidSupplierReq(val name: String, val phone: String = "", val email: String? = null, val address: String? = null)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -139,6 +166,14 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     var selectedSegment by remember { mutableStateOf(0) }
     var dashboard by remember { mutableStateOf<AndroidFullDashboard?>(null) }
     var operations by remember { mutableStateOf<AndroidOperationsData?>(null) }
+    var products by remember { mutableStateOf<List<AndroidProduct>>(emptyList()) }
+    var report by remember { mutableStateOf<AndroidReport?>(null) }
+    var portalQueue by remember { mutableStateOf(AndroidPortalQueue()) }
+    var portalOpen by remember { mutableStateOf(false) }
+    var portalMine by remember { mutableStateOf(false) }
+    var portalBusy by remember { mutableStateOf<String?>(null) }
+    var portalMessage by remember { mutableStateOf<String?>(null) }
+    var knownPortalIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var successMsg by remember { mutableStateOf<String?>(null) }
@@ -157,11 +192,26 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
             runCatching {
                 val dashRes = client.get("$BASE_URL/hospitality").body<ApiResponse<AndroidFullDashboard>>()
                 val opsRes = client.get("$BASE_URL/hospitality/operations").body<ApiResponse<AndroidOperationsData>>()
-                dashRes to opsRes
-            }.onSuccess { (dashRes, opsRes) ->
+                val portalRes = runCatching { client.get("$BASE_URL/portal-orders").body<ApiResponse<AndroidPortalQueue>>() }.getOrNull()
+                val productsRes = runCatching { client.get("$BASE_URL/products").body<ApiResponse<List<AndroidProduct>>>() }.getOrNull()
+                listOf(dashRes, opsRes, portalRes, productsRes)
+            }.onSuccess { results ->
+                val dashRes = results[0] as ApiResponse<AndroidFullDashboard>
+                val opsRes = results[1] as ApiResponse<AndroidOperationsData>
+                @Suppress("UNCHECKED_CAST") val portalRes = results[2] as ApiResponse<AndroidPortalQueue>?
+                @Suppress("UNCHECKED_CAST") val productsRes = results[3] as ApiResponse<List<AndroidProduct>>?
                 if (dashRes.success && dashRes.data != null) dashboard = dashRes.data
                 else error = dashRes.message.ifBlank { "Could not load hospitality operations." }
                 if (opsRes.success && opsRes.data != null) operations = opsRes.data
+                val portalData = portalRes?.data
+                if (portalRes?.success == true && portalData != null) {
+                    val waiting = portalData.waiting
+                    if (waiting.any { it.id !in knownPortalIds }) portalOpen = true
+                    knownPortalIds = waiting.map { it.id }.toSet()
+                    portalQueue = portalData
+                }
+                val productData = productsRes?.data
+                if (productsRes?.success == true && productData != null) products = productData
             }.onFailure {
                 error = it.message ?: "Failed to connect to backend service."
             }
@@ -252,6 +302,46 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
         }
     }
 
+    fun operationAction(successText: String, block: suspend () -> ApiResponse<*>) {
+        scope.launch {
+            runCatching { block() }.onSuccess {
+                if (it.success) { successMsg = successText; loadData() } else error = it.message
+            }.onFailure { error = it.message ?: "Hospitality operation failed." }
+        }
+    }
+
+    fun updateReservationStatus(id: String, status: String) = operationAction("Reservation updated.") { client.patch("$BASE_URL/hospitality/operations/reservations/$id/$status").body<ApiResponse<AndroidReservation>>() }
+    fun receivePurchaseOrder(id: String) = operationAction("Purchase order received.") { client.post("$BASE_URL/hospitality/operations/purchase-orders/$id/receive").body<ApiResponse<AndroidPurchaseOrder>>() }
+    fun decideApproval(id: String, approved: Boolean) = operationAction(if (approved) "Approval granted." else "Approval rejected.") { client.post("$BASE_URL/hospitality/operations/approvals/$id/decision") { contentType(ContentType.Application.Json); setBody(AndroidApprovalDecisionReq(approved)) }.body<ApiResponse<AndroidApproval>>() }
+    fun openShift(openingFloat: Double) = operationAction("Shift opened.") { client.post("$BASE_URL/hospitality/operations/shifts/open") { contentType(ContentType.Application.Json); setBody(AndroidShiftOpenReq(openingFloat)) }.body<ApiResponse<AndroidShift>>() }
+    fun closeShift(id: String, actualCash: Double, tips: Double, expenses: Double) = operationAction("Shift closed.") { client.post("$BASE_URL/hospitality/operations/shifts/$id/close") { contentType(ContentType.Application.Json); setBody(AndroidShiftCloseReq(actualCash, tips, expenses)) }.body<ApiResponse<AndroidShift>>() }
+    fun saveMenuProfile(profile: AndroidMenuProfile, station: String, soldOut: Boolean) = operationAction("Menu controls saved.") { client.put("$BASE_URL/hospitality/operations/menu/${profile.productId}") { contentType(ContentType.Application.Json); setBody(AndroidMenuProfileReq(station.takeUnless { it == "NONE" }, profile.mealPeriods, profile.sizes, profile.extras, profile.variants, profile.comboProductIds, soldOut, profile.happyHourPrice, profile.happyHourStart, profile.happyHourEnd, profile.ageRestricted, profile.minimumAge)) }.body<ApiResponse<AndroidMenuProfile>>() }
+    fun createSupplier(name: String, phone: String, email: String) = operationAction("Supplier created.") { client.post("$BASE_URL/hospitality/operations/suppliers") { contentType(ContentType.Application.Json); setBody(AndroidSupplierReq(name, phone, email.takeIf { it.isNotBlank() })) }.body<ApiResponse<AndroidSupplier>>() }
+    fun loadReport(startDate: String, endDate: String) {
+        scope.launch {
+            runCatching { client.get("$BASE_URL/hospitality/operations/report?startDate=$startDate&endDate=$endDate").body<ApiResponse<AndroidReport>>() }
+                .onSuccess { response -> if (response.success && response.data != null) { report = response.data; successMsg = "Operations report loaded." } else error = response.message }
+                .onFailure { error = it.message ?: "Could not load report." }
+        }
+    }
+
+    fun claimPortalOrder(order: AndroidPortalOrder) {
+        if (portalBusy != null) return
+        portalBusy = order.id
+        portalMessage = null
+        scope.launch {
+            runCatching { client.post("$BASE_URL/portal-orders/${order.id}/claim").body<ApiResponse<AndroidPortalOrder>>() }.onSuccess { response ->
+                val claimed = response.data
+                if (response.success && claimed != null) {
+                    portalQueue = portalQueue.copy(waiting = portalQueue.waiting.filterNot { it.id == order.id }, mine = listOf(claimed) + portalQueue.mine.filterNot { it.id == order.id })
+                    portalMine = true
+                    portalMessage = "Claimed ${order.orderNumber}."
+                } else error = response.message
+            }.onFailure { error = it.message ?: "Could not claim portal order." }
+            portalBusy = null
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().background(Color(0xFFF8FAFC)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -267,6 +357,9 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
                 Text("KDS, floor plan, open tabs and inventory", fontSize = 12.sp, color = Color(0xFF64748B))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { portalOpen = true }) {
+                    Text("Portal orders${if (portalQueue.waiting.isNotEmpty()) " (${portalQueue.waiting.size})" else ""}", color = if (portalQueue.waiting.isNotEmpty()) Color(0xFFD97706) else Color(0xFF0F1F3A), fontWeight = if (portalQueue.waiting.isNotEmpty()) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp)
+                }
                 IconButton(onClick = { showAddTableDialog = true }) {
                     Icon(Icons.Default.AddCircle, "Add Table", tint = Color(0xFF0F1F3A))
                 }
@@ -355,7 +448,17 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
                     onProForma = { tabForProForma = it }
                 )
                 3 -> AndroidOperationsSection(
-                    operations = operations
+                    operations = operations,
+                    products = products,
+                    report = report,
+                    onReservationStatus = ::updateReservationStatus,
+                    onReceivePurchaseOrder = ::receivePurchaseOrder,
+                    onDecideApproval = ::decideApproval,
+                    onOpenShift = ::openShift,
+                    onCloseShift = ::closeShift,
+                    onSaveMenuProfile = ::saveMenuProfile,
+                    onCreateSupplier = ::createSupplier,
+                    onRunReport = ::loadReport
                 )
             }
         }
@@ -390,6 +493,18 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
         AndroidProFormaModal(
             tab = tab,
             onDismiss = { tabForProForma = null }
+        )
+    }
+
+    if (portalOpen) {
+        AndroidPortalOrdersDialog(
+            queue = portalQueue,
+            showingMine = portalMine,
+            busyId = portalBusy,
+            message = portalMessage,
+            onShowingMine = { portalMine = it },
+            onClaim = ::claimPortalOrder,
+            onDismiss = { portalOpen = false }
         )
     }
 }
@@ -588,51 +703,239 @@ private fun AndroidOpenTabsScreen(
 }
 
 @Composable
-private fun AndroidOperationsSection(operations: AndroidOperationsData?) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun AndroidOperationsSection(
+    operations: AndroidOperationsData?,
+    products: List<AndroidProduct>,
+    report: AndroidReport?,
+    onReservationStatus: (String, String) -> Unit,
+    onReceivePurchaseOrder: (String) -> Unit,
+    onDecideApproval: (String, Boolean) -> Unit,
+    onOpenShift: (Double) -> Unit,
+    onCloseShift: (String, Double, Double, Double) -> Unit,
+    onSaveMenuProfile: (AndroidMenuProfile, String, Boolean) -> Unit,
+    onCreateSupplier: (String, String, String) -> Unit,
+    onRunReport: (String, String) -> Unit
+) {
+    var section by remember { mutableStateOf("RESERVATIONS") }
+    val sections = listOf("RESERVATIONS", "MENU", "SHIFTS", "PURCHASING", "APPROVALS", "REPORTS")
+    val data = operations ?: AndroidOperationsData()
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MobileSummary("Bookings", operations?.reservations?.count { it.status == "BOOKED" } ?: 0, Modifier.weight(1f))
-                MobileSummary("Low Stock", operations?.ingredients?.count { it.isLowStock } ?: 0, Modifier.weight(1f))
+                MobileSummary("Bookings", data.reservations.count { it.status == "BOOKED" }, Modifier.weight(1f))
+                MobileSummary("Low Stock", data.ingredients.count { it.isLowStock }, Modifier.weight(1f))
+                MobileSummary("Approvals", data.approvals.count { it.status == "PENDING" }, Modifier.weight(1f))
             }
         }
-
-        item { Text("Upcoming Reservations", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F1F3A)) }
-
-        val resList = operations?.reservations.orEmpty()
-        if (resList.isEmpty()) {
-            item { Card(modifier = Modifier.fillMaxWidth()) { Text("No active reservations.", Modifier.padding(14.dp), color = Color.Gray, fontSize = 12.sp) } }
-        } else {
-            items(resList) { res ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(12.dp).fillMaxWidth(), Arrangement.SpaceBetween) {
-                        Column {
-                            Text(res.customerName, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text("${res.guestCount} guests · ${res.reservedAt}", fontSize = 11.sp, color = Color.Gray)
-                        }
-                        Text(res.status, fontWeight = FontWeight.Bold, color = Color(0xFF00B874), fontSize = 12.sp)
-                    }
+        item {
+            ScrollableTabRow(selectedTabIndex = sections.indexOf(section), edgePadding = 0.dp, containerColor = Color.Transparent, divider = {}) {
+                sections.forEach { name ->
+                    Tab(selected = section == name, onClick = { section = name }, text = { Text(name.lowercase().replaceFirstChar { it.titlecase() }, fontSize = 11.sp) })
                 }
             }
         }
 
-        item { Text("Ingredient Stock Levels", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F1F3A)) }
-
-        val ingList = operations?.ingredients.orEmpty()
-        if (ingList.isEmpty()) {
-            item { Card(modifier = Modifier.fillMaxWidth()) { Text("No ingredient items found.", Modifier.padding(14.dp), color = Color.Gray, fontSize = 12.sp) } }
-        } else {
-            items(ingList) { ing ->
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (ing.isLowStock) Color(0xFFFFF7ED) else Color.White)) {
-                    Row(Modifier.padding(12.dp).fillMaxWidth(), Arrangement.SpaceBetween) {
-                        Column {
-                            Text(ing.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text("Reorder at ${ing.reorderLevel} ${ing.unit}", fontSize = 11.sp, color = Color.Gray)
-                        }
-                        Text("${ing.quantity} ${ing.unit}", fontWeight = FontWeight.Bold, color = if (ing.isLowStock) Color(0xFFD97706) else Color(0xFF0F1F3A), fontSize = 13.sp)
-                    }
+        when (section) {
+            "RESERVATIONS" -> {
+                if (data.reservations.isEmpty()) item { AndroidEmptyCard("No active reservations.") }
+                items(data.reservations, key = { it.id }) { reservation ->
+                    AndroidReservationCard(reservation, onReservationStatus)
                 }
             }
+            "MENU" -> {
+                item { AndroidMenuProfilesCard(data.menuProfiles, products, onSaveMenuProfile) }
+            }
+            "SHIFTS" -> {
+                item { AndroidShiftsCard(data.shifts, onOpenShift, onCloseShift) }
+            }
+            "PURCHASING" -> {
+                item { AndroidPurchasingCard(data, onReceivePurchaseOrder, onCreateSupplier) }
+            }
+            "APPROVALS" -> {
+                if (data.approvals.none { it.status == "PENDING" }) item { AndroidEmptyCard("No pending approvals.") }
+                items(data.approvals.filter { it.status == "PENDING" }, key = { it.id }) { approval ->
+                    AndroidApprovalCard(approval, onDecideApproval)
+                }
+            }
+            "REPORTS" -> {
+                item { AndroidReportsCard(report, onRunReport) }
+            }
+        }
+
+        item {
+            Text("Ingredient stock", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F1F3A))
+        }
+        if (data.ingredients.isEmpty()) item { AndroidEmptyCard("No ingredient items found.") }
+        items(data.ingredients, key = { it.id }) { ingredient ->
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (ingredient.isLowStock) Color(0xFFFFF7ED) else Color.White)) {
+                Row(Modifier.padding(12.dp).fillMaxWidth(), Arrangement.SpaceBetween) {
+                    Column {
+                        Text(ingredient.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Reorder at ${ingredient.reorderLevel} ${ingredient.unit}", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    Text("${ingredient.quantity} ${ingredient.unit}", fontWeight = FontWeight.Bold, color = if (ingredient.isLowStock) Color(0xFFD97706) else Color(0xFF0F1F3A), fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AndroidEmptyCard(message: String) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Text(message, Modifier.padding(14.dp), color = Color.Gray, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun AndroidReservationCard(reservation: AndroidReservation, onStatus: (String, String) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(reservation.customerName, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("${reservation.guestCount} guests · ${reservation.reservedAt}", fontSize = 11.sp, color = Color.Gray)
+                }
+                Text(reservation.status, fontWeight = FontWeight.Bold, color = Color(0xFF00B874), fontSize = 12.sp)
+            }
+            if (reservation.notes.isNotBlank()) Text(reservation.notes, fontSize = 11.sp, color = Color(0xFF475569))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                when (reservation.status) {
+                    "BOOKED" -> {
+                        Button(onClick = { onStatus(reservation.id, "SEATED") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(vertical = 5.dp)) { Text("Seat", fontSize = 11.sp) }
+                        OutlinedButton(onClick = { onStatus(reservation.id, "CANCELLED") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(vertical = 5.dp)) { Text("Cancel", fontSize = 11.sp) }
+                    }
+                    "SEATED" -> Button(onClick = { onStatus(reservation.id, "COMPLETED") }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = 5.dp)) { Text("Complete", fontSize = 11.sp) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AndroidMenuProfilesCard(profiles: List<AndroidMenuProfile>, products: List<AndroidProduct>, onSave: (AndroidMenuProfile, String, Boolean) -> Unit) {
+    var selectedId by remember(profiles) { mutableStateOf(profiles.firstOrNull()?.productId) }
+    var station by remember(selectedId, profiles) { mutableStateOf(profiles.firstOrNull { it.productId == selectedId }?.preparationStation ?: "NONE") }
+    var soldOut by remember(selectedId, profiles) { mutableStateOf(profiles.firstOrNull { it.productId == selectedId }?.soldOut ?: false) }
+    val profile = profiles.firstOrNull { it.productId == selectedId }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Menu profiles & routing", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F1F3A))
+        if (profiles.isEmpty()) AndroidEmptyCard("No menu profiles configured.") else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(profiles, key = { it.productId }) { item ->
+                    val productName = products.firstOrNull { it.id == item.productId }?.name ?: item.productId.take(8)
+                    FilterChip(selected = selectedId == item.productId, onClick = { selectedId = item.productId }, label = { Text(productName, fontSize = 11.sp) })
+                }
+            }
+            if (profile != null) {
+                Text("Preparation station", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    listOf("NONE", "KITCHEN", "BAR").forEach { value ->
+                        FilterChip(selected = station == value, onClick = { station = value }, label = { Text(value, fontSize = 10.sp) })
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Text("Sold out", fontSize = 12.sp)
+                    Switch(checked = soldOut, onCheckedChange = { soldOut = it })
+                }
+                Button(onClick = { onSave(profile, station, soldOut) }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = 6.dp)) { Text("Save menu controls") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AndroidShiftsCard(shifts: List<AndroidShift>, onOpen: (Double) -> Unit, onClose: (String, Double, Double, Double) -> Unit) {
+    var openingFloat by remember { mutableStateOf("") }
+    var actualCash by remember { mutableStateOf("") }
+    var tips by remember { mutableStateOf("") }
+    var expenses by remember { mutableStateOf("") }
+    val openShift = shifts.firstOrNull { it.status == "OPEN" }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Shift management", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F1F3A))
+        if (openShift == null) {
+            OutlinedTextField(openingFloat, { openingFloat = it }, label = { Text("Opening float") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            Button(onClick = { onOpen(openingFloat.toDoubleOrNull() ?: 0.0) }, modifier = Modifier.fillMaxWidth()) { Text("Open shift") }
+        } else {
+            Text("Open since ${openShift.openedAt} · Float KES ${String.format("%,.0f", openShift.openingFloat)}", fontSize = 12.sp, color = Color(0xFF475569))
+            OutlinedTextField(actualCash, { actualCash = it }, label = { Text("Actual cash") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedTextField(tips, { tips = it }, label = { Text("Tips") }, modifier = Modifier.weight(1f), singleLine = true)
+                OutlinedTextField(expenses, { expenses = it }, label = { Text("Expenses") }, modifier = Modifier.weight(1f), singleLine = true)
+            }
+            Button(onClick = { onClose(openShift.id, actualCash.toDoubleOrNull() ?: 0.0, tips.toDoubleOrNull() ?: 0.0, expenses.toDoubleOrNull() ?: 0.0) }, modifier = Modifier.fillMaxWidth()) { Text("Close shift") }
+        }
+    }
+}
+
+@Composable
+private fun AndroidPurchasingCard(data: AndroidOperationsData, onReceive: (String) -> Unit, onCreateSupplier: (String, String, String) -> Unit) {
+    var supplierName by remember { mutableStateOf("") }
+    var supplierPhone by remember { mutableStateOf("") }
+    var supplierEmail by remember { mutableStateOf("") }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Suppliers & purchase orders", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F1F3A))
+        if (data.suppliers.isEmpty()) Text("No suppliers configured.", fontSize = 12.sp, color = Color.Gray) else data.suppliers.forEach { supplier ->
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(10.dp).fillMaxWidth(), Arrangement.SpaceBetween) {
+                    Column { Text(supplier.name, fontWeight = FontWeight.Bold, fontSize = 13.sp); Text(supplier.phone.ifBlank { supplier.email.orEmpty() }, fontSize = 11.sp, color = Color.Gray) }
+                    Text(if (supplier.isActive) "ACTIVE" else "INACTIVE", fontSize = 10.sp, color = if (supplier.isActive) Color(0xFF059669) else Color.Gray)
+                }
+            }
+        }
+        Text("Add supplier", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        OutlinedTextField(supplierName, { supplierName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(supplierPhone, { supplierPhone = it }, label = { Text("Phone") }, modifier = Modifier.weight(1f), singleLine = true)
+            OutlinedTextField(supplierEmail, { supplierEmail = it }, label = { Text("Email") }, modifier = Modifier.weight(1f), singleLine = true)
+        }
+        Button(onClick = { onCreateSupplier(supplierName.trim(), supplierPhone.trim(), supplierEmail.trim()); supplierName = ""; supplierPhone = ""; supplierEmail = "" }, enabled = supplierName.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("Save supplier") }
+        Text("Purchase orders", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        if (data.purchaseOrders.isEmpty()) AndroidEmptyCard("No purchase orders.") else data.purchaseOrders.forEach { order ->
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(10.dp).fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Column { Text(order.orderNumber, fontWeight = FontWeight.Bold, fontSize = 13.sp); Text("KES ${String.format("%,.0f", order.totalCost)} · ${order.status}", fontSize = 11.sp, color = Color.Gray) }
+                    if (order.status !in setOf("RECEIVED", "CANCELLED")) TextButton(onClick = { onReceive(order.id) }) { Text("Receive", fontSize = 11.sp) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AndroidApprovalCard(approval: AndroidApproval, onDecision: (String, Boolean) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("${approval.actionType} · ${approval.entityType}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(approval.reason.ifBlank { "Approval requested by ${approval.requestedBy}" }, fontSize = 11.sp, color = Color.Gray)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Button(onClick = { onDecision(approval.id, true) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(vertical = 5.dp)) { Text("Approve", fontSize = 11.sp) }
+                OutlinedButton(onClick = { onDecision(approval.id, false) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(vertical = 5.dp)) { Text("Reject", fontSize = 11.sp) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AndroidReportsCard(report: AndroidReport?, onRun: (String, String) -> Unit) {
+    var startDate by remember { mutableStateOf(java.time.LocalDate.now().minusDays(6).toString()) }
+    var endDate by remember { mutableStateOf(java.time.LocalDate.now().toString()) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Operations report", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F1F3A))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(startDate, { startDate = it }, label = { Text("Start") }, modifier = Modifier.weight(1f), singleLine = true)
+            OutlinedTextField(endDate, { endDate = it }, label = { Text("End") }, modifier = Modifier.weight(1f), singleLine = true)
+        }
+        Button(onClick = { onRun(startDate, endDate) }, modifier = Modifier.fillMaxWidth()) { Text("Run report") }
+        report?.let {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                MobileSummary("Food cost", it.foodCost.toInt(), Modifier.weight(1f))
+                MobileSummary("Beverage", it.beverageCost.toInt(), Modifier.weight(1f))
+                MobileSummary("Margin", it.grossMargin.toInt(), Modifier.weight(1f))
+            }
+            if (it.byLocation.isNotEmpty()) Text("By location: ${it.byLocation.joinToString { row -> "${row.label} KES ${String.format("%,.0f", row.amount)}" }}", fontSize = 11.sp, color = Color(0xFF475569))
+            if (it.byChannel.isNotEmpty()) Text("By channel: ${it.byChannel.joinToString { row -> "${row.label} KES ${String.format("%,.0f", row.amount)}" }}", fontSize = 11.sp, color = Color(0xFF475569))
         }
     }
 }
@@ -643,6 +946,57 @@ private fun MobileSummary(label: String, value: Int, modifier: Modifier) {
         Column(Modifier.padding(12.dp)) {
             Text(value.toString(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A))
             Text(label, fontSize = 11.sp, color = Color.Gray)
+        }
+    }
+}
+
+@Composable
+private fun AndroidPortalOrdersDialog(
+    queue: AndroidPortalQueue,
+    showingMine: Boolean,
+    busyId: String?,
+    message: String?,
+    onShowingMine: (Boolean) -> Unit,
+    onClaim: (AndroidPortalOrder) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val orders = if (showingMine) queue.mine else queue.waiting
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(14.dp), color = Color.White, modifier = Modifier.fillMaxWidth().fillMaxHeight(0.82f)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Column {
+                        Text("Portal orders", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = Color(0xFF0F1F3A))
+                        Text("Any active team member can claim a waiting order", fontSize = 11.sp, color = Color(0xFF64748B))
+                    }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(selected = !showingMine, onClick = { onShowingMine(false) }, label = { Text("Waiting (${queue.waiting.size})", fontSize = 11.sp) })
+                    FilterChip(selected = showingMine, onClick = { onShowingMine(true) }, label = { Text("My orders (${queue.mine.size})", fontSize = 11.sp) })
+                }
+                message?.let { Text(it, color = Color(0xFF059669), fontSize = 12.sp) }
+                if (orders.isEmpty()) {
+                    AndroidEmptyCard(if (showingMine) "You have not claimed any portal orders." else "No unclaimed portal orders.")
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(orders, key = { it.id }) { order ->
+                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)), border = BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                                Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                                        Text("#${order.orderNumber}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("KES ${String.format("%,.0f", order.amount)}", fontWeight = FontWeight.Bold, color = Color(0xFF00B874), fontSize = 13.sp)
+                                    }
+                                    Text("${order.customerName} · ${order.location}", fontSize = 11.sp, color = Color(0xFF475569))
+                                    if (order.items.isNotEmpty()) Text(order.items.joinToString { "${it.quantity}x ${it.name}" }, fontSize = 11.sp, color = Color(0xFF64748B))
+                                    if (!showingMine) Button(onClick = { onClaim(order) }, enabled = busyId == null, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = 5.dp)) { Text(if (busyId == order.id) "Claiming…" else "Claim order", fontSize = 11.sp) }
+                                    else Text("Claimed · ${order.paymentStatus}", color = Color(0xFF059669), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

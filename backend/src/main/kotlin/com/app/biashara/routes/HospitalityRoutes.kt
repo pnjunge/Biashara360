@@ -53,6 +53,14 @@ fun Route.hospitalityRoutes() {
         post("/tabs/{orderId}/transfer") { call.respondHospitality { service.transferTab(call.businessId(),call.parameters["orderId"].orEmpty(),call.receive()) } }
         post("/tabs/{orderId}/close") { call.respondHospitality { service.closeTab(call.businessId(),call.parameters["orderId"].orEmpty(),call.receive()) } }
         route("/operations") {
+            intercept(ApplicationCallPipeline.Call) {
+                val isSplitBill = call.request.httpMethod == HttpMethod.Post && call.request.path().contains("/hospitality/operations/tabs/") && call.request.path().endsWith("/split")
+                if (!isSplitBill && !call.hasAnyMenu("HOSPITALITY", "HOSPITALITY_OPS")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Hospitality management access is required"))
+                    finish()
+                    return@intercept
+                }
+            }
             fun ApplicationCall.userId()=principal<JWTPrincipal>()!!.payload.subject
             get { call.respond(ApiResponse(true,data=operations.dashboard(call.businessId()))) }
             get("/report") { val start=call.request.queryParameters["startDate"]?:return@get call.respond(HttpStatusCode.BadRequest,ApiResponse<Unit>(false,message="startDate required"));val end=call.request.queryParameters["endDate"]?:return@get call.respond(HttpStatusCode.BadRequest,ApiResponse<Unit>(false,message="endDate required"));call.respondHospitality{operations.report(call.businessId(),start,end)} }
