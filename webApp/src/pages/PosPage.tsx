@@ -28,6 +28,7 @@ export function PosPage() {
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
+  const [openGroup, setOpenGroup] = useState<string | null>(null)
   
   // Cart & Customer State
   const [cart, setCart] = useState<CartItem[]>([])
@@ -111,13 +112,16 @@ export function PosPage() {
   }, [])
 
   const categories = ['All', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))]
+  const groupCategories = Array.from(new Set(products.map(p => p.category?.trim() || 'Other'))).sort((a, b) => a.localeCompare(b))
+  const productsForGroup = (group: string) => group === 'All' ? products : products.filter(product => (product.category?.trim() || 'Other') === group)
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           p.sku.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory
+    const matchesCategory = selectedCategory === 'All' || (p.category?.trim() || 'Other') === selectedCategory
     return matchesSearch && matchesCategory
   })
+  const showProductItems = openGroup !== null || searchQuery.trim().length > 0
 
   const handleSelectCustomer = (custId: string) => {
     setSelectedCustomerId(custId)
@@ -579,16 +583,26 @@ export function PosPage() {
                     style={{ width: '100%', padding: '10px 12px 10px 36px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 14 }}
                     placeholder="Search by SKU or product name..."
                     value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
+                    onChange={e => {
+                      const value = e.target.value
+                      setSearchQuery(value)
+                      if (value.trim()) {
+                        setOpenGroup('All')
+                        setSelectedCategory('All')
+                      }
+                    }}
                   />
                 </div>
                 <div className="pos-view-toggle"><button type="button" aria-label="List view"><List size={16} /></button><button type="button" aria-label="Grid view" className="active"><Grid2X2 size={16} /></button><button type="button" className="pos-all-toggle">All</button></div>
               </div>
-              <div className="pos-category-strip" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+              <div className="pos-group-header">
+                {showProductItems ? <><button type="button" className="pos-back-to-groups" onClick={() => { setOpenGroup(null); setSearchQuery(''); setSelectedCategory('All') }}>← Groups</button><strong>{openGroup === 'All' ? 'All Items' : openGroup}</strong><span>{filteredProducts.length} item{filteredProducts.length === 1 ? '' : 's'}</span></> : <><strong>Choose a menu group</strong><span>Open a group to browse its products</span></>}
+              </div>
+              {showProductItems && <div className="pos-category-strip" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
                   {categories.map(cat => (
                     <button
                       key={cat}
-                      onClick={() => setSelectedCategory(cat)}
+                      onClick={() => { setSelectedCategory(cat); setOpenGroup(cat) }}
                       style={{
                         padding: '8px 14px',
                         borderRadius: 20,
@@ -605,12 +619,25 @@ export function PosPage() {
                       {cat === 'All' ? <><Grid2X2 size={13} /> All Items</> : cat}
                     </button>
                   ))}
-              </div>
+              </div>}
             </Card>
 
             <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }}>
               {loading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200, color: 'var(--b360-text-secondary)' }}>Loading catalog...</div>
+              ) : !showProductItems ? (
+                <div className="pos-group-grid">
+                  {['All', ...groupCategories].map(group => {
+                    const groupItems = productsForGroup(group)
+                    const preview = groupItems[0]
+                    return <button type="button" className="pos-group-card" key={group} onClick={() => { setOpenGroup(group); setSelectedCategory(group) }}>
+                      <span className="pos-group-media">{preview?.imageUrl ? <img src={preview.imageUrl} alt="" /> : <Grid2X2 size={25} />}</span>
+                      <span className="pos-group-copy"><strong>{group === 'All' ? 'All Items' : group}</strong><small>{groupItems.length} item{groupItems.length === 1 ? '' : 's'}</small></span>
+                      <ChevronRight size={17} className="pos-group-arrow" />
+                    </button>
+                  })}
+                  {groupCategories.length === 0 && <div className="pos-empty-catalog">No product groups are configured yet.</div>}
+                </div>
               ) : filteredProducts.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 40, color: 'var(--b360-text-secondary)' }}>No active products match your criteria.</div>
               ) : (
