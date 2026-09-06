@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { client, ApiResponse } from '../../services/api'
 import { Btn, Modal } from '../ui'
+import { CheckCircle2, ChevronRight, Clock3, CreditCard, List, PackageOpen, ShoppingBag } from 'lucide-react'
 
 type PortalOrder = {
   id: string; orderNumber: string; customerName: string; location: string;
@@ -8,6 +9,11 @@ type PortalOrder = {
   items: Array<{ name: string; quantity: number }>
 }
 type Queue = { waiting: PortalOrder[]; mine: PortalOrder[] }
+
+const ageLabel = (createdAt: string) => {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000))
+  return minutes < 60 ? `${minutes} min ago` : `${Math.floor(minutes / 60)}h ${minutes % 60}m ago`
+}
 
 export default function PortalOrdersInbox() {
   const [queue, setQueue] = useState<Queue>({ waiting: [], mine: [] })
@@ -68,22 +74,38 @@ export default function PortalOrdersInbox() {
     <Btn small variant={queue.waiting.length ? 'primary' : 'secondary'} onClick={() => { setOpen(true); refresh() }}>
       Portal orders ({queue.waiting.length}){error ? ' · !' : ''}
     </Btn>
-    {open && <Modal title="Portal orders" onClose={() => setOpen(false)} wide>
-      <p>Any staff member in this business can claim a waiting order.</p>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <Btn small variant={!mine ? 'primary' : 'secondary'} onClick={() => setMine(false)}>Waiting ({queue.waiting.length})</Btn>
-        <Btn small variant={mine ? 'primary' : 'secondary'} onClick={() => setMine(true)}>My orders ({queue.mine.length})</Btn>
-      </div>
-      {message && <p role="status" style={{ color: '#047857' }}>{message}</p>}
-      {error && <p role="alert" style={{ color: '#b91c1c' }}>{error}</p>}
-      {!orders.length && <p>{mine ? 'You have no active claimed portal orders.' : 'No portal orders are waiting.'}</p>}
-      <div style={{ display: 'grid', gap: 12 }}>
-        {orders.map(order => <article key={order.id} style={{ padding: 16, border: '1px solid #dce4e2', borderRadius: 10 }}>
-          <strong>{order.orderNumber} · {order.location || 'Pickup'}</strong>
-          <p>{order.customerName} · KES {order.amount.toLocaleString()} · Payment: {order.paymentStatus}</p>
-          <ul>{order.items.map((item, index) => <li key={index}>{item.quantity} × {item.name}</li>)}</ul>
-          {mine ? <span>Claimed by you</span> : <Btn disabled={!!busy} onClick={() => claim(order)}>{busy === order.id ? 'Claiming…' : 'Claim order'}</Btn>}
-        </article>)}
+    {open && <Modal
+      title={<span className="portal-modal-title"><span className="portal-modal-title-icon"><ShoppingBag size={20} /></span><span>Portal orders</span></span>}
+      onClose={() => setOpen(false)}
+      wide
+    >
+      <div className="portal-orders-modal-body">
+        <p className="portal-orders-subtitle">Any staff member in this business can claim a waiting order.</p>
+        <div className="portal-order-tabs" role="tablist" aria-label="Portal order queues">
+          <button type="button" role="tab" aria-selected={!mine} className={!mine ? 'active' : ''} onClick={() => setMine(false)}>Waiting ({queue.waiting.length})</button>
+          <button type="button" role="tab" aria-selected={mine} className={mine ? 'active' : ''} onClick={() => setMine(true)}>My orders ({queue.mine.length})</button>
+        </div>
+        {message && <div className="portal-order-message" role="status"><CheckCircle2 size={16} /> {message}</div>}
+        {error && <div className="portal-order-error" role="alert">{error}</div>}
+        {!orders.length && <div className="portal-order-empty">{mine ? 'You have no active claimed portal orders.' : 'No portal orders are waiting.'}</div>}
+        <div className="portal-order-list">
+          {orders.map(order => <article key={order.id} className="portal-order-card">
+            <div className="portal-order-main">
+              <div className="portal-order-thumb"><PackageOpen size={28} /></div>
+              <div className="portal-order-details">
+                <div className="portal-order-line portal-order-heading-line"><strong>{order.orderNumber}</strong><span className="portal-order-separator">•</span><span className="portal-order-channel">{(order.location || 'PICKUP').toUpperCase()}</span></div>
+                <div className="portal-order-customer">{order.customerName}</div>
+                <div className="portal-order-line"><ShoppingBag size={14} /> <span>KES {order.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                <div className="portal-order-line"><CreditCard size={14} /> <span>Payment: {order.paymentStatus}</span></div>
+                <div className="portal-order-items"><List size={15} /> <div>{order.items.map((item, index) => <span key={index}>{item.quantity} × {item.name}</span>)}</div></div>
+              </div>
+              <div className="portal-order-age"><span><Clock3 size={15} /> {ageLabel(order.createdAt)}</span><ChevronRight size={18} /></div>
+            </div>
+            <div className="portal-order-card-footer">
+              {mine ? <span className="portal-order-claimed"><CheckCircle2 size={15} /> Claimed by you</span> : <Btn disabled={!!busy} onClick={() => claim(order)}>{busy === order.id ? 'Claiming…' : 'Claim order'}</Btn>}
+            </div>
+          </article>)}
+        </div>
       </div>
     </Modal>}
   </>
