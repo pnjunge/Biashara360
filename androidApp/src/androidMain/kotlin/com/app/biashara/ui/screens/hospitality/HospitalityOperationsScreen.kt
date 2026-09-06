@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -147,6 +148,25 @@ private data class AndroidOperationsData(
 @Serializable private data class AndroidPortalOrderItem(val name: String = "", val quantity: Int = 1)
 @Serializable private data class AndroidPortalOrder(val id: String = "", val orderNumber: String = "", val customerName: String = "", val location: String = "", val amount: Double = 0.0, val paymentStatus: String = "", val createdAt: String = "", val claimedBy: String? = null, val items: List<AndroidPortalOrderItem> = emptyList())
 @Serializable private data class AndroidPortalQueue(val waiting: List<AndroidPortalOrder> = emptyList(), val mine: List<AndroidPortalOrder> = emptyList())
+
+private fun androidPortalOrderAge(createdAt: String): String {
+    val instant = runCatching { java.time.Instant.parse(createdAt) }.getOrNull() ?: return ""
+    val minutes = java.time.Duration.between(instant, java.time.Instant.now()).toMinutes().coerceAtLeast(0)
+    return when {
+        minutes < 1 -> "Just now"
+        minutes < 60 -> "$minutes min ago"
+        minutes < 1440 -> "${minutes / 60} hr ago"
+        else -> "${minutes / 1440} d ago"
+    }
+}
+
+@Composable
+private fun AndroidPortalMeta(icon: ImageVector, text: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(15.dp))
+        Text(text, color = Color(0xFF475569), fontSize = 11.sp)
+    }
+}
 
 @Serializable private data class UpdateTicketReq(val status: String)
 @Serializable private data class CreateTableReq(val name: String, val area: String = "Main Floor", val capacity: Int = 4)
@@ -357,8 +377,15 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
                 Text("KDS, floor plan, open tabs and inventory", fontSize = 12.sp, color = Color(0xFF64748B))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { portalOpen = true }) {
-                    Text("Portal orders${if (portalQueue.waiting.isNotEmpty()) " (${portalQueue.waiting.size})" else ""}", color = if (portalQueue.waiting.isNotEmpty()) Color(0xFFD97706) else Color(0xFF0F1F3A), fontWeight = if (portalQueue.waiting.isNotEmpty()) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp)
+                OutlinedButton(
+                    onClick = { portalOpen = true },
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF047857))
+                ) {
+                    Icon(Icons.Default.Inventory2, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("Portal orders${if (portalQueue.waiting.isNotEmpty()) " (${portalQueue.waiting.size})" else ""}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                 }
                 IconButton(onClick = { showAddTableDialog = true }) {
                     Icon(Icons.Default.AddCircle, "Add Table", tint = Color(0xFF0F1F3A))
@@ -982,9 +1009,14 @@ private fun AndroidPortalOrdersDialog(
         Surface(shape = RoundedCornerShape(14.dp), color = Color.White, modifier = Modifier.fillMaxWidth().fillMaxHeight(0.82f)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                    Column {
-                        Text("Portal orders", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = Color(0xFF0F1F3A))
-                        Text("Any active team member can claim a waiting order", fontSize = 11.sp, color = Color(0xFF64748B))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFE9FBF1)) {
+                            Icon(Icons.Default.Inventory2, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.padding(10.dp).size(22.dp))
+                        }
+                        Column {
+                            Text("Portal orders", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = Color(0xFF0F1F3A))
+                            Text("Any staff member can claim a waiting order.", fontSize = 11.sp, color = Color(0xFF64748B))
+                        }
                     }
                     IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close") }
                 }
@@ -992,22 +1024,46 @@ private fun AndroidPortalOrdersDialog(
                     FilterChip(selected = !showingMine, onClick = { onShowingMine(false) }, label = { Text("Waiting (${queue.waiting.size})", fontSize = 11.sp) })
                     FilterChip(selected = showingMine, onClick = { onShowingMine(true) }, label = { Text("My orders (${queue.mine.size})", fontSize = 11.sp) })
                 }
-                message?.let { Text(it, color = Color(0xFF059669), fontSize = 12.sp) }
+                Surface(color = Color(0xFFE9FBF1), shape = RoundedCornerShape(10.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF047857), modifier = Modifier.size(18.dp))
+                        Text(message ?: "New portal orders are waiting to be claimed.", color = Color(0xFF047857), fontSize = 12.sp)
+                    }
+                }
                 if (orders.isEmpty()) {
                     AndroidEmptyCard(if (showingMine) "You have not claimed any portal orders." else "No unclaimed portal orders.")
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(orders, key = { it.id }) { order ->
-                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)), border = BorderStroke(1.dp, Color(0xFFE2E8F0))) {
-                                Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                                        Text("#${order.orderNumber}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        Text("KES ${String.format("%,.0f", order.amount)}", fontWeight = FontWeight.Bold, color = Color(0xFF00B874), fontSize = 13.sp)
+                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Color(0xFFDCE4E2))) {
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Text(order.orderNumber, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF0F172A))
+                                            Text(order.customerName, fontSize = 11.sp, color = Color(0xFF64748B))
+                                        }
+                                        Surface(color = Color(0xFFFFF1DB), shape = RoundedCornerShape(6.dp)) {
+                                            Text(order.location.ifBlank { "ONLINE" }.uppercase(), color = Color(0xFFB45309), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                                        }
                                     }
-                                    Text("${order.customerName} · ${order.location}", fontSize = 11.sp, color = Color(0xFF475569))
-                                    if (order.items.isNotEmpty()) Text(order.items.joinToString { "${it.quantity}x ${it.name}" }, fontSize = 11.sp, color = Color(0xFF64748B))
-                                    if (!showingMine) Button(onClick = { onClaim(order) }, enabled = busyId == null, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = 5.dp)) { Text(if (busyId == order.id) "Claiming…" else "Claim order", fontSize = 11.sp) }
-                                    else Text("Claimed · ${order.paymentStatus}", color = Color(0xFF059669), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        AndroidPortalMeta(Icons.Default.Inventory2, "KES ${String.format("%,.2f", order.amount)}")
+                                        AndroidPortalMeta(Icons.Default.CreditCard, "Payment: ${order.paymentStatus.ifBlank { "Pending" }}")
+                                        androidPortalOrderAge(order.createdAt).takeIf { it.isNotBlank() }?.let { AndroidPortalMeta(Icons.Default.AccessTime, it) }
+                                    }
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        order.items.forEach { Text("${it.quantity} × ${it.name}", fontSize = 12.sp, color = Color(0xFF334155)) }
+                                    }
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                                        if (!showingMine) Button(onClick = { onClaim(order) }, enabled = busyId == null, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp)) {
+                                            Text(if (busyId == order.id) "Claiming…" else "Claim order", fontSize = 11.sp)
+                                            Spacer(Modifier.width(4.dp))
+                                            Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        } else Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(17.dp))
+                                            Text("Claimed by you", color = Color(0xFF047857), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                        }
+                                    }
                                 }
                             }
                         }
