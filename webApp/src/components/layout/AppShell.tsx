@@ -45,6 +45,9 @@ export default function AppShell() {
   const [hospitalityEnabled, setHospitalityEnabled] = useState<boolean | null>(null)
   const [taxComplianceOpen, setTaxComplianceOpen] = useState(() => location.pathname === '/tax' || location.pathname === '/kra')
   useEffect(() => {
+    if (location.pathname === '/tax' || location.pathname === '/kra') setTaxComplianceOpen(true)
+  }, [location.pathname])
+  useEffect(() => {
     accessApi.me().then(result => {
       if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
     }).catch(() => setAllowedMenus(null))
