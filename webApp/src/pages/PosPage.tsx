@@ -711,7 +711,7 @@ export function PosPage() {
                 </div>
               )}
 
-              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="pos-cart-items" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {cart.length === 0 ? (
                   <div className="pos-empty-order" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--b360-text-secondary)', gap: 8 }}>
                     <span className="pos-empty-icon"><ShoppingCart size={35} /></span>

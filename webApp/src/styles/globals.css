@@ -257,6 +257,7 @@ input:focus, select:focus, textarea:focus {
 .pos-hospitality-banner strong { font-size: 14px; }
 .pos-hospitality-banner button { color: #08784f; font-size: 12px; font-weight: 800; }
 .pos-workspace { grid-template-columns: minmax(0, 1fr) 390px; gap: 22px; }
+.pos-workspace > * { min-width: 0; }
 .pos-catalog-toolbar-main { margin-bottom: 12px; }
 .pos-catalog-toolbar-main > div:first-child { min-height: 44px; }
 .pos-view-toggle { display: inline-flex; align-items: stretch; gap: 0; overflow: hidden; min-height: 44px; border: 1px solid var(--b360-border); border-radius: 9px; }
@@ -287,6 +288,9 @@ input:focus, select:focus, textarea:focus {
 .pos-product-media { height: 118px !important; overflow: hidden; color: #0a9870 !important; background: #f1f5f9 !important; }
 .pos-product-media img { width: 100%; height: 100%; object-fit: cover; }
 .pos-order-column .ui-card { min-height: 0; overflow-y: auto; border-radius: 12px; box-shadow: 0 8px 24px rgba(15, 35, 73, .05); }
+.pos-order-column .ui-card > * { flex-shrink: 0; }
+.pos-cart-items { flex: 1 0 230px; min-height: 230px; max-height: 360px; overflow-y: auto; }
+.pos-cart-items > * { flex-shrink: 0; }
 .pos-order-heading { padding-bottom: 14px !important; }
 .pos-order-icon { display: grid; place-items: center; width: 34px; height: 34px; color: #059669; background: #e7fbf2; border-radius: 9px; }
 .pos-more-button { display: grid; place-items: center; color: #5a6f8f; }
@@ -305,6 +309,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 @media (max-width: 900px) {
+  .pos-page-layout { height: auto !important; min-height: calc(100dvh - 90px); }
   .pos-page-heading { align-items: flex-start; flex-direction: column; }
   .pos-heading-actions { justify-content: flex-start; }
   .pos-workspace { grid-template-columns: minmax(0, 1fr); }
