@@ -415,6 +415,7 @@ export interface UserResponse {
   businessId: string
   preferredLanguage: string
   isActive?: boolean
+  assignedGroups?: string[]
 }
 
 export interface InviteUserRequest {
@@ -765,6 +766,12 @@ export const userApi = {
     })
     return res.data
   },
+  auditLogs: async (limit = 100, businessId?: string) => {
+    const res = await client.get<ApiResponse<AuditLogResponse[]>>('/users/audit-logs', {
+      params: { ...(businessId ? { businessId } : {}), limit },
+    })
+    return res.data
+  },
   invite: async (data: InviteUserRequest, businessId?: string) => {
     const res = await client.post<ApiResponse<UserResponse>>('/users', data, {
       params: businessId ? { businessId } : undefined,
@@ -783,6 +790,19 @@ export const userApi = {
     })
     return res.data
   },
+}
+
+export interface AuditLogResponse {
+  id: string
+  businessId: string | null
+  actorUserId: string | null
+  actorName?: string | null
+  targetUserId: string | null
+  targetName?: string | null
+  action: string
+  ipAddress?: string | null
+  details?: string | null
+  createdAt: string
 }
 
 export const accessApi = {

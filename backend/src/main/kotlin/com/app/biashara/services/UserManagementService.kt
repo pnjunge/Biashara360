@@ -2,6 +2,8 @@ package com.app.biashara.services
 
 import com.app.biashara.auth.PasswordUtils
 import com.app.biashara.auth.generateId
+import com.app.biashara.db.AccessGroupsTable
+import com.app.biashara.db.UserAccessGroupsTable
 import com.app.biashara.db.UsersTable
 import com.app.biashara.db.RefreshTokensTable
 import com.app.biashara.models.*
@@ -156,7 +158,7 @@ class UserManagementService(
         req: UpdateUserRoleRequest,
         ipAddress: String? = null
     ): ApiResponse<UserResponse> = transaction {
-        val normalizedRole = req.role.uppercase()
+        val normalizedRole = req.role.trim().uppercase()
         if (normalizedRole !in ASSIGNABLE_ROLES) {
             return@transaction ApiResponse(false, message = "Role must be one of: ${ASSIGNABLE_ROLES.joinToString()}")
         }
@@ -229,7 +231,15 @@ class UserManagementService(
         businessId = this[UsersTable.businessId],
         preferredLanguage = this[UsersTable.preferredLanguage],
         isActive = this[UsersTable.isActive],
-        hasPinSet = this[UsersTable.loginPinHash] != null
+        hasPinSet = this[UsersTable.loginPinHash] != null,
+        assignedGroups = (UserAccessGroupsTable innerJoin AccessGroupsTable)
+            .slice(AccessGroupsTable.name)
+            .select {
+                (UserAccessGroupsTable.userId eq this@toUserResponse[UsersTable.id]) and
+                    (AccessGroupsTable.businessId eq (this@toUserResponse[UsersTable.businessId] ?: "")) and
+                    (AccessGroupsTable.isActive eq true)
+            }
+            .map { it[AccessGroupsTable.name] }
     )
 
     private fun activeAdminCount(businessId: String) = UsersTable.select {

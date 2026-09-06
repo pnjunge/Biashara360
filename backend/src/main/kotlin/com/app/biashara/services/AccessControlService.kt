@@ -126,7 +126,13 @@ class AccessControlService {
     fun deleteRole(businessId: String, roleId: String): Boolean = transaction {
         val exists = AccessRolesTable.select { (AccessRolesTable.id eq roleId) and (AccessRolesTable.businessId eq businessId) }.any()
         require(exists) { "Role not found" }
-        AccessGroupRolesTable.deleteWhere { AccessGroupRolesTable.roleId eq roleId }
+        val assignedGroups = (AccessGroupRolesTable innerJoin AccessGroupsTable)
+            .select {
+                (AccessGroupRolesTable.roleId eq roleId) and
+                    (AccessGroupsTable.businessId eq businessId)
+            }
+            .count()
+        require(assignedGroups == 0L) { "Role is assigned to one or more groups. Disable it or remove it from those groups first." }
         AccessRolesTable.deleteWhere { (AccessRolesTable.id eq roleId) and (AccessRolesTable.businessId eq businessId) } > 0
     }
 
