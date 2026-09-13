@@ -74,8 +74,10 @@ class DashboardViewModel(
                 productRepository?.syncProductsFromApi(businessId)
             } catch (_: Exception) {}
             try {
-                orderRepository?.syncOrdersFromApi(businessId)
-            } catch (_: Exception) {}
+                orderRepository?.syncOrdersFromApi(businessId)?.getOrThrow()
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message ?: "Could not refresh orders") }
+            }
             try {
                 expenseRepository?.syncExpensesFromApi(businessId)
             } catch (_: Exception) {}
@@ -113,7 +115,6 @@ class DashboardViewModel(
 
                     // Build last-7-days revenue series from real order data
                     val today = Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
-                    val dayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
                     val weeklyRevenue = (6 downTo 0).map { daysAgo ->
                         val targetDate = today.minus(daysAgo, DateTimeUnit.DAY)
                         val dayRevenue = orders
@@ -123,7 +124,7 @@ class DashboardViewModel(
                                 ).date == targetDate && order.paymentStatus == PaymentStatus.PAID
                             }
                             .sumOf { it.subtotal }
-                        val label = dayLabels[targetDate.dayOfWeek.ordinal]
+                        val label = "${targetDate.dayOfMonth}/${targetDate.monthNumber}"
                         label to dayRevenue
                     }
 

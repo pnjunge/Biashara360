@@ -828,6 +828,7 @@ fun ApplicationCall.hasModule(module: String): Boolean {
         val moduleMenus = when (normalizedModule) {
             "INVENTORY" -> setOf("INVENTORY")
             "SALES" -> setOf("POS", "ORDERS", "HOSPITALITY")
+            "SERVICES" -> setOf("SERVICES")
             "CRM" -> setOf("CUSTOMERS")
             "EXPENSES" -> setOf("EXPENSES")
             "PAYMENTS" -> setOf("PAYMENTS", "CARD_PAYMENTS")
@@ -868,6 +869,7 @@ fun ApplicationCall.hasAnyMenu(vararg requestedMenus: String): Boolean {
         val business = BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull() ?: return@transaction false
         val enabled = business[BusinessesTable.enabledMenus].split(',').map { it.trim().uppercase() }.toMutableSet()
         if (business[BusinessesTable.hospitalityEnabled] || business[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true)) enabled += setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
+        if (business[BusinessesTable.servicesEnabled]) enabled += "SERVICES" else enabled -= "SERVICES"
         if (enabled.intersect(requested).isEmpty()) return@transaction false
         if (userRole() == "ADMIN") return@transaction true
         val roleIds = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)

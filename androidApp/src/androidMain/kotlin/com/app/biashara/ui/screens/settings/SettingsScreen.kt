@@ -51,8 +51,8 @@ import androidx.compose.foundation.verticalScroll
 fun SettingsScreen(
     onLogout: () -> Unit,
     onNavigateToPayments: (() -> Unit)? = null,
+    onNavigateToTax: (() -> Unit)? = null,
     onNavigateToKra: (() -> Unit)? = null,
-    onNavigateToSocial: (() -> Unit)? = null,
     onNavigateToCyberSourceSettings: (() -> Unit)? = null,
     authViewModel: AuthViewModel = kmpViewModel(),
     businessViewModel: BusinessViewModel = kmpViewModel()
@@ -508,8 +508,11 @@ fun SettingsScreen(
                 SettingsSection("Integrations") {
                     SettingsNavItem("M-Pesa Configuration (Read-only)", Icons.Filled.PhoneAndroid) { onNavigateToPayments?.invoke() }
                     SettingsNavItem("CyberSource Configuration (Read-only)", Icons.Filled.CreditCard) { onNavigateToCyberSourceSettings?.invoke() }
-                    SettingsNavItem("KRA eTIMS", Icons.AutoMirrored.Filled.Assignment) { onNavigateToKra?.invoke() }
-                    SettingsNavItem("Social Channels", Icons.Filled.Share) { onNavigateToSocial?.invoke() }
+                    SettingsNavItem("Tax Settings", Icons.Filled.AccountBalance) { onNavigateToTax?.invoke() }
+                    SettingsNavItem("KRA iTax", Icons.AutoMirrored.Filled.Assignment) { onNavigateToKra?.invoke() }
+                    SettingsNavItem("Social Setup", Icons.Filled.Share) {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://biashara360.co.ke/social-onboarding")))
+                    }
                 }
             }
             item {

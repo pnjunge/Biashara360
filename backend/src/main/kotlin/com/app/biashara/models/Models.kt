@@ -453,8 +453,12 @@ data class ProfitSummaryResponse(
     val netProfit: Double,
     val netMargin: Double,
     val cashflowIn: Double,
-    val cashflowOut: Double
+    val cashflowOut: Double,
+    val dailyRevenue: List<DailyRevenueResponse> = emptyList()
 )
+
+@Serializable
+data class DailyRevenueResponse(val date: String, val revenue: Double)
 
 // ─── User Management ──────────────────────────────────────────────────────────
 
@@ -508,6 +512,8 @@ data class BusinessProfileRequest(
     val receiptHeader: String = "Welcome to our store!",
     val receiptFooter: String = "Thank you for shopping with us!",
     val receiptLogo: String? = null,
+    val receiptLogoWidthMm: Int = 42,
+    val receiptLogoHeightMm: Int = 20,
     val receiptShowTax: Boolean = true,
     val receiptShowCustomer: Boolean = true,
     val storefrontThemeColor: String = "#0F766E",
@@ -536,9 +542,12 @@ data class BusinessProfileResponse(
     val subscriptionTier: String,
     val subscriptionEnabled: Boolean,
     val hospitalityEnabled: Boolean = false,
+    val servicesEnabled: Boolean = false,
     val receiptHeader: String = "Welcome to our store!",
     val receiptFooter: String = "Thank you for shopping with us!",
     val receiptLogo: String? = null,
+    val receiptLogoWidthMm: Int = 42,
+    val receiptLogoHeightMm: Int = 20,
     val receiptShowTax: Boolean = true,
     val receiptShowCustomer: Boolean = true,
     val storefrontThemeColor: String = "#0F766E",

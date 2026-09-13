@@ -30,10 +30,13 @@ class BusinessProfileService {
                     accountNumber   = it[BusinessesTable.accountNumber] ?: "",
                     subscriptionTier = it[BusinessesTable.subscriptionTier],
                     subscriptionEnabled = it[BusinessesTable.subscriptionEnabled],
+                    servicesEnabled = it[BusinessesTable.servicesEnabled],
                     hospitalityEnabled = it[BusinessesTable.hospitalityEnabled],
                     receiptHeader   = it[BusinessesTable.receiptHeader],
                     receiptFooter   = it[BusinessesTable.receiptFooter],
                     receiptLogo     = it[BusinessesTable.receiptLogo],
+                    receiptLogoWidthMm = it[BusinessesTable.receiptLogoWidthMm],
+                    receiptLogoHeightMm = it[BusinessesTable.receiptLogoHeightMm],
                     receiptShowTax  = it[BusinessesTable.receiptShowTax],
                     receiptShowCustomer = it[BusinessesTable.receiptShowCustomer],
                     storefrontThemeColor = it[BusinessesTable.storefrontThemeColor],
@@ -60,6 +63,9 @@ class BusinessProfileService {
             !logo.startsWith("data:image/webp;base64,") &&
             !logo.startsWith("https://")) {
             return@transaction ApiResponse(false, message = "Receipt logo must be a PNG, JPEG, WebP, or HTTPS image")
+        }
+        if (req.receiptLogoWidthMm !in 10..68 || req.receiptLogoHeightMm !in 5..40) {
+            return@transaction ApiResponse(false, message = "Receipt logo width must be 10–68 mm and height 5–40 mm")
         }
         val themeColor = req.storefrontThemeColor.trim().uppercase()
         if (!themeColor.matches(Regex("^#[0-9A-F]{6}$"))) return@transaction ApiResponse(false, message = "Storefront theme color must be a valid hex color")
@@ -91,6 +97,8 @@ class BusinessProfileService {
             it[receiptHeader] = req.receiptHeader
             it[receiptFooter] = req.receiptFooter
             it[receiptLogo] = logo
+            it[receiptLogoWidthMm] = req.receiptLogoWidthMm
+            it[receiptLogoHeightMm] = req.receiptLogoHeightMm
             it[receiptShowTax] = req.receiptShowTax
             it[receiptShowCustomer] = req.receiptShowCustomer
             it[storefrontThemeColor] = themeColor

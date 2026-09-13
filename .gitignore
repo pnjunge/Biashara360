@@ -4,6 +4,12 @@ backend/.gradle/
 backend/.gradle/
 backend/build.gradle.kts
 .env
+deploy/hetzner/.env
+deploy/hetzner/migration/
+deploy/hetzner/backups/
+deploy/oracle/.env
+deploy/oracle/migration/
+deploy/oracle/backups/
 .git/
 *.log
 .DS_Store

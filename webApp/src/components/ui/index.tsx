@@ -166,7 +166,7 @@ export function Input({ label, placeholder, value, onChange, type = 'text' }:
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 export function Modal({ title, onClose, children, footer, wide, extraWide }: {
-  title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean; extraWide?: boolean
+  title: React.ReactNode; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean; extraWide?: boolean
 }) {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)

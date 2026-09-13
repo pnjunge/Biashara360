@@ -2,8 +2,8 @@ import axios, { AxiosInstance } from 'axios'
 
 // The custom API hostname is not provisioned in every environment. Keep the
 // deployed App Runner endpoint as the working fallback; production builds can
-// still override it with VITE_API_BASE_URL when DNS is configured.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://sddgmezqj2.us-east-1.awsapprunner.com/v1'
+// Deployments can override this with VITE_API_BASE_URL.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.biashara360.co.ke/v1'
 const LAST_ACTIVITY_KEY = 'sessionLastActivity'
 
 export const client: AxiosInstance = axios.create({
@@ -122,7 +122,7 @@ export interface ProductResponse {
   id: string; businessId: string; sku: string; name: string; description: string
   buyingPrice: number; sellingPrice: number; profitPerItem: number; profitMargin: number
   currentStock: number; lowStockThreshold: number; isLowStock: boolean; isOutOfStock: boolean
-  category: string; imageUrl: string | null; isActive?: boolean; createdAt: string; updatedAt: string
+  category: string; barcode?: string | null; imageUrl: string | null; isActive?: boolean; createdAt: string; updatedAt: string
 }
 
 export interface OrderItemResponse {
@@ -150,7 +150,7 @@ export interface HospitalityOperations {
   reservations:Array<{id:string;tableId:string|null;customerName:string;customerPhone:string;guestCount:number;reservedAt:string;durationMinutes:number;status:string;notes:string}>
   menuProfiles:Array<{productId:string;preparationStation:string|null;mealPeriods:string[];sizes:MenuOption[];extras:MenuOption[];variants:MenuOption[];comboProductIds:string[];soldOut:boolean;happyHourPrice:number|null;happyHourStart:string|null;happyHourEnd:string|null;ageRestricted:boolean;minimumAge:number|null}>
   ingredients:Array<{id:string;name:string;unit:string;quantity:number;reorderLevel:number;unitCost:number;isLowStock:boolean}>
-  shifts:Array<{id:string;openedBy:string;openedAt:string;closedAt:string|null;openingFloat:number;expectedCash:number|null;actualCash:number|null;mpesaTotal:number|null;cardTotal:number|null;tipsTotal:number;expensesTotal:number;status:string;variance:number|null}>
+  shifts:Array<{id:string;openedBy:string;openedAt:string;closedAt:string|null;openingFloat:number;expectedCash:number|null;actualCash:number|null;mpesaTotal:number|null;cardTotal:number|null;tipsTotal:number;expensesTotal:number;status:string;variance:number|null;actualMpesa:number|null;actualCard:number|null;mpesaVariance:number|null;cardVariance:number|null;totalVariance:number|null}>
   suppliers:Array<{id:string;name:string;phone:string;email:string|null;address:string|null;isActive:boolean}>
   purchaseOrders:Array<{id:string;orderNumber:string;supplierId:string;status:string;totalCost:number;orderedAt:string;receivedAt:string|null}>
   approvals:Array<{id:string;actionType:string;entityType:string;entityId:string;requestedBy:string;approvedBy:string|null;status:string;reason:string;requestedAt:string}>
@@ -183,6 +183,7 @@ export interface ProfitSummaryResponse {
   period: string; totalRevenue: number; totalCostOfGoods: number
   grossProfit: number; grossMargin: number; totalExpenses: number
   netProfit: number; netMargin: number; cashflowIn: number; cashflowOut: number
+  dailyRevenue?: Array<{ date: string; revenue: number }>
 }
 
 export interface ReportBreakdown { label: string; count: number; amount: number }
@@ -234,9 +235,18 @@ export interface EtimsInvoiceResponse {
 
 export interface TaxReturnResponse {
   id: string; returnType: 'VAT3' | 'TOT' | 'WHT'
+  periodYear: number; periodMonth: number
   periodLabel: string; dueDate: string; status: string
   netVatPayable?: number; totAmount?: number; whtAmount?: number
   iTaxAcknowledgementNo: string | null; csvDownloadReady: boolean
+}
+
+export interface CsvExportResponse {
+  fileName: string; format: string; rowCount: number; periodLabel: string
+  downloadBase64: string; contentType: string
+  uploadInstructions: {
+    portalUrl: string; menuPath: string[]; fileFormatRequired: string; steps: string[]
+  }
 }
 
 export interface SocialChannel {
@@ -245,7 +255,7 @@ export interface SocialChannel {
   tenantId?: string | null; wabaId?: string | null; phoneNumberId?: string | null
   metaBusinessId?: string | null
   connectionStatus?: 'CONNECTED' | 'ACTION_REQUIRED' | 'DISCONNECTED'
-  onboardingMethod?: 'MANUAL' | 'META_EMBEDDED_SIGNUP'
+  onboardingMethod?: 'MANUAL' | 'META_EMBEDDED_SIGNUP' | 'META_BUSINESS_LOGIN'
   lastVerifiedAt?: string | null
   webhookVerifyToken: string; webhookUrl: string; unreadCount: number
 }
@@ -254,8 +264,26 @@ export interface MetaOnboardingConfiguration {
   configured: boolean
   appId: string | null
   configurationId: string | null
+  businessLoginConfigured: boolean
+  businessLoginConfigurationId: string | null
   graphApiVersion: string
   missing: string[]
+  businessLoginMissing: string[]
+}
+
+export interface MetaBusinessAsset {
+  platform: 'FACEBOOK' | 'INSTAGRAM'
+  accountId: string
+  name: string
+  pageId: string
+  pageName: string
+  username?: string | null
+  pictureUrl?: string | null
+}
+
+export interface MetaBusinessDiscovery {
+  sessionToken: string
+  assets: MetaBusinessAsset[]
 }
 
 export interface StorefrontProduct {
@@ -283,6 +311,8 @@ export interface Storefront {
   description: string
   bannerUrl: string | null
   layout: 'GRID' | 'LIST'
+  tables?: Array<{ id: string; name: string; area: string }>
+  services: ServiceCatalogItem[]
   products: StorefrontProduct[]
 }
 
@@ -336,7 +366,11 @@ export const storefrontApi = {
       `/public/store/${encodeURIComponent(businessId)}/orders/${encodeURIComponent(orderId)}?${params}`
     )
     return res.data
-  }
+  },
+  bookAppointment: async (businessId: string, data: { serviceId: string; resourceId?: string | null; customerName: string; customerPhone?: string; startsAt: string; durationMinutes?: number; notes?: string }) => {
+    const res = await client.post<ApiResponse<ServiceAppointment>>(`/public/store/${encodeURIComponent(businessId)}/appointments`, data)
+    return res.data
+  },
 }
 
 export interface ConversationSummary {
@@ -415,6 +449,7 @@ export interface UserResponse {
   businessId: string
   preferredLanguage: string
   isActive?: boolean
+  assignedGroups?: string[]
 }
 
 export interface InviteUserRequest {
@@ -429,6 +464,19 @@ export interface AccessRole { id: string; name: string; description: string; all
 export interface AccessGroup { id: string; name: string; description: string; roleIds: string[]; userIds: string[]; isActive: boolean }
 export interface AccessConfig { menus: MenuDefinition[]; enabledMenus: string[]; roles: AccessRole[]; groups: AccessGroup[] }
 export interface InventoryCategory { id: string; name: string; isActive: boolean; productCount: number; imageUrl?: string | null }
+
+export interface ServiceCatalogItem {
+  id: string; name: string; description: string; category: string
+  durationMinutes: number; price: number; isActive: boolean; createdAt: string; updatedAt: string
+}
+export interface ServiceResource { id: string; name: string; type: string; isActive: boolean }
+export interface ServiceAppointment {
+  id: string; serviceId: string; serviceName: string; resourceId?: string | null; resourceName?: string | null
+  customerId?: string | null; customerName: string; customerPhone: string; staffUserId?: string | null
+  startsAt: string; durationMinutes: number; status: string; notes: string; orderId?: string | null
+  createdAt: string; updatedAt: string
+}
+export interface ServiceSchedule { services: ServiceCatalogItem[]; resources: ServiceResource[]; appointments: ServiceAppointment[] }
 
 // ── API Service Objects ───────────────────────────────────────────────────────
 
@@ -670,20 +718,25 @@ export const kraApi = {
     const res = await client.post<ApiResponse<null>>('/kra/etims/retry')
     return res.data
   },
-  generateVat3: async (data: { periodStart: string; periodEnd: string }) => {
+  generateVat3: async (data: { periodYear: number; periodMonth: number }) => {
     const res = await client.post<ApiResponse<TaxReturnResponse>>('/kra/returns/vat3', data)
     return res.data
   },
-  generateTot: async (data: { periodStart: string; periodEnd: string }) => {
+  generateTot: async (data: { periodYear: number; periodMonth: number }) => {
     const res = await client.post<ApiResponse<TaxReturnResponse>>('/kra/returns/tot', data)
     return res.data
   },
-  generateWht: async (data: { periodStart: string; periodEnd: string }) => {
+  generateWht: async (data: { periodYear: number; periodMonth: number }) => {
     const res = await client.post<ApiResponse<TaxReturnResponse>>('/kra/returns/wht', data)
     return res.data
   },
-  markReturnSubmitted: async (id: string) => {
-    const res = await client.patch<ApiResponse<TaxReturnResponse>>(`/kra/returns/${id}/submitted`)
+  markReturnSubmitted: async (id: string, ackNo: string) => {
+    const params = new URLSearchParams({ ackNo })
+    const res = await client.patch<ApiResponse<null>>(`/kra/returns/${id}/submitted?${params.toString()}`)
+    return res.data
+  },
+  exportCsv: async (data: { returnType: TaxReturnResponse['returnType']; periodYear: number; periodMonth: number; format?: string }) => {
+    const res = await client.post<ApiResponse<CsvExportResponse>>('/kra/export/csv', data)
     return res.data
   },
   getReturns: async () => {
@@ -705,6 +758,17 @@ export const socialApi = {
     channelName?: string
   }) => {
     const res = await client.post<ApiResponse<SocialChannel>>('/social/meta/embedded-signup/complete', data)
+    return res.data
+  },
+  discoverMetaBusinessAssets: async (code: string) => {
+    const res = await client.post<ApiResponse<MetaBusinessDiscovery>>('/social/meta/business-login/discover', { code })
+    return res.data
+  },
+  connectMetaBusinessAssets: async (data: {
+    sessionToken: string
+    selections: Array<{ platform: 'FACEBOOK' | 'INSTAGRAM'; accountId: string; channelName?: string }>
+  }) => {
+    const res = await client.post<ApiResponse<SocialChannel[]>>('/social/meta/business-login/connect', data)
     return res.data
   },
   getChannels: async () => {
@@ -765,6 +829,12 @@ export const userApi = {
     })
     return res.data
   },
+  auditLogs: async (limit = 100, businessId?: string) => {
+    const res = await client.get<ApiResponse<AuditLogResponse[]>>('/users/audit-logs', {
+      params: { ...(businessId ? { businessId } : {}), limit },
+    })
+    return res.data
+  },
   invite: async (data: InviteUserRequest, businessId?: string) => {
     const res = await client.post<ApiResponse<UserResponse>>('/users', data, {
       params: businessId ? { businessId } : undefined,
@@ -785,15 +855,29 @@ export const userApi = {
   },
 }
 
+export interface AuditLogResponse {
+  id: string
+  businessId: string | null
+  actorUserId: string | null
+  actorName?: string | null
+  targetUserId: string | null
+  targetName?: string | null
+  action: string
+  ipAddress?: string | null
+  details?: string | null
+  createdAt: string
+}
+
 export const accessApi = {
   me: async () => (await client.get<ApiResponse<{ enabledMenus: string[] }>>('/access/me')).data,
-  config: async () => (await client.get<ApiResponse<AccessConfig>>('/access/config')).data,
-  updateMenus: async (enabledMenus: string[]) => (await client.put<ApiResponse<AccessConfig>>('/access/config/menus', { enabledMenus })).data,
-  createRole: async (data: { name: string; description: string; allowedMenus: string[] }) => (await client.post<ApiResponse<AccessRole>>('/access/config/roles', data)).data,
-  updateRole: async (id: string, data: { name: string; description: string; allowedMenus: string[]; isActive: boolean }) => (await client.put<ApiResponse<AccessRole>>(`/access/config/roles/${id}`, data)).data,
-  createGroup: async (data: { name: string; description: string; roleIds: string[] }) => (await client.post<ApiResponse<AccessGroup>>('/access/config/groups', data)).data,
-  updateGroup: async (id: string, data: { name: string; description: string; roleIds: string[]; isActive: boolean }) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${id}`, data)).data,
-  assignUsers: async (groupId: string, userIds: string[]) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${groupId}/users`, { userIds })).data,
+  config: async (businessId?: string) => (await client.get<ApiResponse<AccessConfig>>('/access/config', { params: businessId ? { businessId } : undefined })).data,
+  updateMenus: async (enabledMenus: string[], businessId?: string) => (await client.put<ApiResponse<AccessConfig>>('/access/config/menus', { enabledMenus }, { params: businessId ? { businessId } : undefined })).data,
+  createRole: async (data: { name: string; description: string; allowedMenus: string[] }, businessId?: string) => (await client.post<ApiResponse<AccessRole>>('/access/config/roles', data, { params: businessId ? { businessId } : undefined })).data,
+  updateRole: async (id: string, data: { name: string; description: string; allowedMenus: string[]; isActive: boolean }, businessId?: string) => (await client.put<ApiResponse<AccessRole>>(`/access/config/roles/${id}`, data, { params: businessId ? { businessId } : undefined })).data,
+  deleteRole: async (id: string, businessId?: string) => (await client.delete<ApiResponse<boolean>>(`/access/config/roles/${id}`, { params: businessId ? { businessId } : undefined })).data,
+  createGroup: async (data: { name: string; description: string; roleIds: string[] }, businessId?: string) => (await client.post<ApiResponse<AccessGroup>>('/access/config/groups', data, { params: businessId ? { businessId } : undefined })).data,
+  updateGroup: async (id: string, data: { name: string; description: string; roleIds: string[]; isActive: boolean }, businessId?: string) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${id}`, data, { params: businessId ? { businessId } : undefined })).data,
+  assignUsers: async (groupId: string, userIds: string[], businessId?: string) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${groupId}/users`, { userIds }, { params: businessId ? { businessId } : undefined })).data,
 }
 
 export const hospitalityApi = {
@@ -826,6 +910,22 @@ export const hospitalityOpsApi = {
   decideApproval: async (id:string,approved:boolean) => (await client.post(`/hospitality/operations/approvals/${id}/decision`,{approved})).data,
   splitBill: async (orderId:string,payments:any[]) => (await client.post(`/hospitality/operations/tabs/${orderId}/split`,{payments})).data,
   report: async (startDate:string,endDate:string) => (await client.get(`/hospitality/operations/report`,{params:{startDate,endDate}})).data,
+}
+
+export const servicesApi = {
+  status: async () => (await client.get<ApiResponse<{ enabled: boolean }>>('/services/status')).data,
+  setEnabled: async (enabled: boolean) => (await client.put<ApiResponse<{ enabled: boolean }>>('/services/enabled', { enabled })).data,
+  schedule: async (params?: { from?: string; to?: string }) => (await client.get<ApiResponse<ServiceSchedule>>('/services', { params })).data,
+  catalog: async () => (await client.get<ApiResponse<ServiceCatalogItem[]>>('/services/catalog')).data,
+  createCatalog: async (data: { name: string; description: string; category: string; durationMinutes: number; price: number; isActive?: boolean }) => (await client.post<ApiResponse<ServiceCatalogItem>>('/services/catalog', data)).data,
+  updateCatalog: async (id: string, data: { name: string; description: string; category: string; durationMinutes: number; price: number; isActive: boolean }) => (await client.put<ApiResponse<ServiceCatalogItem>>(`/services/catalog/${id}`, data)).data,
+  createResource: async (data: { name: string; type: string; isActive?: boolean }) => (await client.post<ApiResponse<ServiceResource>>('/services/resources', data)).data,
+  updateResource: async (id: string, data: { name: string; type: string; isActive: boolean }) => (await client.put<ApiResponse<ServiceResource>>(`/services/resources/${id}`, data)).data,
+  appointments: async (params?: { from?: string; to?: string }) => (await client.get<ApiResponse<ServiceAppointment[]>>('/services/appointments', { params })).data,
+  createAppointment: async (data: { serviceId: string; resourceId?: string | null; customerId?: string | null; customerName: string; customerPhone?: string; staffUserId?: string | null; startsAt: string; durationMinutes?: number; notes?: string }) => (await client.post<ApiResponse<ServiceAppointment>>('/services/appointments', data)).data,
+  updateAppointment: async (id: string, data: { serviceId: string; resourceId?: string | null; customerId?: string | null; customerName: string; customerPhone?: string; staffUserId?: string | null; startsAt: string; durationMinutes?: number; notes?: string }) => (await client.put<ApiResponse<ServiceAppointment>>(`/services/appointments/${id}`, data)).data,
+  updateAppointmentStatus: async (id: string, status: string) => (await client.patch<ApiResponse<ServiceAppointment>>(`/services/appointments/${id}/status`, { status })).data,
+  seedTemplates: async () => (await client.post<ApiResponse<ServiceSchedule>>('/services/templates')).data,
 }
 
 export const cyberSourceApi = {
@@ -919,6 +1019,7 @@ export interface BusinessResponse {
   ownerEmail: string
   subscriptionTier: string
   subscriptionEnabled: boolean
+  servicesEnabled?: boolean
   hospitalityEnabled: boolean
   isActive: boolean
   createdAt: string
@@ -966,6 +1067,8 @@ export interface BusinessProfileRequest {
   receiptHeader?: string
   receiptFooter?: string
   receiptLogo?: string | null
+  receiptLogoWidthMm?: number
+  receiptLogoHeightMm?: number
   receiptShowTax?: boolean
   receiptShowCustomer?: boolean
   storefrontThemeColor?: string
@@ -992,10 +1095,13 @@ export interface BusinessProfileResponse {
   accountNumber: string
   subscriptionTier: string
   subscriptionEnabled: boolean
+  servicesEnabled?: boolean
   hospitalityEnabled: boolean
   receiptHeader?: string
   receiptFooter?: string
   receiptLogo?: string | null
+  receiptLogoWidthMm?: number
+  receiptLogoHeightMm?: number
   receiptShowTax?: boolean
   receiptShowCustomer?: boolean
   storefrontThemeColor?: string

@@ -271,6 +271,9 @@ function ReturnsTab() {
   const [genYear, setGenYear]     = useState(new Date().getFullYear())
   const [ackInput, setAckInput]   = useState<Record<string, string>>({})
   const [loading, setLoading]     = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [exportingId, setExportingId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState('')
 
   useEffect(() => {
     kraApi.getReturns().then(res => {
@@ -281,31 +284,52 @@ function ReturnsTab() {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
   async function generate() {
+    setActionError('')
     const label = `${months[genMonth-1]} ${genYear}`
     const existing = returns.find(r => r.returnType === genType && r.periodLabel === label)
     if (existing) {
       alert(`A ${genType} return for ${label} already exists.`)
       return
     }
-    const startDate = `${genYear}-${String(genMonth).padStart(2,'0')}-01`
-    const lastDay = new Date(genYear, genMonth, 0).getDate()
-    const endDate = `${genYear}-${String(genMonth).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`
+    setGenerating(true)
     try {
       const fn = genType === 'VAT3' ? kraApi.generateVat3 : genType === 'TOT' ? kraApi.generateTot : kraApi.generateWht
-      const res = await fn({ periodStart: startDate, periodEnd: endDate })
+      const res = await fn({ periodYear: genYear, periodMonth: genMonth })
       if (res.success && res.data) setReturns(r => [...r, res.data!])
-    } catch (_) {}
+      else setActionError(res.message || `Unable to generate the ${genType} return.`)
+    } catch (error: any) {
+      setActionError(error.response?.data?.message || error.message || `Unable to generate the ${genType} return.`)
+    } finally {
+      setGenerating(false)
+    }
   }
 
   async function markSubmitted(id: string) {
     const ack = ackInput[id]
     if (!ack) return
+    setActionError('')
     try {
-      const res = await kraApi.markReturnSubmitted(id)
-      if (res.success && res.data) {
-        setReturns(r => r.map(x => x.id === id ? res.data! : x))
-      }
-    } catch (_) {}
+      const res = await kraApi.markReturnSubmitted(id, ack.trim())
+      if (res.success) setReturns(r => r.map(x => x.id === id ? { ...x, status:'SUBMITTED', iTaxAcknowledgementNo:ack.trim() } : x))
+      else setActionError(res.message || 'Unable to confirm the return submission.')
+    } catch (error: any) {
+      setActionError(error.response?.data?.message || error.message || 'Unable to confirm the return submission.')
+    }
+  }
+
+  async function downloadCsv(taxReturn: TaxReturnResponse) {
+    setActionError(''); setExportingId(taxReturn.id)
+    try {
+      const res = await kraApi.exportCsv({ returnType:taxReturn.returnType, periodYear:taxReturn.periodYear, periodMonth:taxReturn.periodMonth })
+      if (!res.success || !res.data) { setActionError(res.message || 'Unable to export this tax return.'); return }
+      const bytes = Uint8Array.from(window.atob(res.data.downloadBase64), character => character.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type:res.data.contentType || 'text/csv;charset=utf-8' }))
+      const anchor = document.createElement('a')
+      anchor.href = url; anchor.download = res.data.fileName
+      document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url)
+    } catch (error: any) {
+      setActionError(error.response?.data?.message || error.message || 'Unable to export this tax return.')
+    } finally { setExportingId(null) }
   }
 
   function getTaxAmount(r: TaxReturnResponse) {
@@ -347,8 +371,9 @@ function ReturnsTab() {
               {[2024,2025,2026].map(y => <option key={y}>{y}</option>)}
             </select>
           </div>
-          <Btn icon={<FileText size={14}/>} onClick={generate}>Generate</Btn>
+          <Btn icon={<FileText size={14}/>} onClick={generate} disabled={generating}>{generating ? 'Generating…' : 'Generate'}</Btn>
         </div>
+        {actionError && <div role="alert" style={{ marginTop:12, color:'#C62828', fontSize:12 }}>{actionError}</div>}
       </Card>
 
       {/* Returns list */}
@@ -388,8 +413,8 @@ function ReturnsTab() {
               {/* Actions */}
               <div style={{ marginTop:12, display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
                 {r.csvDownloadReady && (
-                  <Btn icon={<Download size={13}/>}>
-                    Download CSV
+                  <Btn icon={<Download size={13}/>} onClick={() => downloadCsv(r)} disabled={exportingId === r.id}>
+                    {exportingId === r.id ? 'Exporting…' : 'Download CSV'}
                   </Btn>
                 )}
                 <a href="https://itax.kra.go.ke" target="_blank" rel="noreferrer" style={{ textDecoration:'none' }}>

@@ -58,10 +58,10 @@ val primaryBottomNavItems = listOf(
 
 val secondaryNavItems = listOf(
     BottomNavItem(Screen.Customers, "Customers", Icons.Filled.People, "Wateja"),
-    BottomNavItem(Screen.Social, "Social", Icons.Filled.Share, "Mitandao"),
     BottomNavItem(Screen.HospitalityOperations, "Hospitality", Icons.Filled.Restaurant, "Mgahawa"),
-    BottomNavItem(Screen.Reports, "Reports", Icons.Filled.PieChart, "Ripoti"),
     BottomNavItem(Screen.Payments, "Payments", Icons.Filled.CreditCard, "Malipo"),
+    BottomNavItem(Screen.Social, "Social Inbox", Icons.Filled.Share, "Mitandao"),
+    BottomNavItem(Screen.Reports, "Reports", Icons.Filled.PieChart, "Ripoti"),
     BottomNavItem(Screen.Settings, "Settings", Icons.Filled.Settings, "Mipangilio")
 )
 

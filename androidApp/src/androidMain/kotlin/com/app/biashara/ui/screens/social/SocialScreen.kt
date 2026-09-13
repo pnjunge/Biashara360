@@ -78,7 +78,7 @@ fun SocialScreen() {
                             .background(B360GreenBg, RoundedCornerShape(20.dp))
                             .padding(horizontal = 12.dp, vertical = 5.dp)
                     ) {
-                        Text("AI On", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = B360Green)
+                        Text("AI unavailable", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = B360Green)
                     }
                 }
             )
@@ -268,38 +268,13 @@ fun ChatView(
 ) {
     val p             = PLATFORMS[conv.platform]!!
     var draft         by remember { mutableStateOf("") }
-    var aiSuggestion  by remember { mutableStateOf<String?>(null) }
-    var aiLoading     by remember { mutableStateOf(false) }
     var showPaySheet  by remember { mutableStateOf(false) }
     var payAmt        by remember { mutableStateOf("") }
     var payDesc       by remember { mutableStateOf("") }
     val listState     = rememberLazyListState()
-    val scope         = rememberCoroutineScope()
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
-    }
-
-    fun getAiReply() {
-        aiLoading = true
-        val last = messages.lastOrNull { it.direction == "INBOUND" }?.content ?: ""
-        val reply = when {
-            last.contains("bei", ignoreCase = true) || last.contains("price", ignoreCase = true) ->
-                "Habari! Bei yetu:\n• Unga 2kg - KES 180\n• Unga 5kg - KES 320\n• Debe - KES 1,200\n\nUngependa kuagiza? 😊"
-            last.contains("delivery", ignoreCase = true) || last.contains("deliver", ignoreCase = true) ->
-                "Ndiyo! Tunafanya delivery Nairobi yote. Delivery fee ni KES 150. Unataka tuwasilishe wapi? 📦"
-            last.contains("saa ngapi", ignoreCase = true) || last.contains("open", ignoreCase = true) ->
-                "Tunafungua 7:00 asubuhi hadi 9:00 usiku kila siku! 🕖 Je, ungependa kuagiza kitu?"
-            last.contains("payment", ignoreCase = true) || last.contains("kulipa", ignoreCase = true) ->
-                "Tunakubali M-Pesa, Cash, na Card. Unataka kulipa kwa njia gani? 💳"
-            else ->
-                "Habari ${conv.customerName.split(" ")[0]}! Asante kwa kuwasiliana. Ninawezaje kukusaidia leo? 😊"
-        }
-        scope.launch {
-            kotlinx.coroutines.delay(1200)
-            aiSuggestion = reply
-            aiLoading    = false
-        }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(B360Surface)) {
@@ -342,40 +317,6 @@ fun ChatView(
         }
 
         // AI Suggestion
-        aiSuggestion?.let { sug ->
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                colors   = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                shape    = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFFDCFCE7))
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Default.Bolt, contentDescription = null, tint = B360Green, modifier = Modifier.size(14.dp))
-                        Text("AI Suggested Reply", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = B360Green)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text(sug, fontSize = 13.sp, lineHeight = 19.sp, color = Color(0xFF0F172A))
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick  = { draft = sug; aiSuggestion = null },
-                            modifier = Modifier.weight(1f),
-                            colors   = ButtonDefaults.outlinedButtonColors(contentColor = B360Green),
-                            shape    = RoundedCornerShape(20.dp),
-                            border   = BorderStroke(1.dp, B360Green)
-                        ) { Text("Edit Suggestion", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-                        Button(
-                            onClick  = { onSend(sug); aiSuggestion = null },
-                            modifier = Modifier.weight(1f),
-                            colors   = ButtonDefaults.buttonColors(containerColor = B360Green),
-                            shape    = RoundedCornerShape(20.dp)
-                        ) { Text("Send Instantly", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-                    }
-                }
-            }
-        }
-
         // Compose bar
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -385,11 +326,11 @@ fun ChatView(
         ) {
             Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(
-                    onClick  = { if (!aiLoading) getAiReply() },
+                    onClick = {},
+                    enabled = false,
                     modifier = Modifier.background(B360GreenBg, RoundedCornerShape(10.dp)).size(44.dp)
                 ) {
-                    if (aiLoading) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = B360Green, strokeWidth = 2.dp)
-                    else Icon(Icons.Default.Bolt, contentDescription = "AI Reply", tint = B360Green, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Bolt, contentDescription = "AI replies unavailable", tint = B360Green, modifier = Modifier.size(20.dp))
                 }
                 OutlinedTextField(
                     value         = draft,
@@ -615,62 +556,15 @@ fun SocialChannelsTab() {
 // ── Analytics Tab ─────────────────────────────────────────────────────────────
 @Composable
 fun SocialAnalyticsTab() {
-    val stats = listOf(
-        "WHATSAPP"  to Triple(48, 12, 87600),
-        "INSTAGRAM" to Triple(31,  8, 52400),
-        "FACEBOOK"  to Triple(19,  4, 28800),
-        "TIKTOK"    to Triple(14,  3, 18900)
-    )
-    LazyColumn(modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                KraKpiCard("Total Convs", "112", "All channels", B360Green, Modifier.weight(1f))
-                KraKpiCard("Orders", "27", "From social", Color(0xFF3B82F6), Modifier.weight(1f))
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                KraKpiCard("Revenue", "KES 188K", "Social orders", Color(0xFFF59E0B), Modifier.weight(1f))
-                KraKpiCard("AI Handled", "74%", "Auto-replied", Color(0xFFEF4444), Modifier.weight(1f))
-            }
-        }
-        item { Text("Platform Breakdown", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A)) }
-        items(stats) { platformData ->
-            val (platform, data) = platformData
-            val (convs, orders, revenue) = data
-            val p   = PLATFORMS[platform]!!
-            val cvr = (orders.toFloat() / convs * 100).toInt()
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
-            ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(p.emoji, fontSize = 28.sp)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(p.label, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
-                        Spacer(Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            StatChip("$convs convs", Color(0xFF64748B))
-                            StatChip("$orders orders", p.color)
-                            StatChip("KES ${revenue/1000}K", B360Green)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            LinearProgressIndicator(
-                                progress = { cvr / 100f },
-                                modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
-                                color = p.color,
-                                trackColor = Color(0xFFF1F5F9)
-                            )
-                            Text("$cvr%", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = p.color)
-                        }
-                    }
-                }
-            }
-        }
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Social analytics unavailable", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text("Live social reporting is not connected in the Android app. View your social reports in the web application.")
     }
 }
+
 
 @Composable
 private fun StatChip(text: String, color: Color) {

@@ -22,7 +22,7 @@ object ApiClient {
     /**
      * Base URL for API (configurable via environment or config)
      */
-    var baseUrl: String = System.getenv("API_BASE_URL") ?: "http://localhost:8080/v1"
+    var baseUrl: String = System.getenv("API_BASE_URL") ?: "https://api.biashara360.co.ke/v1"
     
     /**
      * Authentication token storage

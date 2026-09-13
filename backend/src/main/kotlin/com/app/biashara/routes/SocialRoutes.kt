@@ -61,6 +61,30 @@ fun Route.socialRoutes() {
             call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
         }
 
+        post("/meta/business-login/discover") {
+            if (!call.hasRole("ADMIN")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Merchant admin access required"))
+                return@post
+            }
+            val result = svc.discoverMetaBusinessAssets(
+                call.businessId(),
+                call.receive<MetaBusinessLoginDiscoveryRequest>()
+            )
+            call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+        }
+
+        post("/meta/business-login/connect") {
+            if (!call.hasRole("ADMIN")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Merchant admin access required"))
+                return@post
+            }
+            val result = svc.connectMetaBusinessAssets(
+                call.businessId(),
+                call.receive<MetaBusinessLoginConnectRequest>()
+            )
+            call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
+        }
+
         // ── Channel Management ─────────────────────────────────────────────
 
         route("/channels") {

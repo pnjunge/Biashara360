@@ -208,14 +208,16 @@ class ExpenseService {
         val endInstant   = end.plus(1, DateTimeUnit.DAY).atStartOfDayIn(tz)
 
         // Revenue: paid orders in the date range
-        val totalRevenue = OrdersTable
-            .slice(OrdersTable.subtotal.sum())
+        val revenueRows = OrdersTable
+            .slice(OrdersTable.createdAt, OrdersTable.subtotal)
             .select {
                 (OrdersTable.businessId eq businessId) and
                 (OrdersTable.paymentStatus eq "PAID") and
                 (OrdersTable.createdAt greaterEq startInstant) and
                 (OrdersTable.createdAt less endInstant)
-            }.first()[OrdersTable.subtotal.sum()] ?: 0.0
+            }.map { it[OrdersTable.createdAt] to it[OrdersTable.subtotal] }
+        val dailyRevenue = buildDailyRevenue(start, end, revenueRows)
+        val totalRevenue = dailyRevenue.sumOf { it.revenue }
 
         // COGS: sum of (buyingPrice × quantity) for items in paid orders in the date range,
         // computed with a single join to avoid a separate ID-list query.
@@ -249,7 +251,8 @@ class ExpenseService {
             netProfit = netProfit,
             netMargin = if (totalRevenue > 0) (netProfit / totalRevenue) * 100 else 0.0,
             cashflowIn = totalRevenue,
-            cashflowOut = totalCOGS + totalExpenses
+            cashflowOut = totalCOGS + totalExpenses,
+            dailyRevenue = dailyRevenue
         )
     }
 

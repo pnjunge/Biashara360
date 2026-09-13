@@ -131,9 +131,9 @@ class InitiatePaymentUseCase(
         val order = orderRepo.getOrder(orderId)
             ?: return Result.failure(IllegalArgumentException("Order not found"))
         val request = MpesaStkPushRequest(
-            businessShortCode = "174379",  // Resolved per-business at backend level
+            businessShortCode = "",  // Resolved per-business at backend level
             phoneNumber = phoneNumber.normalizePhone(),
-            amount = order.subtotal,
+            amount = order.total,
             accountReference = orderId,  // Pass orderId (UUID) — backend /payments/initiate expects this
             transactionDesc = "Payment for order ${order.orderNumber}",
             accountType = accountType
