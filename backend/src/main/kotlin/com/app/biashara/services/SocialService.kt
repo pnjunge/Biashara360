@@ -52,6 +52,8 @@ class SocialService(
         config.propertyOrNull("facebook.appSecret")?.getString()?.trim().orEmpty()
     private val metaEmbeddedSignupConfigurationId =
         config.propertyOrNull("facebook.embeddedSignupConfigurationId")?.getString()?.trim().orEmpty()
+    private val metaBusinessLoginConfigurationId =
+        config.propertyOrNull("facebook.businessLoginConfigurationId")?.getString()?.trim().orEmpty()
     private val metaWebhookVerifyToken =
         config.propertyOrNull("facebook.webhookVerifyToken")?.getString()?.trim().orEmpty()
     private val tokenCipher = config.propertyOrNull("social.tokenEncryptionKey")
@@ -75,12 +77,22 @@ class SocialService(
             if (metaWebhookVerifyToken.isBlank()) add("META_WEBHOOK_VERIFY_TOKEN")
             if (tokenCipher == null) add("SOCIAL_TOKEN_ENCRYPTION_KEY")
         }
+        val businessLoginMissing = buildList {
+            if (metaAppId.isBlank()) add("META_APP_ID")
+            if (metaAppSecret.isBlank()) add("META_APP_SECRET")
+            if (metaBusinessLoginConfigurationId.isBlank()) add("META_BUSINESS_LOGIN_CONFIG_ID")
+            if (metaWebhookVerifyToken.isBlank()) add("META_WEBHOOK_VERIFY_TOKEN")
+            if (tokenCipher == null) add("SOCIAL_TOKEN_ENCRYPTION_KEY")
+        }
         return MetaOnboardingConfigurationResponse(
             configured = missing.isEmpty(),
             appId = metaAppId.takeIf { it.isNotBlank() },
             configurationId = metaEmbeddedSignupConfigurationId.takeIf { it.isNotBlank() },
+            businessLoginConfigured = businessLoginMissing.isEmpty(),
+            businessLoginConfigurationId = metaBusinessLoginConfigurationId.takeIf { it.isNotBlank() },
             graphApiVersion = graphApiVersion,
-            missing = missing
+            missing = missing,
+            businessLoginMissing = businessLoginMissing
         )
     }
 
@@ -342,6 +354,216 @@ class SocialService(
         }
     }
 
+    suspend fun discoverMetaBusinessAssets(
+        businessId: String,
+        req: MetaBusinessLoginDiscoveryRequest
+    ): ApiResponse<MetaBusinessLoginDiscoveryResponse> {
+        val configuration = getMetaOnboardingConfiguration()
+        if (!configuration.businessLoginConfigured || tokenCipher == null) {
+            return ApiResponse(false, message = "Meta business login is not configured")
+        }
+        if (req.code.isBlank() || req.code.length > 4096) {
+            return ApiResponse(false, message = "Meta authorization code is missing or invalid")
+        }
+
+        return try {
+            val tokenResponse = httpClient.get("https://graph.facebook.com/$graphApiVersion/oauth/access_token") {
+                parameter("client_id", metaAppId)
+                parameter("client_secret", metaAppSecret)
+                parameter("code", req.code)
+            }
+            val tokenJson = tokenResponse.safeGraphJson()
+            if (!tokenResponse.status.isSuccess()) {
+                return ApiResponse(false, message = tokenJson.graphErrorMessage("Meta authorization failed"))
+            }
+            val userToken = tokenJson.string("access_token")
+                ?: return ApiResponse(false, message = "Meta did not return an access token")
+            val pagesResponse = graphGet(
+                "me/accounts",
+                userToken,
+                "id,name,access_token,picture{url},instagram_business_account{id,username,name,profile_picture_url}"
+            )
+            if (!pagesResponse.first) {
+                return ApiResponse(false, message = pagesResponse.second.graphErrorMessage("Unable to load Meta business accounts"))
+            }
+
+            val credentials = buildList {
+                pagesResponse.second["data"]?.jsonArray.orEmpty().forEach { element ->
+                    val page = element.jsonObject
+                    val pageId = page.string("id") ?: return@forEach
+                    val pageName = page.string("name") ?: "Facebook Page"
+                    val pageToken = page.string("access_token") ?: return@forEach
+                    val pagePicture = page["picture"]?.jsonObject
+                        ?.get("data")?.jsonObject?.string("url")
+                    add(MetaOAuthAssetCredential(
+                        platform = "FACEBOOK",
+                        accountId = pageId,
+                        name = pageName,
+                        pageId = pageId,
+                        pageName = pageName,
+                        username = null,
+                        pictureUrl = pagePicture,
+                        pageAccessToken = pageToken
+                    ))
+                    page["instagram_business_account"]?.jsonObject?.let { instagram ->
+                        val instagramId = instagram.string("id") ?: return@let
+                        val username = instagram.string("username")
+                        add(MetaOAuthAssetCredential(
+                            platform = "INSTAGRAM",
+                            accountId = instagramId,
+                            name = instagram.string("name") ?: username ?: "Instagram Professional",
+                            pageId = pageId,
+                            pageName = pageName,
+                            username = username,
+                            pictureUrl = instagram.string("profile_picture_url"),
+                            pageAccessToken = pageToken
+                        ))
+                    }
+                }
+            }
+            if (credentials.isEmpty()) {
+                return ApiResponse(false, message = "No eligible Facebook Pages or linked Instagram professional accounts were found")
+            }
+            val expiresAt = Clock.System.now().epochSeconds + META_LOGIN_SESSION_SECONDS
+            val session = MetaOAuthSession(businessId, expiresAt, credentials)
+            val sessionToken = tokenCipher.encrypt(Json.encodeToString(session))
+            ApiResponse(
+                true,
+                data = MetaBusinessLoginDiscoveryResponse(
+                    sessionToken = sessionToken,
+                    assets = credentials.map { it.toPublicAsset() }
+                ),
+                message = "Meta accounts loaded"
+            )
+        } catch (_: Exception) {
+            ApiResponse(false, message = "Unable to complete Meta sign-in")
+        }
+    }
+
+    suspend fun connectMetaBusinessAssets(
+        businessId: String,
+        req: MetaBusinessLoginConnectRequest
+    ): ApiResponse<List<SocialChannelResponse>> {
+        val cipher = tokenCipher
+            ?: return ApiResponse(false, message = "Secure social credential storage is not configured")
+        if (req.selections.isEmpty() || req.selections.size > 10) {
+            return ApiResponse(false, message = "Select between 1 and 10 Meta accounts")
+        }
+        val session = runCatching {
+            Json.decodeFromString<MetaOAuthSession>(cipher.decrypt(req.sessionToken))
+        }.getOrNull() ?: return ApiResponse(false, message = "Meta sign-in session is invalid; sign in again")
+        if (session.businessId != businessId || session.expiresAt < Clock.System.now().epochSeconds) {
+            return ApiResponse(false, message = "Meta sign-in session expired; sign in again")
+        }
+
+        val requested = req.selections.distinctBy { "${it.platform.uppercase()}:${it.accountId}" }
+        val selected = requested.map { selection ->
+            val platform = selection.platform.uppercase()
+            if (platform !in setOf("FACEBOOK", "INSTAGRAM") || !selection.accountId.isMetaId()) {
+                return ApiResponse(false, message = "Invalid Meta account selection")
+            }
+            val credential = session.assets.firstOrNull {
+                it.platform == platform && it.accountId == selection.accountId
+            } ?: return ApiResponse(false, message = "Selected Meta account was not authorized")
+            credential to selection.channelName?.trim()?.takeIf(String::isNotEmpty)
+        }
+
+        val assignedElsewhere = transaction {
+            selected.any { (asset, _) ->
+                SocialChannelsTable.select {
+                    (SocialChannelsTable.platform eq asset.platform) and
+                        (SocialChannelsTable.externalId eq asset.accountId) and
+                        (SocialChannelsTable.businessId neq businessId) and
+                        (SocialChannelsTable.isActive eq true)
+                }.count() > 0
+            }
+        }
+        if (assignedElsewhere) {
+            return ApiResponse(false, message = "A selected Meta account is already connected to another business")
+        }
+
+        return try {
+            for ((asset, _) in selected) {
+                val subscriptionTarget = if (asset.platform == "INSTAGRAM") asset.accountId else asset.pageId
+                val subscribedFields = if (asset.platform == "INSTAGRAM") {
+                    "messages"
+                } else {
+                    "messages,messaging_postbacks"
+                }
+                val response = httpClient.post(
+                    "https://graph.facebook.com/$graphApiVersion/$subscriptionTarget/subscribed_apps"
+                ) {
+                    header(HttpHeaders.Authorization, "Bearer ${asset.pageAccessToken}")
+                    parameter("subscribed_fields", subscribedFields)
+                }
+                val json = response.safeGraphJson()
+                if (!response.status.isSuccess() || json["success"]?.jsonPrimitive?.booleanOrNull != true) {
+                    return ApiResponse(false, message = json.graphErrorMessage("Could not subscribe ${asset.name} to Meta webhooks"))
+                }
+            }
+
+            val rows = transaction {
+                selected.map { (asset, requestedName) ->
+                    val existing = SocialChannelsTable.select {
+                        (SocialChannelsTable.platform eq asset.platform) and
+                            (SocialChannelsTable.externalId eq asset.accountId) and
+                            (SocialChannelsTable.businessId eq businessId)
+                    }.firstOrNull()
+                    val channelId = existing?.get(SocialChannelsTable.id) ?: generateId()
+                    val now = Clock.System.now()
+                    val encryptedToken = cipher.encrypt(asset.pageAccessToken)
+                    if (existing == null) {
+                        SocialChannelsTable.insert {
+                            it[id] = channelId
+                            it[SocialChannelsTable.businessId] = businessId
+                            it[platform] = asset.platform
+                            it[channelName] = requestedName ?: asset.name
+                            it[externalId] = asset.accountId
+                            it[phoneNumber] = null
+                            it[tenantId] = businessId
+                            it[wabaId] = null
+                            it[phoneNumberId] = null
+                            it[metaBusinessId] = null
+                            it[accessToken] = encryptedToken
+                            it[refreshToken] = null
+                            it[webhookVerifyToken] = metaWebhookVerifyToken
+                            it[isActive] = true
+                            it[connectionStatus] = "CONNECTED"
+                            it[onboardingMethod] = "META_BUSINESS_LOGIN"
+                            it[tokenEncryptionVersion] = 1
+                            it[lastVerifiedAt] = now
+                            it[disconnectedAt] = null
+                            it[autoReplyEnabled] = false
+                            it[aiPersonaPrompt] = ""
+                            it[createdAt] = now
+                            it[updatedAt] = now
+                        }
+                    } else {
+                        SocialChannelsTable.update({ SocialChannelsTable.id eq channelId }) {
+                            it[channelName] = requestedName ?: asset.name
+                            it[accessToken] = encryptedToken
+                            it[isActive] = true
+                            it[connectionStatus] = "CONNECTED"
+                            it[onboardingMethod] = "META_BUSINESS_LOGIN"
+                            it[tokenEncryptionVersion] = 1
+                            it[lastVerifiedAt] = now
+                            it[disconnectedAt] = null
+                            it[updatedAt] = now
+                        }
+                    }
+                    SocialChannelsTable.select { SocialChannelsTable.id eq channelId }.first()
+                }
+            }
+            ApiResponse(
+                true,
+                data = rows.map { it.toChannelResponse(businessId) },
+                message = "Selected Meta accounts connected"
+            )
+        } catch (_: Exception) {
+            ApiResponse(false, message = "Unable to connect the selected Meta accounts")
+        }
+    }
+
     suspend fun verifyChannelConnection(
         businessId: String,
         channelId: String
@@ -426,6 +648,16 @@ class SocialService(
                     httpClient.delete("https://graph.facebook.com/$graphApiVersion/$waba/subscribed_apps") {
                         header(HttpHeaders.Authorization, "Bearer $token")
                     }
+                }
+            }
+        }
+        if (channel[SocialChannelsTable.onboardingMethod] == "META_BUSINESS_LOGIN") {
+            runCatching {
+                val token = channelToken(channel)
+                httpClient.delete(
+                    "https://graph.facebook.com/$graphApiVersion/${channel[SocialChannelsTable.externalId]}/subscribed_apps"
+                ) {
+                    header(HttpHeaders.Authorization, "Bearer $token")
                 }
             }
         }
@@ -1144,7 +1376,7 @@ Respond ONLY with a JSON object in this exact format (no markdown, no extra text
                 (SocialConversationsTable.channelId eq this@toChannelResponse[SocialChannelsTable.id])
             }.sumOf { it[SocialConversationsTable.unreadCount] }
         }
-        val token = if (this[SocialChannelsTable.onboardingMethod] == "META_EMBEDDED_SIGNUP") {
+        val token = if (this[SocialChannelsTable.onboardingMethod].startsWith("META_")) {
             ""
         } else {
             this[SocialChannelsTable.webhookVerifyToken]
@@ -1187,6 +1419,37 @@ private fun JsonObject.graphErrorMessage(fallback: String): String =
         ?.take(240)
         ?.takeIf { it.isNotBlank() }
         ?: fallback
+
+@Serializable
+private data class MetaOAuthSession(
+    val businessId: String,
+    val expiresAt: Long,
+    val assets: List<MetaOAuthAssetCredential>
+)
+
+@Serializable
+private data class MetaOAuthAssetCredential(
+    val platform: String,
+    val accountId: String,
+    val name: String,
+    val pageId: String,
+    val pageName: String,
+    val username: String?,
+    val pictureUrl: String?,
+    val pageAccessToken: String
+) {
+    fun toPublicAsset() = MetaBusinessAsset(
+        platform = platform,
+        accountId = accountId,
+        name = name,
+        pageId = pageId,
+        pageName = pageName,
+        username = username,
+        pictureUrl = pictureUrl
+    )
+}
+
+private const val META_LOGIN_SESSION_SECONDS = 10 * 60L
 
 private fun String.isMetaId(): Boolean =
     length in 5..64 && all(Char::isDigit)

@@ -1,0 +1,26 @@
+{
+	email {$TLS_EMAIL}
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+{$WEB_DOMAIN}, {$WEB_ALT_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:8080
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy api:8080
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}

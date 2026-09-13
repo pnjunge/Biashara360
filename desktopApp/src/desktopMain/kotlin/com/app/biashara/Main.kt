@@ -20,7 +20,7 @@ fun main() {
     }
     // Endpoint overrides are deployment configuration, not an end-user setting.
     com.app.biashara.data.remote.BASE_URL = System.getenv("BASE_URL")
-        ?: "https://sddgmezqj2.us-east-1.awsapprunner.com/v1"
+        ?: "https://api.biashara360.co.ke/v1"
 
     // Guard against double-initialization (e.g. on hot-restart in dev)
     if (GlobalContext.getOrNull() == null) {

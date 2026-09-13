@@ -218,7 +218,7 @@ class CyberSourcePaymentService(
     }
 
     // ── Generate Hosted Payment Link ──────────────────────────────────────────
-    fun generatePaymentLink(businessId: String, req: CsPaymentLinkRequest, baseUrl: String = "https://app.biashara360.co.ke"): CsPaymentLinkResponse {
+    fun generatePaymentLink(businessId: String, req: CsPaymentLinkRequest, baseUrl: String = "https://biashara360.co.ke"): CsPaymentLinkResponse {
         val clientRef = "CS-LINK-${req.orderId.take(8).uppercase()}"
         val expiresAt = Clock.System.now().plus(kotlin.time.Duration.parse("${req.expiryHours}h")).toString()
         val cleanBaseUrl = baseUrl.trimEnd('/')

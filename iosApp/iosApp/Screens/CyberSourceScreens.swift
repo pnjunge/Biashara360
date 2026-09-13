@@ -15,17 +15,9 @@ class CyberSourceViewModel: ObservableObject {
         let isDefault: Bool
     }
 
-    @Published var transactions: [CsTransaction] = [
-        .init(csId: "7285900622826740503954", orderId: "B360-0042", type_: "CAPTURE",       cardLast4: "4242", cardType: "VISA",       status: "CAPTURED",   approvalCode: "HH8765", date: "Today 14:32",  amount: 4500),
-        .init(csId: "7285900622826740503955", orderId: "B360-0041", type_: "AUTHORIZATION", cardLast4: "5555", cardType: "MASTERCARD", status: "AUTHORIZED", approvalCode: "AB1234", date: "Today 11:05",  amount: 1500),
-        .init(csId: "7285900622826740503956", orderId: "B360-0039", type_: "REFUND",        cardLast4: "4242", cardType: "VISA",       status: "REFUNDED",   approvalCode: "",       date: "Yesterday",    amount: 6800),
-        .init(csId: "7285900622826740503957", orderId: "B360-0037", type_: "AUTHORIZATION", cardLast4: "4111", cardType: "VISA",       status: "DECLINED",   approvalCode: "",       date: "Mon",          amount: 2200),
-    ]
+    @Published var transactions: [CsTransaction] = []
 
-    @Published var savedCards: [SavedCard] = [
-        .init(id: "1", last4: "4242", type_: "VISA",       expiry: "12/27", holder: "Amina Hassan",  isDefault: true),
-        .init(id: "2", last4: "5555", type_: "MASTERCARD", expiry: "06/26", holder: "Brian Otieno",  isDefault: false),
-    ]
+    @Published var savedCards: [SavedCard] = []
 
     // Payment result
     @Published var lastResult: PaymentResult? = nil
@@ -109,7 +101,7 @@ struct CyberSourceView: View {
 // ── Charge Card View ──────────────────────────────────────────────────────────
 struct ChargeCardView: View {
     @ObservedObject var vm: CyberSourceViewModel
-    @State private var orderId = "B360-0042"
+    @State private var orderId = ""
     @State private var amount = "4500"
     @State private var showForm = false
     @State private var useType = 0  // 0=saved, 1=new

@@ -100,20 +100,20 @@ struct TaxSummaryView: View {
         ScrollView {
             VStack(spacing: 14) {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    TaxKpiCard(title: "VAT Collected",   value: "KES 67,200", sub: "February 2026",        color: b360Green)
-                    TaxKpiCard(title: "WHT Collected",   value: "KES 1,800",  sub: "February 2026",        color: Color(red:0.42,green:0.11,blue:0.60))
-                    TaxKpiCard(title: "Total Liability", value: "KES 69,000", sub: "All types Feb 2026",   color: Color(red:0.90,green:0.32,blue:0.00))
-                    TaxKpiCard(title: "Pending Returns", value: "1",          sub: "Mar VAT due Apr 20",   color: Color(red:1.0,green:0.56,blue:0.00))
+                    TaxKpiCard(title: "VAT Collected",   value: "KES 0", sub: "No data loaded", color: b360Green)
+                    TaxKpiCard(title: "WHT Collected",   value: "KES 0", sub: "No data loaded", color: Color(red:0.42,green:0.11,blue:0.60))
+                    TaxKpiCard(title: "Total Liability", value: "KES 0", sub: "No data loaded", color: Color(red:0.90,green:0.32,blue:0.00))
+                    TaxKpiCard(title: "Pending Returns", value: "0", sub: "No data loaded", color: Color(red:1.0,green:0.56,blue:0.00))
                 }
 
                 // Effective rate card
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Effective Tax Rate").font(.headline)
-                    Text("KES 69,000 tax on KES 465,000 revenue").font(.caption).foregroundColor(.secondary)
-                    ProgressView(value: 0.148)
+                    Text("Tax data has not been loaded.").font(.caption).foregroundColor(.secondary)
+                    ProgressView(value: 0)
                         .progressViewStyle(LinearProgressViewStyle(tint: b360Green))
                         .scaleEffect(x: 1, y: 2, anchor: .center)
-                    Text("14.8% effective rate").font(.subheadline).bold().foregroundColor(b360Green)
+                    Text("0% effective rate").font(.subheadline).bold().foregroundColor(b360Green)
                 }
                 .padding(16).background(Color.white).cornerRadius(14)
                 .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
@@ -156,7 +156,7 @@ struct TaxSummaryView: View {
 // ── Tax Rates View ────────────────────────────────────────────────────────────
 
 struct TaxRatesView: View {
-    @State private var rates = sampleRates
+    @State private var rates: [TaxRateItem] = []
 
     var body: some View {
         ScrollView {
@@ -225,7 +225,7 @@ struct TaxCalculatorView: View {
     @State private var selectedIds: Set<String> = ["1"]
 
     var numAmount: Double { Double(amount) ?? 0 }
-    var activeRates: [TaxRateItem] { sampleRates.filter { $0.isActive } }
+    var activeRates: [TaxRateItem] { [] }
     var lines: [(rate: TaxRateItem, taxAmount: Double)] {
         activeRates.filter { selectedIds.contains($0.id) }.map { r in
             (r, (numAmount * r.ratePercent / 100 * 100).rounded() / 100)
@@ -320,7 +320,7 @@ struct TaxRemittancesView: View {
     let filterTypes = ["ALL","VAT","TOT","WHT","EXCISE"]
 
     var filtered: [RemittanceItem] {
-        filterType == "ALL" ? sampleRemittances : sampleRemittances.filter { $0.taxType == filterType }
+        []
     }
 
     var body: some View {

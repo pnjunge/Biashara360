@@ -29,6 +29,8 @@ import com.app.biashara.presentation.viewmodel.InventoryViewModel
 import com.app.biashara.presentation.viewmodel.BusinessViewModel
 import com.app.biashara.ui.theme.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.datetime.Clock
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -45,6 +47,13 @@ data class DesktopCartItem(
     val product: Product,
     val qty: Int
 )
+
+/**
+ * POS menu groups are backed by the product category field. Products without
+ * a category still need a visible group so they are never hidden from the
+ * catalogue.
+ */
+private fun Product.posGroup(): String = category.trim().ifBlank { "Other" }
 
 @Serializable
 private data class PosHospitalityTableInfo(
@@ -94,11 +103,6 @@ private data class PosSplitPaymentReq(
 )
 
 @Serializable
-private data class PosCloseTabReq(
-    val paymentMethod: String
-)
-
-@Serializable
 private data class PosCreateHospitalityOrderReq(
     val tableId: String? = null,
     val guestCount: Int = 1,
@@ -134,20 +138,27 @@ fun printReceiptDesktop(
     isSettled: Boolean,
     paymentMethod: String = "CASH",
     customerName: String = "Walk-In Customer",
-    customerPhone: String = ""
+    customerPhone: String = "",
+    businessProfile: BusinessProfile? = null
 ) {
     try {
         val tempFile = java.io.File.createTempFile("receipt_$orderNumber", ".html")
         tempFile.deleteOnExit()
 
-        val banner = if (!isSettled) {
-            """<div style="text-align:center; font-weight:bold; font-size:12px; margin: 4px 0; background:#fffbeb; padding:6px; border:1px dashed #d97706; color:#92400e;">*** PRO-FORMA TABLE BILL (UNPAID) ***</div>"""
-        } else {
-            """<div style="text-align:center; font-weight:bold; font-size:12px; margin: 4px 0; background:#f0fdf4; padding:6px; border:1px solid #16a34a; color:#166534;">*** OFFICIAL RECEIPT (PAID) ***</div>"""
-        }
-
         val statusText = if (!isSettled) "<span style='color:#d97706; font-weight:bold;'>PENDING SETTLEMENT</span>" else "<span style='color:#16a34a; font-weight:bold;'>SETTLED ($paymentMethod)</span>"
         val tableInfo = if (!tableName.isNullOrBlank()) "<div class='line'><span>TABLE:</span><strong>$tableName</strong></div>" else ""
+        fun escapeHtml(value: String) = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+        val logo = businessProfile?.receiptLogo?.takeIf { it.startsWith("data:image/") || it.startsWith("https://") }
+            ?.let { "<img class='logo' src=\"${escapeHtml(it)}\" alt=\"Business logo\">" }.orEmpty()
+        val businessName = escapeHtml(businessProfile?.name?.ifBlank { "BIASHARA360 POS" } ?: "BIASHARA360 POS")
+        val businessAddress = businessProfile?.address?.takeIf { it.isNotBlank() }?.let(::escapeHtml).orEmpty()
+        val businessCounty = businessProfile?.county?.takeIf { it.isNotBlank() }?.let { "${escapeHtml(it)}, Kenya" }.orEmpty()
+        val businessPhone = businessProfile?.phone?.takeIf { it.isNotBlank() }?.let(::escapeHtml).orEmpty()
+        val businessPin = businessProfile?.kraPin?.takeIf { it.isNotBlank() }?.let { "<div>PIN: ${escapeHtml(it)}</div>" }.orEmpty()
+        val showCustomer = businessProfile?.receiptShowCustomer != false
+        val showTax = businessProfile?.receiptShowTax != false
+        val receiptHeader = escapeHtml(businessProfile?.receiptHeader?.ifBlank { if (!isSettled) "PLEASE PRESENT BILL TO CASHIER FOR SETTLEMENT" else "THANK YOU FOR YOUR VISIT!" } ?: if (!isSettled) "PLEASE PRESENT BILL TO CASHIER FOR SETTLEMENT" else "THANK YOU FOR YOUR VISIT!")
+        val receiptFooter = escapeHtml(businessProfile?.receiptFooter.orEmpty())
 
         val itemsHtml = items.joinToString("") { (name, qtyPrice) ->
             val (qty, price) = qtyPrice
@@ -169,6 +180,7 @@ fun printReceiptDesktop(
         @page { size: 80mm auto; margin: 4mm; }
         body { width: 72mm; margin: 0 auto; color: #111; font-family: monospace; font-size: 11px; line-height: 1.35; }
         .center { text-align: center; }
+        .logo { display: block; max-width: 42mm; max-height: 20mm; object-fit: contain; margin: 0 auto 5px; }
         .rule { border-top: 1px dashed #111; margin: 7px 0; }
         .line { display: flex; justify-content: space-between; }
         .total { font-size: 14px; font-weight: bold; margin-top: 4px; }
@@ -177,26 +189,29 @@ fun printReceiptDesktop(
 </head>
 <body>
     <div class="center">
-        <h2 style="margin:2px 0;">BIASHARA360 POS</h2>
-        <div style="font-size:10px; color:#444;">Hospitality & Retail Commerce</div>
+        $logo
+        <h2 style="margin:2px 0;">$businessName</h2>
+        <div style="font-size:10px; color:#444;">$businessAddress</div>
+        <div style="font-size:10px; color:#444;">$businessCounty</div>
+        <div style="font-size:10px; color:#444;">$businessPhone</div>
+        $businessPin
     </div>
-    $banner
     <div class="rule"></div>
     <div class="line"><span>REF / ORDER:</span><strong>$orderNumber</strong></div>
     $tableInfo
     <div class="line"><span>DATE:</span><span>${java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))}</span></div>
     <div class="line"><span>STATUS:</span>$statusText</div>
-    <div class="line"><span>CUSTOMER:</span><span>${customerName.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")}</span></div>
-    ${if (customerPhone.isNotBlank()) "<div class='line'><span>PHONE:</span><span>$customerPhone</span></div>" else ""}
+    ${if (showCustomer) "<div class='line'><span>CUSTOMER:</span><span>${escapeHtml(customerName)}</span></div>" else ""}
+    ${if (showCustomer && customerPhone.isNotBlank()) "<div class='line'><span>PHONE:</span><span>${escapeHtml(customerPhone)}</span></div>" else ""}
     <div class="rule"></div>
     $itemsHtml
     <div class="rule"></div>
     <div class="line"><span>SUBTOTAL:</span><span>KES ${String.format("%,.2f", subtotal)}</span></div>
-    <div class="line"><span>VAT (16%):</span><span>KES ${String.format("%,.2f", tax)}</span></div>
+    ${if (showTax) "<div class=\"line\"><span>VAT (16%):</span><span>KES ${String.format("%,.2f", tax)}</span></div>" else ""}
     <div class="line total"><span>TOTAL:</span><span>KES ${String.format("%,.2f", grandTotal)}</span></div>
     <div class="rule"></div>
     <div class="center" style="margin-top:8px;">
-        <strong>${if (!isSettled) "PLEASE PRESENT BILL TO CASHIER FOR SETTLEMENT" else "THANK YOU FOR YOUR VISIT!"}</strong>
+        <strong>$receiptHeader</strong><br>$receiptFooter
     </div>
     <div class="center no-print" style="margin-top:16px;">
         <button onclick="window.print()">Print Receipt</button>
@@ -267,31 +282,38 @@ fun DesktopPosScreen(
     }
 
     LaunchedEffect(isHospitalityActive) {
-        reloadHospitalityData()
+        if (!isHospitalityActive) return@LaunchedEffect
+        while (isActive) {
+            reloadHospitalityData()
+            delay(5000)
+        }
     }
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("All") }
+    var openGroup by remember { mutableStateOf<String?>(null) }
 
-    val categories = remember(inventoryState.products) {
-        listOf("All") + inventoryState.products.map { it.category }.filter { it.isNotBlank() }.distinct()
+    val activeProducts = remember(inventoryState.products) {
+        inventoryState.products.filter { it.isActive }
     }
+    val groupCategories = remember(activeProducts) {
+        activeProducts.map { it.posGroup() }.distinct().sortedBy { it.lowercase() }
+    }
+    val categories = remember(groupCategories) {
+        listOf("All") + groupCategories
+    }
+    val showProductItems = openGroup != null || searchQuery.isNotBlank()
 
-    val filteredProducts = remember(inventoryState.products, searchQuery, selectedCategory) {
-        inventoryState.products.filter { p ->
+    val filteredProducts = remember(activeProducts, searchQuery, selectedCategory) {
+        activeProducts.filter { p ->
             val matchesSearch = p.name.contains(searchQuery, ignoreCase = true) || p.sku.contains(searchQuery, ignoreCase = true)
             val matchesCategory = when {
                 selectedCategory == "All" -> true
-                selectedCategory == "Favorites" -> true
+                selectedCategory == "Popular" -> true
                 selectedCategory == "Recent" -> true
-                selectedCategory == "Categories" -> true
-                selectedCategory.startsWith("Category:") -> {
-                    val catName = selectedCategory.substringAfter("Category:")
-                    p.category == catName
-                }
-                else -> true
+                else -> p.posGroup() == selectedCategory
             }
-            matchesSearch && matchesCategory && p.isActive
+            matchesSearch && matchesCategory
         }
     }
 
@@ -336,14 +358,43 @@ fun DesktopPosScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
         val isHospitalityActive = businessProfileState.profile?.hospitalityEnabled == true || businessProfileState.profile?.type == "HOSPITALITY"
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Point of Sale", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                Text("Fast checkout · touch and keyboard ready", fontSize = 12.sp, color = Color(0xFF64748B))
+            }
+            Surface(
+                color = Color(0xFF0F172A),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(Color(0xFF34D399)))
+                    Text("Oracle POS online", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
         if (isHospitalityActive) {
-            Surface(color = Color(0xFFE8F5EE), shape = RoundedCornerShape(8.dp)) {
-                Text(
-                    "Hospitality mode active · Unified POS interface",
-                    color = B360Green,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                )
+            Surface(
+                color = Color(0xFFECFDF5),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, Color(0xFFA7F3D0))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Hospitality mode active · Unified POS interface", color = Color(0xFF065F46), fontWeight = FontWeight.SemiBold)
+                    Text(selectedTable?.let { "${it.name} · ${guestCount} guests" } ?: "Select a table", color = Color(0xFF047857), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
         // Row 1: Search and Filter Actions
@@ -354,12 +405,18 @@ fun DesktopPosScreen(
             ) {
                 OutlinedTextField(
                     value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    onValueChange = {
+                        searchQuery = it
+                        if (it.isNotBlank()) {
+                            selectedCategory = "All"
+                            openGroup = "All"
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                     placeholder = { Text("Search product name or SKU...") },
                     leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
                     singleLine = true,
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = B360Green,
                         unfocusedBorderColor = Color(0xFFCBD5E1),
@@ -370,10 +427,10 @@ fun DesktopPosScreen(
 
                 // Filter Button
                 OutlinedIconButton(
-                    onClick = { searchQuery = ""; selectedCategory = "All" },
+                    onClick = { searchQuery = ""; selectedCategory = "All"; openGroup = null },
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                    modifier = Modifier.size(56.dp)
+                    modifier = Modifier.size(52.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.List,
@@ -384,109 +441,81 @@ fun DesktopPosScreen(
 
                 // Green All button
                 Button(
-                    onClick = { searchQuery = ""; selectedCategory = "All" },
+                    onClick = { searchQuery = ""; selectedCategory = "All"; openGroup = "All" },
                     colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                     shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.height(56.dp)
+                    modifier = Modifier.height(52.dp)
                 ) {
                     Text("All", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
 
-            // Row 2: Tabs/Chips
+            // Row 2: Group navigation. The POS opens on groups so the cashier
+            // chooses a menu section before browsing individual products.
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val tabs = listOf(
-                    Triple("All", "All", Icons.Default.Home),
-                    Triple("Favorites", "Favorites", Icons.Default.Star),
-                    Triple("Categories", "Categories", Icons.Default.Menu),
-                    Triple("Recent", "Recent", Icons.Default.Refresh)
-                )
-
-                tabs.forEach { (tabId, label, icon) ->
-                    val isSelected = selectedCategory == tabId || (tabId == "Categories" && selectedCategory.startsWith("Category:"))
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            if (tabId == "Categories") {
-                                selectedCategory = if (categories.size > 1) "Category:${categories[1]}" else "Categories"
-                            } else {
-                                selectedCategory = tabId
-                            }
-                        },
-                        label = { Text(label, fontWeight = FontWeight.SemiBold, fontSize = 12.sp) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = if (isSelected) Color.White else Color.Gray
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = B360Green,
-                            selectedLabelColor = Color.White,
-                            containerColor = Color.White,
-                            labelColor = Color(0xFF334155)
-                        ),
-                        border = BorderStroke(1.dp, if (isSelected) B360Green else Color(0xFFE2E8F0)),
-                        shape = RoundedCornerShape(8.dp)
-                    )
+                if (showProductItems) {
+                    OutlinedButton(
+                        onClick = { openGroup = null; searchQuery = ""; selectedCategory = "All" },
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("Groups", fontWeight = FontWeight.Bold)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            if (selectedCategory == "All") "All Items" else selectedCategory,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
+                        )
+                        Text(
+                            "${filteredProducts.size} ${if (filteredProducts.size == 1) "item" else "items"}",
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Choose a menu group", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                        Text("Open a group to browse its products", fontSize = 11.sp, color = Color(0xFF64748B))
+                    }
                 }
             }
 
-            // Sub-row for Categories if Categories is selected
-            if (selectedCategory == "Categories" || selectedCategory.startsWith("Category:")) {
+            if (showProductItems) {
                 Row(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val actualCategories = categories.filter { it != "All" }
-                    if (actualCategories.isEmpty()) {
-                        Text("No categories found", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(horizontal = 8.dp))
-                    } else {
-                        actualCategories.forEach { cat ->
-                            val catValue = "Category:$cat"
-                            val isSelected = selectedCategory == catValue
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { selectedCategory = catValue },
-                                label = { Text(cat, fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = B360Green.copy(alpha = 0.85f),
-                                    selectedLabelColor = Color.White,
-                                    containerColor = Color(0xFFF1F5F9),
-                                    labelColor = Color(0xFF475569)
-                                ),
-                                border = BorderStroke(1.dp, if (isSelected) B360Green else Color(0xFFE2E8F0)),
-                                shape = RoundedCornerShape(6.dp)
-                            )
-                        }
-
-                        if (paymentMethod == PaymentMethod.MPESA && mpesaState.configs.size > 1) {
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("M-Pesa Channel", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    mpesaState.configs.forEach { config ->
-                                        FilterChip(
-                                            selected = mpesaAccountType == config.accountType,
-                                            onClick = { mpesaAccountType = config.accountType },
-                                            label = {
-                                                Text(config.accountType.lowercase().replaceFirstChar { it.uppercase() })
-                                            },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                    categories.forEach { category ->
+                        val isSelected = selectedCategory == category
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedCategory = category; openGroup = category },
+                            label = { Text(if (category == "All") "All Items" else category, fontWeight = FontWeight.SemiBold, fontSize = 12.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (category == "All") Icons.Default.GridView else Icons.Default.RestaurantMenu,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (isSelected) Color.White else Color.Gray
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = B360Green,
+                                selectedLabelColor = Color.White,
+                                containerColor = Color.White,
+                                labelColor = Color(0xFF334155)
+                            ),
+                            border = BorderStroke(1.dp, if (isSelected) B360Green else Color(0xFFE2E8F0)),
+                            shape = RoundedCornerShape(8.dp)
+                        )
                     }
                 }
             }
@@ -495,6 +524,60 @@ fun DesktopPosScreen(
             if (inventoryState.isLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = B360Green)
+                }
+            } else if (!showProductItems) {
+                val groups = listOf("All") + groupCategories
+                if (groupCategories.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().heightIn(min = 260.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.Category, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(46.dp))
+                            Text("No product groups are configured yet.", fontWeight = FontWeight.Bold, color = Color(0xFF334155))
+                            Text("Add active products and assign a category to create POS groups.", fontSize = 12.sp, color = Color(0xFF64748B))
+                        }
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 190.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 280.dp, max = 900.dp)
+                    ) {
+                        items(groups) { group ->
+                            val groupItems = if (group == "All") activeProducts else activeProducts.filter { it.posGroup() == group }
+                            val preview = groupItems.firstOrNull()
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedCategory = group; openGroup = group },
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFE6F7F0)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = if (group == "All") "ALL" else (preview?.name?.take(2)?.uppercase() ?: group.take(2).uppercase()),
+                                            fontSize = 17.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = B360Green
+                                        )
+                                    }
+                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(text = if (group == "All") "All Items" else group, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), maxLines = 1)
+                                        Text("${groupItems.size} ${if (groupItems.size == 1) "item" else "items"}", fontSize = 12.sp, color = Color(0xFF64748B))
+                                    }
+                                    Icon(Icons.Default.ChevronRight, contentDescription = "Open $group", tint = Color(0xFF64748B))
+                                }
+                            }
+                        }
+                    }
                 }
             } else if (filteredProducts.isEmpty()) {
                 Box(
@@ -562,13 +645,14 @@ fun DesktopPosScreen(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 160.dp),
+                    columns = GridCells.Adaptive(minSize = 150.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth().heightIn(min = 450.dp, max = 900.dp)
                 ) {
                     items(filteredProducts) { p ->
                         val isOutOfStock = p.isOutOfStock
+                        val cartItem = cart.firstOrNull { it.product.id == p.id }
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -586,7 +670,7 @@ fun DesktopPosScreen(
                                         cart.add(DesktopCartItem(p, 1))
                                     }
                                 },
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.White),
                             border = BorderStroke(1.dp, Color(0xFFE2E8F0))
                         ) {
@@ -598,17 +682,32 @@ fun DesktopPosScreen(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(100.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFFF1F5F9)),
+                                        .height(82.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFFEFF6F3)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = p.name.take(2).uppercase(),
-                                        fontSize = 24.sp,
+                                        fontSize = 22.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = B360Green
                                     )
+                                    if (cartItem != null) {
+                                        Surface(
+                                            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                                            color = B360Green,
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            Text(
+                                                "${cartItem.qty} in order",
+                                                color = Color.White,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
                                 }
 
                                 Column {
@@ -649,6 +748,36 @@ fun DesktopPosScreen(
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
+
+                                if (cartItem != null) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth()
+                                            .background(Color(0xFFECFDF5), RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        IconButton(
+                                            onClick = {
+                                                val idx = cart.indexOf(cartItem)
+                                                if (cartItem.qty > 1) cart[idx] = cartItem.copy(qty = cartItem.qty - 1)
+                                                else cart.remove(cartItem)
+                                            },
+                                            modifier = Modifier.size(28.dp)
+                                        ) { Icon(Icons.Default.Remove, "Remove one", modifier = Modifier.size(15.dp)) }
+                                        Text(cartItem.qty.toString(), fontWeight = FontWeight.ExtraBold, color = B360Green)
+                                        IconButton(
+                                            onClick = {
+                                                if (cartItem.qty < p.currentStock) {
+                                                    val idx = cart.indexOf(cartItem)
+                                                    cart[idx] = cartItem.copy(qty = cartItem.qty + 1)
+                                                }
+                                            },
+                                            modifier = Modifier.size(28.dp),
+                                            enabled = cartItem.qty < p.currentStock
+                                        ) { Icon(Icons.Default.Add, "Add one", modifier = Modifier.size(15.dp)) }
+                                    }
+                                }
                             }
                         }
                     }
@@ -658,19 +787,20 @@ fun DesktopPosScreen(
 
         // Right Side: Shopping Cart Panel
         Card(
-            modifier = Modifier.weight(0.8f).fillMaxHeight(),
+            modifier = Modifier.widthIn(min = 390.dp, max = 440.dp).fillMaxHeight(),
             shape = RoundedCornerShape(0.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+            border = BorderStroke(1.dp, Color(0xFFCBD5E1))
         ) {
             val cartScrollState = rememberScrollState()
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(cartScrollState)
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(cartScrollState)
+                        .padding(start = 20.dp, top = 20.dp, end = 30.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                 // Cart Title Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -681,14 +811,14 @@ fun DesktopPosScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.ShoppingCart,
-                            contentDescription = null,
-                            tint = B360Green,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Box(
+                            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(9.dp)).background(Color(0xFF0F172A)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Default.ShoppingCart, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(20.dp))
+                        }
                         Text(
-                            text = "POS Cart",
+                            text = "Current Order",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = Color(0xFF1E293B)
                         )
@@ -901,7 +1031,7 @@ fun DesktopPosScreen(
                                         listOf("DINE_IN" to "Dine In", "TAKEAWAY" to "Takeaway", "DELIVERY" to "Delivery").forEach { (type, label) ->
                                             FilterChip(
                                                 selected = serviceType == type,
-                                                onClick = { serviceType = type },
+                                                onClick = { serviceType = type; if (type != "DINE_IN") selectedTable = null },
                                                 label = { Text(label, fontSize = 11.sp) }
                                             )
                                         }
@@ -911,10 +1041,10 @@ fun DesktopPosScreen(
                                             var tableDropdownExpanded by remember { mutableStateOf(false) }
                                             Box(modifier = Modifier.weight(1f)) {
                                                 OutlinedTextField(
-                                                    value = selectedTable?.let { "${it.name} (${it.area})" } ?: "Select Table (Optional)",
+                                                    value = selectedTable?.let { "${it.name} (${it.area})" } ?: "Select a table (required)",
                                                     onValueChange = {},
                                                     readOnly = true,
-                                                    label = { Text("Table", fontSize = 11.sp) },
+                                                    label = { Text("Table *", fontSize = 11.sp) },
                                                     modifier = Modifier.fillMaxWidth(),
                                                     trailingIcon = { IconButton(onClick = { tableDropdownExpanded = true }) { Icon(Icons.Default.ArrowDropDown, null) } }
                                                 )
@@ -922,7 +1052,6 @@ fun DesktopPosScreen(
                                                     expanded = tableDropdownExpanded,
                                                     onDismissRequest = { tableDropdownExpanded = false }
                                                 ) {
-                                                    DropdownMenuItem(text = { Text("No Table / Counter") }, onClick = { selectedTable = null; tableDropdownExpanded = false })
                                                     tablesList.forEach { tbl ->
                                                         DropdownMenuItem(
                                                             text = { Text("${tbl.name} · ${tbl.area} (${tbl.capacity} seats)") },
@@ -941,7 +1070,7 @@ fun DesktopPosScreen(
                                     }
 
                                     val activeTab = remember(openTabsList, selectedTable) {
-                                        openTabsList.find { it.hospitalityTableId == selectedTable?.id && (it.tabStatus == "OPEN" || it.tabStatus == "AWAITING_PAYMENT") }
+                                        openTabsList.find { selectedTable != null && it.hospitalityTableId == selectedTable?.id && (it.tabStatus == "OPEN" || it.tabStatus == "AWAITING_PAYMENT") }
                                     }
                                     activeTab?.let { tab ->
                                         Surface(
@@ -968,7 +1097,8 @@ fun DesktopPosScreen(
                                                                 tax = 0.0,
                                                                 grandTotal = tab.subtotal,
                                                                 isSettled = false,
-                                                                customerName = tab.customerName ?: "Walk-In Customer"
+                                                                customerName = tab.customerName ?: "Walk-In Customer",
+                                                                businessProfile = businessProfileState.profile
                                                             )
                                                         },
                                                         modifier = Modifier.weight(1f).height(32.dp),
@@ -1124,6 +1254,25 @@ fun DesktopPosScreen(
                             }
                         }
 
+                        if (paymentMethod == PaymentMethod.MPESA && mpesaState.configs.size > 1) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("M-Pesa Channel", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    mpesaState.configs.forEach { config ->
+                                        FilterChip(
+                                            selected = mpesaAccountType == config.accountType,
+                                            onClick = { mpesaAccountType = config.accountType },
+                                            label = { Text(config.accountType.lowercase().replaceFirstChar { it.uppercase() }) },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         paymentFeedback?.let { feedback ->
                             Surface(
                                 color = B360Green.copy(alpha = 0.08f),
@@ -1201,9 +1350,44 @@ fun DesktopPosScreen(
                                     errorMessage = "Please add items to cart."
                                     return@Button
                                 }
+                                try {
+                                    requireDesktopTable(isHospitalityActive, serviceType, selectedTable?.id)
+                                    if (paymentMethod == PaymentMethod.MPESA) desktopMpesaPhone(walkInPhone)
+                                } catch (e: IllegalArgumentException) {
+                                    errorMessage = e.message
+                                    return@Button
+                                }
                                 isCheckingOut = true
                                 errorMessage = null
                                 coroutineScope.launch {
+                                    if (isHospitalityActive) {
+                                        try {
+                                            val response = client.post("$BASE_URL/hospitality/orders") {
+                                                contentType(ContentType.Application.Json)
+                                                setBody(PosCreateHospitalityOrderReq(
+                                                    tableId = selectedTable?.id,
+                                                    guestCount = guestCount,
+                                                    serviceType = serviceType,
+                                                    customerName = walkInName,
+                                                    customerPhone = walkInPhone,
+                                                    items = cart.map { PosHospitalityOrderItemReq(it.product.id, it.product.name, it.qty, it.product.sellingPrice) },
+                                                    notes = notes
+                                                ))
+                                            }.body<ApiResponse<PosHospitalityOrderInfo>>()
+                                            check(response.success && response.data != null) {
+                                                response.message.ifBlank { "Could not place hospitality order." }
+                                            }
+                                            cart.clear()
+                                            notes = ""
+                                            reloadHospitalityData()
+                                            settleModalOrder = response.data
+                                        } catch (e: Exception) {
+                                            errorMessage = e.message ?: "Could not place hospitality order."
+                                        } finally {
+                                            isCheckingOut = false
+                                        }
+                                        return@launch
+                                    }
                                     val order = Order(
                                         id = generateId(),
                                         orderNumber = "B360-POS-${System.currentTimeMillis() % 10000}",
@@ -1222,7 +1406,7 @@ fun DesktopPosScreen(
                                             )
                                         },
                                         paymentStatus = when (paymentMethod) {
-                                            PaymentMethod.CASH, PaymentMethod.CARD -> PaymentStatus.PAID
+                                            PaymentMethod.CASH -> PaymentStatus.PAID
                                             PaymentMethod.COD -> PaymentStatus.COD
                                             else -> PaymentStatus.PENDING
                                         },
@@ -1239,7 +1423,7 @@ fun DesktopPosScreen(
                                         .onSuccess { savedOrder ->
                                             when (paymentMethod) {
                                                 PaymentMethod.MPESA -> {
-                                                    initiatePaymentUseCase(savedOrder.id, walkInPhone, mpesaAccountType)
+                                                    initiatePaymentUseCase(savedOrder.id, desktopMpesaPhone(walkInPhone), mpesaAccountType)
                                                         .onSuccess {
                                                             paymentFeedback = "M-Pesa STK prompt sent to $walkInPhone."
                                                             successOrderNumber = savedOrder.orderNumber
@@ -1252,7 +1436,7 @@ fun DesktopPosScreen(
                                                 }
                                                 PaymentMethod.CARD -> {
                                                     try {
-                                                        val checkoutUrl = "https://enw9p7mvty.us-east-1.awsapprunner.com/card-payments?orderId=${savedOrder.id}"
+                                                        val checkoutUrl = "https://biashara360.co.ke/card-payments?orderId=${savedOrder.id}"
                                                         if (java.awt.Desktop.isDesktopSupported() &&
                                                             java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)
                                                         ) {
@@ -1281,7 +1465,8 @@ fun DesktopPosScreen(
                                                         isSettled = true,
                                                         paymentMethod = paymentMethod.name,
                                                         customerName = selectedCustomer?.name ?: walkInName,
-                                                        customerPhone = selectedCustomer?.phone ?: walkInPhone
+                                                        customerPhone = selectedCustomer?.phone ?: walkInPhone,
+                                                        businessProfile = businessProfileState.profile
                                                     )
                                                     cart.clear()
                                                     notes = ""
@@ -1298,7 +1483,7 @@ fun DesktopPosScreen(
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                             shape = RoundedCornerShape(8.dp),
-                            enabled = !isCheckingOut && cart.isNotEmpty()
+                            enabled = !isCheckingOut && !isOpeningTab && cart.isNotEmpty()
                         ) {
                             if (isCheckingOut) {
                                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
@@ -1308,7 +1493,7 @@ fun DesktopPosScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                    Text("Complete Sale & Print Receipt", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                    Text(if (isHospitalityActive) "Place Order & Settle" else "Complete Sale & Print Receipt", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
                                 }
                             }
                         }
@@ -1317,6 +1502,12 @@ fun DesktopPosScreen(
                             Spacer(Modifier.height(8.dp))
                             Button(
                                 onClick = {
+                                    try {
+                                        requireDesktopTable(true, serviceType, selectedTable?.id)
+                                    } catch (e: IllegalArgumentException) {
+                                        errorMessage = e.message
+                                        return@Button
+                                    }
                                     coroutineScope.launch {
                                         isOpeningTab = true
                                         errorMessage = null
@@ -1345,7 +1536,7 @@ fun DesktopPosScreen(
                                         }.onSuccess { resp ->
                                             val orderRes = resp.data
                                             if (resp.success && orderRes != null) {
-                                                paymentFeedback = "Order #${orderRes.orderNumber} tab opened and sent to kitchen!"
+                                                paymentFeedback = "Order #${orderRes.orderNumber} tab opened. Food items sent to kitchen."
                                                 val itemsList = cart.map { it.product.name to (it.qty to it.product.sellingPrice) }
                                                 printReceiptDesktop(
                                                     orderNumber = orderRes.orderNumber,
@@ -1356,10 +1547,12 @@ fun DesktopPosScreen(
                                                     grandTotal = grandTotal,
                                                     isSettled = false,
                                                     customerName = selectedCustomer?.name ?: walkInName,
-                                                    customerPhone = selectedCustomer?.phone ?: walkInPhone
+                                                    customerPhone = selectedCustomer?.phone ?: walkInPhone,
+                                                    businessProfile = businessProfileState.profile
                                                 )
                                                 cart.clear()
                                                 notes = ""
+                                                reloadHospitalityData()
                                             } else {
                                                 errorMessage = resp.message.ifBlank { "Could not open customer tab." }
                                             }
@@ -1379,13 +1572,22 @@ fun DesktopPosScreen(
                                 } else {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Icon(Icons.Default.Restaurant, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                        Text("Send to Kitchen & Open Tab", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                                        Text("Open Tab & Send Food to Kitchen", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
                                     }
                                 }
                             }
                         }
                     }
                 }
+                }
+
+                VerticalScrollbar(
+                    adapter = rememberScrollbarAdapter(cartScrollState),
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .fillMaxHeight()
+                        .padding(horizontal = 4.dp, vertical = 8.dp)
+                )
             }
         }
 
@@ -1399,7 +1601,8 @@ fun DesktopPosScreen(
                     coroutineScope.launch { reloadHospitalityData() }
                 },
                 client = client,
-                coroutineScope = coroutineScope
+                coroutineScope = coroutineScope,
+                businessProfile = businessProfileState.profile
             )
         }
 
@@ -1413,7 +1616,10 @@ fun DesktopPosScreen(
                     coroutineScope.launch { reloadHospitalityData() }
                 },
                 client = client,
-                coroutineScope = coroutineScope
+                coroutineScope = coroutineScope,
+                initialPaymentMethod = if (paymentMethod == PaymentMethod.COD) "CASH" else paymentMethod.name,
+                mpesaAccountType = mpesaAccountType,
+                businessProfile = businessProfileState.profile
             )
         }
     }
@@ -1425,7 +1631,8 @@ private fun SplitBillDialogOverlay(
     onDismiss: () -> Unit,
     onSplitComplete: (String) -> Unit,
     client: HttpClient,
-    coroutineScope: kotlinx.coroutines.CoroutineScope
+    coroutineScope: kotlinx.coroutines.CoroutineScope,
+    businessProfile: BusinessProfile?
 ) {
     var splitMode by remember { mutableStateOf("EQUAL") }
     var splitGuests by remember { mutableStateOf(2) }
@@ -1548,7 +1755,8 @@ private fun SplitBillDialogOverlay(
                                                 grandTotal = item.amount,
                                                 isSettled = false,
                                                 paymentMethod = item.method,
-                                                customerName = "Guest ${idx + 1} (${order.customerName ?: "Walk-in"})"
+                                                customerName = "Guest ${idx + 1} (${order.customerName ?: "Walk-in"})",
+                                                businessProfile = businessProfile
                                             )
                                         }
                                         onSplitComplete("Bill for Order #${order.orderNumber} split successfully into ${splitItems.size} payments!")
@@ -1580,9 +1788,12 @@ private fun SettleTabDialogOverlay(
     onDismiss: () -> Unit,
     onSettleComplete: (String) -> Unit,
     client: HttpClient,
-    coroutineScope: kotlinx.coroutines.CoroutineScope
+    coroutineScope: kotlinx.coroutines.CoroutineScope,
+    initialPaymentMethod: String,
+    mpesaAccountType: String?,
+    businessProfile: BusinessProfile?
 ) {
-    var paymentMethod by remember { mutableStateOf("CASH") }
+    var paymentMethod by remember { mutableStateOf(initialPaymentMethod) }
     var mpesaPhone by remember { mutableStateOf(order.customerPhone ?: "") }
     var isSubmitting by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
@@ -1591,7 +1802,7 @@ private fun SettleTabDialogOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.5f))
-            .clickable(onClick = onDismiss),
+            .clickable(onClick = { if (!isSubmitting) onDismiss() }),
         contentAlignment = Alignment.Center
     ) {
         Surface(
@@ -1609,7 +1820,7 @@ private fun SettleTabDialogOverlay(
             ) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("Settle & Close Tab", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
-                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null) }
+                    IconButton(onClick = { if (!isSubmitting) onDismiss() }) { Icon(Icons.Default.Close, null) }
                 }
 
                 Surface(color = Color(0xFFF0FDF4), border = BorderStroke(1.dp, Color(0xFFBBF7D0)), shape = RoundedCornerShape(6.dp), modifier = Modifier.fillMaxWidth()) {
@@ -1628,6 +1839,7 @@ private fun SettleTabDialogOverlay(
                         FilterChip(
                             selected = paymentMethod == method,
                             onClick = { paymentMethod = method },
+                            enabled = !isSubmitting,
                             label = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                         )
                     }
@@ -1649,7 +1861,7 @@ private fun SettleTabDialogOverlay(
                 }
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = { if (!isSubmitting) onDismiss() }, modifier = Modifier.weight(1f)) {
                         Text("Cancel")
                     }
                     Button(
@@ -1658,13 +1870,8 @@ private fun SettleTabDialogOverlay(
                                 isSubmitting = true
                                 errorMsg = null
                                 runCatching {
-                                    val req = PosCloseTabReq(paymentMethod = paymentMethod)
-                                    val resp = client.post("$BASE_URL/hospitality/tabs/${order.id}/close") {
-                                        contentType(ContentType.Application.Json)
-                                        setBody(req)
-                                    }.body<ApiResponse<Unit>>()
-
-                                    if (resp.success) {
+                                    val result = settleDesktopTab(client, order.id, paymentMethod, mpesaPhone, mpesaAccountType)
+                                    if (result.paid) {
                                         val itemsList = order.items.map { it.productName to (it.quantity to it.unitPrice) }
                                         printReceiptDesktop(
                                             orderNumber = order.orderNumber,
@@ -1676,12 +1883,14 @@ private fun SettleTabDialogOverlay(
                                             isSettled = true,
                                             paymentMethod = paymentMethod,
                                             customerName = order.customerName ?: "Walk-in Customer",
-                                            customerPhone = mpesaPhone
+                                            customerPhone = mpesaPhone,
+                                            businessProfile = businessProfile
                                         )
-                                        onSettleComplete("Tab #${order.orderNumber} settled and closed successfully!")
-                                    } else {
-                                        errorMsg = resp.message.ifBlank { "Could not settle tab" }
                                     }
+                                    if (paymentMethod == "CARD") {
+                                        java.awt.Desktop.getDesktop().browse(java.net.URI("https://biashara360.co.ke/card-payments?orderId=${order.id}"))
+                                    }
+                                    onSettleComplete("Tab #${order.orderNumber}: ${result.message}")
                                 }.onFailure {
                                     errorMsg = it.message ?: "Failed to settle tab"
                                 }
@@ -1693,7 +1902,7 @@ private fun SettleTabDialogOverlay(
                         colors = ButtonDefaults.buttonColors(containerColor = B360Green)
                     ) {
                         if (isSubmitting) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
-                        else Text("Complete Settlement", color = Color.White, fontWeight = FontWeight.Bold)
+                        else Text(if (paymentMethod == "MPESA") "Send M-Pesa Prompt" else "Complete Settlement", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

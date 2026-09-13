@@ -2,8 +2,8 @@ import axios, { AxiosInstance } from 'axios'
 
 // The custom API hostname is not provisioned in every environment. Keep the
 // deployed App Runner endpoint as the working fallback; production builds can
-// still override it with VITE_API_BASE_URL when DNS is configured.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://sddgmezqj2.us-east-1.awsapprunner.com/v1'
+// Deployments can override this with VITE_API_BASE_URL.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.biashara360.co.ke/v1'
 const LAST_ACTIVITY_KEY = 'sessionLastActivity'
 
 export const client: AxiosInstance = axios.create({
@@ -235,9 +235,18 @@ export interface EtimsInvoiceResponse {
 
 export interface TaxReturnResponse {
   id: string; returnType: 'VAT3' | 'TOT' | 'WHT'
+  periodYear: number; periodMonth: number
   periodLabel: string; dueDate: string; status: string
   netVatPayable?: number; totAmount?: number; whtAmount?: number
   iTaxAcknowledgementNo: string | null; csvDownloadReady: boolean
+}
+
+export interface CsvExportResponse {
+  fileName: string; format: string; rowCount: number; periodLabel: string
+  downloadBase64: string; contentType: string
+  uploadInstructions: {
+    portalUrl: string; menuPath: string[]; fileFormatRequired: string; steps: string[]
+  }
 }
 
 export interface SocialChannel {
@@ -246,7 +255,7 @@ export interface SocialChannel {
   tenantId?: string | null; wabaId?: string | null; phoneNumberId?: string | null
   metaBusinessId?: string | null
   connectionStatus?: 'CONNECTED' | 'ACTION_REQUIRED' | 'DISCONNECTED'
-  onboardingMethod?: 'MANUAL' | 'META_EMBEDDED_SIGNUP'
+  onboardingMethod?: 'MANUAL' | 'META_EMBEDDED_SIGNUP' | 'META_BUSINESS_LOGIN'
   lastVerifiedAt?: string | null
   webhookVerifyToken: string; webhookUrl: string; unreadCount: number
 }
@@ -255,8 +264,26 @@ export interface MetaOnboardingConfiguration {
   configured: boolean
   appId: string | null
   configurationId: string | null
+  businessLoginConfigured: boolean
+  businessLoginConfigurationId: string | null
   graphApiVersion: string
   missing: string[]
+  businessLoginMissing: string[]
+}
+
+export interface MetaBusinessAsset {
+  platform: 'FACEBOOK' | 'INSTAGRAM'
+  accountId: string
+  name: string
+  pageId: string
+  pageName: string
+  username?: string | null
+  pictureUrl?: string | null
+}
+
+export interface MetaBusinessDiscovery {
+  sessionToken: string
+  assets: MetaBusinessAsset[]
 }
 
 export interface StorefrontProduct {
@@ -691,20 +718,25 @@ export const kraApi = {
     const res = await client.post<ApiResponse<null>>('/kra/etims/retry')
     return res.data
   },
-  generateVat3: async (data: { periodStart: string; periodEnd: string }) => {
+  generateVat3: async (data: { periodYear: number; periodMonth: number }) => {
     const res = await client.post<ApiResponse<TaxReturnResponse>>('/kra/returns/vat3', data)
     return res.data
   },
-  generateTot: async (data: { periodStart: string; periodEnd: string }) => {
+  generateTot: async (data: { periodYear: number; periodMonth: number }) => {
     const res = await client.post<ApiResponse<TaxReturnResponse>>('/kra/returns/tot', data)
     return res.data
   },
-  generateWht: async (data: { periodStart: string; periodEnd: string }) => {
+  generateWht: async (data: { periodYear: number; periodMonth: number }) => {
     const res = await client.post<ApiResponse<TaxReturnResponse>>('/kra/returns/wht', data)
     return res.data
   },
-  markReturnSubmitted: async (id: string) => {
-    const res = await client.patch<ApiResponse<TaxReturnResponse>>(`/kra/returns/${id}/submitted`)
+  markReturnSubmitted: async (id: string, ackNo: string) => {
+    const params = new URLSearchParams({ ackNo })
+    const res = await client.patch<ApiResponse<null>>(`/kra/returns/${id}/submitted?${params.toString()}`)
+    return res.data
+  },
+  exportCsv: async (data: { returnType: TaxReturnResponse['returnType']; periodYear: number; periodMonth: number; format?: string }) => {
+    const res = await client.post<ApiResponse<CsvExportResponse>>('/kra/export/csv', data)
     return res.data
   },
   getReturns: async () => {
@@ -726,6 +758,17 @@ export const socialApi = {
     channelName?: string
   }) => {
     const res = await client.post<ApiResponse<SocialChannel>>('/social/meta/embedded-signup/complete', data)
+    return res.data
+  },
+  discoverMetaBusinessAssets: async (code: string) => {
+    const res = await client.post<ApiResponse<MetaBusinessDiscovery>>('/social/meta/business-login/discover', { code })
+    return res.data
+  },
+  connectMetaBusinessAssets: async (data: {
+    sessionToken: string
+    selections: Array<{ platform: 'FACEBOOK' | 'INSTAGRAM'; accountId: string; channelName?: string }>
+  }) => {
+    const res = await client.post<ApiResponse<SocialChannel[]>>('/social/meta/business-login/connect', data)
     return res.data
   },
   getChannels: async () => {
