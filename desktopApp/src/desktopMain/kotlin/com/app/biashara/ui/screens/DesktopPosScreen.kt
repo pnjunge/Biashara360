@@ -159,6 +159,8 @@ fun printReceiptDesktop(
         val showTax = businessProfile?.receiptShowTax != false
         val receiptHeader = escapeHtml(businessProfile?.receiptHeader?.ifBlank { if (!isSettled) "PLEASE PRESENT BILL TO CASHIER FOR SETTLEMENT" else "THANK YOU FOR YOUR VISIT!" } ?: if (!isSettled) "PLEASE PRESENT BILL TO CASHIER FOR SETTLEMENT" else "THANK YOU FOR YOUR VISIT!")
         val receiptFooter = escapeHtml(businessProfile?.receiptFooter.orEmpty())
+        val logoWidth = businessProfile?.receiptLogoWidthMm?.coerceIn(10, 68) ?: 42
+        val logoHeight = businessProfile?.receiptLogoHeightMm?.coerceIn(5, 40) ?: 20
 
         val itemsHtml = items.joinToString("") { (name, qtyPrice) ->
             val (qty, price) = qtyPrice
@@ -180,7 +182,7 @@ fun printReceiptDesktop(
         @page { size: 80mm auto; margin: 4mm; }
         body { width: 72mm; margin: 0 auto; color: #111; font-family: monospace; font-size: 11px; line-height: 1.35; }
         .center { text-align: center; }
-        .logo { display: block; max-width: 42mm; max-height: 20mm; object-fit: contain; margin: 0 auto 5px; }
+        .logo { display: block; width: ${logoWidth}mm; height: ${logoHeight}mm; max-width: 100%; object-fit: contain; margin: 0 auto 5px; }
         .rule { border-top: 1px dashed #111; margin: 7px 0; }
         .line { display: flex; justify-content: space-between; }
         .total { font-size: 14px; font-weight: bold; margin-top: 4px; }

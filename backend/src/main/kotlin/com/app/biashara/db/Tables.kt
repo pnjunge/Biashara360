@@ -40,6 +40,8 @@ object BusinessesTable : Table("businesses") {
     val receiptHeader = varchar("receipt_header", 255).default("Welcome to our store!")
     val receiptFooter = varchar("receipt_footer", 255).default("Thank you for shopping with us!")
     val receiptLogo = text("receipt_logo").nullable()
+    val receiptLogoWidthMm = integer("receipt_logo_width_mm").default(42)
+    val receiptLogoHeightMm = integer("receipt_logo_height_mm").default(20)
     val receiptShowTax = bool("receipt_show_tax").default(true)
     val receiptShowCustomer = bool("receipt_show_customer").default(true)
     val createdAt = timestamp("created_at")

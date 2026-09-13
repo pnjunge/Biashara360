@@ -46,6 +46,7 @@ export function SettlementModal({ order, onClose, onComplete }: { order: OrderRe
         if (method==='MPESA'&&!phone.trim()) throw new Error('Enter the customer M-Pesa phone number.')
         const result=await hospitalityApi.closeTab(order.id,method)
         if(!result.success) throw new Error(result.message||'Could not settle this tab.')
+        if(result.data) settledOrder = result.data
         if(method==='MPESA') {
           const push=await paymentApi.initiate({orderId:order.id,phoneNumber:phone.trim()})
           if(!push.success) throw new Error(push.message||'Could not send the M-Pesa prompt.')

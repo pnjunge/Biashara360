@@ -147,7 +147,7 @@ export function SettingsPage() {
             address: d.address || '', kraPin: d.kraPin || '',
             paybillNumber: d.paybillNumber || '', accountNumber: d.accountNumber || '',
             receiptHeader: d.receiptHeader, receiptFooter: d.receiptFooter,
-            receiptLogo: d.receiptLogo, receiptShowTax: d.receiptShowTax,
+            receiptLogo: d.receiptLogo, receiptLogoWidthMm: d.receiptLogoWidthMm, receiptLogoHeightMm: d.receiptLogoHeightMm, receiptShowTax: d.receiptShowTax,
             receiptShowCustomer: d.receiptShowCustomer,
             storefrontThemeColor: d.storefrontThemeColor || '#0F766E',
             storefrontHeadline: d.storefrontHeadline || 'Shop with us online',

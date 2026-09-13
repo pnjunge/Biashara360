@@ -3,6 +3,7 @@ package com.app.biashara.services
 import com.app.biashara.db.OrdersTable
 import com.app.biashara.db.OrderItemsTable
 import com.app.biashara.db.UsersTable
+import com.app.biashara.db.BusinessesTable
 import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.*
@@ -54,10 +55,17 @@ class PortalOrderService {
     // The unclaimed predicate is part of the UPDATE, so competing claims cannot overwrite the winner.
     fun claim(businessId: String, userId: String, orderId: String): PortalOrderSummary? = transaction {
         requireMember(businessId, userId)
+        val hospitalityEnabled = BusinessesTable
+            .slice(BusinessesTable.hospitalityEnabled, BusinessesTable.type)
+            .select { BusinessesTable.id eq businessId }
+            .firstOrNull()
+            ?.let { it[BusinessesTable.hospitalityEnabled] || it[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true) }
+            ?: false
         val updated = OrdersTable.update({
             eligible(businessId) and (OrdersTable.id eq orderId) and OrdersTable.serverUserId.isNull()
         }) {
             it[serverUserId] = userId
+            it[deliveryStatus] = "PROCESSING"
             it[updatedAt] = Clock.System.now()
         }
         // Retrying a successful claim by the same user is safe.
@@ -65,6 +73,15 @@ class PortalOrderService {
             eligible(businessId) and (OrdersTable.id eq orderId) and (OrdersTable.serverUserId eq userId)
         }.firstOrNull() ?: return@transaction null
         check(updated in 0..1)
+        // Apply this after ownership is confirmed so an idempotent retry also repairs
+        // orders claimed before hospitality tabs were linked to portal claims.
+        OrdersTable.update({
+            eligible(businessId) and (OrdersTable.id eq orderId) and (OrdersTable.serverUserId eq userId)
+        }) {
+            if (hospitalityEnabled) it[tabStatus] = "OPEN"
+            it[deliveryStatus] = "PROCESSING"
+            it[updatedAt] = Clock.System.now()
+        }
         summary(row, itemsFor(listOf(orderId)))
     }
 

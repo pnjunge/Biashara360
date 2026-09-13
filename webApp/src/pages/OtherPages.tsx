@@ -1234,6 +1234,7 @@ export function BusinessPage() {
               name: d.name, owner: d.owner, phone: d.phone, email: d.email, type: d.type, county: d.county, address: d.address,
               kraPin: d.kraPin, paybillNumber: d.paybillNumber, accountNumber: d.accountNumber,
               receiptHeader: d.receiptHeader, receiptFooter: d.receiptFooter, receiptLogo: d.receiptLogo,
+              receiptLogoWidthMm: d.receiptLogoWidthMm, receiptLogoHeightMm: d.receiptLogoHeightMm,
               receiptShowTax: d.receiptShowTax, receiptShowCustomer: d.receiptShowCustomer,
               storefrontThemeColor: d.storefrontThemeColor || '#0F766E', storefrontHeadline: d.storefrontHeadline || 'Shop with us online',
               storefrontDescription: d.storefrontDescription || '', storefrontBannerUrl: d.storefrontBannerUrl || null,

@@ -1067,6 +1067,8 @@ export interface BusinessProfileRequest {
   receiptHeader?: string
   receiptFooter?: string
   receiptLogo?: string | null
+  receiptLogoWidthMm?: number
+  receiptLogoHeightMm?: number
   receiptShowTax?: boolean
   receiptShowCustomer?: boolean
   storefrontThemeColor?: string
@@ -1098,6 +1100,8 @@ export interface BusinessProfileResponse {
   receiptHeader?: string
   receiptFooter?: string
   receiptLogo?: string | null
+  receiptLogoWidthMm?: number
+  receiptLogoHeightMm?: number
   receiptShowTax?: boolean
   receiptShowCustomer?: boolean
   storefrontThemeColor?: string

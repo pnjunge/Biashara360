@@ -4029,6 +4029,8 @@ fun DesktopReceiptTemplateScreen(
     var header by remember { mutableStateOf("Welcome to our store!") }
     var footer by remember { mutableStateOf("Thank you for shopping with us!") }
     var receiptLogo by remember { mutableStateOf<String?>(null) }
+    var receiptLogoWidthMm by remember { mutableStateOf(42f) }
+    var receiptLogoHeightMm by remember { mutableStateOf(20f) }
     var showTax by remember { mutableStateOf(true) }
     var showCustomer by remember { mutableStateOf(true) }
 
@@ -4039,6 +4041,8 @@ fun DesktopReceiptTemplateScreen(
             showTax = prof.receiptShowTax
             showCustomer = prof.receiptShowCustomer
             receiptLogo = prof.receiptLogo
+            receiptLogoWidthMm = prof.receiptLogoWidthMm.toFloat()
+            receiptLogoHeightMm = prof.receiptLogoHeightMm.toFloat()
         }
     }
 
@@ -4079,6 +4083,8 @@ fun DesktopReceiptTemplateScreen(
                                 receiptHeader = header,
                                 receiptFooter = footer,
                                 receiptLogo = receiptLogo,
+                                receiptLogoWidthMm = receiptLogoWidthMm.toInt(),
+                                receiptLogoHeightMm = receiptLogoHeightMm.toInt(),
                                 receiptShowTax = showTax,
                                 receiptShowCustomer = showCustomer
                             )
@@ -4211,6 +4217,13 @@ fun DesktopReceiptTemplateScreen(
                                     Text("Logo selected", color = B360Green, fontSize = 12.sp)
                                     TextButton(onClick = { receiptLogo = null }) { Text("Remove", color = Color(0xFFDC2626)) }
                                 }
+                            }
+                            if (!receiptLogo.isNullOrBlank()) {
+                                Text("Logo width: ${receiptLogoWidthMm.toInt()} mm", fontSize = 12.sp, color = Color(0xFF475569))
+                                Slider(value = receiptLogoWidthMm, onValueChange = { receiptLogoWidthMm = it }, valueRange = 10f..68f, steps = 57)
+                                Text("Logo height: ${receiptLogoHeightMm.toInt()} mm", fontSize = 12.sp, color = Color(0xFF475569))
+                                Slider(value = receiptLogoHeightMm, onValueChange = { receiptLogoHeightMm = it }, valueRange = 5f..40f, steps = 34)
+                                Text("The logo keeps its proportions inside this printable area.", fontSize = 11.sp, color = Color(0xFF64748B))
                             }
                         }
 

@@ -1,6 +1,8 @@
 package com.app.biashara.services
 
 import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID
@@ -19,10 +21,13 @@ class PortalOrderServiceTest {
         transaction(db) {
             exec("CREATE TABLE users(id VARCHAR(36) PRIMARY KEY, business_id VARCHAR(36), is_active BOOLEAN)")
             exec("INSERT INTO users VALUES ('u1','a',true),('u2','a',true),('u3','b',true),('inactive','a',false)")
+            exec("CREATE TABLE businesses(id VARCHAR(36) PRIMARY KEY, hospitality_enabled BOOLEAN, type VARCHAR(30))")
+            exec("INSERT INTO businesses VALUES ('a',true,'RESTAURANT'),('b',false,'RETAIL')")
             exec("""CREATE TABLE orders(id VARCHAR(36) PRIMARY KEY, order_number VARCHAR(20), business_id VARCHAR(36),
                 customer_name VARCHAR(255), delivery_location TEXT, subtotal DOUBLE PRECISION,
                 payment_status VARCHAR(20), delivery_status VARCHAR(20), sales_channel VARCHAR(30),
-                server_user_id VARCHAR(36), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+                server_user_id VARCHAR(36), tab_status VARCHAR(20) DEFAULT 'CLOSED',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
             exec("CREATE TABLE order_items(order_id VARCHAR(36), product_name VARCHAR(255), quantity INT)")
             exec("""INSERT INTO orders(id,order_number,business_id,customer_name,delivery_location,subtotal,payment_status,delivery_status,sales_channel)
                 VALUES ('o1','B360-ECOM-1','a','Guest','Table 1',500,'PAID','PROCESSING','ECOMMERCE'),
@@ -51,6 +56,44 @@ class PortalOrderServiceTest {
         assertEquals(listOf("o1"), service.queue("a", "u1").mine.map { it.id })
         assertNotNull(service.claim("a", "u1", "o1"))
         assertNull(service.claim("a", "u2", "o1"))
+        transaction {
+            val row = com.app.biashara.db.OrdersTable
+                .slice(com.app.biashara.db.OrdersTable.tabStatus, com.app.biashara.db.OrdersTable.deliveryStatus)
+                .select { com.app.biashara.db.OrdersTable.id eq "o1" }.single()
+            assertEquals("OPEN", row[com.app.biashara.db.OrdersTable.tabStatus])
+            assertEquals("PROCESSING", row[com.app.biashara.db.OrdersTable.deliveryStatus])
+        }
+    }
+
+    @Test
+    fun `retry repairs a previously claimed hospitality order that is still closed`() {
+        assertNotNull(service.claim("a", "u1", "o1"))
+        transaction { exec("UPDATE orders SET tab_status='CLOSED' WHERE id='o1'") }
+
+        assertNotNull(service.claim("a", "u1", "o1"))
+
+        transaction {
+            val status = com.app.biashara.db.OrdersTable
+                .slice(com.app.biashara.db.OrdersTable.tabStatus)
+                .select { com.app.biashara.db.OrdersTable.id eq "o1" }
+                .single()[com.app.biashara.db.OrdersTable.tabStatus]
+            assertEquals("OPEN", status)
+        }
+    }
+
+    @Test
+    fun `claim outside hospitality does not create an open tab`() {
+        transaction {
+            exec("INSERT INTO orders(id,order_number,business_id,customer_name,delivery_location,subtotal,payment_status,delivery_status,sales_channel) VALUES ('o5','B360-ECOM-5','b','Shopper','Pickup',300,'COD','PENDING','ECOMMERCE')")
+        }
+        assertNotNull(service.claim("b", "u3", "o5"))
+        transaction {
+            val row = com.app.biashara.db.OrdersTable
+                .slice(com.app.biashara.db.OrdersTable.tabStatus, com.app.biashara.db.OrdersTable.deliveryStatus)
+                .select { com.app.biashara.db.OrdersTable.id eq "o5" }.single()
+            assertEquals("CLOSED", row[com.app.biashara.db.OrdersTable.tabStatus])
+            assertEquals("PROCESSING", row[com.app.biashara.db.OrdersTable.deliveryStatus])
+        }
     }
 
     @Test

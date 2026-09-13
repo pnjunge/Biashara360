@@ -13,7 +13,11 @@ export function printOrderReceipt(order: OrderResponse, profile: BusinessProfile
   const printWindow = window.open('', '_blank', 'width=420,height=720')
   if (!printWindow) throw new Error('Allow pop-ups to print receipts')
 
-  const isUnpaid = isProForma || order.tabStatus === 'OPEN' || order.tabStatus === 'AWAITING_PAYMENT' || order.paymentStatus !== 'PAID'
+  // Payment confirmation is authoritative. A stale/open tab must never turn a
+  // successfully paid receipt back into a pending bill.
+  const isUnpaid = isProForma || order.paymentStatus !== 'PAID'
+  const logoWidth = Math.min(68, Math.max(10, profile?.receiptLogoWidthMm ?? 42))
+  const logoHeight = Math.min(40, Math.max(5, profile?.receiptLogoHeightMm ?? 20))
   const baseAmount = order.baseAmount ?? order.items.reduce((sum, item) => sum + item.lineTotal, 0)
   const taxAmount = order.taxAmount ?? Math.max(0, order.subtotal - baseAmount)
   const logo = profile?.receiptLogo && (
@@ -37,7 +41,7 @@ export function printOrderReceipt(order: OrderResponse, profile: BusinessProfile
     <style>
       @page { size: 80mm auto; margin: 4mm; }
       * { box-sizing: border-box; } body { width: 72mm; margin: 0 auto; color: #111; font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-      .center { text-align: center; } .logo { display: block; max-width: 42mm; max-height: 20mm; object-fit: contain; margin: 0 auto 5px; }
+      .center { text-align: center; } .logo { display: block; width: ${logoWidth}mm; height: ${logoHeight}mm; max-width: 100%; object-fit: contain; margin: 0 auto 5px; }
       h1 { font-size: 16px; margin: 3px 0; } .muted { color: #444; font-size: 10px; } .rule { border-top: 1px dashed #111; margin: 7px 0; }
       .line { display: flex; justify-content: space-between; gap: 8px; } .item { margin: 5px 0; } .item-name { font-weight: 700; }
       .total { font-size: 14px; font-weight: 800; margin-top: 4px; } .message { margin-top: 8px; white-space: pre-wrap; }
