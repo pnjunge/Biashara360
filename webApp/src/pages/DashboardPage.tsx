@@ -6,10 +6,8 @@ import { productApi, orderApi, customerApi, reportApi, businessApi, socialApi, P
 import { useAuth } from '../App'
 import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
-const nairobiDate = (date: Date) => {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date)
-  return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type)?.value).join('-')
-}
+import { nairobiDate, loadPaidRevenue } from '../utils/revenueTrend'
+import ProductImportModal from '../components/ProductImportModal'
 
 function getCurrentMonthRange() {
   const now = new Date(`${nairobiDate(new Date())}T12:00:00Z`)
@@ -70,11 +68,17 @@ export default function DashboardPage() {
     setRevenueError('')
     setProfitSummary(null)
     const { startDate, endDate } = getDashboardDates(dashboardPeriod)
-    reportApi.profitSummary(startDate, endDate).then(response => {
+    reportApi.profitSummary(startDate, endDate).then(async response => {
       if (!active) return
       if (!response.success || !response.data) throw new Error(response.message || 'Unable to load revenue.')
-      setProfitSummary(response.data)
-      if (!response.data.dailyRevenue) setRevenueError('Daily revenue is currently unavailable. Please try again later.')
+      let dailyRevenue = response.data.dailyRevenue
+      if (!dailyRevenue?.length) {
+        dailyRevenue = await loadPaidRevenue(startDate, endDate, page => orderApi.list('PAID', page, 100))
+      }
+      if (dailyRevenue.some(point => !Number.isFinite(point.revenue) || !/^\d{4}-\d{2}-\d{2}$/.test(point.date))) {
+        throw new Error('The revenue report contains invalid daily values.')
+      }
+      if (active) setProfitSummary({ ...response.data, dailyRevenue })
     }).catch(error => {
       if (active) setRevenueError(error.response?.data?.message || error.message || 'Unable to load revenue.')
     }).finally(() => { if (active) setRevenueLoading(false) })
@@ -191,8 +195,8 @@ export default function DashboardPage() {
           {/* KPI Cards */}
           <div className="responsive-grid responsive-grid-4">
             <KpiCard
-              title="Monthly Revenue"
-              value={profitSummary ? fmt(profitSummary.totalRevenue) : 'KES 0'}
+              title={`${dashboardPeriod} Revenue`}
+              value={profitSummary ? fmt(profitSummary.totalRevenue) : '—'}
               change="Current reporting period"
               icon={<TrendingUp size={22}/>}
               color="var(--b360-green)"
@@ -200,7 +204,7 @@ export default function DashboardPage() {
             />
             <KpiCard
               title="Net Profit"
-              value={profitSummary ? fmt(profitSummary.netProfit) : 'KES 0'}
+              value={profitSummary ? fmt(profitSummary.netProfit) : '—'}
               change="Current net profit"
               icon={<Building size={22}/>}
               color="var(--b360-blue)"
@@ -227,7 +231,7 @@ export default function DashboardPage() {
           {/* Revenue Trend + Quick Alerts */}
           <div className="responsive-grid responsive-grid-2">
             {/* Revenue Trend Card */}
-            <Card style={{ padding:20 }}>
+            <Card style={{ padding:20, minWidth:0 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
                 <div>
                   <h3 style={{ fontWeight:700, fontSize:15, color:'var(--b360-text)' }}>Revenue Trend</h3>
@@ -259,7 +263,7 @@ export default function DashboardPage() {
 
               <div style={{ width:'100%', height:240, minWidth:0 }} aria-label="Daily revenue chart">
                 {revenueLoading ? <Skeleton height={220} /> : revenueError ? <div role="alert" style={{ padding:20, color:'var(--b360-red)' }}>{revenueError}<div style={{ marginTop:12 }}><Btn small variant="secondary" onClick={() => setRevenueRetry(value => value + 1)}>Retry</Btn></div></div> : !profitSummary?.dailyRevenue?.some(point => point.revenue !== 0) ? <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No paid sales in this period.</div> : (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={240} minWidth={0}>
                     <BarChart data={profitSummary.dailyRevenue} margin={{ top:10, right:12, bottom:8, left:0 }} accessibilityLayer>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5ebe8" />
                       <XAxis dataKey="date" tickFormatter={value => new Date(`${value}T12:00:00Z`).toLocaleDateString('en-KE', { day:'numeric', month:'short', timeZone:'Africa/Nairobi' })} tick={{ fontSize:10 }} minTickGap={24} />
@@ -392,6 +396,7 @@ export function InventoryPage() {
   const [saving, setSaving] = useState(false)
 
   const [showAdd, setShowAdd] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [showCategories, setShowCategories] = useState(false)
   const [categoryName, setCategoryName] = useState('')
   const [categoryImageUrl, setCategoryImageUrl] = useState('')
@@ -539,6 +544,7 @@ export function InventoryPage() {
 
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      {showImport && <ProductImportModal onClose={() => setShowImport(false)} onImported={() => { loadProducts(); loadCategories() }} />}
       {showAdd && productModal('Add Product', () => setShowAdd(false))}
       {editProduct && productModal('Edit Product', () => setEditProduct(null))}
       {showCategories && (
@@ -578,7 +584,7 @@ export function InventoryPage() {
       )}
 
       <PageHeader title="Inventory"
-        action={<div style={{ display:'flex', gap:8 }}>{user?.role === 'ADMIN' && <Btn variant="secondary" onClick={() => { setError(''); setShowCategories(true) }}>Categories</Btn>}<Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Product</Btn></div>} />
+        action={<div style={{ display:'flex', gap:8 }}>{user?.role === 'ADMIN' && <Btn variant="secondary" onClick={() => { setError(''); setShowCategories(true) }}>Categories</Btn>}<Btn variant="secondary" onClick={() => setShowImport(true)}>Import Excel</Btn><Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Product</Btn></div>} />
 
       <div className="responsive-grid responsive-grid-4" style={{ gap:12 }}>
         <KpiCard title="Total Products"  value={`${products.length}`}  change="Active items"        icon={<Package size={18}/>} color="var(--b360-blue)" />

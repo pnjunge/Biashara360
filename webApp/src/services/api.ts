@@ -122,7 +122,7 @@ export interface ProductResponse {
   id: string; businessId: string; sku: string; name: string; description: string
   buyingPrice: number; sellingPrice: number; profitPerItem: number; profitMargin: number
   currentStock: number; lowStockThreshold: number; isLowStock: boolean; isOutOfStock: boolean
-  category: string; imageUrl: string | null; isActive?: boolean; createdAt: string; updatedAt: string
+  category: string; barcode?: string | null; imageUrl: string | null; isActive?: boolean; createdAt: string; updatedAt: string
 }
 
 export interface OrderItemResponse {

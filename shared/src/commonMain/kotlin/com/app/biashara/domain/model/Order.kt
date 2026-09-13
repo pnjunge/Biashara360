@@ -18,14 +18,17 @@ data class Order(
     val paymentMethod: PaymentMethod = PaymentMethod.MPESA,
     val mpesaTransactionCode: String? = null,
     val includeTax: Boolean = false,
-    val taxRate: Double = 0.16,
+    val taxRate: Double = 0.0,
+    val hospitalityTableId: String? = null,
+    val serviceType: String = "RETAIL",
+    val guestCount: Int = 1,
     val notes: String = "",
     val createdAt: Instant,
     val updatedAt: Instant
 ) {
     val subtotal: Double get() = items.sumOf { it.quantity * it.unitPrice }
     val taxAmount: Double get() = if (includeTax) kotlin.math.round(subtotal * taxRate * 100.0) / 100.0 else 0.0
-    val total: Double get() = subtotal + taxAmount
+    val total: Double get() = kotlin.math.round((subtotal + taxAmount) * 100.0) / 100.0
     val totalItems: Int get() = items.sumOf { it.quantity }
 }
 
