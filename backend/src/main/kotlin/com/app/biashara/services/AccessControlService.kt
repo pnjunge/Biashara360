@@ -12,6 +12,7 @@ val BUSINESS_MENUS = listOf(
     MenuDefinition("DASHBOARD", "Dashboard"), MenuDefinition("POS", "Point of Sale"),
     MenuDefinition("HOSPITALITY", "Bar & Restaurant"),
     MenuDefinition("HOSPITALITY_OPS", "Hospitality Operations"),
+    MenuDefinition("SERVICES", "Appointments & Services"),
     MenuDefinition("OPEN_TABS", "Open Tabs"),
     MenuDefinition("INVENTORY", "Inventory"), MenuDefinition("ORDERS", "Orders"),
     MenuDefinition("CUSTOMERS", "Customers"), MenuDefinition("EXPENSES", "Expenses"),
@@ -126,7 +127,13 @@ class AccessControlService {
     fun deleteRole(businessId: String, roleId: String): Boolean = transaction {
         val exists = AccessRolesTable.select { (AccessRolesTable.id eq roleId) and (AccessRolesTable.businessId eq businessId) }.any()
         require(exists) { "Role not found" }
-        AccessGroupRolesTable.deleteWhere { AccessGroupRolesTable.roleId eq roleId }
+        val assignedGroups = (AccessGroupRolesTable innerJoin AccessGroupsTable)
+            .select {
+                (AccessGroupRolesTable.roleId eq roleId) and
+                    (AccessGroupsTable.businessId eq businessId)
+            }
+            .count()
+        require(assignedGroups == 0L) { "Role is assigned to one or more groups. Disable it or remove it from those groups first." }
         AccessRolesTable.deleteWhere { (AccessRolesTable.id eq roleId) and (AccessRolesTable.businessId eq businessId) } > 0
     }
 
@@ -167,6 +174,7 @@ class AccessControlService {
         } else {
             menus -= setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
         }
+        if (business[BusinessesTable.servicesEnabled]) menus += "SERVICES" else menus -= "SERVICES"
         return menus.toList()
     }
     private fun roles(businessId: String) = AccessRolesTable.select { AccessRolesTable.businessId eq businessId }.orderBy(AccessRolesTable.name).map { AccessRoleResponse(it[AccessRolesTable.id],it[AccessRolesTable.name],it[AccessRolesTable.description],csv(it[AccessRolesTable.allowedMenus]),it[AccessRolesTable.isActive]) }

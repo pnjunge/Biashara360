@@ -61,6 +61,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.serialization.Serializable
+import com.app.biashara.ui.screens.auth.SubscriptionActivationScreen
 
 @Serializable
 private data class HospitalityStatus(val enabled: Boolean = false)
@@ -156,6 +157,8 @@ fun Biashara360App() {
             Screen.HospitalityOperations -> (enabledMenus?.contains("HOSPITALITY_OPS") == true || enabledMenus?.contains("HOSPITALITY") == true) && hospitalityEnabled
             Screen.Reports -> enabledMenus?.contains("REPORTS") == true
             Screen.Payments -> enabledMenus?.contains("PAYMENTS") == true || enabledMenus?.contains("CARD_PAYMENTS") == true
+            Screen.Tax -> enabledMenus?.contains("TAX") == true || enabledMenus?.contains("TAX_COMPLIANCE") == true
+            Screen.Kra -> enabledMenus?.contains("KRA") == true || enabledMenus?.contains("TAX_COMPLIANCE") == true
             Screen.Settings -> enabledMenus?.contains("SETTINGS") == true
             else -> true
         }
@@ -231,18 +234,41 @@ fun Biashara360App() {
             }
             composable(Screen.Register.route) {
                 RegisterScreen(
-                    onRegistered = { navController.popBackStack() },
+                    onAuthenticated = { userCount, phone ->
+                        navController.navigate(Screen.SubscriptionActivation.createRoute(userCount, phone)) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onOtpRequired = { userId, userCount, phone ->
+                        navController.navigate(Screen.OtpVerify.createRoute(userId, userCount, phone)) {
+                            popUpTo(Screen.Register.route) { inclusive = true }
+                        }
+                    },
                     onBack = { navController.popBackStack() }
                 )
             }
             composable(Screen.OtpVerify.route) { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                val userCount = backStackEntry.arguments?.getString("userCount")?.toIntOrNull() ?: 0
+                val phone = android.net.Uri.decode(backStackEntry.arguments?.getString("phone").orEmpty())
                 com.app.biashara.ui.screens.auth.OtpScreen(
                     userId = userId,
                     onVerified = {
-                        navController.navigate(Screen.Dashboard.route) {
+                        val destination = if (userCount > 0) Screen.SubscriptionActivation.createRoute(userCount, phone) else Screen.Dashboard.route
+                        navController.navigate(destination) {
                             popUpTo(0) { inclusive = true }
                         }
+                    }
+                )
+            }
+            composable(Screen.SubscriptionActivation.route) { backStackEntry ->
+                val userCount = backStackEntry.arguments?.getString("userCount")?.toIntOrNull() ?: 1
+                val phone = android.net.Uri.decode(backStackEntry.arguments?.getString("phone").orEmpty())
+                SubscriptionActivationScreen(
+                    userCount = userCount,
+                    phone = phone,
+                    onComplete = {
+                        navController.navigate(Screen.Dashboard.route) { popUpTo(0) { inclusive = true } }
                     }
                 )
             }
@@ -287,6 +313,11 @@ fun Biashara360App() {
             }
             composable(Screen.Payments.route) {
                 PaymentsScreen()
+            }
+            composable(Screen.PaymentConfiguration.route) {
+                com.app.biashara.ui.screens.settings.PaymentConfigurationScreen(
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable(Screen.Tax.route) {
                 TaxScreen(onConfigureKra = { navController.navigate(Screen.Kra.route) })
@@ -344,9 +375,9 @@ fun Biashara360App() {
                             }
                         }
                     },
-                    onNavigateToPayments = { navController.navigate(Screen.Payments.route) },
+                    onNavigateToPayments = { navController.navigate(Screen.PaymentConfiguration.route) },
+                    onNavigateToTax = { navController.navigate(Screen.Tax.route) },
                     onNavigateToKra = { navController.navigate(Screen.Kra.route) },
-                    onNavigateToSocial = { navController.navigate(Screen.Social.route) },
                     onNavigateToCyberSourceSettings = { navController.navigate(Screen.CyberSourceSettings.route) }
                 )
             }
@@ -583,58 +614,78 @@ fun MoreAppsBottomSheet(
                 Screen.Settings.route to Pair(Color(0xFF475569), Color(0xFFF1F5F9))
             )
 
-            val chunkedItems = secondaryItems.chunked(3)
-            chunkedItems.forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    rowItems.forEach { item ->
-                        val (iconColor, bgColor) = tileColors[item.screen.route]
-                            ?: Pair(Color(0xFF2563EB), Color(0xFFE8F0FE))
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(88.dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .clickable {
-                                    onDismiss()
-                                    navController.navigate(item.screen.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                            color = bgColor,
-                            shape = RoundedCornerShape(18.dp)
+            val itemByRoute = secondaryItems.associateBy { it.screen.route }
+            val groupedItems = listOf(
+                "OPERATIONS" to listOf(Screen.HospitalityOperations.route, Screen.Customers.route),
+                "FINANCE" to listOf(Screen.Payments.route),
+                "ENGAGEMENT" to listOf(Screen.Social.route, Screen.Reports.route),
+                "ADMINISTRATION" to listOf(Screen.Settings.route)
+            )
+
+            groupedItems.forEach { (groupLabel, routes) ->
+                val groupItems = routes.mapNotNull { itemByRoute[it] }
+                if (groupItems.isNotEmpty()) {
+                    Text(
+                        text = groupLabel,
+                        modifier = Modifier.padding(top = 4.dp),
+                        color = Color(0xFF64748B),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.6.sp
+                    )
+                    groupItems.chunked(3).forEach { rowItems ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = item.label,
-                                    tint = iconColor,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = item.label,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = iconColor,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                            rowItems.forEach { item ->
+                                val (iconColor, bgColor) = tileColors[item.screen.route]
+                                    ?: Pair(Color(0xFF2563EB), Color(0xFFE8F0FE))
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(88.dp)
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .clickable {
+                                            onDismiss()
+                                            navController.navigate(item.screen.route) {
+                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        },
+                                    color = bgColor,
+                                    shape = RoundedCornerShape(18.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxSize(),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = item.icon,
+                                            contentDescription = item.label,
+                                            tint = iconColor,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            text = item.label,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = iconColor,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                            repeat(3 - rowItems.size) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
-                    }
-                    repeat(3 - rowItems.size) {
-                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }

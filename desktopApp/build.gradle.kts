@@ -13,6 +13,13 @@ kotlin {
         }
     }
     sourceSets {
+        val desktopTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation("io.ktor:ktor-client-mock:${libs.versions.ktor.get()}")
+            }
+        }
+
         val desktopMain by getting {
             dependencies {
                 implementation(project(":shared"))

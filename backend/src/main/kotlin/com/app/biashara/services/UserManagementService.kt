@@ -2,8 +2,11 @@ package com.app.biashara.services
 
 import com.app.biashara.auth.PasswordUtils
 import com.app.biashara.auth.generateId
+import com.app.biashara.db.AccessGroupsTable
+import com.app.biashara.db.UserAccessGroupsTable
 import com.app.biashara.db.UsersTable
 import com.app.biashara.db.RefreshTokensTable
+import com.app.biashara.db.BusinessesTable
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
@@ -88,6 +91,10 @@ class UserManagementService(
         ipAddress: String? = null
     ): ApiResponse<UserResponse> {
         val result = transaction {
+            val business = BusinessesTable.select { BusinessesTable.id eq businessId }.singleOrNull()
+                ?: return@transaction ApiResponse(false, message = "Business not found")
+            val activeUsers = UsersTable.select { (UsersTable.businessId eq businessId) and (UsersTable.isActive eq true) }.count()
+            if (activeUsers >= business[BusinessesTable.maxUsers]) return@transaction ApiResponse(false, message = "User limit reached (${business[BusinessesTable.maxUsers]}). Upgrade your subscription to add more users.")
             if (req.name.isBlank() || req.email.isBlank() || req.phone.isBlank()) {
                 return@transaction ApiResponse(false, message = "Name, email, and phone are required")
             }
@@ -156,7 +163,7 @@ class UserManagementService(
         req: UpdateUserRoleRequest,
         ipAddress: String? = null
     ): ApiResponse<UserResponse> = transaction {
-        val normalizedRole = req.role.uppercase()
+        val normalizedRole = req.role.trim().uppercase()
         if (normalizedRole !in ASSIGNABLE_ROLES) {
             return@transaction ApiResponse(false, message = "Role must be one of: ${ASSIGNABLE_ROLES.joinToString()}")
         }
@@ -229,7 +236,15 @@ class UserManagementService(
         businessId = this[UsersTable.businessId],
         preferredLanguage = this[UsersTable.preferredLanguage],
         isActive = this[UsersTable.isActive],
-        hasPinSet = this[UsersTable.loginPinHash] != null
+        hasPinSet = this[UsersTable.loginPinHash] != null,
+        assignedGroups = (UserAccessGroupsTable innerJoin AccessGroupsTable)
+            .slice(AccessGroupsTable.name)
+            .select {
+                (UserAccessGroupsTable.userId eq this@toUserResponse[UsersTable.id]) and
+                    (AccessGroupsTable.businessId eq (this@toUserResponse[UsersTable.businessId] ?: "")) and
+                    (AccessGroupsTable.isActive eq true)
+            }
+            .map { it[AccessGroupsTable.name] }
     )
 
     private fun activeAdminCount(businessId: String) = UsersTable.select {

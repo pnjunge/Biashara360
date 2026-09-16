@@ -13,7 +13,11 @@ export function printOrderReceipt(order: OrderResponse, profile: BusinessProfile
   const printWindow = window.open('', '_blank', 'width=420,height=720')
   if (!printWindow) throw new Error('Allow pop-ups to print receipts')
 
-  const isUnpaid = isProForma || order.tabStatus === 'OPEN' || order.tabStatus === 'AWAITING_PAYMENT' || order.paymentStatus !== 'PAID'
+  // Payment confirmation is authoritative. A stale/open tab must never turn a
+  // successfully paid receipt back into a pending bill.
+  const isUnpaid = isProForma || order.paymentStatus !== 'PAID'
+  const logoWidth = Math.min(68, Math.max(10, profile?.receiptLogoWidthMm ?? 42))
+  const logoHeight = Math.min(40, Math.max(5, profile?.receiptLogoHeightMm ?? 20))
   const baseAmount = order.baseAmount ?? order.items.reduce((sum, item) => sum + item.lineTotal, 0)
   const taxAmount = order.taxAmount ?? Math.max(0, order.subtotal - baseAmount)
   const logo = profile?.receiptLogo && (
@@ -29,10 +33,6 @@ export function printOrderReceipt(order: OrderResponse, profile: BusinessProfile
   const tax = profile?.receiptShowTax === false ? '' : `
     <div class="line"><span>VAT (${Math.round((order.taxRate ?? 0) * 100)}%):</span><span>${money(taxAmount)}</span></div>`
 
-  const banner = isUnpaid
-    ? `<div class="center" style="font-weight:bold; font-size:12px; margin: 4px 0; background:#fffbeb; padding:5px; border:1px dashed #d97706; color:#92400e;">*** PRO-FORMA BILL (PENDING SETTLEMENT) ***</div>`
-    : `<div class="center" style="font-weight:bold; font-size:12px; margin: 4px 0; background:#f0fdf4; padding:5px; border:1px solid #16a34a; color:#166534;">*** OFFICIAL RECEIPT (PAID) ***</div>`
-
   const statusText = isUnpaid
     ? `<span style="color:#d97706; font-weight:bold;">PENDING SETTLEMENT</span>`
     : `<span style="color:#16a34a; font-weight:bold;">PAID (${escapeHtml(order.paymentMethod)})</span>`
@@ -41,14 +41,13 @@ export function printOrderReceipt(order: OrderResponse, profile: BusinessProfile
     <style>
       @page { size: 80mm auto; margin: 4mm; }
       * { box-sizing: border-box; } body { width: 72mm; margin: 0 auto; color: #111; font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-      .center { text-align: center; } .logo { display: block; max-width: 42mm; max-height: 20mm; object-fit: contain; margin: 0 auto 5px; }
+      .center { text-align: center; } .logo { display: block; width: ${logoWidth}mm; height: ${logoHeight}mm; max-width: 100%; object-fit: contain; margin: 0 auto 5px; }
       h1 { font-size: 16px; margin: 3px 0; } .muted { color: #444; font-size: 10px; } .rule { border-top: 1px dashed #111; margin: 7px 0; }
       .line { display: flex; justify-content: space-between; gap: 8px; } .item { margin: 5px 0; } .item-name { font-weight: 700; }
       .total { font-size: 14px; font-weight: 800; margin-top: 4px; } .message { margin-top: 8px; white-space: pre-wrap; }
       @media print { .no-print { display: none; } body { width: auto; } }
     </style></head><body>
       <div class="center">${logo}<h1>${escapeHtml(profile?.name || 'Biashara360 POS')}</h1><div>${escapeHtml(profile?.address)}</div><div>${escapeHtml(profile?.county)}${profile?.county ? ', Kenya' : ''}</div><div>${escapeHtml(profile?.phone)}</div>${profile?.kraPin ? `<div>PIN: ${escapeHtml(profile.kraPin)}</div>` : ''}</div>
-      ${banner}
       <div class="rule"></div><div class="line"><span>REF / ORDER</span><strong>${escapeHtml(order.orderNumber)}</strong></div><div class="line"><span>DATE</span><span>${escapeHtml(new Date(order.createdAt).toLocaleString('en-KE'))}</span></div><div class="line"><span>STATUS</span>${statusText}</div>
       ${customer}<div class="rule"></div>
       ${order.items.map(item => `<div class="item"><div class="item-name">${escapeHtml(item.productName)}</div><div class="line"><span>${item.quantity} × ${money(item.unitPrice)}</span><span>${money(item.lineTotal)}</span></div></div>`).join('')}

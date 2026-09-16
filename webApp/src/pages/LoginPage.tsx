@@ -444,6 +444,17 @@ export default function LoginPage() {
                   <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--b360-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22v-3M12 17v-1.5M12 12c-2.21 0-4 1.79-4 4v3.5M12 8c-4.42 0-8 3.58-8 8v3.5M16 16c0-2.21-1.79-4-4-4M20 16c0-4.42-3.58-8-8-8M8 12c0-2.21 1.79-4 4-4M12 4c-6.63 0-12 5.37-12 12M12 2c7.73 0 14 6.27 14 14"/></svg>
                   <span>Fingerprint sign-in (unavailable)</span>
                 </button>
+
+                <div style={{ textAlign: 'center', paddingTop: 4 }}>
+                  <span style={{ color: '#64748B', fontSize: 13 }}>New merchant? </span>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/register')}
+                    style={{ border: 0, background: 'none', color: 'var(--b360-green)', fontSize: 13, fontWeight: 800, cursor: 'pointer', padding: 4 }}
+                  >
+                    Create your business account
+                  </button>
+                </div>
               </form>
             </>
           )}

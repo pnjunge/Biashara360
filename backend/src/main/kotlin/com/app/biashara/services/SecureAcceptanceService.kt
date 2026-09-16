@@ -201,6 +201,7 @@ class SecureAcceptanceService(
             }
 
             if (success && orderId.isNotBlank()) {
+                val order = OrdersTable.select { OrdersTable.id eq orderId }.singleOrNull()
                 // Mark order as PAID
                 OrdersTable.update({ OrdersTable.id eq orderId }) {
                     it[OrdersTable.paymentStatus] = "PAID"
@@ -212,6 +213,7 @@ class SecureAcceptanceService(
                     it[PaymentsTable.id]              = UUID.randomUUID().toString()
                     it[PaymentsTable.businessId]      = businessId
                     it[PaymentsTable.orderId]         = orderId
+                    it[PaymentsTable.billingOwnerUserId] = order?.get(OrdersTable.billingOwnerUserId)
                     it[PaymentsTable.transactionCode] = csTransId
                     it[PaymentsTable.amount]          = amount
                     it[PaymentsTable.payerPhone]      = postFields["req_bill_to_phone"] ?: ""

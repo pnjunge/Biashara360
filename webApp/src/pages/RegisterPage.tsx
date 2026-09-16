@@ -1,11 +1,25 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../App'
-import { authApi } from '../services/api'
+import { authApi, subscriptionApi, SubscriptionBand } from '../services/api'
 import { Btn, Input, Select } from '../components/ui'
 
 const BUSINESS_TYPES = [
   { value: 'RETAIL', label: 'Retail Seller / Mchuuzi' },
+  { value: 'GROCERY', label: 'Grocery' },
+  { value: 'BOUTIQUE', label: 'Boutique' },
+  { value: 'WHOLESALE', label: 'Wholesale' },
+  { value: 'DISTRIBUTION', label: 'Distribution' },
+  { value: 'SALON', label: 'Salon' },
+  { value: 'BARBERSHOP', label: 'Barbershop' },
+  { value: 'SPA', label: 'Spa' },
+  { value: 'LAUNDRY', label: 'Laundry' },
+  { value: 'CAR_WASH', label: 'Car wash' },
+  { value: 'HOTEL', label: 'Hotel' },
+  { value: 'LODGE', label: 'Lodge' },
+  { value: 'GYM', label: 'Gym' },
+  { value: 'CLINIC', label: 'Clinic' },
+  { value: 'REPAIR_SHOP', label: 'Repair shop' },
   { value: 'SERVICE', label: 'Service Provider / Mhudumu' },
   { value: 'HYBRID', label: 'Hybrid Business / Biashara Mseto' },
   { value: 'ONLINE_SELLER', label: 'Online Seller / Muuzaji Mtandaoni' }
@@ -22,13 +36,17 @@ export default function RegisterPage() {
   const [businessName, setBusinessName] = useState('')
   const [businessType, setBusinessType] = useState('RETAIL')
   const [password, setPassword] = useState('')
+  const [userCount, setUserCount] = useState(1)
+  const [bands, setBands] = useState<SubscriptionBand[]>([])
+  const [paymentMethod, setPaymentMethod] = useState<'MPESA'|'CARD'>('MPESA')
 
   // Flow control
-  const [step, setStep] = useState<'register' | 'otp'>('register')
+  const [step, setStep] = useState<'register' | 'otp' | 'payment'>('register')
   const [userId, setUserId] = useState('')
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  useEffect(() => { subscriptionApi.bands().then(r => { if (r.success) setBands(r.data || []) }).catch(() => undefined) }, [])
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,7 +70,8 @@ export default function RegisterPage() {
         email,
         password,
         businessName,
-        businessType
+        businessType,
+        userCount
       })
 
       if (registerRes.success) {
@@ -69,7 +88,7 @@ export default function RegisterPage() {
               localStorage.setItem('refreshToken', loginRes.data.refreshToken)
               localStorage.setItem('user', JSON.stringify(loginRes.data.user))
               login()
-              navigate('/dashboard')
+              setStep('payment')
             } else {
               setError('Registration login did not return a valid session. Please sign in manually.')
             }
@@ -100,7 +119,7 @@ export default function RegisterPage() {
       const result = await authApi.verifyOtp({ userId, otp, channel: 'SMS' })
       if (result.success) {
         login()
-        navigate('/dashboard')
+        setStep('payment')
       } else {
         setError(result.message || 'OTP verification failed')
       }
@@ -109,6 +128,16 @@ export default function RegisterPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handlePayment = async () => {
+    setLoading(true); setError('')
+    try {
+      const result = await subscriptionApi.checkout({userCount,paymentMethod,phoneNumber:phone})
+      if (!result.success || !result.data) throw new Error(result.message || 'Could not start subscription payment')
+      if (paymentMethod === 'CARD') window.location.assign(`/pay/card?orderId=${encodeURIComponent(result.data.id)}&businessId=${encodeURIComponent(result.data.businessId)}`)
+      else navigate('/dashboard')
+    } catch (e:any) { setError(e.response?.data?.message || e.message) } finally { setLoading(false) }
   }
 
   return (
@@ -135,7 +164,7 @@ export default function RegisterPage() {
                   onChange={setName}
                 />
                 
-                <div className="responsive-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="responsive-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, width: '100%' }}>
                   <Input
                     label="Phone / Simu (07XX) *"
                     placeholder="e.g. 0712345678"
@@ -164,6 +193,9 @@ export default function RegisterPage() {
                   onChange={setBusinessType}
                   options={BUSINESS_TYPES}
                 />
+
+                <Input label="Number of users *" type="number" value={String(userCount)} onChange={value => setUserCount(Math.min(10, Math.max(1, Number(value) || 1)))} />
+                {bands.length > 0 && <div style={{fontSize:12,padding:10,background:'var(--b360-bg)',borderRadius:8}}>{bands.map(b => <div key={b.id} style={{fontWeight:userCount >= b.minUsers && userCount <= b.maxUsers ? 800 : 400}}>{b.minUsers}–{b.maxUsers} users · KES {b.monthlyPrice.toLocaleString()}/month</div>)}</div>}
 
                 <Input
                   label="Password / Nenosiri *"
@@ -196,7 +228,7 @@ export default function RegisterPage() {
                 </div>
               </form>
             </>
-          ) : (
+          ) : step === 'otp' ? (
             <>
               <div style={{ textAlign: 'center', marginBottom: 20 }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>🔐</div>
@@ -225,7 +257,7 @@ export default function RegisterPage() {
                 </Btn>
               </form>
             </>
-          )}
+          ) : <div style={{display:'grid',gap:16}}><h2 style={{fontSize:18}}>Activate your subscription</h2><p style={{fontSize:13,color:'var(--b360-text-secondary)'}}>Your selected band supports {userCount} user{userCount===1?'':'s'}.</p><Select label="Payment method" value={paymentMethod} onChange={value=>setPaymentMethod(value as 'MPESA'|'CARD')} options={[{value:'MPESA',label:'M-Pesa'},{value:'CARD',label:'Card'}]}/>{paymentMethod==='MPESA'&&<Input label="M-Pesa phone" value={phone} onChange={setPhone}/>} {error&&<p style={{color:'var(--b360-red)',fontSize:12}}>{error}</p>}<Btn disabled={loading} onClick={handlePayment}>{loading?'Starting payment…':paymentMethod==='MPESA'?'Send M-Pesa prompt':'Continue to card payment'}</Btn></div>}
         </div>
         <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--b360-text-secondary)', marginTop: 16 }}>
           © 2025 Biashara360ERP · Kenya Data Protection Act compliant

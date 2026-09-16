@@ -2,16 +2,21 @@ import React, { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Building2, Shield, Wifi, CreditCard, Lock, Bell, CheckCircle, AlertTriangle,
-  Receipt, Save, ExternalLink, Zap, Key, RefreshCw, Layers
+  Receipt, Save, ExternalLink, Zap, Key, RefreshCw, Layers, ImagePlus, Trash2,
+  Settings as SettingsIcon, Users, MessageSquare, FileText, Clock, ChevronDown,
+  ChevronRight, ShieldCheck
 } from 'lucide-react'
-import { PageHeader, Card, Btn, Input, Select } from '../components/ui'
+import { Card, Btn, Input, Select } from '../components/ui'
 import {
-  settingsApi, businessApi, kraApi, authApi, hospitalityApi, BusinessProfileRequest,
+  settingsApi, businessApi, kraApi, authApi, hospitalityApi, servicesApi, BusinessProfileRequest,
   MpesaConfigResponse, SessionTimeoutConfig
 } from '../services/api'
 import { useAuth } from '../App'
 
 type SettingsTab = 'general' | 'storefront' | 'cybersource' | 'kra' | 'mpesa' | 'security' | 'notifications'
+type SecuritySection = 'authentication' | 'session' | 'access'
+type SettingsNavItem = { label: string; tab?: SettingsTab; path?: string; security?: SecuritySection }
+type SettingsNavGroup = { label: string; icon: React.ReactNode; items: SettingsNavItem[] }
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <Card style={{ padding: 22, marginBottom: 16 }}>
@@ -37,9 +42,11 @@ export function SettingsPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const isMerchantAdmin = (user?.role || '').toUpperCase() === 'ADMIN'
+  const isSuperAdmin = (user?.role || '').toUpperCase() === 'SUPERADMIN'
 
-  const initialTab = (searchParams.get('tab') as SettingsTab) || 'general'
+  const initialTab = (searchParams.get('tab') as SettingsTab) || 'security'
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab)
+  const [securitySection, setSecuritySection] = useState<SecuritySection>('authentication')
 
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab') as SettingsTab
@@ -60,9 +67,12 @@ export function SettingsPage() {
   })
   const [receiptHeader, setReceiptHeader] = useState('Thank you for shopping with us!')
   const [receiptFooter, setReceiptFooter] = useState('Goods once sold are not returnable.')
+  const [storefrontSlug, setStorefrontSlug] = useState('')
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [servicesEnabled, setServicesEnabled] = useState(false)
+  const [servicesSaving, setServicesSaving] = useState(false)
   const [hospitalityEnabled, setHospitalityEnabled] = useState(false)
   const [hospitalitySaving, setHospitalitySaving] = useState(false)
 
@@ -127,16 +137,18 @@ export function SettingsPage() {
       businessApi.getProfile().then(res => {
         if (res.success && res.data) {
           const d = res.data
+          setStorefrontSlug(d.storefrontSlug)
           setSubscriptionTier(d.subscriptionTier || 'FREEMIUM')
           setSubscriptionEnabled(d.subscriptionEnabled !== false)
           setHospitalityEnabled(d.hospitalityEnabled === true)
+          setServicesEnabled(d.servicesEnabled === true)
           setProfile({
             name: d.name || '', owner: d.owner || '', phone: d.phone || '',
             email: d.email || '', type: d.type || '', county: d.county || '',
             address: d.address || '', kraPin: d.kraPin || '',
             paybillNumber: d.paybillNumber || '', accountNumber: d.accountNumber || '',
             receiptHeader: d.receiptHeader, receiptFooter: d.receiptFooter,
-            receiptLogo: d.receiptLogo, receiptShowTax: d.receiptShowTax,
+            receiptLogo: d.receiptLogo, receiptLogoWidthMm: d.receiptLogoWidthMm, receiptLogoHeightMm: d.receiptLogoHeightMm, receiptShowTax: d.receiptShowTax,
             receiptShowCustomer: d.receiptShowCustomer,
             storefrontThemeColor: d.storefrontThemeColor || '#0F766E',
             storefrontHeadline: d.storefrontHeadline || 'Shop with us online',
@@ -198,6 +210,39 @@ export function SettingsPage() {
     } finally {
       setProfileSaving(false)
     }
+  }
+
+  const handleReceiptLogo = (file?: File) => {
+    if (!file) return
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setProfileMsg({ ok: false, text: 'Receipt logo must be a PNG, JPEG, or WebP image.' })
+      return
+    }
+    if (file.size > 500 * 1024) {
+      setProfileMsg({ ok: false, text: 'Receipt logo must be smaller than 500 KB.' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setProfile(current => ({ ...current, receiptLogo: String(reader.result) }))
+      setProfileMsg(null)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleServicesToggle = async (enabled: boolean) => {
+    if (!isMerchantAdmin) return
+    setServicesSaving(true)
+    setProfileMsg(null)
+    try {
+      const res = await servicesApi.setEnabled(enabled)
+      if (!res.success) throw new Error(res.message || 'Could not update Appointments & Services')
+      setServicesEnabled(enabled)
+      window.dispatchEvent(new CustomEvent('services-mode-changed', { detail: { enabled } }))
+      setProfileMsg({ ok: true, text: `Appointments & Services ${enabled ? 'enabled' : 'disabled'}.` })
+    } catch (e: any) {
+      setProfileMsg({ ok: false, text: e.response?.data?.message || e.message || 'Could not update Appointments & Services.' })
+    } finally { setServicesSaving(false) }
   }
 
   const handleHospitalityToggle = async (enabled: boolean) => {
@@ -350,46 +395,144 @@ export function SettingsPage() {
     }
   }
 
-  const tabs = [
-    { key: 'storefront', label: 'Storefront', icon: <ExternalLink size={15} /> },
-    { key: 'general', label: 'Store Profile', icon: <Building2 size={15} /> },
-    { key: 'cybersource', label: 'CyberSource Card', icon: <CreditCard size={15} /> },
-    { key: 'kra', label: 'KRA & eTIMS', icon: <Shield size={15} /> },
-    { key: 'mpesa', label: 'M-Pesa Daraja', icon: <Wifi size={15} /> },
-    { key: 'security', label: 'Security & Timeouts', icon: <Lock size={15} /> },
-    { key: 'notifications', label: 'Notifications', icon: <Bell size={15} /> },
+  const settingsGroups: SettingsNavGroup[] = [
+    {
+      label: 'Business', icon: <Building2 size={19} />, items: [
+        { label: 'Store Profile', tab: 'general' as SettingsTab },
+      ]
+    },
+    {
+      label: 'Payments & Integrations', icon: <CreditCard size={19} />, items: [
+        { label: 'CyberSource Card', tab: 'cybersource' as SettingsTab },
+        { label: 'M-Pesa Daraja', tab: 'mpesa' as SettingsTab },
+      ]
+    },
+    {
+      label: 'Tax & Compliance', icon: <FileText size={19} />, items: [
+        { label: 'Tax Settings', path: '/tax' },
+        { label: 'KRA & eTIMS', tab: 'kra' as SettingsTab },
+      ]
+    },
+    {
+      label: 'Security & Access', icon: <ShieldCheck size={19} />, items: [
+        { label: 'Authentication', tab: 'security' as SettingsTab, security: 'authentication' },
+        { label: 'Session Management', tab: 'security' as SettingsTab, security: 'session' },
+        { label: 'Access Policies', tab: 'security' as SettingsTab, security: 'access' },
+      ]
+    },
+    {
+      label: 'Users & Permissions', icon: <Users size={19} />, items: [
+        { label: 'Users', path: '/users' },
+        { label: 'Roles & Permissions', path: '/users' },
+      ]
+    },
+    {
+      label: 'Notifications', icon: <Bell size={19} />, items: [
+        ...(isSuperAdmin ? [{ label: 'Email / SMS / Push', tab: 'notifications' as SettingsTab }] : []),
+      ]
+    },
+    {
+      label: 'Social', icon: <MessageSquare size={19} />, items: [
+        { label: 'Social Setup', path: '/social-onboarding' },
+      ]
+    },
+    {
+      label: 'System', icon: <SettingsIcon size={19} />, items: [
+        { label: 'General Settings', tab: 'general' as SettingsTab },
+      ]
+    },
   ]
 
-  return (
-    <div className="fade-in" style={{ maxWidth: 760 }}>
-      <PageHeader title="Unified Settings Hub" />
+  const activeLabel = activeTab === 'security'
+    ? 'Security & Access'
+    : settingsGroups.flatMap(group => group.items).find(item => item.tab === activeTab)?.label || 'Store Profile'
 
-      {/* Navigation Tab Bar */}
-      <div style={{
-        display: 'flex', gap: 4, overflowX: 'auto', borderBottom: '2px solid var(--b360-border)',
-        marginBottom: 20, paddingBottom: 2
+  const contentDescription = activeTab === 'security'
+    ? 'Manage authentication, session settings and access policies'
+    : 'Manage your system configuration'
+
+  return (
+    <div className="fade-in" style={{ maxWidth: 'none', width: '100%' }}>
+      <div className="settings-layout" style={{
+        display: 'grid', gridTemplateColumns: '270px minmax(0, 1fr)', gap: 0,
+        border: '1px solid var(--b360-border)', borderRadius: 12, overflow: 'hidden',
+        background: 'var(--b360-surface)', minHeight: 600
       }}>
-        {tabs.map(t => {
-          const isActive = activeTab === t.key
-          return (
-            <button
-              key={t.key}
-              onClick={() => handleTabChange(t.key as SettingsTab)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px',
-                border: 'none', background: 'none', cursor: 'pointer',
-                fontWeight: isActive ? 700 : 500, fontSize: 13,
-                color: isActive ? 'var(--b360-green)' : 'var(--b360-text-secondary)',
-                borderBottom: isActive ? '3px solid var(--b360-green)' : '3px solid transparent',
-                marginBottom: '-3px', whiteSpace: 'nowrap', transition: 'all 0.15s ease-in-out'
-              }}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          )
-        })}
-      </div>
+        <aside style={{ background: 'white', padding: 14, borderRight: '1px solid var(--b360-border)' }}>
+          <div style={{ padding: '10px 10px 20px' }}>
+            <h1 style={{ margin: 0, fontSize: 26, letterSpacing: '-0.5px' }}>Settings</h1>
+            <p style={{ margin: '5px 0 0', color: 'var(--b360-text-secondary)', fontSize: 13 }}>Manage your system configuration</p>
+          </div>
+          {settingsGroups.map(group => {
+            const groupActive = group.label === 'Security & Access' && activeTab === 'security'
+            return (
+              <div key={group.label} style={{ marginBottom: 10 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px 7px',
+                  color: groupActive ? 'var(--b360-blue)' : 'var(--b360-text)', fontWeight: 700, fontSize: 13
+                }}>
+                  <span style={{ display: 'inline-flex', color: groupActive ? 'var(--b360-blue)' : 'var(--b360-text)' }}>{group.icon}</span>
+                  <span>{group.label}</span>
+                  <ChevronDown size={15} style={{ marginLeft: 'auto', color: groupActive ? 'var(--b360-blue)' : 'var(--b360-text-secondary)' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {group.items.map(item => {
+                    const itemActive = item.tab === activeTab && (!item.security || item.security === securitySection)
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => {
+                          if (item.path) navigate(item.path)
+                          if (item.tab) {
+                            handleTabChange(item.tab)
+                            if (item.security) setSecuritySection(item.security)
+                          }
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', width: '100%', gap: 8, padding: '9px 12px 9px 42px',
+                          border: 'none', borderLeft: itemActive ? '4px solid var(--b360-blue)' : '4px solid transparent',
+                          borderRadius: 5, background: itemActive ? 'var(--b360-blue-bg)' : 'transparent',
+                          color: itemActive ? 'var(--b360-blue)' : 'var(--b360-text-secondary)',
+                          fontSize: 13, fontWeight: itemActive ? 700 : 500, textAlign: 'left', cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ flex: 1 }}>{item.label}</span>
+                        {itemActive && <ChevronRight size={14} />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </aside>
+
+        <main style={{ minWidth: 0, padding: '28px 34px 34px', background: '#fbfdff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--b360-text-secondary)', fontSize: 12, marginBottom: 22 }}>
+            <span>Settings</span><ChevronRight size={14} />
+            <span>{activeLabel}</span>
+            {activeTab === 'security' && <><ChevronRight size={14} /><span>{securitySection === 'authentication' ? 'Authentication' : securitySection === 'session' ? 'Session Management' : 'Access Policies'}</span></>}
+          </div>
+          <h2 style={{ margin: 0, fontSize: 27, letterSpacing: '-0.5px' }}>{activeLabel}</h2>
+          <p style={{ margin: '5px 0 22px', color: 'var(--b360-text-secondary)', fontSize: 14 }}>{contentDescription}</p>
+
+          {activeTab === 'security' && (
+            <div style={{ display: 'flex', gap: 28, borderBottom: '1px solid var(--b360-border)', marginBottom: 24 }}>
+              {[
+                { key: 'authentication' as const, label: 'Authentication', icon: <Lock size={18} /> },
+                { key: 'session' as const, label: 'Session Management', icon: <Clock size={18} /> },
+                { key: 'access' as const, label: 'Access Policies', icon: <Shield size={18} /> },
+              ].map(tab => (
+                <button key={tab.key} type="button" onClick={() => setSecuritySection(tab.key)} style={{
+                  display: 'flex', alignItems: 'center', gap: 9, padding: '0 4px 14px', border: 'none',
+                  borderBottom: securitySection === tab.key ? '2px solid var(--b360-blue)' : '2px solid transparent',
+                  background: 'transparent', color: securitySection === tab.key ? 'var(--b360-blue)' : 'var(--b360-text-secondary)',
+                  fontWeight: securitySection === tab.key ? 700 : 500, fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap'
+                }}>{tab.icon}{tab.label}</button>
+              ))}
+            </div>
+          )}
 
       {/* ── TAB 1: STORE PROFILE & RECEIPT TEMPLATES ── */}
       {activeTab === 'general' && (
@@ -404,6 +547,13 @@ export function SettingsPage() {
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading business profile…</div>
           ) : (
             <>
+              <Section title="Appointments & Services">
+                <Toggle label={servicesEnabled ? 'Appointments & Services is enabled' : 'Enable Appointments & Services'} checked={servicesEnabled} onChange={handleServicesToggle} disabled={!isMerchantAdmin || servicesSaving} />
+                <div style={{fontSize:12,color:'var(--b360-text-secondary)',lineHeight:1.5}}>Enables the service catalog, resources, appointments, and online shop booking. Disabling preserves existing records for when you reactivate the module.</div>
+                {!isMerchantAdmin && <div style={{fontSize:12,color:'var(--b360-amber)'}}>Only a business administrator can change this setting.</div>}
+                {servicesSaving && <div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>Updating Appointments & Services…</div>}
+              </Section>
+
               <Section title="Business Information">
                 <Input label="Business Name *" value={profile.name} onChange={v => setProfile(p => ({ ...p, name: v }))} />
                 <Input label="Owner Name" value={profile.owner} onChange={v => setProfile(p => ({ ...p, owner: v }))} />
@@ -419,6 +569,21 @@ export function SettingsPage() {
               </Section>
 
               <Section title="Receipt Template Configurations">
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-text-secondary)', display: 'block', marginBottom: 6 }}>Receipt Logo</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 96, height: 64, border: '1px dashed var(--b360-border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'var(--b360-surface)' }}>
+                      {profile.receiptLogo ? <img src={profile.receiptLogo} alt="Receipt logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <ImagePlus size={22} color="var(--b360-text-secondary)" />}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label className="btn" style={{ cursor: 'pointer', padding: '8px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 12, fontWeight: 600, width: 'fit-content' }}>
+                        Choose image<input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => handleReceiptLogo(event.target.files?.[0])} />
+                      </label>
+                      {profile.receiptLogo && <button type="button" onClick={() => setProfile(current => ({ ...current, receiptLogo: null }))} style={{ border: 0, background: 'transparent', color: 'var(--b360-red)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, width: 'fit-content' }}><Trash2 size={12} /> Remove</button>}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)', marginTop: 5 }}>PNG, JPEG, or WebP; maximum 500 KB. It appears at the top of printed receipts.</div>
+                </div>
                 <Input label="Receipt Header Message" value={receiptHeader} onChange={setReceiptHeader} placeholder="e.g. Welcome to Kamau Store!" />
                 <Input label="Receipt Footer Message" value={receiptFooter} onChange={setReceiptFooter} placeholder="e.g. Thank you for your purchase!" />
               </Section>
@@ -459,6 +624,7 @@ export function SettingsPage() {
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {profileMsg && <div style={{ padding:12, background:profileMsg.ok ? 'var(--b360-green-bg)' : 'var(--b360-red-bg)', color:profileMsg.ok ? 'var(--b360-green)' : 'var(--b360-red)', borderRadius:8, fontSize:13, fontWeight:600 }}>{profileMsg.text}</div>}
           {profileLoading ? <div style={{padding:32,textAlign:'center',color:'var(--b360-text-secondary)'}}>Loading storefront settings…</div> : <>
+            {storefrontSlug && <Section title="Customer ordering"><p>Share your online shop or print a QR code for each table. Customers can order without an account.</p><a href={`/shop/${encodeURIComponent(storefrontSlug)}/qr`} target="_blank" rel="noreferrer">Open shop and table QR codes</a></Section>}
             <Section title="Storefront Appearance">
               <Input label="Welcome headline" value={profile.storefrontHeadline || ''} onChange={value => setProfile(current => ({...current, storefrontHeadline:value}))} placeholder="Shop with us online" />
               <Input label="Store description" value={profile.storefrontDescription || ''} onChange={value => setProfile(current => ({...current, storefrontDescription:value}))} placeholder="Tell customers about your store" />
@@ -733,7 +899,7 @@ export function SettingsPage() {
             </div>
           )}
 
-          {isMerchantAdmin && (
+          {securitySection === 'session' && isMerchantAdmin && (
             <Section title="Session Timeout Policies">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
                 <Input
@@ -758,40 +924,62 @@ export function SettingsPage() {
             </Section>
           )}
 
-          <Section title="Two-Factor Authentication (2FA)">
-            <Toggle label="Enable Two-Factor Authentication (2FA) for Admin Logins" checked={twoFA} onChange={setTwoFA} />
-          </Section>
+          {securitySection === 'authentication' && <>
+            <Section title="Two-Factor Authentication (2FA)">
+              <Toggle label="Enable Two-Factor Authentication (2FA) for Admin Logins" checked={twoFA} onChange={setTwoFA} />
+              <p style={{fontSize:12,color:'var(--b360-text-secondary)',margin:0,lineHeight:1.5}}>When enabled, admin users will be required to enter a verification code in addition to their password.</p>
+            </Section>
 
-          <Section title="PIN Login">
-            <p style={{fontSize:12,color:'var(--b360-text-secondary)',margin:0,lineHeight:1.5}}>Create a personal six-digit PIN for faster sign-in. Your current password is required, and existing OTP rules still apply.</p>
-            <Input label="Current password" type="password" value={pinPassword} onChange={setPinPassword} />
-            <div className="responsive-grid responsive-grid-2" style={{gap:14}}>
-              <Input label="New 6-digit PIN" type="password" value={loginPin} onChange={value=>setLoginPin(value.replace(/\D/g,'').slice(0,6))} />
-              <Input label="Confirm PIN" type="password" value={confirmLoginPin} onChange={value=>setConfirmLoginPin(value.replace(/\D/g,'').slice(0,6))} />
+            <Section title="PIN Login">
+              <p style={{fontSize:12,color:'var(--b360-text-secondary)',margin:0,lineHeight:1.5}}>Create a personal six-digit PIN for faster sign-in. Your current password is required, and existing OTP rules still apply.</p>
+              <Input label="Current password" type="password" value={pinPassword} onChange={setPinPassword} />
+              <div className="responsive-grid responsive-grid-2" style={{gap:14}}>
+                <Input label="New 6-digit PIN" type="password" value={loginPin} onChange={value=>setLoginPin(value.replace(/\D/g,'').slice(0,6))} />
+                <Input label="Confirm PIN" type="password" value={confirmLoginPin} onChange={value=>setConfirmLoginPin(value.replace(/\D/g,'').slice(0,6))} />
+              </div>
+              <div style={{display:'flex',gap:8,justifyContent:'flex-end',flexWrap:'wrap'}}><Btn variant="secondary" disabled={pinSaving || !pinPassword} onClick={()=>handleLoginPin(true)}>Disable PIN</Btn><Btn disabled={pinSaving || !pinPassword || loginPin.length!==6 || confirmLoginPin.length!==6} onClick={()=>handleLoginPin(false)}>{pinSaving ? 'Saving…' : 'Set PIN'}</Btn></div>
+            </Section>
+
+            <Section title="Change Account Password">
+              <p style={{fontSize:12,color:'var(--b360-text-secondary)',margin:0,lineHeight:1.5}}>Update your login password. Changing your password invalidates active sessions across all devices for security.</p>
+              <Input label="Current password" type="password" value={changeCurrPass} onChange={setChangeCurrPass} />
+              <div className="responsive-grid responsive-grid-2" style={{gap:14}}>
+                <Input label="New password (min 6 chars)" type="password" value={changeNewPass} onChange={setChangeNewPass} />
+                <Input label="Confirm new password" type="password" value={changeConfirmPass} onChange={setChangeConfirmPass} />
+              </div>
+              <div style={{display:'flex',justifyContent:'flex-end'}}><Btn disabled={passSaving || !changeCurrPass || !changeNewPass || changeNewPass.length < 6 || changeNewPass !== changeConfirmPass} onClick={handleChangePassword}>{passSaving ? 'Updating Password…' : 'Update Password'}</Btn></div>
+            </Section>
+          </>}
+
+          {securitySection === 'access' && (
+            <Section title="Access Policies">
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--b360-text-secondary)', lineHeight: 1.6 }}>
+                Manage roles, permission groups, and user access to business areas from Users &amp; Permissions.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Btn variant="secondary" onClick={() => navigate('/users')}>Open Roles &amp; Permissions</Btn>
+              </div>
+            </Section>
+          )}
+
+          {securitySection === 'session' && !isMerchantAdmin && (
+            <Section title="Session Management">
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--b360-text-secondary)' }}>Session timeout policies can only be changed by a merchant administrator.</p>
+            </Section>
+          )}
+
+          {securitySection === 'session' && isMerchantAdmin && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Btn icon={<Save size={14} />} onClick={handleSaveSecurity} disabled={secSaving}>
+                {secSaving ? 'Saving Security…' : 'Save Security Policy'}
+              </Btn>
             </div>
-            <div style={{display:'flex',gap:8,justifyContent:'flex-end',flexWrap:'wrap'}}><Btn variant="secondary" disabled={pinSaving || !pinPassword} onClick={()=>handleLoginPin(true)}>Disable PIN</Btn><Btn disabled={pinSaving || !pinPassword || loginPin.length!==6 || confirmLoginPin.length!==6} onClick={()=>handleLoginPin(false)}>{pinSaving ? 'Saving…' : 'Set PIN'}</Btn></div>
-          </Section>
-
-          <Section title="Change Account Password">
-            <p style={{fontSize:12,color:'var(--b360-text-secondary)',margin:0,lineHeight:1.5}}>Update your login password. Changing your password invalidates active sessions across all devices for security.</p>
-            <Input label="Current password" type="password" value={changeCurrPass} onChange={setChangeCurrPass} />
-            <div className="responsive-grid responsive-grid-2" style={{gap:14}}>
-              <Input label="New password (min 6 chars)" type="password" value={changeNewPass} onChange={setChangeNewPass} />
-              <Input label="Confirm new password" type="password" value={changeConfirmPass} onChange={setChangeConfirmPass} />
-            </div>
-            <div style={{display:'flex',justifyContent:'flex-end'}}><Btn disabled={passSaving || !changeCurrPass || !changeNewPass || changeNewPass.length < 6 || changeNewPass !== changeConfirmPass} onClick={handleChangePassword}>{passSaving ? 'Updating Password…' : 'Update Password'}</Btn></div>
-          </Section>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Btn icon={<Save size={14} />} onClick={handleSaveSecurity} disabled={secSaving}>
-              {secSaving ? 'Saving Security…' : 'Save Security Policy'}
-            </Btn>
-          </div>
+          )}
         </div>
       )}
 
       {/* ── TAB 6: NOTIFICATIONS & SUBSCRIPTION ── */}
-      {activeTab === 'notifications' && (
+      {activeTab === 'notifications' && isSuperAdmin && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Section title="Alerts & Notification Preferences">
             <Toggle label="SMS Alerts (Payment confirmation, low inventory)" checked={smsAlerts} onChange={setSmsAlerts} />
@@ -834,6 +1022,8 @@ export function SettingsPage() {
           </Section>
         </div>
       )}
+        </main>
+      </div>
     </div>
   )
 }

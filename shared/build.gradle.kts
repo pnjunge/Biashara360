@@ -50,6 +50,10 @@ kotlin {
             implementation(libs.sqldelight.android.driver)
             implementation(libs.androidx.security.crypto)
         }
+        getByName("androidUnitTest").dependencies {
+            implementation(libs.sqldelight.sqlite.driver)
+            implementation("io.ktor:ktor-client-mock:${libs.versions.ktor.get()}")
+        }
         val desktopMain by getting {
             dependencies {
                 implementation(libs.ktor.client.java)

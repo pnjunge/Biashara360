@@ -26,10 +26,11 @@ fun createHttpClient(tokenStorage: TokenStorage): HttpClient {
                 ignoreUnknownKeys = true
             })
         }
-        // Do not log request headers: they can contain bearer tokens.
+        // Disable HTTP logging so request bodies, credentials, and tokens cannot
+        // be written to Android or desktop logs.
         install(Logging) {
             logger = Logger.DEFAULT
-            level = LogLevel.INFO
+            level = LogLevel.NONE
         }
         install(Auth) {
             bearer {
@@ -73,6 +74,9 @@ interface TokenStorage {
     suspend fun getRefreshToken(): String?
     suspend fun saveTokens(accessToken: String, refreshToken: String)
     suspend fun clearTokens()
+    suspend fun linkBiometricSession() {}
+    suspend fun restoreBiometricSession(): Boolean = false
+    suspend fun clearBiometricSession() {}
     suspend fun saveSessionIdleTimeoutSeconds(seconds: Long)
     suspend fun getSessionRemainingMillis(): Long?
     suspend fun touchSession()

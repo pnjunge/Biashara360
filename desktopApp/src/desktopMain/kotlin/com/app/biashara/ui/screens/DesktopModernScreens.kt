@@ -407,7 +407,7 @@ fun DesktopSocialModernScreen(
     var showPaymentPrompt by remember { mutableStateOf(false) }
     var storefrontCopied by remember { mutableStateOf(false) }
     val storefrontUrl = businessState.profile?.storefrontSlug?.takeIf { it.isNotBlank() }
-        ?.let { "https://enw9p7mvty.us-east-1.awsapprunner.com/shop/$it" }
+        ?.let { "https://biashara360.co.ke/shop/$it" }
         .orEmpty()
     val storefrontMessage = "Shop online with ${businessState.profile?.name ?: "us"}: $storefrontUrl"
     val filteredConversations = state.conversations.filter {
@@ -941,7 +941,7 @@ private suspend fun downloadKraCsv(
 internal fun openDesktopWeb(path: String) {
     runCatching {
         if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
-            java.awt.Desktop.getDesktop().browse(URI("https://enw9p7mvty.us-east-1.awsapprunner.com$path"))
+            java.awt.Desktop.getDesktop().browse(URI("https://biashara360.co.ke$path"))
         }
     }
 }

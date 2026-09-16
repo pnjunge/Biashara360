@@ -3,6 +3,7 @@ package com.app.biashara.routes
 import com.app.biashara.models.*
 import com.app.biashara.services.SuperAdminService
 import com.app.biashara.services.SystemSettingsService
+import com.app.biashara.services.SubscriptionService
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -24,6 +25,7 @@ import org.koin.ktor.ext.inject
 fun Route.superAdminRoutes() {
     val superAdminService: SuperAdminService by inject()
     val systemSettingsService: SystemSettingsService by inject()
+    val subscriptionService: SubscriptionService by inject()
 
     route("/admin") {
 
@@ -110,6 +112,10 @@ fun Route.superAdminRoutes() {
         }
 
         route("/settings") {
+            route("/subscription-bands") {
+                get { if(!call.hasRole("SUPERADMIN")) return@get call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Superadmin access required")); call.respond(ApiResponse(true,data=subscriptionService.bands())) }
+                put { if(!call.hasRole("SUPERADMIN")) return@put call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Superadmin access required")); val result=subscriptionService.configureBands(call.receive()); call.respond(if(result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest,result) }
+            }
 
             // ── System-wide Mpesa callback URL ────────────────────────────────
 

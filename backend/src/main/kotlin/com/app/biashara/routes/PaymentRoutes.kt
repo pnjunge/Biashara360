@@ -227,6 +227,7 @@ fun Route.mpesaCallbackRouteValidated() {
                         it[PaymentsTable.id] = generateId()
                         it[PaymentsTable.businessId] = businessId
                         it[PaymentsTable.orderId] = orderId
+                        it[PaymentsTable.billingOwnerUserId] = orderRow[OrdersTable.billingOwnerUserId]
                         it[PaymentsTable.transactionCode] = txCode
                         it[PaymentsTable.amount] = amount
                         it[PaymentsTable.payerPhone] = phone
@@ -243,6 +244,10 @@ fun Route.mpesaCallbackRouteValidated() {
                         it[OrdersTable.paymentStatus] = "PAID"
                         it[OrdersTable.mpesaTransactionCode] = txCode
                         it[OrdersTable.updatedAt] = now
+                    }
+                    ServiceAppointmentsTable.update({ ServiceAppointmentsTable.orderId eq orderId }) {
+                        it[status] = "COMPLETED"
+                        it[updatedAt] = now
                     }
                     
                     application.log.info("""{"event":"payment_completed","provider":"mpesa","order_id":"$orderId"}""")

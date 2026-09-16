@@ -18,8 +18,12 @@ data class RegisterRequest(
     val email: String,
     val password: String,
     val businessName: String,
-    val businessType: String
+    val businessType: String,
+    val userCount: Int = 1
 )
+
+@Serializable data class SubscriptionBand(val id:String,val name:String,val minUsers:Int,val maxUsers:Int,val monthlyPrice:Double)
+@Serializable data class SubscriptionCheckoutRequest(val userCount:Int,val paymentMethod:String,val phoneNumber:String="")
 
 @Serializable
 data class LoginRequest(val email: String, val password: String)
@@ -453,8 +457,12 @@ data class ProfitSummaryResponse(
     val netProfit: Double,
     val netMargin: Double,
     val cashflowIn: Double,
-    val cashflowOut: Double
+    val cashflowOut: Double,
+    val dailyRevenue: List<DailyRevenueResponse> = emptyList()
 )
+
+@Serializable
+data class DailyRevenueResponse(val date: String, val revenue: Double)
 
 // ─── User Management ──────────────────────────────────────────────────────────
 
@@ -508,6 +516,8 @@ data class BusinessProfileRequest(
     val receiptHeader: String = "Welcome to our store!",
     val receiptFooter: String = "Thank you for shopping with us!",
     val receiptLogo: String? = null,
+    val receiptLogoWidthMm: Int = 42,
+    val receiptLogoHeightMm: Int = 20,
     val receiptShowTax: Boolean = true,
     val receiptShowCustomer: Boolean = true,
     val storefrontThemeColor: String = "#0F766E",
@@ -536,9 +546,12 @@ data class BusinessProfileResponse(
     val subscriptionTier: String,
     val subscriptionEnabled: Boolean,
     val hospitalityEnabled: Boolean = false,
+    val servicesEnabled: Boolean = false,
     val receiptHeader: String = "Welcome to our store!",
     val receiptFooter: String = "Thank you for shopping with us!",
     val receiptLogo: String? = null,
+    val receiptLogoWidthMm: Int = 42,
+    val receiptLogoHeightMm: Int = 20,
     val receiptShowTax: Boolean = true,
     val receiptShowCustomer: Boolean = true,
     val storefrontThemeColor: String = "#0F766E",

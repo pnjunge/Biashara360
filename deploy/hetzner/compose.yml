@@ -1,0 +1,111 @@
+name: biashara360
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+      TLS_EMAIL: ${TLS_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks: [edge]
+
+  web:
+    build:
+      context: ../../webApp
+      args:
+        VITE_API_BASE_URL: https://${API_DOMAIN}/v1
+        VITE_META_APP_ID: ${META_APP_ID:-}
+        VITE_META_EMBEDDED_SIGNUP_CONFIG_ID: ${META_EMBEDDED_SIGNUP_CONFIG_ID:-}
+        VITE_ANDROID_DOWNLOAD_URL: ${VITE_ANDROID_DOWNLOAD_URL:-}
+        VITE_IOS_DOWNLOAD_URL: ${VITE_IOS_DOWNLOAD_URL:-}
+        VITE_WINDOWS_DOWNLOAD_URL: ${VITE_WINDOWS_DOWNLOAD_URL:-}
+        VITE_LINUX_DOWNLOAD_URL: ${VITE_LINUX_DOWNLOAD_URL:-}
+        VITE_MACOS_DOWNLOAD_URL: ${VITE_MACOS_DOWNLOAD_URL:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [edge]
+
+  api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: 8080
+      ENVIRONMENT: production
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      MPESA_CALLBACK_URL: https://${API_DOMAIN}/v1/payments/mpesa/callback
+      WEBHOOK_BASE_URL: https://${API_DOMAIN}/v1/social/webhook
+    mem_limit: 1536m
+    cpus: 1.5
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    networks: [edge, internal]
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - max_connections=60
+      - -c
+      - wal_compression=on
+    mem_limit: 1280m
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+networks:
+  edge:
+  internal:
+    internal: true
+
+volumes:
+  postgres_data:
+  uploads:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,1 @@
+ALTER TABLE businesses ADD COLUMN services_enabled BOOLEAN NOT NULL DEFAULT FALSE;

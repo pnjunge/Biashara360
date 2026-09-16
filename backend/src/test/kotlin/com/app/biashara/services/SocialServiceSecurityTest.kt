@@ -22,6 +22,7 @@ class SocialServiceSecurityTest {
             "facebook.appId" to "123456789",
             "facebook.appSecret" to appSecret,
             "facebook.embeddedSignupConfigurationId" to "987654321",
+            "facebook.businessLoginConfigurationId" to "456789123",
             "facebook.webhookVerifyToken" to "verify-token",
             "social.tokenEncryptionKey" to encryptionKey
         )
@@ -45,6 +46,8 @@ class SocialServiceSecurityTest {
     fun `reports complete merchant onboarding configuration`() {
         val configuration = service.getMetaOnboardingConfiguration()
         assertTrue(configuration.configured)
+        assertTrue(configuration.businessLoginConfigured)
         assertTrue(configuration.missing.isEmpty())
+        assertTrue(configuration.businessLoginMissing.isEmpty())
     }
 }

@@ -43,7 +43,21 @@ data class Business(
 @Serializable
 enum class BusinessType {
     RETAIL,          // Clothing, accessories, home bakers
+    GROCERY,
+    BOUTIQUE,
+    WHOLESALE,
+    DISTRIBUTION,
     SERVICE,         // Barbers, salons, tutors
+    SALON,
+    BARBERSHOP,
+    SPA,
+    LAUNDRY,
+    CAR_WASH,
+    HOTEL,
+    LODGE,
+    GYM,
+    CLINIC,
+    REPAIR_SHOP,
     HYBRID,          // Bakeries with catering
     ONLINE_SELLER    // Instagram/WhatsApp sellers
 }

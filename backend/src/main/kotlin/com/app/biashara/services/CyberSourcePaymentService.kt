@@ -3,6 +3,9 @@ package com.app.biashara.services
 import com.app.biashara.db.CsCustomerTokensTable
 import com.app.biashara.db.CyberSourceTransactionsTable
 import com.app.biashara.db.PaymentsTable
+import com.app.biashara.db.ServiceAppointmentsTable
+import com.app.biashara.db.BusinessesTable
+import com.app.biashara.db.OrdersTable
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
@@ -218,7 +221,7 @@ class CyberSourcePaymentService(
     }
 
     // ── Generate Hosted Payment Link ──────────────────────────────────────────
-    fun generatePaymentLink(businessId: String, req: CsPaymentLinkRequest, baseUrl: String = "https://app.biashara360.co.ke"): CsPaymentLinkResponse {
+    fun generatePaymentLink(businessId: String, req: CsPaymentLinkRequest, baseUrl: String = "https://biashara360.co.ke"): CsPaymentLinkResponse {
         val clientRef = "CS-LINK-${req.orderId.take(8).uppercase()}"
         val expiresAt = Clock.System.now().plus(kotlin.time.Duration.parse("${req.expiryHours}h")).toString()
         val cleanBaseUrl = baseUrl.trimEnd('/')
@@ -363,10 +366,12 @@ class CyberSourcePaymentService(
 
     private fun upsertPaymentRecord(businessId: String, orderId: String, txnId: String, amount: Double, csId: String) {
         transaction {
+            val order = OrdersTable.select { OrdersTable.id eq orderId }.singleOrNull()
             PaymentsTable.insert {
                 it[PaymentsTable.id]              = UUID.randomUUID().toString()
                 it[PaymentsTable.businessId]      = businessId
                 it[PaymentsTable.orderId]         = orderId
+                it[PaymentsTable.billingOwnerUserId] = order?.get(OrdersTable.billingOwnerUserId)
                 it[PaymentsTable.transactionCode] = csId
                 it[PaymentsTable.amount]          = amount
                 it[PaymentsTable.payerPhone]      = ""
@@ -382,6 +387,17 @@ class CyberSourcePaymentService(
                 it[paymentStatus] = "PAID"
                 it[tabStatus] = "CLOSED"
                 it[updatedAt] = Clock.System.now()
+            }
+            ServiceAppointmentsTable.update({ ServiceAppointmentsTable.orderId eq orderId }) {
+                it[status] = "COMPLETED"
+                it[updatedAt] = Clock.System.now()
+            }
+            val subscription = OrdersTable.select { OrdersTable.id eq orderId }.singleOrNull()
+            if (subscription?.get(OrdersTable.serviceType) == "SUBSCRIPTION") {
+                val seats = subscription[OrdersTable.clientReference]?.substringAfterLast(':')?.toIntOrNull()
+                if (seats != null) BusinessesTable.update({ BusinessesTable.id eq businessId }) {
+                    it[maxUsers] = seats; it[subscriptionTier] = "PREMIUM"; it[subscriptionEnabled] = true; it[updatedAt] = Clock.System.now()
+                }
             }
         }
     }

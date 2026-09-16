@@ -131,9 +131,9 @@ class InitiatePaymentUseCase(
         val order = orderRepo.getOrder(orderId)
             ?: return Result.failure(IllegalArgumentException("Order not found"))
         val request = MpesaStkPushRequest(
-            businessShortCode = "174379",  // Resolved per-business at backend level
+            businessShortCode = "",  // Resolved per-business at backend level
             phoneNumber = phoneNumber.normalizePhone(),
-            amount = order.subtotal,
+            amount = order.total,
             accountReference = orderId,  // Pass orderId (UUID) — backend /payments/initiate expects this
             transactionDesc = "Payment for order ${order.orderNumber}",
             accountType = accountType
@@ -279,8 +279,8 @@ class ConfirmPasswordResetUseCase(private val repo: AuthRepository) {
 class RegisterUseCase(private val repo: AuthRepository) {
     suspend operator fun invoke(
         name: String, phone: String, email: String, password: String,
-        businessName: String, businessType: BusinessType
-    ) = repo.register(name, phone, email, password, businessName, businessType)
+        businessName: String, businessType: BusinessType, userCount: Int = 1
+    ) = repo.register(name, phone, email, password, businessName, businessType, userCount)
 }
 
 class LogoutUseCase(private val repo: AuthRepository) {

@@ -9,8 +9,12 @@ sealed class Screen(val route: String) {
     // Auth
     object Login : Screen("login")
     object Register : Screen("register")
-    object OtpVerify : Screen("otp_verify/{userId}") {
-        fun createRoute(userId: String) = "otp_verify/$userId"
+    object OtpVerify : Screen("otp_verify/{userId}/{userCount}/{phone}") {
+        fun createRoute(userId: String, userCount: Int = 0, phone: String = "") =
+            "otp_verify/$userId/$userCount/${android.net.Uri.encode(phone)}"
+    }
+    object SubscriptionActivation : Screen("subscription_activation/{userCount}/{phone}") {
+        fun createRoute(userCount: Int, phone: String) = "subscription_activation/$userCount/${android.net.Uri.encode(phone)}"
     }
 
     // Main
@@ -33,6 +37,7 @@ sealed class Screen(val route: String) {
     object Expenses : Screen("expenses")
     object AddExpense : Screen("add_expense")
     object Payments : Screen("payments")
+    object PaymentConfiguration : Screen("payment_configuration")
     object Tax : Screen("tax")
     object Kra    : Screen("kra")
     object Social : Screen("social")
@@ -58,10 +63,10 @@ val primaryBottomNavItems = listOf(
 
 val secondaryNavItems = listOf(
     BottomNavItem(Screen.Customers, "Customers", Icons.Filled.People, "Wateja"),
-    BottomNavItem(Screen.Social, "Social", Icons.Filled.Share, "Mitandao"),
     BottomNavItem(Screen.HospitalityOperations, "Hospitality", Icons.Filled.Restaurant, "Mgahawa"),
-    BottomNavItem(Screen.Reports, "Reports", Icons.Filled.PieChart, "Ripoti"),
     BottomNavItem(Screen.Payments, "Payments", Icons.Filled.CreditCard, "Malipo"),
+    BottomNavItem(Screen.Social, "Social Inbox", Icons.Filled.Share, "Mitandao"),
+    BottomNavItem(Screen.Reports, "Reports", Icons.Filled.PieChart, "Ripoti"),
     BottomNavItem(Screen.Settings, "Settings", Icons.Filled.Settings, "Mipangilio")
 )
 

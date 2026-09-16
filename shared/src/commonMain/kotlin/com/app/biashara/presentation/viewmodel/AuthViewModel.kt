@@ -88,13 +88,12 @@ class AuthViewModel(
         }
     }
 
-    fun loginWithBiometric(onSuccess: () -> Unit) {
+    fun loginWithBiometric() {
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             loginWithBiometricUseCase().fold(
                 onSuccess = {
                     _state.update { it.copy(isLoading = false, isAuthenticated = true) }
-                    onSuccess()
                 },
                 onFailure = { e ->
                     _state.update { it.copy(isLoading = false, error = e.message) }
@@ -124,7 +123,8 @@ class AuthViewModel(
         email: String,
         password: String,
         businessName: String,
-        businessType: BusinessType
+        businessType: BusinessType,
+        userCount: Int = 1
     ) {
         if (name.isBlank() || phone.isBlank() || email.isBlank() || password.isBlank() || businessName.isBlank()) {
             _state.update { it.copy(error = "All fields are required") }
@@ -132,11 +132,20 @@ class AuthViewModel(
         }
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            registerUseCase(name, phone, email, password, businessName, businessType).fold(
-                onSuccess = { user ->
-                    _state.update {
-                        it.copy(isLoading = false, step = AuthStep.Otp(userId = user.id))
-                    }
+            registerUseCase(name, phone, email, password, businessName, businessType, userCount).fold(
+                onSuccess = {
+                    loginUseCase(email.trim(), password).fold(
+                        onSuccess = { user ->
+                            if (user.twoFactorEnabled) {
+                                _state.update { it.copy(isLoading = false, step = AuthStep.Otp(user.id)) }
+                            } else {
+                                _state.update { it.copy(isLoading = false, isAuthenticated = true) }
+                            }
+                        },
+                        onFailure = { error ->
+                            _state.update { it.copy(isLoading = false, error = error.message ?: "Registration succeeded, but sign-in failed") }
+                        }
+                    )
                 },
                 onFailure = { e ->
                     _state.update { it.copy(isLoading = false, error = e.message) }
