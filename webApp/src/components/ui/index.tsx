@@ -153,12 +153,12 @@ export function ProgressBar({ value, color = 'var(--b360-green)' }: { value: num
 export function Input({ label, placeholder, value, onChange, type = 'text' }:
   { label?: string; placeholder?: string; value: string; onChange: (v: string) => void; type?: string }) {
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+    <div style={{ display:'flex', flexDirection:'column', gap:5, minWidth:0, width:'100%' }}>
       {label && <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)' }}>{label}</label>}
       <input
         type={type} placeholder={placeholder} value={value}
         onChange={e => onChange(e.target.value)}
-        style={{ padding:'10px 14px', border:'1px solid var(--b360-border)', borderRadius:'var(--radius-sm)', fontSize:13, outline:'none', fontFamily:'inherit', background:'white', color:'var(--b360-text)' }}
+        style={{ width:'100%', minWidth:0, boxSizing:'border-box', padding:'10px 14px', border:'1px solid var(--b360-border)', borderRadius:'var(--radius-sm)', fontSize:13, outline:'none', fontFamily:'inherit', background:'white', color:'var(--b360-text)' }}
       />
     </div>
   )

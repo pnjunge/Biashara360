@@ -164,7 +164,7 @@ export default function RegisterPage() {
                   onChange={setName}
                 />
                 
-                <div className="responsive-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="responsive-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, width: '100%' }}>
                   <Input
                     label="Phone / Simu (07XX) *"
                     placeholder="e.g. 0712345678"
