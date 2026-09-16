@@ -690,6 +690,7 @@ fun LoginScreen(
                                                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
                                                     .setTitle("Sign in to Biashara360")
                                                     .setSubtitle("Confirm your fingerprint to restore your session")
+                                                    .setNegativeButtonText("Cancel")
                                                     .setAllowedAuthenticators(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
                                                     .build()
                                                 prompt.authenticate(promptInfo)
