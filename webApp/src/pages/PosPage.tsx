@@ -107,7 +107,7 @@ export function PosPage() {
       }
       if (opsRes.success && opsRes.data) setShiftOpen(opsRes.data.shifts?.some((shift: { status: string }) => shift.status === 'OPEN') ?? false)
     }).catch(err => {
-      console.error("Failed to load POS resources", err)
+      console.error("Failed to load POS resources:", err instanceof Error ? err.message : "request failed")
     }).finally(() => setLoading(false))
   }, [])
 
@@ -225,7 +225,7 @@ export function PosPage() {
       try {
         await orderApi.cancel(oid)
       } catch (err) {
-        console.error("Failed to cancel order:", err)
+        console.error("Failed to cancel order:", err instanceof Error ? err.message : "request failed")
       }
     }
     // Restore cart & refresh stock

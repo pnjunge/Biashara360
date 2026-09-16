@@ -62,7 +62,7 @@ export function SettlementModal({ order, onClose, onComplete }: { order: OrderRe
       try {
         if (settledOrder?.paymentStatus === 'PAID') printOrderReceipt(settledOrder, profile, false)
       } catch (err) {
-        console.warn('Auto print receipt error:', err)
+        console.warn('Auto print receipt failed')
       }
       await onComplete()
       onClose()

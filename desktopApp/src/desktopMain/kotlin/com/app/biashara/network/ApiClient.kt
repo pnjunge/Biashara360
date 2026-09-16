@@ -45,14 +45,10 @@ object ApiClient {
             })
         }
         
-        // Logging (for development)
+        // Do not log request or response data; errors may contain credentials.
         install(Logging) {
             logger = Logger.DEFAULT
-            level = LogLevel.INFO
-            filter { request ->
-                // Don't log auth endpoints to avoid leaking credentials
-                !request.url.encodedPath.contains("/auth/")
-            }
+            level = LogLevel.NONE
         }
         
         // Timeout configuration

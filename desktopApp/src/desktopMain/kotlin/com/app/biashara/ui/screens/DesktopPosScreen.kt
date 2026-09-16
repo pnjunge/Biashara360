@@ -226,8 +226,8 @@ fun printReceiptDesktop(
         if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
             java.awt.Desktop.getDesktop().browse(tempFile.toURI())
         }
-    } catch (e: Exception) {
-        e.printStackTrace()
+    } catch (_: Exception) {
+        System.err.println("Could not open receipt for printing")
     }
 }
 

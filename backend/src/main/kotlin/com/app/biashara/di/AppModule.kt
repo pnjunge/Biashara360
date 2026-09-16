@@ -38,7 +38,7 @@ fun appModule(config: ApplicationConfig) = module {
                 json(Json { ignoreUnknownKeys = true; isLenient = true; encodeDefaults = true })
             }
             install(Logging) {
-                level = LogLevel.INFO
+                level = LogLevel.NONE
             }
         }
     }
