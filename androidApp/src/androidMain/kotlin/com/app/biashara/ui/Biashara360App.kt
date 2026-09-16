@@ -61,6 +61,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.serialization.Serializable
+import com.app.biashara.ui.screens.auth.SubscriptionActivationScreen
 
 @Serializable
 private data class HospitalityStatus(val enabled: Boolean = false)
@@ -233,18 +234,41 @@ fun Biashara360App() {
             }
             composable(Screen.Register.route) {
                 RegisterScreen(
-                    onRegistered = { navController.popBackStack() },
+                    onAuthenticated = { userCount, phone ->
+                        navController.navigate(Screen.SubscriptionActivation.createRoute(userCount, phone)) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onOtpRequired = { userId, userCount, phone ->
+                        navController.navigate(Screen.OtpVerify.createRoute(userId, userCount, phone)) {
+                            popUpTo(Screen.Register.route) { inclusive = true }
+                        }
+                    },
                     onBack = { navController.popBackStack() }
                 )
             }
             composable(Screen.OtpVerify.route) { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                val userCount = backStackEntry.arguments?.getString("userCount")?.toIntOrNull() ?: 0
+                val phone = android.net.Uri.decode(backStackEntry.arguments?.getString("phone").orEmpty())
                 com.app.biashara.ui.screens.auth.OtpScreen(
                     userId = userId,
                     onVerified = {
-                        navController.navigate(Screen.Dashboard.route) {
+                        val destination = if (userCount > 0) Screen.SubscriptionActivation.createRoute(userCount, phone) else Screen.Dashboard.route
+                        navController.navigate(destination) {
                             popUpTo(0) { inclusive = true }
                         }
+                    }
+                )
+            }
+            composable(Screen.SubscriptionActivation.route) { backStackEntry ->
+                val userCount = backStackEntry.arguments?.getString("userCount")?.toIntOrNull() ?: 1
+                val phone = android.net.Uri.decode(backStackEntry.arguments?.getString("phone").orEmpty())
+                SubscriptionActivationScreen(
+                    userCount = userCount,
+                    phone = phone,
+                    onComplete = {
+                        navController.navigate(Screen.Dashboard.route) { popUpTo(0) { inclusive = true } }
                     }
                 )
             }

@@ -42,6 +42,7 @@ export function SettingsPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const isMerchantAdmin = (user?.role || '').toUpperCase() === 'ADMIN'
+  const isSuperAdmin = (user?.role || '').toUpperCase() === 'SUPERADMIN'
 
   const initialTab = (searchParams.get('tab') as SettingsTab) || 'security'
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab)
@@ -427,7 +428,7 @@ export function SettingsPage() {
     },
     {
       label: 'Notifications', icon: <Bell size={19} />, items: [
-        { label: 'Email / SMS / Push', tab: 'notifications' as SettingsTab },
+        ...(isSuperAdmin ? [{ label: 'Email / SMS / Push', tab: 'notifications' as SettingsTab }] : []),
       ]
     },
     {
@@ -978,7 +979,7 @@ export function SettingsPage() {
       )}
 
       {/* ── TAB 6: NOTIFICATIONS & SUBSCRIPTION ── */}
-      {activeTab === 'notifications' && (
+      {activeTab === 'notifications' && isSuperAdmin && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Section title="Alerts & Notification Preferences">
             <Toggle label="SMS Alerts (Payment confirmation, low inventory)" checked={smsAlerts} onChange={setSmsAlerts} />

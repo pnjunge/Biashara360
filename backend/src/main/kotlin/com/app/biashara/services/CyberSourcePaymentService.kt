@@ -366,10 +366,12 @@ class CyberSourcePaymentService(
 
     private fun upsertPaymentRecord(businessId: String, orderId: String, txnId: String, amount: Double, csId: String) {
         transaction {
+            val order = OrdersTable.select { OrdersTable.id eq orderId }.singleOrNull()
             PaymentsTable.insert {
                 it[PaymentsTable.id]              = UUID.randomUUID().toString()
                 it[PaymentsTable.businessId]      = businessId
                 it[PaymentsTable.orderId]         = orderId
+                it[PaymentsTable.billingOwnerUserId] = order?.get(OrdersTable.billingOwnerUserId)
                 it[PaymentsTable.transactionCode] = csId
                 it[PaymentsTable.amount]          = amount
                 it[PaymentsTable.payerPhone]      = ""

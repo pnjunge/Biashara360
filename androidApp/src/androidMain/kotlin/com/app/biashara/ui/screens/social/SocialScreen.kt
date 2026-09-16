@@ -24,11 +24,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
+import com.app.biashara.presentation.viewmodel.SocialViewModel
+import com.app.biashara.ui.kmpViewModel
 import com.app.biashara.ui.theme.*
 
 // ── Platform Meta ─────────────────────────────────────────────────────────────
@@ -486,13 +489,56 @@ fun ChatBubble(msg: SocialMsg) {
 // ── Channels Tab ──────────────────────────────────────────────────────────────
 @Composable
 fun SocialChannelsTab() {
-    val context = LocalContext.current
+    val viewModel: SocialViewModel = kmpViewModel()
+    val state by viewModel.state.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadChannelsAndInbox()
+    }
+
+    if (state.isLoading && state.channels.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = B360Green)
+        }
+        return
+    }
+
+    state.error?.let { error ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Could not load social channels", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(error, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+            Button(onClick = { viewModel.loadChannelsAndInbox() }) { Text("Retry") }
+        }
+        return
+    }
+
+    if (state.channels.isEmpty()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("No social channels connected", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(
+                "Connect a social channel from the merchant web application to see it here.",
+                color = Color(0xFF64748B),
+                textAlign = TextAlign.Center
+            )
+        }
+        return
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(PLATFORMS.entries.toList()) { (key, meta) ->
-            val isConnected = key != "TIKTOK"
+        items(state.channels, key = { it.id }) { channel ->
+            val meta = PLATFORMS[channel.platform]
+                ?: PlatformMeta(channel.platform, "•", Color.Gray, Color(0xFFF1F5F9))
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 shape = RoundedCornerShape(16.dp),
@@ -505,49 +551,13 @@ fun SocialChannelsTab() {
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(meta.label, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
-                            Text(if (isConnected) "Connected" else "Not connected", fontSize = 12.sp,
-                                color = if (isConnected) meta.color else Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+                            Text(channel.channelName, fontSize = 12.sp, color = Color(0xFF64748B))
+                            Text(if (channel.isActive) "Connected" else "Inactive", fontSize = 12.sp,
+                                color = if (channel.isActive) meta.color else Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
                         }
-                        if (isConnected) {
+                        if (channel.isActive) {
                             Box(modifier = Modifier.background(B360GreenBg, RoundedCornerShape(20.dp)).padding(horizontal = 10.dp, vertical = 4.dp)) {
                                 Text("Active", color = B360Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        } else {
-                            Button(
-                                onClick = {
-                                    val url = when (key) {
-                                        "WHATSAPP" -> "https://business.whatsapp.com/"
-                                        "INSTAGRAM" -> "https://www.instagram.com/accounts/login/"
-                                        "FACEBOOK" -> "https://www.facebook.com/business/"
-                                        else -> "https://www.tiktok.com/business/"
-                                    }
-                                    try {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                    } catch (_: ActivityNotFoundException) {
-                                        android.widget.Toast.makeText(context, "No browser is available", android.widget.Toast.LENGTH_LONG).show()
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = meta.color),
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Text("Setup guide", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        }
-                    }
-                    if (isConnected) {
-                        Spacer(Modifier.height(12.dp))
-                        Row(modifier = Modifier.fillMaxWidth().background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp)).padding(10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("AI Reply", fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold)
-                                Text("ON", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = B360Green)
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("Today", fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold)
-                                Text("${(5..20).random()} msgs", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("Orders", fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold)
-                                Text("${(1..5).random()}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                             }
                         }
                     }

@@ -490,6 +490,7 @@ fun Route.mpesaCallbackRoute() {
                             it[PaymentsTable.id]              = generateId()
                             it[PaymentsTable.businessId]      = businessId
                             it[PaymentsTable.orderId]         = orderId
+                            it[PaymentsTable.billingOwnerUserId] = orderRow[OrdersTable.billingOwnerUserId]
                             it[PaymentsTable.transactionCode] = txCode
                             it[PaymentsTable.amount]          = amount
                             it[PaymentsTable.payerPhone]      = phone

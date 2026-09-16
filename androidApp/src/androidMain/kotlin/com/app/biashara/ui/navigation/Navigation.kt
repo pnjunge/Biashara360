@@ -9,8 +9,12 @@ sealed class Screen(val route: String) {
     // Auth
     object Login : Screen("login")
     object Register : Screen("register")
-    object OtpVerify : Screen("otp_verify/{userId}") {
-        fun createRoute(userId: String) = "otp_verify/$userId"
+    object OtpVerify : Screen("otp_verify/{userId}/{userCount}/{phone}") {
+        fun createRoute(userId: String, userCount: Int = 0, phone: String = "") =
+            "otp_verify/$userId/$userCount/${android.net.Uri.encode(phone)}"
+    }
+    object SubscriptionActivation : Screen("subscription_activation/{userCount}/{phone}") {
+        fun createRoute(userCount: Int, phone: String) = "subscription_activation/$userCount/${android.net.Uri.encode(phone)}"
     }
 
     // Main

@@ -125,7 +125,8 @@ class AuthRepositoryImpl(
         email: String,
         password: String,
         businessName: String,
-        businessType: BusinessType
+        businessType: BusinessType,
+        userCount: Int
     ): Result<User> = runCatching {
         val response: ApiResponse<UserDto> = client.post("$BASE_URL/auth/register") {
             contentType(ContentType.Application.Json)
@@ -136,7 +137,8 @@ class AuthRepositoryImpl(
                     "email" to email,
                     "password" to password,
                     "businessName" to businessName,
-                    "businessType" to businessType.name
+                    "businessType" to businessType.name,
+                    "userCount" to userCount
                 )
             )
         }.body()

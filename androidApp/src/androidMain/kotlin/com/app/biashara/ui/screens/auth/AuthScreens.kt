@@ -57,6 +57,19 @@ import com.app.biashara.ui.isBiometricLoginEnabled
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import com.app.biashara.data.remote.ApiResponse
+import com.app.biashara.data.remote.BASE_URL
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import kotlinx.coroutines.launch
+
+@kotlinx.serialization.Serializable
+private data class SubscriptionCheckoutResponse(val id: String = "")
 
 @Composable
 fun AuthBackground(
@@ -748,15 +761,12 @@ fun LoginScreen(
 
 @Composable
 fun RegisterScreen(
-    onRegistered: () -> Unit,
+    onAuthenticated: (Int, String) -> Unit,
+    onOtpRequired: (String, Int, String) -> Unit,
     onBack: () -> Unit,
     viewModel: AuthViewModel = kmpViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-
-    LaunchedEffect(state.step) {
-        if (state.step is AuthStep.Otp) onRegistered()
-    }
 
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -765,6 +775,14 @@ fun RegisterScreen(
     var password by remember { mutableStateOf("") }
     var registerPasswordVisible by remember { mutableStateOf(false) }
     var selectedType by remember { mutableStateOf(BusinessType.RETAIL) }
+    var userCount by remember { mutableIntStateOf(1) }
+
+    LaunchedEffect(state.step, state.isAuthenticated) {
+        when {
+            state.isAuthenticated -> onAuthenticated(userCount, phone)
+            state.step is AuthStep.Otp -> onOtpRequired((state.step as AuthStep.Otp).userId, userCount, phone)
+        }
+    }
 
     val businessTypes = listOf(
         BusinessType.RETAIL to "Retail Seller",
@@ -833,6 +851,17 @@ fun RegisterScreen(
                                 focusedLabelColor = B360Green,
                                 unfocusedLabelColor = Color(0xFF94A3B8)
                             )
+                        )
+
+                        OutlinedTextField(
+                            value = userCount.toString(),
+                            onValueChange = { userCount = (it.toIntOrNull() ?: 1).coerceIn(1, 10) },
+                            label = { Text("Number of users *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            enabled = !state.isLoading
                         )
 
                         OutlinedTextField(
@@ -948,6 +977,85 @@ fun RegisterScreen(
 
                 Box(modifier = Modifier.align(Alignment.TopCenter)) {
                     FloatingShieldBadge()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SubscriptionActivationScreen(
+    userCount: Int,
+    phone: String,
+    onComplete: () -> Unit,
+    client: HttpClient = koinInject()
+) {
+    var paymentMethod by remember { mutableStateOf("MPESA") }
+    var phoneNumber by remember { mutableStateOf(phone) }
+    var isLoading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    AuthBackground {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            LogoHeader()
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(28.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("Activate your subscription", fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                    Text(
+                        "Your selected plan supports $userCount user${if (userCount == 1) "" else "s"}.",
+                        color = Color(0xFF64748B)
+                    )
+                    OutlinedTextField(
+                        value = phoneNumber,
+                        onValueChange = { phoneNumber = it },
+                        label = { Text("M-Pesa phone") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLoading
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        listOf("MPESA", "CARD").forEach { method ->
+                            FilterChip(
+                                selected = paymentMethod == method,
+                                onClick = { paymentMethod = method },
+                                label = { Text(method) },
+                                modifier = Modifier.weight(1f),
+                                enabled = !isLoading
+                            )
+                        }
+                    }
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    Button(
+                        onClick = {
+                            isLoading = true
+                            error = null
+                            scope.launch {
+                                runCatching {
+                                    val response: ApiResponse<SubscriptionCheckoutResponse> = client.post("$BASE_URL/subscriptions/checkout") {
+                                        contentType(ContentType.Application.Json)
+                                        setBody(mapOf("userCount" to userCount, "paymentMethod" to paymentMethod, "phoneNumber" to phoneNumber))
+                                    }.body()
+                                    if (!response.success) error = response.message.ifBlank { "Could not start subscription payment" }
+                                    else onComplete()
+                                }.onFailure { error = it.message ?: "Could not start subscription payment" }
+                                isLoading = false
+                            }
+                        },
+                        enabled = !isLoading && phoneNumber.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                        else Text(if (paymentMethod == "MPESA") "Send M-Pesa prompt" else "Continue to card payment")
+                    }
                 }
             }
         }

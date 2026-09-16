@@ -21,9 +21,12 @@ class SubscriptionService(private val settings:SystemSettingsService, private va
     suspend fun checkout(businessId:String, req:SubscriptionCheckoutRequest):ApiResponse<OrderResponse> {
         val method=req.paymentMethod.uppercase(); if(method !in setOf("MPESA","CARD")) return ApiResponse(false,message="Choose M-Pesa or card")
         val band=bands().firstOrNull{req.userCount in it.minUsers..it.maxUsers} ?: return ApiResponse(false,message="No subscription band supports this number of users")
+        val superAdminId = transaction {
+            UsersTable.select { UsersTable.role eq "SUPERADMIN" }.firstOrNull()?.get(UsersTable.id)
+        } ?: return ApiResponse(false, message = "Platform billing account is not configured")
         val order=transaction {
             val now=Clock.System.now(); val id=UUID.randomUUID().toString(); val number="B360-SUB-${UUID.randomUUID().toString().take(8).uppercase()}"
-            OrdersTable.insert { it[OrdersTable.id]=id;it[orderNumber]=number;it[OrdersTable.businessId]=businessId;it[clientReference]="subscription:${band.id}:${req.userCount}";it[customerName]="Subscription";it[customerPhone]=req.phoneNumber;it[deliveryLocation]="Digital";it[paymentStatus]="PENDING";it[deliveryStatus]="PROCESSING";it[paymentMethod]=method;it[salesChannel]="WEB";it[serviceType]="SUBSCRIPTION";it[baseAmount]=band.monthlyPrice;it[subtotal]=band.monthlyPrice;it[notes]="${band.name} subscription for ${req.userCount} users";it[createdAt]=now;it[updatedAt]=now }
+            OrdersTable.insert { it[OrdersTable.id]=id;it[orderNumber]=number;it[OrdersTable.businessId]=businessId;it[OrdersTable.billingOwnerUserId]=superAdminId;it[clientReference]="subscription:${band.id}:${req.userCount}";it[customerName]="Subscription";it[customerPhone]=req.phoneNumber;it[deliveryLocation]="Digital";it[paymentStatus]="PENDING";it[deliveryStatus]="PROCESSING";it[paymentMethod]=method;it[salesChannel]="WEB";it[serviceType]="SUBSCRIPTION";it[baseAmount]=band.monthlyPrice;it[subtotal]=band.monthlyPrice;it[notes]="${band.name} subscription for ${req.userCount} users";it[createdAt]=now;it[updatedAt]=now }
             OrderItemsTable.insert { it[OrderItemsTable.id]=UUID.randomUUID().toString();it[orderId]=id;it[productId]="SUB-${band.id}";it[productName]="${band.name} (${req.userCount} users / month)";it[quantity]=1;it[unitPrice]=band.monthlyPrice;it[buyingPrice]=0.0 }
             orders.getById(id,businessId)!!
         }

@@ -279,8 +279,8 @@ class ConfirmPasswordResetUseCase(private val repo: AuthRepository) {
 class RegisterUseCase(private val repo: AuthRepository) {
     suspend operator fun invoke(
         name: String, phone: String, email: String, password: String,
-        businessName: String, businessType: BusinessType
-    ) = repo.register(name, phone, email, password, businessName, businessType)
+        businessName: String, businessType: BusinessType, userCount: Int = 1
+    ) = repo.register(name, phone, email, password, businessName, businessType, userCount)
 }
 
 class LogoutUseCase(private val repo: AuthRepository) {

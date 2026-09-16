@@ -62,7 +62,12 @@ fun Route.authRoutesValidated() {
                 }
                 field("businessType", req.businessType) {
                     required()
-                    oneOf("RETAIL", "WHOLESALE", "RESTAURANT", "ECOMMERCE", "SERVICE", "MANUFACTURING", "OTHER")
+                    oneOf(
+                        "RETAIL", "GROCERY", "BOUTIQUE", "WHOLESALE", "DISTRIBUTION",
+                        "SALON", "BARBERSHOP", "SPA", "LAUNDRY", "CAR_WASH", "HOTEL",
+                        "LODGE", "GYM", "CLINIC", "REPAIR_SHOP", "SERVICE", "HYBRID",
+                        "ONLINE_SELLER", "RESTAURANT", "ECOMMERCE", "MANUFACTURING", "OTHER"
+                    )
                 }
             }
             

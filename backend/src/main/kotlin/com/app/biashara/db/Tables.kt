@@ -265,6 +265,7 @@ object OrdersTable : Table("orders") {
     val id = varchar("id", 36)
     val orderNumber = varchar("order_number", 20).uniqueIndex()
     val businessId = varchar("business_id", 36).references(BusinessesTable.id)
+    val billingOwnerUserId = varchar("billing_owner_user_id", 36).references(UsersTable.id, onDelete = SET_NULL).nullable()
     val clientReference = varchar("client_reference", 64).nullable()
     val customerId = varchar("customer_id", 36).nullable()
     val customerName = varchar("customer_name", 255)
@@ -370,6 +371,7 @@ object ExpensesTable : Table("expenses") {
 object PaymentsTable : Table("payments") {
     val id = varchar("id", 36)
     val businessId = varchar("business_id", 36).references(BusinessesTable.id)
+    val billingOwnerUserId = varchar("billing_owner_user_id", 36).references(UsersTable.id, onDelete = SET_NULL).nullable()
     val orderId = varchar("order_id", 36).nullable()
     val transactionCode = varchar("transaction_code", 50)
     val amount = double("amount")
