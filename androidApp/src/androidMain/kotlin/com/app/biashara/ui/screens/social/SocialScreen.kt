@@ -134,7 +134,11 @@ fun SocialInboxTab() {
     var messages by remember { mutableStateOf(emptyMap<String, List<SocialMsg>>().toMutableMap()) }
 
     if (selectedId != null) {
-        val conv = conversations.find { it.id == selectedId }!!
+        val conv = conversations.find { it.id == selectedId }
+        if (conv == null) {
+            LaunchedEffect(selectedId) { selectedId = null }
+            return
+        }
         ChatView(conv, messages[selectedId] ?: emptyList(),
             onBack = { selectedId = null },
             onSend = { text ->
@@ -198,7 +202,7 @@ fun SocialInboxTab() {
 
 @Composable
 fun ConversationListItem(conv: SocialConv, onClick: () -> Unit) {
-    val p     = PLATFORMS[conv.platform]!!
+    val p = PLATFORMS[conv.platform] ?: PlatformMeta(conv.platform, "•", Color.Gray, Color(0xFFF1F5F9))
     val statusColor = when (conv.status) {
         "OPEN"            -> B360Green
         "PENDING_PAYMENT" -> Color(0xFFF59E0B)
@@ -266,7 +270,7 @@ fun ChatView(
     onSend: (String) -> Unit,
     onSendPayment: (String, String) -> Unit
 ) {
-    val p             = PLATFORMS[conv.platform]!!
+    val p = PLATFORMS[conv.platform] ?: PlatformMeta(conv.platform, "•", Color.Gray, Color(0xFFF1F5F9))
     var draft         by remember { mutableStateOf("") }
     var showPaySheet  by remember { mutableStateOf(false) }
     var payAmt        by remember { mutableStateOf("") }

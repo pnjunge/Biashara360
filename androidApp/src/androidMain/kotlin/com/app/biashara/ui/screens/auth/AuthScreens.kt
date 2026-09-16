@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import com.app.biashara.BuildConfig
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -344,9 +343,9 @@ fun LoginScreen(
         }
     }
     var isPinLoginMode by remember { mutableStateOf(false) }
-    var email by remember { mutableStateOf(if (BuildConfig.DEBUG) "admin@biashara360.co.ke" else "") }
-    var password by remember { mutableStateOf(if (BuildConfig.DEBUG) "admin123" else "") }
-    var pin by remember { mutableStateOf(if (BuildConfig.DEBUG) "123456" else "") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var pin by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var showPasswordReset by remember { mutableStateOf(false) }
     var resetEmail by remember { mutableStateOf("") }
