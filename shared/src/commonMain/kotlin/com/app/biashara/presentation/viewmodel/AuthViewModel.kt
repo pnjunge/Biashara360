@@ -88,13 +88,12 @@ class AuthViewModel(
         }
     }
 
-    fun loginWithBiometric(onSuccess: () -> Unit) {
+    fun loginWithBiometric() {
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             loginWithBiometricUseCase().fold(
                 onSuccess = {
                     _state.update { it.copy(isLoading = false, isAuthenticated = true) }
-                    onSuccess()
                 },
                 onFailure = { e ->
                     _state.update { it.copy(isLoading = false, error = e.message) }

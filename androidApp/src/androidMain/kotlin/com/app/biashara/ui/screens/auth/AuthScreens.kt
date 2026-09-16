@@ -668,7 +668,7 @@ fun LoginScreen(
                                                         override fun onAuthenticationSucceeded(
                                                             result: BiometricPrompt.AuthenticationResult
                                                         ) {
-                                                            viewModel.loginWithBiometric(onSuccess = onAuthenticated)
+                                                            viewModel.loginWithBiometric()
                                                         }
 
                                                         override fun onAuthenticationError(
