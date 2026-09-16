@@ -244,6 +244,10 @@ fun Route.mpesaCallbackRouteValidated() {
                         it[OrdersTable.mpesaTransactionCode] = txCode
                         it[OrdersTable.updatedAt] = now
                     }
+                    ServiceAppointmentsTable.update({ ServiceAppointmentsTable.orderId eq orderId }) {
+                        it[status] = "COMPLETED"
+                        it[updatedAt] = now
+                    }
                     
                     application.log.info("""{"event":"payment_completed","provider":"mpesa","order_id":"$orderId"}""")
                 } else {

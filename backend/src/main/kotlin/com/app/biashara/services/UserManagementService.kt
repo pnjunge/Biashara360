@@ -6,6 +6,7 @@ import com.app.biashara.db.AccessGroupsTable
 import com.app.biashara.db.UserAccessGroupsTable
 import com.app.biashara.db.UsersTable
 import com.app.biashara.db.RefreshTokensTable
+import com.app.biashara.db.BusinessesTable
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
@@ -90,6 +91,10 @@ class UserManagementService(
         ipAddress: String? = null
     ): ApiResponse<UserResponse> {
         val result = transaction {
+            val business = BusinessesTable.select { BusinessesTable.id eq businessId }.singleOrNull()
+                ?: return@transaction ApiResponse(false, message = "Business not found")
+            val activeUsers = UsersTable.select { (UsersTable.businessId eq businessId) and (UsersTable.isActive eq true) }.count()
+            if (activeUsers >= business[BusinessesTable.maxUsers]) return@transaction ApiResponse(false, message = "User limit reached (${business[BusinessesTable.maxUsers]}). Upgrade your subscription to add more users.")
             if (req.name.isBlank() || req.email.isBlank() || req.phone.isBlank()) {
                 return@transaction ApiResponse(false, message = "Name, email, and phone are required")
             }

@@ -1,12 +1,7 @@
 package com.app.biashara.services
 
 import com.app.biashara.auth.generateId
-import com.app.biashara.db.BusinessServicesTable
-import com.app.biashara.db.BusinessesTable
-import com.app.biashara.db.CustomersTable
-import com.app.biashara.db.ServiceAppointmentsTable
-import com.app.biashara.db.ServiceResourcesTable
-import com.app.biashara.db.UsersTable
+import com.app.biashara.db.*
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -14,7 +9,7 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 
-class ServiceManagementService {
+class ServiceManagementService(private val orderService: OrderService) {
     fun isEnabled(businessId: String): Boolean = transaction {
         BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull()?.get(BusinessesTable.servicesEnabled) == true
     }
@@ -231,6 +226,102 @@ class ServiceManagementService {
             it[updatedAt] = Clock.System.now()
         } == 1) { "Appointment not found" }
         appointmentResponseById(businessId, id)
+    }
+
+    fun checkoutAppointment(businessId: String, id: String, request: ServiceAppointmentCheckoutRequest): OrderResponse = transaction {
+        val method = request.paymentMethod.trim().uppercase()
+        require(method in setOf("CASH", "MPESA", "CARD")) { "Payment method must be CASH, MPESA, or CARD" }
+        val appointment = ServiceAppointmentsTable.select {
+            (ServiceAppointmentsTable.id eq id) and (ServiceAppointmentsTable.businessId eq businessId)
+        }.forUpdate().singleOrNull() ?: error("Appointment not found")
+        appointment[ServiceAppointmentsTable.orderId]?.let { existing ->
+            val existingOrder = orderService.getById(existing, businessId) ?: error("Appointment order not found")
+            if (existingOrder.paymentStatus != "PAID" && method == "CASH") {
+                val now = Clock.System.now()
+                OrdersTable.update({ (OrdersTable.id eq existing) and (OrdersTable.paymentStatus neq "PAID") }) {
+                    it[paymentStatus] = "PAID"; it[paymentMethod] = "CASH"; it[deliveryStatus] = "DELIVERED"; it[updatedAt] = now
+                }
+                if (PaymentsTable.select { (PaymentsTable.orderId eq existing) and (PaymentsTable.status eq "SUCCESS") }.empty()) {
+                    PaymentsTable.insert {
+                        it[PaymentsTable.id] = generateId(); it[PaymentsTable.businessId] = businessId; it[PaymentsTable.orderId] = existing
+                        it[transactionCode] = "CASH-${existingOrder.orderNumber}"; it[amount] = existingOrder.subtotal
+                        it[payerPhone] = appointment[ServiceAppointmentsTable.customerPhone]; it[payerName] = appointment[ServiceAppointmentsTable.customerName]
+                        it[PaymentsTable.method] = "CASH"; it[status] = "SUCCESS"; it[channel] = "SERVICE_CHECKOUT"
+                        it[reconciled] = true; it[transactionDate] = now
+                    }
+                }
+                ServiceAppointmentsTable.update({ ServiceAppointmentsTable.id eq id }) { it[status] = "COMPLETED"; it[updatedAt] = now }
+            } else if (existingOrder.paymentStatus != "PAID" && existingOrder.paymentMethod != method) {
+                OrdersTable.update({ OrdersTable.id eq existing }) { it[paymentMethod] = method; it[updatedAt] = Clock.System.now() }
+            }
+            return@transaction orderService.getById(existing, businessId) ?: error("Appointment order not found")
+        }
+        require(appointment[ServiceAppointmentsTable.status] in setOf("CHECKED_IN", "IN_PROGRESS")) { "Check in the appointment before checkout" }
+        require(request.discountAmount.isFinite() && request.discountAmount >= 0.0) { "Discount must be zero or greater" }
+        require(request.addOns.all { it.quantity in 1..10_000 }) { "Add-on quantity must be between 1 and 10,000" }
+        require(request.addOns.map { it.productId }.distinct().size == request.addOns.size) { "Each add-on may only be selected once" }
+
+        val service = BusinessServicesTable.select {
+            (BusinessServicesTable.id eq appointment[ServiceAppointmentsTable.serviceId]) and
+                (BusinessServicesTable.businessId eq businessId)
+        }.singleOrNull() ?: error("Service not found")
+        val products = if (request.addOns.isEmpty()) emptyMap() else ProductsTable.select {
+            (ProductsTable.businessId eq businessId) and
+                (ProductsTable.id inList request.addOns.map { it.productId }) and
+                (ProductsTable.isActive eq true)
+        }.forUpdate().associateBy { it[ProductsTable.id] }
+        require(products.size == request.addOns.size) { "One or more add-ons are unavailable" }
+        request.addOns.forEach { item ->
+            require(products.getValue(item.productId)[ProductsTable.currentStock] >= item.quantity) {
+                "Insufficient stock for ${products.getValue(item.productId)[ProductsTable.name]}"
+            }
+        }
+        val gross = service[BusinessServicesTable.price] + request.addOns.sumOf { products.getValue(it.productId)[ProductsTable.sellingPrice] * it.quantity }
+        require(request.discountAmount <= gross) { "Discount cannot exceed the checkout total" }
+        val total = (gross - request.discountAmount).coerceAtLeast(0.0)
+        val now = Clock.System.now()
+        val orderId = generateId()
+        val orderNumber = "B360-SVC-${java.util.UUID.randomUUID().toString().replace("-", "").take(8).uppercase()}"
+        val paid = method == "CASH" || total == 0.0
+        OrdersTable.insert {
+            it[OrdersTable.id] = orderId; it[OrdersTable.orderNumber] = orderNumber; it[OrdersTable.businessId] = businessId
+            it[clientReference] = "appointment:$id"; it[customerId] = appointment[ServiceAppointmentsTable.customerId]
+            it[customerName] = appointment[ServiceAppointmentsTable.customerName]; it[customerPhone] = appointment[ServiceAppointmentsTable.customerPhone]
+            it[deliveryLocation] = "Appointment"; it[paymentStatus] = if (paid) "PAID" else "PENDING"
+            it[deliveryStatus] = if (paid) "DELIVERED" else "PROCESSING"; it[paymentMethod] = method; it[salesChannel] = "WEB"
+            it[serviceType] = "SERVICE"; it[serverUserId] = appointment[ServiceAppointmentsTable.staffUserId]; it[tabStatus] = "CLOSED"
+            it[baseAmount] = total; it[taxIncluded] = false; it[taxRate] = 0.0; it[taxAmount] = 0.0; it[subtotal] = total
+            it[notes] = "Appointment $id"; it[createdAt] = now; it[updatedAt] = now
+        }
+        OrderItemsTable.insert {
+            it[OrderItemsTable.id] = generateId(); it[OrderItemsTable.orderId] = orderId; it[OrderItemsTable.productId] = service[BusinessServicesTable.id]
+            it[OrderItemsTable.productName] = service[BusinessServicesTable.name]; it[OrderItemsTable.quantity] = 1; it[OrderItemsTable.unitPrice] = service[BusinessServicesTable.price]
+            it[OrderItemsTable.buyingPrice] = 0.0; it[OrderItemsTable.discountAmount] = request.discountAmount; it[OrderItemsTable.complimentary] = total == 0.0
+        }
+        request.addOns.forEach { item ->
+            val product = products.getValue(item.productId)
+            OrderItemsTable.insert {
+                it[OrderItemsTable.id] = generateId(); it[OrderItemsTable.orderId] = orderId; it[OrderItemsTable.productId] = item.productId
+                it[OrderItemsTable.productName] = product[ProductsTable.name]; it[OrderItemsTable.quantity] = item.quantity; it[OrderItemsTable.unitPrice] = product[ProductsTable.sellingPrice]
+                it[OrderItemsTable.buyingPrice] = product[ProductsTable.buyingPrice]
+            }
+            require(ProductsTable.update({ (ProductsTable.id eq item.productId) and (ProductsTable.currentStock greaterEq item.quantity) }) {
+                with(SqlExpressionBuilder) { it.update(currentStock, currentStock - item.quantity) }; it[updatedAt] = now
+            } == 1) { "Insufficient stock for ${product[ProductsTable.name]}" }
+        }
+        ServiceAppointmentsTable.update({ ServiceAppointmentsTable.id eq id }) {
+            it[ServiceAppointmentsTable.orderId] = orderId
+            if (paid) it[status] = "COMPLETED"
+            it[updatedAt] = now
+        }
+        if (paid) PaymentsTable.insert {
+            it[PaymentsTable.id] = generateId(); it[PaymentsTable.businessId] = businessId; it[PaymentsTable.orderId] = orderId
+            it[transactionCode] = if (total == 0.0) "DISCOUNT-$orderNumber" else "CASH-$orderNumber"; it[amount] = total
+            it[payerPhone] = appointment[ServiceAppointmentsTable.customerPhone]; it[payerName] = appointment[ServiceAppointmentsTable.customerName]
+            it[PaymentsTable.method] = if (total == 0.0) "DISCOUNT" else "CASH"; it[status] = "SUCCESS"; it[channel] = "SERVICE_CHECKOUT"
+            it[reconciled] = true; it[transactionDate] = now
+        }
+        orderService.getById(orderId, businessId) ?: error("Checkout order not found")
     }
 
     fun seedTemplates(businessId: String): ServiceScheduleResponse = transaction {

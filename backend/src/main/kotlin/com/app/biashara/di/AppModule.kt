@@ -68,7 +68,8 @@ fun appModule(config: ApplicationConfig) = module {
     single { AccessControlService() }
     single { HospitalityService(get()) }
     single { AdvancedHospitalityService() }
-    single { ServiceManagementService() }
+    single { ServiceManagementService(get()) }
+    single { SubscriptionService(get(), get(), get()) }
     single { ReportService() }
 
     // CyberSource card payment services

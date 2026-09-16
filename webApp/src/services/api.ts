@@ -99,7 +99,10 @@ export interface RegisterRequest {
   password: string
   businessName: string
   businessType: string
+  userCount: number
 }
+
+export interface SubscriptionBand { id: string; name: string; minUsers: number; maxUsers: number; monthlyPrice: number }
 
 export interface ApiResponse<T> {
   success: boolean
@@ -925,6 +928,7 @@ export const servicesApi = {
   createAppointment: async (data: { serviceId: string; resourceId?: string | null; customerId?: string | null; customerName: string; customerPhone?: string; staffUserId?: string | null; startsAt: string; durationMinutes?: number; notes?: string }) => (await client.post<ApiResponse<ServiceAppointment>>('/services/appointments', data)).data,
   updateAppointment: async (id: string, data: { serviceId: string; resourceId?: string | null; customerId?: string | null; customerName: string; customerPhone?: string; staffUserId?: string | null; startsAt: string; durationMinutes?: number; notes?: string }) => (await client.put<ApiResponse<ServiceAppointment>>(`/services/appointments/${id}`, data)).data,
   updateAppointmentStatus: async (id: string, status: string) => (await client.patch<ApiResponse<ServiceAppointment>>(`/services/appointments/${id}/status`, { status })).data,
+  checkoutAppointment: async (id: string, data: { paymentMethod: 'CASH' | 'MPESA' | 'CARD'; discountAmount: number; addOns: Array<{ productId: string; quantity: number }> }) => (await client.post<ApiResponse<OrderResponse>>(`/services/appointments/${id}/checkout`, data)).data,
   seedTemplates: async () => (await client.post<ApiResponse<ServiceSchedule>>('/services/templates')).data,
 }
 
@@ -1009,6 +1013,11 @@ export const authApi = {
     const res = await client.post<ApiResponse<null>>('/auth/change-password', data)
     return res.data
   }
+}
+
+export const subscriptionApi = {
+  bands: async () => (await client.get<ApiResponse<SubscriptionBand[]>>('/subscriptions/bands')).data,
+  checkout: async (data: { userCount: number; paymentMethod: 'MPESA'|'CARD'; phoneNumber: string }) => (await client.post<ApiResponse<OrderResponse>>('/subscriptions/checkout', data)).data,
 }
 
 export interface BusinessResponse {

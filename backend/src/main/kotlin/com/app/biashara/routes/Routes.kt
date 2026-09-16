@@ -503,6 +503,16 @@ fun Route.mpesaCallbackRoute() {
                         OrdersTable.update({ OrdersTable.id eq orderId }) {
                             it[OrdersTable.tabStatus] = "CLOSED"
                         }
+                        ServiceAppointmentsTable.update({ ServiceAppointmentsTable.orderId eq orderId }) {
+                            it[status] = "COMPLETED"
+                            it[updatedAt] = now
+                        }
+                        if (orderRow[OrdersTable.serviceType] == "SUBSCRIPTION") {
+                            val seats = orderRow[OrdersTable.clientReference]?.substringAfterLast(':')?.toIntOrNull()
+                            if (seats != null) BusinessesTable.update({ BusinessesTable.id eq orderRow[OrdersTable.businessId] }) {
+                                it[maxUsers] = seats; it[subscriptionTier] = "PREMIUM"; it[subscriptionEnabled] = true; it[updatedAt] = now
+                            }
+                        }
                         orderRow[OrdersTable.hospitalityTableId]?.let { tableId ->
                             val anotherTab = OrdersTable.select {
                                 (OrdersTable.hospitalityTableId eq tableId) and

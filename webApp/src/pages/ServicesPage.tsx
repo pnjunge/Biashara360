@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { CalendarClock, Plus, RefreshCw, Sparkles, Users, Wrench } from 'lucide-react'
+import { CalendarClock, CreditCard, Plus, RefreshCw, Sparkles, Users, Wrench } from 'lucide-react'
 import { Btn, Card, DataTable, Input, KpiCard, PageHeader, Select, StatusBadge } from '../components/ui'
-import { customerApi, CustomerResponse, ServiceAppointment, ServiceCatalogItem, ServiceResource, servicesApi, UserResponse, userApi } from '../services/api'
+import { AppointmentCheckoutModal } from '../components/services/AppointmentCheckoutModal'
+import { customerApi, CustomerResponse, ProductResponse, productApi, ServiceAppointment, ServiceCatalogItem, ServiceResource, servicesApi, UserResponse, userApi } from '../services/api'
 
 const emptyService = { name: '', description: '', category: '', durationMinutes: '60', price: '0' }
 const emptyResource = { name: '', type: 'STATION' }
@@ -13,6 +14,8 @@ export default function ServicesPage() {
   const [appointments, setAppointments] = useState<ServiceAppointment[]>([])
   const [customers, setCustomers] = useState<CustomerResponse[]>([])
   const [users, setUsers] = useState<UserResponse[]>([])
+  const [products, setProducts] = useState<ProductResponse[]>([])
+  const [checkout, setCheckout] = useState<ServiceAppointment | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -24,8 +27,8 @@ export default function ServicesPage() {
   const load = async () => {
     setLoading(true); setMessage('')
     try {
-      const [schedule, customerResult, userResult] = await Promise.all([
-        servicesApi.schedule(), customerApi.list(), userApi.list().catch(() => null),
+      const [schedule, customerResult, userResult, productResult] = await Promise.all([
+        servicesApi.schedule(), customerApi.list(), userApi.list().catch(() => null), productApi.list().catch(() => null),
       ])
       if (schedule.success && schedule.data) {
         const loaded = schedule.data
@@ -34,6 +37,7 @@ export default function ServicesPage() {
       } else setMessage(schedule.message || 'Could not load services.')
       if (customerResult.success) setCustomers(customerResult.data || [])
       if (userResult?.success) setUsers((userResult.data || []).filter(user => user.isActive !== false))
+      if (productResult?.success) setProducts(productResult.data || [])
     } catch (error: any) { setMessage(error.response?.data?.message || 'Could not load appointments and services.') }
     finally { setLoading(false) }
   }
@@ -98,7 +102,7 @@ export default function ServicesPage() {
         <div style={{ display: 'flex', gap: 10, alignItems: 'end', marginTop: 12 }}><div style={{ flex: 1 }}><Input label="Notes" value={appointment.notes} onChange={value => setAppointment(prev => ({ ...prev, notes: value }))} placeholder="Instructions, room number, vehicle plate, or other context" /></div><Btn icon={<Plus size={14} />} onClick={createAppointment} disabled={saving}>Book appointment</Btn></div>
       </Card>
       <Card style={{ padding: 0 }}>
-        {loading ? <div style={{ padding: 24, textAlign: 'center' }}>Loading appointments…</div> : appointments.length === 0 ? <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No appointments yet. Add a service or book the first appointment above.</div> : <DataTable headers={['When', 'Service', 'Customer', 'Staff / resource', 'Status', 'Actions']} rows={appointments.map(item => [new Date(item.startsAt).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' }), <div><strong>{item.serviceName}</strong><div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{item.durationMinutes} minutes</div></div>, <div><strong>{item.customerName}</strong><div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{item.customerPhone || 'No phone'}</div></div>, <div>{users.find(user => user.id === item.staffUserId)?.name || 'Unassigned'}<div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{item.resourceName || 'No resource'}</div></div>, <StatusBadge status={item.status} />, item.status === 'BOOKED' || item.status === 'CONFIRMED' ? <div style={{ display: 'flex', gap: 5 }}><Btn small onClick={() => updateStatus(item.id, 'CHECKED_IN')}>Check in</Btn><Btn small variant="secondary" onClick={() => updateStatus(item.id, 'CANCELLED')}>Cancel</Btn></div> : item.status === 'CHECKED_IN' ? <Btn small onClick={() => updateStatus(item.id, 'COMPLETED')}>Complete</Btn> : '—'])} />}
+        {loading ? <div style={{ padding: 24, textAlign: 'center' }}>Loading appointments…</div> : appointments.length === 0 ? <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No appointments yet. Add a service or book the first appointment above.</div> : <DataTable headers={['When', 'Service', 'Customer', 'Staff / resource', 'Status', 'Actions']} rows={appointments.map(item => [new Date(item.startsAt).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' }), <div><strong>{item.serviceName}</strong><div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{item.durationMinutes} minutes</div></div>, <div><strong>{item.customerName}</strong><div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{item.customerPhone || 'No phone'}</div></div>, <div>{users.find(user => user.id === item.staffUserId)?.name || 'Unassigned'}<div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{item.resourceName || 'No resource'}</div></div>, <StatusBadge status={item.status} />, item.status === 'BOOKED' || item.status === 'CONFIRMED' ? <div style={{ display: 'flex', gap: 5 }}><Btn small onClick={() => updateStatus(item.id, 'CHECKED_IN')}>Check in</Btn><Btn small variant="secondary" onClick={() => updateStatus(item.id, 'CANCELLED')}>Cancel</Btn></div> : ['CHECKED_IN', 'IN_PROGRESS'].includes(item.status) ? <Btn small icon={<CreditCard size={13}/>} onClick={() => setCheckout(item)}>{item.orderId ? 'Resume checkout' : 'Checkout'}</Btn> : '—'])} />}
       </Card>
     </>}
 
@@ -111,5 +115,6 @@ export default function ServicesPage() {
       <Card style={{ padding: 18 }}><h3 style={{ margin: 0, fontSize: 15 }}>Add resource</h3><p style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>Resources prevent double-booking chairs, bays, rooms, trainers, classes, or stations.</p><div style={{ display: 'grid', gap: 12 }}><Input label="Name *" value={resource.name} onChange={value => setResource(prev => ({ ...prev, name: value }))} placeholder="e.g. Chair 1, Bay A, Room 204" /><Input label="Type" value={resource.type} onChange={value => setResource(prev => ({ ...prev, type: value }))} placeholder="CHAIR, BAY, ROOM, TRAINER" /><Btn icon={<Plus size={14} />} onClick={createResource} disabled={saving}>Add resource</Btn></div></Card>
       <Card style={{ padding: 0 }}>{resources.length ? <DataTable headers={['Name', 'Type', 'Status']} rows={resources.map(item => [item.name, item.type, <StatusBadge status={item.isActive ? 'ACTIVE' : 'INACTIVE'} />])} /> : <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No resources configured.</div>}</Card>
     </div>}
+    {checkout && services.find(item => item.id === checkout.serviceId) && <AppointmentCheckoutModal appointment={checkout} service={services.find(item => item.id === checkout.serviceId)!} products={products} customerEmail={customers.find(item => item.id === checkout.customerId)?.email} onClose={() => setCheckout(null)} onComplete={load}/>}
   </div>
 }

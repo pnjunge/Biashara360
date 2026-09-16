@@ -77,6 +77,16 @@ data class ServiceAppointmentRequest(
 data class ServiceAppointmentStatusRequest(val status: String)
 
 @Serializable
+data class ServiceCheckoutItemRequest(val productId: String, val quantity: Int)
+
+@Serializable
+data class ServiceAppointmentCheckoutRequest(
+    val paymentMethod: String,
+    val discountAmount: Double = 0.0,
+    val addOns: List<ServiceCheckoutItemRequest> = emptyList(),
+)
+
+@Serializable
 data class ServiceScheduleResponse(
     val services: List<ServiceCatalogResponse>,
     val resources: List<ServiceResourceResponse>,

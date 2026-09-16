@@ -71,6 +71,7 @@ fun Application.module() {
             // Public routes (no auth)
             healthRoutes()  // Comprehensive health checks
             authRoutesValidated()
+            subscriptionRoutes()
             // Mpesa Daraja callback — called by Safaricom, no JWT required
             mpesaCallbackRoute()
             publicBusinessRoutes()

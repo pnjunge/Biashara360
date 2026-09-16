@@ -90,6 +90,7 @@ class AuthService(
     }
 
     fun register(req: RegisterRequest): ApiResponse<UserResponse> = transaction {
+        if (req.userCount !in 1..10) return@transaction ApiResponse(false, message = "Number of users must be between 1 and 10")
         val emailExists = UsersTable.select { UsersTable.email eq req.email }.count() > 0
         if (emailExists) return@transaction ApiResponse(false, message = "Email already registered")
 
@@ -107,6 +108,7 @@ class AuthService(
             it[type] = req.businessType
             it[ownerPhone] = req.phone
             it[ownerEmail] = req.email
+            it[maxUsers] = 1
             it[createdAt] = now
             it[updatedAt] = now
         }

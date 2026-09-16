@@ -18,8 +18,12 @@ data class RegisterRequest(
     val email: String,
     val password: String,
     val businessName: String,
-    val businessType: String
+    val businessType: String,
+    val userCount: Int = 1
 )
+
+@Serializable data class SubscriptionBand(val id:String,val name:String,val minUsers:Int,val maxUsers:Int,val monthlyPrice:Double)
+@Serializable data class SubscriptionCheckoutRequest(val userCount:Int,val paymentMethod:String,val phoneNumber:String="")
 
 @Serializable
 data class LoginRequest(val email: String, val password: String)

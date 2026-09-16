@@ -3,6 +3,9 @@ package com.app.biashara.services
 import com.app.biashara.db.CsCustomerTokensTable
 import com.app.biashara.db.CyberSourceTransactionsTable
 import com.app.biashara.db.PaymentsTable
+import com.app.biashara.db.ServiceAppointmentsTable
+import com.app.biashara.db.BusinessesTable
+import com.app.biashara.db.OrdersTable
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
@@ -382,6 +385,17 @@ class CyberSourcePaymentService(
                 it[paymentStatus] = "PAID"
                 it[tabStatus] = "CLOSED"
                 it[updatedAt] = Clock.System.now()
+            }
+            ServiceAppointmentsTable.update({ ServiceAppointmentsTable.orderId eq orderId }) {
+                it[status] = "COMPLETED"
+                it[updatedAt] = Clock.System.now()
+            }
+            val subscription = OrdersTable.select { OrdersTable.id eq orderId }.singleOrNull()
+            if (subscription?.get(OrdersTable.serviceType) == "SUBSCRIPTION") {
+                val seats = subscription[OrdersTable.clientReference]?.substringAfterLast(':')?.toIntOrNull()
+                if (seats != null) BusinessesTable.update({ BusinessesTable.id eq businessId }) {
+                    it[maxUsers] = seats; it[subscriptionTier] = "PREMIUM"; it[subscriptionEnabled] = true; it[updatedAt] = Clock.System.now()
+                }
             }
         }
     }

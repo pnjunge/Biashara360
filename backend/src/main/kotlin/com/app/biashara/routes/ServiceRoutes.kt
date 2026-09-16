@@ -67,6 +67,11 @@ fun Route.serviceRoutes() {
                 service.updateAppointmentStatus(call.businessId(), call.parameters["id"].orEmpty(), call.receive<ServiceAppointmentStatusRequest>().status)
             }
         }
+        post("/appointments/{id}/checkout") {
+            call.respondService {
+                service.checkoutAppointment(call.businessId(), call.parameters["id"].orEmpty(), call.receive())
+            }
+        }
         post("/templates") { call.respond(ApiResponse(true, data = service.seedTemplates(call.businessId()))) }
     }
 }

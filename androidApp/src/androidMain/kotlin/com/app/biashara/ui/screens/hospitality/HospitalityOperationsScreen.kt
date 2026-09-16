@@ -25,6 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
 import com.app.biashara.data.remote.ApiResponse
 import com.app.biashara.data.remote.BASE_URL
 import io.ktor.client.HttpClient
@@ -51,12 +54,15 @@ private data class AndroidTabItem(
 private data class AndroidTabOrder(
     val id: String,
     val orderNumber: String,
+    val businessId: String = "",
     val customerName: String? = "Walk-in Guest",
     val customerPhone: String? = "",
     val deliveryLocation: String? = "Dine In",
     val serviceType: String? = "DINE_IN",
     val hospitalityTableId: String? = null,
     val tabStatus: String = "OPEN",
+    val paymentStatus: String = "PENDING",
+    val paymentMethod: String = "",
     val subtotal: Double = 0.0,
     val items: List<AndroidTabItem> = emptyList(),
     val createdAt: String = ""
@@ -173,6 +179,7 @@ private fun AndroidPortalMeta(icon: ImageVector, text: String) {
 @Serializable private data class UpdateTableReq(val name: String, val area: String = "Main Floor", val capacity: Int = 4)
 @Serializable private data class TransferTabReq(val tableId: String)
 @Serializable private data class CloseTabReq(val paymentMethod: String)
+@Serializable private data class AndroidInitiatePaymentReq(val orderId: String, val phoneNumber: String)
 @Serializable private data class AndroidShiftOpenReq(val openingFloat: Double, val notes: String = "")
 @Serializable private data class AndroidShiftCloseReq(val actualCash: Double, val actualMpesa: Double, val actualCard: Double, val tipsTotal: Double = 0.0, val expensesTotal: Double = 0.0, val notes: String = "")
 @Serializable private data class AndroidApprovalDecisionReq(val approved: Boolean)
@@ -183,6 +190,7 @@ private fun AndroidPortalMeta(icon: ImageVector, text: String) {
 @Composable
 fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var selectedSegment by remember { mutableStateOf(0) }
     var dashboard by remember { mutableStateOf<AndroidFullDashboard?>(null) }
     var operations by remember { mutableStateOf<AndroidOperationsData?>(null) }
@@ -197,6 +205,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var successMsg by remember { mutableStateOf<String?>(null) }
+    var settlementBusy by remember { mutableStateOf(false) }
 
     // Dialog states
     var showAddTableDialog by remember { mutableStateOf(false) }
@@ -305,20 +314,47 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
         }
     }
 
-    fun handleSettleTab(orderId: String, method: String) {
+    fun handleSettleTab(orderId: String, method: String, phone: String) {
         scope.launch {
+            settlementBusy = true
+            error = null
             runCatching {
-                client.post("$BASE_URL/hospitality/tabs/$orderId/close") {
+                val result = client.post("$BASE_URL/hospitality/tabs/$orderId/close") {
                     contentType(ContentType.Application.Json)
                     setBody(CloseTabReq(method))
                 }.body<ApiResponse<AndroidTabOrder>>()
+                check(result.success && result.data != null) { result.message.ifBlank { "Could not start checkout." } }
+                val order = requireNotNull(result.data)
+                if (method == "MPESA") {
+                    check(phone.isNotBlank()) { "Enter the customer's M-Pesa phone number." }
+                    val push = client.post("$BASE_URL/payments/initiate") {
+                        contentType(ContentType.Application.Json)
+                        setBody(AndroidInitiatePaymentReq(orderId, phone.trim()))
+                    }.body<ApiResponse<Map<String, String>>>()
+                    check(push.success) { push.message.ifBlank { "Could not send the M-Pesa prompt." } }
+                    var paid = false
+                    repeat(30) {
+                        if (!paid) {
+                            delay(2_000)
+                            val latest = client.get("$BASE_URL/orders/$orderId").body<ApiResponse<AndroidTabOrder>>()
+                            paid = latest.success && latest.data?.paymentStatus == "PAID"
+                        }
+                    }
+                    check(paid) { "M-Pesa confirmation is still pending. Use Settle to retry or choose cash." }
+                } else if (method == "CARD") {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://biashara360.co.ke/pay/card?orderId=${Uri.encode(orderId)}&businessId=${Uri.encode(order.businessId)}")))
+                }
+                order
             }.onSuccess {
-                if (it.success) {
-                    successMsg = "Tab settled successfully!"
+                if (method == "CARD") {
+                    successMsg = "Complete the secure card checkout in your browser."
+                } else {
+                    successMsg = "Payment confirmed and tab settled successfully!"
                     tabToSettle = null
                     loadData()
-                } else error = it.message
-            }.onFailure { error = it.message }
+                }
+            }.onFailure { error = it.message ?: "Checkout failed." }
+            settlementBusy = false
         }
     }
 
@@ -521,8 +557,9 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     tabToSettle?.let { tab ->
         AndroidSettleTabModal(
             tab = tab,
-            onDismiss = { tabToSettle = null },
-            onConfirm = { method -> handleSettleTab(tab.id, method) }
+            busy = settlementBusy,
+            onDismiss = { if (!settlementBusy) tabToSettle = null },
+            onConfirm = { method, phone -> handleSettleTab(tab.id, method, phone) }
         )
     }
 
@@ -1148,10 +1185,12 @@ private fun AndroidTransferTabModal(
 @Composable
 private fun AndroidSettleTabModal(
     tab: AndroidTabOrder,
+    busy: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (paymentMethod: String) -> Unit
+    onConfirm: (paymentMethod: String, phone: String) -> Unit
 ) {
     var selectedMethod by remember { mutableStateOf("CASH") }
+    var phone by remember { mutableStateOf(tab.customerPhone.orEmpty()) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(12.dp), color = Color.White, modifier = Modifier.fillMaxWidth()) {
@@ -1166,11 +1205,13 @@ private fun AndroidSettleTabModal(
                         Text(label, fontWeight = FontWeight.SemiBold)
                     }
                 }
+                if (selectedMethod == "MPESA") OutlinedTextField(value = phone, onValueChange = { phone = it.filter { c -> c.isDigit() || c == '+' } }, label = { Text("M-Pesa phone") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (selectedMethod == "CARD") Text("Secure card checkout opens in your browser. The tab closes after payment confirmation.", fontSize = 11.sp, color = Color.Gray)
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") }
                     Spacer(Modifier.width(8.dp))
-                    Button(onClick = { onConfirm(selectedMethod) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00B874))) { Text("Settle") }
+                    Button(onClick = { onConfirm(selectedMethod, phone) }, enabled = !busy && (selectedMethod != "MPESA" || phone.isNotBlank()), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00B874))) { Text(if (busy) "Processing…" else if (selectedMethod == "MPESA") "Send M-Pesa prompt" else "Settle") }
                 }
             }
         }
