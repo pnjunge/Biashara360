@@ -25,13 +25,12 @@ class HospitalityServiceTest {
     }
     @Test
     fun `mixed order sends only food to kitchen and preserves full customer tab`() {
-        data class Item(val name: String, val category: String, val quantity: Int)
-        val food = Item("Chicken and chips", "Meals", 2)
-        val order = listOf(food, Item("Tusker", "Beer & Wine", 3), Item("Water", "Drinks", 1))
+        val food = "Meals" to 2
+        val order = listOf(food, "Beer & Wine" to 3, "Drinks" to 1)
 
-        assertEquals(listOf(food), kitchenItems(order) { it.category })
+        assertEquals(listOf(food), kitchenItems(order) { it.first })
         assertEquals(3, order.size)
-        assertEquals(6, order.sumOf { it.quantity })
+        assertEquals(6, order.sumOf { it.second })
     }
 
     @Test

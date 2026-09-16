@@ -92,4 +92,5 @@ dependencies {
     testImplementation("io.ktor:ktor-server-test-host-jvm:$ktor_version")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
     testImplementation("io.mockk:mockk:1.13.9")
+    testImplementation("com.h2database:h2:2.2.224")
 }
