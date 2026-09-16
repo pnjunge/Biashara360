@@ -33,6 +33,7 @@ sealed class Screen(val route: String) {
     object Expenses : Screen("expenses")
     object AddExpense : Screen("add_expense")
     object Payments : Screen("payments")
+    object PaymentConfiguration : Screen("payment_configuration")
     object Tax : Screen("tax")
     object Kra    : Screen("kra")
     object Social : Screen("social")

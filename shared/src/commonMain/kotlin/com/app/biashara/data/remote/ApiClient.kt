@@ -73,6 +73,9 @@ interface TokenStorage {
     suspend fun getRefreshToken(): String?
     suspend fun saveTokens(accessToken: String, refreshToken: String)
     suspend fun clearTokens()
+    suspend fun linkBiometricSession() {}
+    suspend fun restoreBiometricSession(): Boolean = false
+    suspend fun clearBiometricSession() {}
     suspend fun saveSessionIdleTimeoutSeconds(seconds: Long)
     suspend fun getSessionRemainingMillis(): Long?
     suspend fun touchSession()

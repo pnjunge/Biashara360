@@ -290,6 +290,11 @@ fun Biashara360App() {
             composable(Screen.Payments.route) {
                 PaymentsScreen()
             }
+            composable(Screen.PaymentConfiguration.route) {
+                com.app.biashara.ui.screens.settings.PaymentConfigurationScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
             composable(Screen.Tax.route) {
                 TaxScreen(onConfigureKra = { navController.navigate(Screen.Kra.route) })
             }
@@ -346,7 +351,7 @@ fun Biashara360App() {
                             }
                         }
                     },
-                    onNavigateToPayments = { navController.navigate(Screen.Payments.route) },
+                    onNavigateToPayments = { navController.navigate(Screen.PaymentConfiguration.route) },
                     onNavigateToTax = { navController.navigate(Screen.Tax.route) },
                     onNavigateToKra = { navController.navigate(Screen.Kra.route) },
                     onNavigateToCyberSourceSettings = { navController.navigate(Screen.CyberSourceSettings.route) }

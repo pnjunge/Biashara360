@@ -40,11 +40,12 @@ class SharedPreferencesTokenStorage(context: Context) : TokenStorage {
     override suspend fun getRefreshToken(): String? = activeToken(KEY_REFRESH_TOKEN)
 
     override suspend fun saveTokens(accessToken: String, refreshToken: String) {
-        prefs.edit()
+        val editor = prefs.edit()
             .putString(KEY_ACCESS_TOKEN, accessToken)
             .putString(KEY_REFRESH_TOKEN, refreshToken)
             .putLong(KEY_LAST_ACTIVITY, System.currentTimeMillis())
-            .apply()
+        if (prefs.contains(KEY_BIOMETRIC_REFRESH_TOKEN)) editor.putString(KEY_BIOMETRIC_REFRESH_TOKEN, refreshToken)
+        editor.apply()
     }
 
     override suspend fun clearTokens() {
@@ -53,6 +54,22 @@ class SharedPreferencesTokenStorage(context: Context) : TokenStorage {
             .remove(KEY_REFRESH_TOKEN)
             .remove(KEY_LAST_ACTIVITY)
             .apply()
+    }
+
+    override suspend fun linkBiometricSession() {
+        val refresh = prefs.getString(KEY_REFRESH_TOKEN, null)
+            ?: throw IllegalStateException("No signed-in account is available to link.")
+        prefs.edit().putString(KEY_BIOMETRIC_REFRESH_TOKEN, refresh).apply()
+    }
+
+    override suspend fun restoreBiometricSession(): Boolean {
+        val refresh = prefs.getString(KEY_BIOMETRIC_REFRESH_TOKEN, null) ?: return false
+        prefs.edit().putString(KEY_REFRESH_TOKEN, refresh).putLong(KEY_LAST_ACTIVITY, System.currentTimeMillis()).apply()
+        return true
+    }
+
+    override suspend fun clearBiometricSession() {
+        prefs.edit().remove(KEY_BIOMETRIC_REFRESH_TOKEN).apply()
     }
 
     override suspend fun saveSessionIdleTimeoutSeconds(seconds: Long) {
@@ -97,5 +114,6 @@ class SharedPreferencesTokenStorage(context: Context) : TokenStorage {
         private const val KEY_REFRESH_TOKEN = "refresh_token"
         private const val KEY_LAST_ACTIVITY = "last_activity"
         private const val KEY_SESSION_TIMEOUT_SECONDS = "session_timeout_seconds"
+        private const val KEY_BIOMETRIC_REFRESH_TOKEN = "biometric_refresh_token"
     }
 }

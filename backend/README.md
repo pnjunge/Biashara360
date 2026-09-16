@@ -9,7 +9,9 @@ Ktor + PostgreSQL REST API. 56+ endpoints covering: Auth, Inventory, Orders, Cus
 cd backend/
 docker-compose up
 ```
-Server starts at `http://localhost:8080`. PostgreSQL included.
+The API container listens on `http://localhost:8080` for internal Docker traffic.
+In production, expose it only through Caddy, which terminates HTTPS on port 443.
+Do not publish port 8080 directly to the internet.
 
 ### Option 2 — Run directly (requires Java 17+)
 
@@ -30,6 +32,28 @@ export $(cat .env | grep -v '#' | xargs)
 # Run
 ./gradlew run
 ```
+
+### HTTPS transport
+
+Production deployments should use the included Caddy reverse proxy. Set the
+public API URL to `https://api.example.com/v1`; Caddy obtains and renews the
+certificate and the API container remains on the private Docker network.
+
+For a standalone deployment without Caddy, enable Ktor TLS instead of using
+the HTTP listener:
+
+```bash
+export TLS_ENABLED=true
+export HTTPS_PORT=8443
+export TLS_KEYSTORE_PATH=/secure/path/biashara360.p12
+export TLS_KEYSTORE_PASSWORD='load-this-from-a-secret-store'
+export TLS_KEY_ALIAS=application
+./gradlew run
+```
+
+Create a PKCS12 keystore with a certificate trusted by your clients. A
+self-signed certificate is suitable only for local testing and must be trusted
+explicitly by each development client.
 
 ### Option 3 — Manual gradlew setup (if setup.sh fails)
 ```bash

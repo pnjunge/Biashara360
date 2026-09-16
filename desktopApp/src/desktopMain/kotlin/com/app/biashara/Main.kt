@@ -19,8 +19,11 @@ fun main() {
         com.app.biashara.data.remote.SESSION_IDLE_TIMEOUT_SECONDS = it
     }
     // Endpoint overrides are deployment configuration, not an end-user setting.
-    com.app.biashara.data.remote.BASE_URL = System.getenv("BASE_URL")
-        ?: "https://api.biashara360.co.ke/v1"
+    val baseUrl = System.getenv("BASE_URL") ?: "https://api.biashara360.co.ke/v1"
+    require(baseUrl.startsWith("https://") || System.getenv("ALLOW_INSECURE_HTTP") == "true") {
+        "BASE_URL must use HTTPS; set ALLOW_INSECURE_HTTP=true only for local development"
+    }
+    com.app.biashara.data.remote.BASE_URL = baseUrl.trimEnd('/')
 
     // Guard against double-initialization (e.g. on hot-restart in dev)
     if (GlobalContext.getOrNull() == null) {

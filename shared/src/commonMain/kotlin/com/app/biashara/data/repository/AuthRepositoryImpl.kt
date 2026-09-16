@@ -167,15 +167,15 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun loginWithBiometric(): Result<Unit> = runCatching {
-        // Option A: If a valid access token already exists, restore the session without
-        // re-authenticating. This avoids sending any credentials over the network.
-        tokenStorage.getAccessToken()
-            ?: throw Exception("No saved session. Please sign in with your password first.")
         if (UserSession.isLoggedIn()) return@runCatching
+        if (!tokenStorage.restoreBiometricSession()) {
+            throw Exception("No account is linked. Sign in with your password, then enable fingerprint login in Settings.")
+        }
         refreshToken().fold(
             onSuccess = { },
             onFailure = {
                 tokenStorage.clearTokens()
+                tokenStorage.clearBiometricSession()
                 throw Exception("Your saved session has expired. Please sign in again.")
             }
         )

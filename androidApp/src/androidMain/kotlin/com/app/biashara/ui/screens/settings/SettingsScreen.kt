@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.app.biashara.UserSession
+import com.app.biashara.data.remote.TokenStorage
 import com.app.biashara.presentation.viewmodel.AuthViewModel
 import com.app.biashara.presentation.viewmodel.BusinessViewModel
 import com.app.biashara.ui.theme.*
@@ -45,6 +46,7 @@ import com.app.biashara.ui.setDarkModeEnabled
 import org.koin.compose.koinInject
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,9 +57,11 @@ fun SettingsScreen(
     onNavigateToKra: (() -> Unit)? = null,
     onNavigateToCyberSourceSettings: (() -> Unit)? = null,
     authViewModel: AuthViewModel = kmpViewModel(),
-    businessViewModel: BusinessViewModel = kmpViewModel()
+    businessViewModel: BusinessViewModel = kmpViewModel(),
+    tokenStorage: TokenStorage = koinInject()
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val currentUser by UserSession.currentUser.collectAsState()
     val businessProfileState by businessViewModel.profileState.collectAsState()
     val usersState by businessViewModel.usersState.collectAsState()
@@ -77,14 +81,11 @@ fun SettingsScreen(
     ) {
         val enrolled = BiometricManager.from(context)
             .canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
-        biometricEnabled = enrolled
-        context.setBiometricLoginEnabled(enrolled)
-        Toast.makeText(
-            context,
-            if (enrolled) "Fingerprint login enabled."
-            else "Fingerprint setup was not completed.",
-            Toast.LENGTH_LONG
-        ).show()
+        if (enrolled) scope.launch {
+            runCatching { tokenStorage.linkBiometricSession() }
+                .onSuccess { biometricEnabled = true; context.setBiometricLoginEnabled(true); Toast.makeText(context, "Fingerprint linked to this account.", Toast.LENGTH_LONG).show() }
+                .onFailure { biometricEnabled = false; context.setBiometricLoginEnabled(false); Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+        } else Toast.makeText(context, "Fingerprint setup was not completed.", Toast.LENGTH_LONG).show()
     }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
@@ -476,8 +477,11 @@ fun SettingsScreen(
                             val biometricManager = BiometricManager.from(context)
                             val canAuthenticate = biometricManager.canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
                             if (canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS) {
-                                biometricEnabled = true
-                                context.setBiometricLoginEnabled(true)
+                                scope.launch {
+                                    runCatching { tokenStorage.linkBiometricSession() }
+                                        .onSuccess { biometricEnabled = true; context.setBiometricLoginEnabled(true); Toast.makeText(context, "Fingerprint linked to ${userEmail.ifBlank { "this account" }}.", Toast.LENGTH_LONG).show() }
+                                        .onFailure { biometricEnabled = false; context.setBiometricLoginEnabled(false); Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                                }
                             } else if (canAuthenticate == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED) {
                                 biometricEnrollmentLauncher.launch(biometricEnrollmentIntent())
                             } else {
@@ -493,6 +497,7 @@ fun SettingsScreen(
                         } else {
                             biometricEnabled = false
                             context.setBiometricLoginEnabled(false)
+                            scope.launch { tokenStorage.clearBiometricSession() }
                         }
                     }
                 }
