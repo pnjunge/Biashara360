@@ -148,53 +148,56 @@ fun Route.superAdminRoutes() {
                     call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
                 }
             }
+        }
 
-            // ── Email / SMTP (Outlook 365) Settings & Testing ────────────────
-            route("/email") {
-                get("/status") {
-                    if (!call.hasRole("SUPERADMIN")) {
-                        call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
-                        return@get
-                    }
-                    call.respond(ApiResponse(true, data = emailService.getConfigStatus()))
+        // ── Email / SMTP (Oracle OCI / Gmail / Outlook 365) Settings & Testing ──
+        val emailRouteHandler: Route.() -> Unit = {
+            get("/status") {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@get
                 }
+                call.respond(ApiResponse(true, data = emailService.getConfigStatus()))
+            }
 
-                put("/settings") {
-                    if (!call.hasRole("SUPERADMIN")) {
-                        call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
-                        return@put
-                    }
-                    val req = call.receive<SmtpSettingsRequest>()
-                    emailService.updateSettings(req)
-                    call.respond(ApiResponse(true, data = emailService.getConfigStatus(), message = "SMTP settings updated"))
+            put("/settings") {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@put
                 }
+                val req = call.receive<SmtpSettingsRequest>()
+                emailService.updateSettings(req)
+                call.respond(ApiResponse(true, data = emailService.getConfigStatus(), message = "SMTP settings updated"))
+            }
 
-                post("/test") {
-                    if (!call.hasRole("SUPERADMIN")) {
-                        call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
-                        return@post
-                    }
-                    val req = try {
-                        call.receive<TestEmailRequest>()
-                    } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Invalid request: email is required"))
-                        return@post
-                    }
-                    val targetEmail = req.email.trim()
-                    if (targetEmail.isBlank()) {
-                        call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Recipient email is required"))
-                        return@post
-                    }
-                    val result = emailService.sendTestEmail(targetEmail)
-                    if (result.isSuccess) {
-                        call.respond(ApiResponse<Unit>(true, message = "Test email sent successfully to $targetEmail via SMTP / Email Delivery"))
-                    } else {
-                        val errMsg = result.exceptionOrNull()?.message ?: "Unknown error"
-                        call.respond(HttpStatusCode.InternalServerError, ApiResponse<Unit>(false, message = "Failed to send email: $errMsg"))
-                    }
+            post("/test") {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@post
+                }
+                val req = try {
+                    call.receive<TestEmailRequest>()
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Invalid request: email is required"))
+                    return@post
+                }
+                val targetEmail = req.email.trim()
+                if (targetEmail.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Recipient email is required"))
+                    return@post
+                }
+                val result = emailService.sendTestEmail(targetEmail)
+                if (result.isSuccess) {
+                    call.respond(ApiResponse<Unit>(true, message = "Test email sent successfully to $targetEmail via SMTP / Email Delivery"))
+                } else {
+                    val errMsg = result.exceptionOrNull()?.message ?: "Unknown error"
+                    call.respond(HttpStatusCode.InternalServerError, ApiResponse<Unit>(false, message = "Failed to send email: $errMsg"))
                 }
             }
         }
+
+        route("/email", emailRouteHandler)
+        route("/settings/email", emailRouteHandler)
     }
 }
 
