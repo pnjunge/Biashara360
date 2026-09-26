@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../App'
 import { authApi, subscriptionApi, SubscriptionBand } from '../services/api'
+import SocialSignIn, { SocialCredential } from '../components/SocialSignIn'
 import { Btn, Input, Select } from '../components/ui'
 
 const BUSINESS_TYPES = [
@@ -36,6 +37,7 @@ export default function RegisterPage() {
   const [businessName, setBusinessName] = useState('')
   const [businessType, setBusinessType] = useState('RETAIL')
   const [password, setPassword] = useState('')
+  const [socialCredential, setSocialCredential] = useState<SocialCredential>()
   const [userCount, setUserCount] = useState(1)
   const [bands, setBands] = useState<SubscriptionBand[]>([])
   const [paymentMethod, setPaymentMethod] = useState<'MPESA'|'CARD'>('MPESA')
@@ -43,18 +45,46 @@ export default function RegisterPage() {
   // Flow control
   const [step, setStep] = useState<'register' | 'otp' | 'payment'>('register')
   const [userId, setUserId] = useState('')
+  const [returningSocialUser, setReturningSocialUser] = useState(false)
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => { subscriptionApi.bands().then(r => { if (r.success) setBands(r.data || []) }).catch(() => undefined) }, [])
 
+  const acceptLogin = (result: { userId: string; requiresOtp: boolean; accessToken?: string; refreshToken?: string; user?: unknown }, isNew: boolean) => {
+    setReturningSocialUser(!isNew)
+    setUserId(result.userId)
+    if (result.requiresOtp) { setStep('otp'); return }
+    if (!result.accessToken || !result.refreshToken || !result.user) throw new Error('Sign-in did not return a valid session.')
+    localStorage.setItem('accessToken', result.accessToken)
+    localStorage.setItem('refreshToken', result.refreshToken)
+    localStorage.setItem('user', JSON.stringify(result.user))
+    login()
+    if (isNew) setStep('payment')
+    else navigate('/dashboard')
+  }
+
+  const handleSocial = async (credential: SocialCredential) => {
+    setLoading(true); setError('')
+    try {
+      const result = await authApi.socialLogin(credential)
+      if (!result.success || !result.data) throw new Error(result.message || 'Social sign-in failed')
+      if (result.data.login) { acceptLogin(result.data.login, false); return }
+      setSocialCredential(credential)
+      setName(result.data.profile.name)
+      setEmail(result.data.profile.email)
+      setPassword('')
+    } catch (err: any) { setError(err.response?.data?.message || err.message || 'Social sign-in failed') }
+    finally { setLoading(false) }
+  }
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim() || !phone.trim() || !email.trim() || !businessName.trim() || !password) {
+    if (!name.trim() || !phone.trim() || !email.trim() || !businessName.trim() || (!socialCredential && !password)) {
       setError('All fields are required')
       return
     }
-    if (password.length < 6) {
+    if (!socialCredential && password.length < 6) {
       setError('Password must be at least 6 characters')
       return
     }
@@ -71,10 +101,17 @@ export default function RegisterPage() {
         password,
         businessName,
         businessType,
-        userCount
+        userCount,
+        socialCredential
       })
 
       if (registerRes.success) {
+        if (socialCredential) {
+          const social = await authApi.socialLogin(socialCredential)
+          if (!social.success || !social.data?.login) throw new Error(social.message || 'Account created. Please sign in again.')
+          acceptLogin(social.data.login, true)
+          return
+        }
         // 2. Automatically trigger login to initiate OTP delivery
         const loginRes = await authApi.login({ email, password })
         if (loginRes.success && loginRes.data) {
@@ -100,7 +137,7 @@ export default function RegisterPage() {
         setError(registerRes.message || 'Registration failed')
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Network error. Please check your connection.')
+      setError(err.response?.data?.message || err.message || 'Network error. Please check your connection.')
     } finally {
       setLoading(false)
     }
@@ -119,7 +156,8 @@ export default function RegisterPage() {
       const result = await authApi.verifyOtp({ userId, otp, channel: 'SMS' })
       if (result.success) {
         login()
-        setStep('payment')
+        if (returningSocialUser) navigate('/dashboard')
+        else setStep('payment')
       } else {
         setError(result.message || 'OTP verification failed')
       }
@@ -156,6 +194,10 @@ export default function RegisterPage() {
           {step === 'register' ? (
             <>
               <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Self Onboarding / Jisajili</h2>
+              {!socialCredential ? <SocialSignIn onCredential={handleSocial} disabled={loading} /> : <div style={{ marginBottom: 16 }}>
+                <p>Signed in with {socialCredential.provider === 'google' ? 'Google' : 'Facebook'} as {email}. Complete your business details below.</p>
+                <button type="button" disabled={loading} onClick={() => { setSocialCredential(undefined); setEmail(''); setName('') }}>Use another account</button>
+              </div>}
               <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <Input
                   label="Full Name / Jina Kamili *"
@@ -175,7 +217,7 @@ export default function RegisterPage() {
                     label="Email / Barua Pepe *"
                     placeholder="e.g. jane@example.com"
                     value={email}
-                    onChange={setEmail}
+                    onChange={socialCredential ? () => undefined : setEmail}
                     type="email"
                   />
                 </div>
@@ -197,19 +239,19 @@ export default function RegisterPage() {
                 <Input label="Number of users *" type="number" value={String(userCount)} onChange={value => setUserCount(Math.min(10, Math.max(1, Number(value) || 1)))} />
                 {bands.length > 0 && <div style={{fontSize:12,padding:10,background:'var(--b360-bg)',borderRadius:8}}>{bands.map(b => <div key={b.id} style={{fontWeight:userCount >= b.minUsers && userCount <= b.maxUsers ? 800 : 400}}>{b.minUsers}–{b.maxUsers} users · KES {b.monthlyPrice.toLocaleString()}/month</div>)}</div>}
 
-                <Input
+                {!socialCredential && <Input
                   label="Password / Nenosiri *"
                   placeholder="•••••••• (Min 6 characters)"
                   value={password}
                   onChange={setPassword}
                   type="password"
-                />
+                />}
 
                 {error && <p style={{ color: 'var(--b360-red)', fontSize: 12 }}>{error}</p>}
 
                 <Btn
                   type="submit"
-                  disabled={loading || !name.trim() || !phone.trim() || !email.trim() || !businessName.trim() || !password}
+                  disabled={loading || !name.trim() || !phone.trim() || !email.trim() || !businessName.trim() || (!socialCredential && !password)}
                 >
                   {loading ? 'Creating Account...' : 'Register / Jiunge sasa'}
                 </Btn>

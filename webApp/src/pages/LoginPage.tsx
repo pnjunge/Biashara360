@@ -415,6 +415,10 @@ export default function LoginPage() {
                   )}
                 </button>
 
+                <button type="button" disabled={loading} onClick={() => navigate('/register')} style={{ padding: 12, borderRadius: 8, border: '1px solid #CBD5E1', background: 'white', cursor: 'pointer' }}>
+                  Continue with Google or Facebook
+                </button>
+
                 <div style={{ display: 'flex', alignItems: 'center', width: '100%', margin: '4px 0' }}>
                   <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
                   <span style={{ color: '#94A3B8', fontSize: 12, fontWeight: 'bold', padding: '0 16px' }}>OR</span>

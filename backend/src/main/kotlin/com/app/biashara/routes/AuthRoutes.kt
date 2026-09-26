@@ -6,6 +6,7 @@ import com.app.biashara.models.*
 import com.app.biashara.dto.ResetPasswordRequestDTO
 import com.app.biashara.dto.ResetPasswordConfirmDTO
 import com.app.biashara.services.AuthService
+import com.app.biashara.services.SocialAuthService
 import com.app.biashara.validation.Validator
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -28,57 +29,80 @@ private val authLogger = LoggerFactory.getLogger("AuthenticationAudit")
  */
 fun Route.authRoutesValidated() {
     val authService: AuthService by inject()
+    val socialAuth: SocialAuthService by inject()
 
     route("/auth") {
         /**
          * Register new user and business
          * POST /auth/register
          */
-        post("/register") {
-            val req = call.receive<RegisterRequest>()
-            
-            // Validate all registration fields
-            Validator.validate {
-                field("name", req.name) {
-                    required()
-                    length(2, 100)
+        get("/social/providers") { call.respond(ApiResponse(true, socialAuth.configuration())) }
+        rateLimit(RateLimitName("auth-limiter")) {
+            post("/social/login") {
+                val credential = call.receive<SocialCredential>()
+                val profile = try { socialAuth.verify(credential) } catch (_: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Could not verify sign-in. Please share your email and try again, or use email signup."))
+                    return@post
                 }
-                field("email", req.email) {
-                    required()
-                    email()
-                    maxLength(255)
-                }
-                field("phone", req.phone) {
-                    required()
-                    phone()
-                }
-                field("password", req.password) {
-                    required()
-                    password()
-                }
-                field("businessName", req.businessName) {
-                    required()
-                    length(2, 255)
-                }
-                field("businessType", req.businessType) {
-                    required()
-                    oneOf(
-                        "RETAIL", "GROCERY", "BOUTIQUE", "WHOLESALE", "DISTRIBUTION",
-                        "SALON", "BARBERSHOP", "SPA", "LAUNDRY", "CAR_WASH", "HOTEL",
-                        "LODGE", "GYM", "CLINIC", "REPAIR_SHOP", "SERVICE", "HYBRID",
-                        "ONLINE_SELLER", "RESTAURANT", "ECOMMERCE", "MANUFACTURING", "OTHER"
-                    )
-                }
+                val result = authService.socialLogin(profile)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
             }
-            
-            val result = authService.register(req)
-            authLogger.info("""{"event":"registration_attempt","success":${result.success},"request_id":"${call.callId ?: "unknown"}"}""")
-            call.respond(
-                if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest,
-                result
-            )
-        }
+            post("/register") {
+                val submitted = call.receive<RegisterRequest>()
+                val profile = submitted.socialCredential?.let {
+                    try { socialAuth.verify(it) } catch (_: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Social sign-in expired or could not be verified. Please try again."))
+                        return@post
+                    }
+                }
+                val req = if (profile == null) submitted else submitted.copy(
+                    email = profile.email,
+                    password = java.util.UUID.randomUUID().toString() + "Aa1!"
+                )
 
+                // Validate all registration fields
+                Validator.validate {
+                    field("name", req.name) {
+                        required()
+                        length(2, 100)
+                    }
+                    field("email", req.email) {
+                        required()
+                        email()
+                        maxLength(255)
+                    }
+                    field("phone", req.phone) {
+                        required()
+                        phone()
+                    }
+                    field("password", req.password) {
+                        required()
+                        password()
+                    }
+                    field("businessName", req.businessName) {
+                        required()
+                        length(2, 255)
+                    }
+                    field("businessType", req.businessType) {
+                        required()
+                        oneOf(
+                            "RETAIL", "GROCERY", "BOUTIQUE", "WHOLESALE", "DISTRIBUTION",
+                            "SALON", "BARBERSHOP", "SPA", "LAUNDRY", "CAR_WASH", "HOTEL",
+                            "LODGE", "GYM", "CLINIC", "REPAIR_SHOP", "SERVICE", "HYBRID",
+                            "ONLINE_SELLER", "RESTAURANT", "ECOMMERCE", "MANUFACTURING", "OTHER"
+                        )
+                    }
+                }
+
+                val result = if (profile == null) authService.register(req) else authService.registerSocial(req, profile)
+                authLogger.info("""{"event":"registration_attempt","success":${result.success},"request_id":"${call.callId ?: "unknown"}"}""")
+                call.respond(
+                    if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest,
+                    result
+                )
+            }
+
+        }
         rateLimit(RateLimitName("auth-limiter")) {
             /**
              * Login user
@@ -86,7 +110,7 @@ fun Route.authRoutesValidated() {
              */
             post("/login") {
                 val req = call.receive<LoginRequest>()
-                
+
                 // Validate login credentials
                 Validator.validate {
                     field("email", req.email) {
@@ -98,7 +122,7 @@ fun Route.authRoutesValidated() {
                         minLength(6)  // Basic check, actual validation done by auth service
                     }
                 }
-                
+
                 val result = authService.login(req)
                 authLogger.info("""{"event":"login_attempt","success":${result.success},"request_id":"${call.callId ?: "unknown"}"}""")
                 call.respond(
@@ -129,7 +153,7 @@ fun Route.authRoutesValidated() {
              */
             post("/verify-otp") {
                 val req = call.receive<OtpVerifyRequest>()
-                
+
                 // Validate OTP verification request
                 Validator.validate {
                     field("userId", req.userId) {
@@ -147,7 +171,7 @@ fun Route.authRoutesValidated() {
                         oneOf("SMS", "EMAIL", "WHATSAPP")
                     }
                 }
-                
+
                 val result = authService.verifyOtp(req)
                 authLogger.info("""{"event":"otp_verification","success":${result.success},"user_id":"${req.userId}","channel":"${req.channel}","request_id":"${call.callId ?: "unknown"}"}""")
                 call.respond(
@@ -164,7 +188,7 @@ fun Route.authRoutesValidated() {
         rateLimit(RateLimitName("auth-limiter")) {
             post("/refresh") {
                 val req = call.receive<RefreshTokenRequest>()
-            
+
             // Validate refresh token
             Validator.validate {
                 field("refreshToken", req.refreshToken) {
@@ -172,7 +196,7 @@ fun Route.authRoutesValidated() {
                     minLength(20)  // JWT tokens are long
                 }
             }
-            
+
                 val result = authService.refreshToken(req)
                 call.respond(
                     if (result.success) HttpStatusCode.OK else HttpStatusCode.Unauthorized,
@@ -188,7 +212,7 @@ fun Route.authRoutesValidated() {
         rateLimit(RateLimitName("auth-limiter")) {
             post("/resend-otp") {
                 val req = call.receive<ResendOtpRequest>()
-            
+
             // Validate resend OTP request
             Validator.validate {
                 field("userId", req.userId) {
@@ -199,7 +223,7 @@ fun Route.authRoutesValidated() {
                     oneOf("SMS", "EMAIL", "WHATSAPP")
                 }
             }
-            
+
                 val result = authService.resendOtp(req)
                 call.respond(
                     if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest,
@@ -248,20 +272,20 @@ fun Route.accountRoutesValidated() {
         post("/set-otp") {
             val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject
                 ?: throw UnauthorizedException("Authentication required")
-            
+
             val req = call.receive<EnableOtpRequest>()
-            
+
             if (req.userId != callerUserId && !call.hasRole("SUPERADMIN")) {
                 throw UnauthorizedException("Cannot modify OTP for another user")
             }
-            
+
             // Validate OTP settings request
             Validator.validate {
                 field("enable", req.enable) {
                     required()
                 }
             }
-            
+
             val result = authService.setOtpEnabled(req)
             call.respond(
                 if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest,
@@ -276,9 +300,9 @@ fun Route.accountRoutesValidated() {
         post("/change-password") {
             val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject
                 ?: throw UnauthorizedException("Authentication required")
-            
+
             val req = call.receive<com.app.biashara.services.ChangePasswordRequest>()
-            
+
             // Validate password change request
             Validator.validate {
                 field("currentPassword", req.currentPassword) {
@@ -293,7 +317,7 @@ fun Route.accountRoutesValidated() {
                     }
                 }
             }
-            
+
             val result = authService.changePassword(callerUserId, req)
             call.respond(
                 if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest,

@@ -962,6 +962,9 @@ export const cyberSourceApi = {
 }
 
 export const authApi = {
+  socialLogin: async (credential: { provider: 'google' | 'facebook'; token: string }) => {
+    return (await client.post<ApiResponse<{ profile: { name: string; email: string }; login?: LoginResponse }>>('/auth/social/login', credential)).data
+  },
   login: async (req: LoginRequest) => {
     const res = await client.post<ApiResponse<LoginResponse>>('/auth/login', req)
     return res.data
@@ -985,7 +988,7 @@ export const authApi = {
     return res.data
   },
 
-  register: async (req: RegisterRequest) => {
+  register: async (req: RegisterRequest & { socialCredential?: { provider: 'google' | 'facebook'; token: string } }) => {
     const res = await client.post<ApiResponse<any>>('/auth/register', req)
     return res.data
   },

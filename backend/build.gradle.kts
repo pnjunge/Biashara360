@@ -74,6 +74,7 @@ dependencies {
     implementation("io.insert-koin:koin-logger-slf4j:$koin_version")
 
     // Security
+    implementation("com.google.api-client:google-api-client:2.7.2")
     implementation("org.mindrot:jbcrypt:0.4")
     implementation("com.auth0:java-jwt:4.4.0")
 
@@ -89,6 +90,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:$logback_version")
 
     // Testing
+    testImplementation("io.ktor:ktor-client-mock:$ktor_version")
     testImplementation("io.ktor:ktor-server-test-host-jvm:$ktor_version")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
     testImplementation("io.mockk:mockk:1.13.9")

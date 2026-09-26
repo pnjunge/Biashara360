@@ -19,7 +19,8 @@ data class RegisterRequest(
     val password: String,
     val businessName: String,
     val businessType: String,
-    val userCount: Int = 1
+    val userCount: Int = 1,
+    val socialCredential: SocialCredential? = null
 )
 
 @Serializable data class SubscriptionBand(val id:String,val name:String,val minUsers:Int,val maxUsers:Int,val monthlyPrice:Double)
@@ -744,3 +745,8 @@ data class CsTransactionRecord(
     val errorReason: String?,
     val createdAt: String
 )
+
+@Serializable data class SocialCredential(val provider: String, val token: String)
+@Serializable data class SocialProfile(val provider: String, val subject: String, val name: String, val email: String)
+@Serializable data class SocialLoginResult(val profile: SocialProfile, val login: LoginResponse? = null)
+@Serializable data class SocialProviderConfig(val googleClientId: String, val facebookAppId: String, val facebookVersion: String)

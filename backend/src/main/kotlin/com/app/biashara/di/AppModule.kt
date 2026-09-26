@@ -50,6 +50,7 @@ fun appModule(config: ApplicationConfig) = module {
 
     // Services
     single { AuthService(get(), get(), get()) }
+    single { SocialAuthService(config, get()) }
     single { ProductService() }
     single { InventoryCategoryService() }
     single { OrderService() }

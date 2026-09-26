@@ -440,3 +440,10 @@ object CsCustomerTokensTable : Table("cs_customer_tokens") {
     val createdAt       = timestamp("created_at")
     override val primaryKey = PrimaryKey(id)
 }
+
+object SocialIdentitiesTable : Table("social_identities") {
+    val provider = varchar("provider", 16)
+    val subject = varchar("subject", 255)
+    val userId = varchar("user_id", 36).references(UsersTable.id, onDelete = CASCADE)
+    override val primaryKey = PrimaryKey(provider, subject)
+}
