@@ -4,6 +4,7 @@ import com.app.biashara.models.*
 import com.app.biashara.services.SuperAdminService
 import com.app.biashara.services.SystemSettingsService
 import com.app.biashara.services.SubscriptionService
+import com.app.biashara.services.EmailService
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -21,11 +22,15 @@ import org.koin.ktor.ext.inject
 //   PUT  /v1/admin/users/{id}/business          link an existing user to a business
 //   GET  /v1/admin/settings/mpesa-callback      get system-wide Mpesa callback URL
 //   PUT  /v1/admin/settings/mpesa-callback      update system-wide Mpesa callback URL
+//   GET  /v1/admin/email/status                 get SMTP / Outlook 365 status
+//   PUT  /v1/admin/email/settings               update SMTP / Outlook 365 configuration
+//   POST /v1/admin/email/test                   send test verification email
 
 fun Route.superAdminRoutes() {
     val superAdminService: SuperAdminService by inject()
     val systemSettingsService: SystemSettingsService by inject()
     val subscriptionService: SubscriptionService by inject()
+    val emailService: EmailService by inject()
 
     route("/admin") {
 
@@ -143,6 +148,53 @@ fun Route.superAdminRoutes() {
                     call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
                 }
             }
+
+            // ── Email / SMTP (Outlook 365) Settings & Testing ────────────────
+            route("/email") {
+                get("/status") {
+                    if (!call.hasRole("SUPERADMIN")) {
+                        call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                        return@get
+                    }
+                    call.respond(ApiResponse(true, data = emailService.getConfigStatus()))
+                }
+
+                put("/settings") {
+                    if (!call.hasRole("SUPERADMIN")) {
+                        call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                        return@put
+                    }
+                    val req = call.receive<SmtpSettingsRequest>()
+                    emailService.updateSettings(req)
+                    call.respond(ApiResponse(true, data = emailService.getConfigStatus(), message = "SMTP settings updated"))
+                }
+
+                post("/test") {
+                    if (!call.hasRole("SUPERADMIN")) {
+                        call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                        return@post
+                    }
+                    val req = try {
+                        call.receive<TestEmailRequest>()
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Invalid request: email is required"))
+                        return@post
+                    }
+                    val targetEmail = req.email.trim()
+                    if (targetEmail.isBlank()) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Recipient email is required"))
+                        return@post
+                    }
+                    val result = emailService.sendTestEmail(targetEmail)
+                    if (result.isSuccess) {
+                        call.respond(ApiResponse<Unit>(true, message = "Test email sent successfully to $targetEmail via SMTP / Email Delivery"))
+                    } else {
+                        val errMsg = result.exceptionOrNull()?.message ?: "Unknown error"
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse<Unit>(false, message = "Failed to send email: $errMsg"))
+                    }
+                }
+            }
         }
     }
 }
+

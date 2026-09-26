@@ -45,7 +45,7 @@ fun appModule(config: ApplicationConfig) = module {
 
     // SMS & Email services for OTP delivery
     single { SmsService(config, get()) }
-    single { EmailService(config) }
+    single { EmailService(config, get()) }
     single { WhatsAppOtpService(config, get()) }
 
     // Services

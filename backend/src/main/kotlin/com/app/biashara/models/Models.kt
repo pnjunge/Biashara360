@@ -623,6 +623,29 @@ data class UpdateSubscriptionRequest(
 data class SystemSettingRequest(val value: String)
 
 @Serializable
+data class TestEmailRequest(val email: String)
+
+@Serializable
+data class EmailConfigStatusResponse(
+    val configured: Boolean,
+    val host: String,
+    val port: Int,
+    val username: String,
+    val fromEmail: String,
+    val fromName: String
+)
+
+@Serializable
+data class SmtpSettingsRequest(
+    val host: String? = null,
+    val port: Int? = null,
+    val username: String? = null,
+    val password: String? = null,
+    val fromEmail: String? = null,
+    val fromName: String? = null
+)
+
+@Serializable
 data class SystemSettingResponse(val key: String, val value: String)
 
 @Serializable

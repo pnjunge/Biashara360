@@ -4,11 +4,11 @@ import {
   Building2, Shield, Wifi, CreditCard, Lock, Bell, CheckCircle, AlertTriangle,
   Receipt, Save, ExternalLink, Zap, Key, RefreshCw, Layers, ImagePlus, Trash2,
   Settings as SettingsIcon, Users, MessageSquare, FileText, Clock, ChevronDown,
-  ChevronRight, ShieldCheck
+  ChevronRight, ShieldCheck, Mail, Send
 } from 'lucide-react'
 import { Card, Btn, Input, Select } from '../components/ui'
 import {
-  settingsApi, businessApi, kraApi, authApi, hospitalityApi, servicesApi, BusinessProfileRequest,
+  settingsApi, businessApi, kraApi, authApi, hospitalityApi, servicesApi, adminApi, BusinessProfileRequest,
   MpesaConfigResponse, SessionTimeoutConfig
 } from '../services/api'
 import { useAuth } from '../App'
@@ -129,6 +129,80 @@ export function SettingsPage() {
   const [emailAlerts, setEmailAlerts] = useState(false)
   const [subscriptionTier, setSubscriptionTier] = useState('FREEMIUM')
   const [subscriptionEnabled, setSubscriptionEnabled] = useState(true)
+
+  // ── 7. Outlook 365 / SMTP Email State ─────────────────────────────────────
+  const [emailStatus, setEmailStatus] = useState<{
+    configured: boolean
+    host: string
+    port: number
+    username: string
+    fromEmail: string
+    fromName: string
+  } | null>(null)
+  const [testRecipient, setTestRecipient] = useState(user?.email || '')
+  const [sendingTest, setSendingTest] = useState(false)
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [editingSmtp, setEditingSmtp] = useState(false)
+  const [smtpForm, setSmtpForm] = useState({
+    host: 'smtp.gmail.com',
+    port: 587,
+    username: '',
+    password: '',
+    fromEmail: '',
+    fromName: 'Biashara360'
+  })
+  const [savingSmtp, setSavingSmtp] = useState(false)
+
+  useEffect(() => {
+    if (activeTab === 'notifications' && isSuperAdmin) {
+      adminApi.getEmailStatus()
+        .then((res: any) => {
+          if (res?.data) {
+            setEmailStatus(res.data)
+            setSmtpForm(prev => ({
+              ...prev,
+              host: res.data.host || 'smtp.gmail.com',
+              port: res.data.port || 587,
+              username: res.data.username || '',
+              fromEmail: res.data.fromEmail || '',
+              fromName: res.data.fromName || 'Biashara360'
+            }))
+          }
+        })
+        .catch(console.error)
+    }
+  }, [activeTab, isSuperAdmin])
+
+  const handleSaveSmtp = async () => {
+    setSavingSmtp(true)
+    setTestResult(null)
+    try {
+      const res = await adminApi.updateEmailSettings(smtpForm)
+      if (res.data) {
+        setEmailStatus(res.data)
+        setEditingSmtp(false)
+        setTestResult({ success: true, message: 'SMTP settings updated successfully!' })
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, message: err?.response?.data?.message || 'Failed to update SMTP settings' })
+    } finally {
+      setSavingSmtp(false)
+    }
+  }
+
+  const handleSendTestEmail = async () => {
+    if (!testRecipient.trim()) return
+    setSendingTest(true)
+    setTestResult(null)
+    try {
+      const res = await adminApi.sendTestEmail(testRecipient.trim())
+      setTestResult({ success: res.success, message: res.message || 'Test email sent!' })
+    } catch (err: any) {
+      setTestResult({ success: false, message: err?.response?.data?.message || 'Failed to send test email' })
+    } finally {
+      setSendingTest(false)
+    }
+  }
 
   // Load Tab-Specific Data
   useEffect(() => {
@@ -375,7 +449,10 @@ export function SettingsPage() {
 
   const handleChangePassword = async () => {
     if (!changeCurrPass) return setSecMsg({ ok: false, text: 'Enter your current password.' })
-    if (!changeNewPass || changeNewPass.length < 6) return setSecMsg({ ok: false, text: 'New password must be at least 6 characters.' })
+    if (!changeNewPass || changeNewPass.length < 8) return setSecMsg({ ok: false, text: 'New password must be at least 8 characters.' })
+    if (!/^(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&_\-+=.])[A-Za-z\d@$!%*?&_\-+=.]{8,}$/.test(changeNewPass)) {
+      return setSecMsg({ ok: false, text: 'Password must be at least 8 characters with a letter, a number, and a special character (@, $, !, %, *, ?, &, _, -, +, =, .).' })
+    }
     if (changeNewPass !== changeConfirmPass) return setSecMsg({ ok: false, text: 'New passwords do not match.' })
     if (changeCurrPass === changeNewPass) return setSecMsg({ ok: false, text: 'New password must be different from current password.' })
     setPassSaving(true)
@@ -389,7 +466,11 @@ export function SettingsPage() {
         setChangeConfirmPass('')
       }
     } catch (e: any) {
-      setSecMsg({ ok: false, text: e.response?.data?.message || 'Could not update password.' })
+      const errorMsg = e.response?.data?.error?.details?.fields?.[0]?.message
+        || e.response?.data?.error?.message
+        || e.response?.data?.message
+        || 'Could not update password.'
+      setSecMsg({ ok: false, text: errorMsg })
     } finally {
       setPassSaving(false)
     }
@@ -941,13 +1022,13 @@ export function SettingsPage() {
             </Section>
 
             <Section title="Change Account Password">
-              <p style={{fontSize:12,color:'var(--b360-text-secondary)',margin:0,lineHeight:1.5}}>Update your login password. Changing your password invalidates active sessions across all devices for security.</p>
+              <p style={{fontSize:12,color:'var(--b360-text-secondary)',margin:0,lineHeight:1.5}}>Update your login password. Must be at least 8 characters and include a letter, number, and special character (@, $, !, %, *, ?, &, _, -, +, =, .).</p>
               <Input label="Current password" type="password" value={changeCurrPass} onChange={setChangeCurrPass} />
               <div className="responsive-grid responsive-grid-2" style={{gap:14}}>
-                <Input label="New password (min 6 chars)" type="password" value={changeNewPass} onChange={setChangeNewPass} />
+                <Input label="New password (min 8 chars)" type="password" value={changeNewPass} onChange={setChangeNewPass} />
                 <Input label="Confirm new password" type="password" value={changeConfirmPass} onChange={setChangeConfirmPass} />
               </div>
-              <div style={{display:'flex',justifyContent:'flex-end'}}><Btn disabled={passSaving || !changeCurrPass || !changeNewPass || changeNewPass.length < 6 || changeNewPass !== changeConfirmPass} onClick={handleChangePassword}>{passSaving ? 'Updating Password…' : 'Update Password'}</Btn></div>
+              <div style={{display:'flex',justifyContent:'flex-end'}}><Btn disabled={passSaving || !changeCurrPass || !changeNewPass || changeNewPass.length < 8 || changeNewPass !== changeConfirmPass} onClick={handleChangePassword}>{passSaving ? 'Updating Password…' : 'Update Password'}</Btn></div>
             </Section>
           </>}
 
@@ -981,6 +1062,242 @@ export function SettingsPage() {
       {/* ── TAB 6: NOTIFICATIONS & SUBSCRIPTION ── */}
       {activeTab === 'notifications' && isSuperAdmin && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Email Service Configuration (Oracle OCI, Gmail & Outlook 365) */}
+          <Section title="Email Service (SMTP)">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Mail size={18} style={{ color: emailStatus?.configured ? '#16a34a' : '#d97706' }} />
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>
+                    {emailStatus?.host?.includes('oraclecloud.com') || emailStatus?.host?.includes('oracle')
+                      ? 'Oracle Cloud (OCI) Email Delivery'
+                      : emailStatus?.host?.includes('gmail')
+                        ? 'Google Gmail SMTP'
+                        : emailStatus?.host?.includes('office365')
+                          ? 'Microsoft Outlook 365 SMTP'
+                          : 'Custom SMTP Server'}
+                  </span>
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: emailStatus?.configured ? '#047857' : '#b45309',
+                    background: emailStatus?.configured ? '#d1fae5' : '#fef3c7',
+                  }}>
+                    {emailStatus?.configured ? 'Connected / Configured' : 'Credentials Missing'}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--b360-text-secondary)', marginTop: 4 }}>
+                  Host: <strong>{emailStatus?.host || 'smtp.email.af-johannesburg-1.oci.oraclecloud.com'}</strong> : <strong>{emailStatus?.port || 587}</strong> (STARTTLS)
+                  {emailStatus?.fromEmail && <> &bull; Sender: <strong>{emailStatus.fromEmail}</strong> ({emailStatus.fromName || 'Biashara360'})</>}
+                </div>
+              </div>
+              <Btn variant="secondary" small onClick={() => setEditingSmtp(!editingSmtp)}>
+                {editingSmtp ? 'Close Settings' : 'Configure SMTP'}
+              </Btn>
+            </div>
+
+            {testResult && (
+              <div style={{
+                padding: '10px 14px',
+                borderRadius: 8,
+                fontSize: 13,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: testResult.success ? '#d1fae5' : '#fee2e2',
+                color: testResult.success ? '#065f46' : '#991b1b',
+                border: `1px solid ${testResult.success ? '#a7f3d0' : '#fecaca'}`
+              }}>
+                {testResult.success ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
+                <span>{testResult.message}</span>
+              </div>
+            )}
+
+            {/* Test Email Section */}
+            <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: '#334155' }}>
+                Test Email Connection
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <Input
+                    label=""
+                    placeholder="Recipient email address (e.g. your email)"
+                    value={testRecipient}
+                    onChange={setTestRecipient}
+                    type="email"
+                  />
+                </div>
+                <Btn
+                  disabled={sendingTest || !testRecipient.trim()}
+                  onClick={handleSendTestEmail}
+                  small
+                  icon={<Send size={14} />}
+                >
+                  {sendingTest ? 'Sending...' : 'Send Test Email'}
+                </Btn>
+              </div>
+            </div>
+
+            {/* Edit SMTP Settings Form */}
+            {editingSmtp && (
+              <div style={{ background: '#fafafa', padding: 16, borderRadius: 8, border: '1px solid #e5e7eb', marginTop: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <h4 style={{ fontWeight: 600, fontSize: 13, margin: 0, color: '#1f2937' }}>
+                    SMTP Server Configuration
+                  </h4>
+                  {/* Provider Quick Presets */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSmtpForm(p => ({
+                        ...p,
+                        host: 'smtp.email.af-johannesburg-1.oci.oraclecloud.com',
+                        port: 587,
+                        fromEmail: p.fromEmail || 'noreply@biashara360.co.ke',
+                        fromName: p.fromName || 'Biashara360'
+                      }))}
+                      style={{
+                        padding: '4px 8px', fontSize: 11, fontWeight: 600, borderRadius: 6,
+                        border: '1px solid #d1d5db',
+                        background: (smtpForm.host.includes('oraclecloud') || smtpForm.host.includes('oracle')) ? '#fef3c7' : 'white',
+                        color: (smtpForm.host.includes('oraclecloud') || smtpForm.host.includes('oracle')) ? '#b45309' : '#374151',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Oracle Cloud (OCI) Preset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSmtpForm(p => ({ ...p, host: 'smtp.gmail.com', port: 587 }))}
+                      style={{
+                        padding: '4px 8px', fontSize: 11, fontWeight: 600, borderRadius: 6,
+                        border: '1px solid #d1d5db', background: smtpForm.host.includes('gmail') ? '#e0f2fe' : 'white',
+                        color: smtpForm.host.includes('gmail') ? '#0369a1' : '#374151', cursor: 'pointer'
+                      }}
+                    >
+                      Gmail Preset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSmtpForm(p => ({ ...p, host: 'smtp.office365.com', port: 587 }))}
+                      style={{
+                        padding: '4px 8px', fontSize: 11, fontWeight: 600, borderRadius: 6,
+                        border: '1px solid #d1d5db', background: smtpForm.host.includes('office365') ? '#e0f2fe' : 'white',
+                        color: smtpForm.host.includes('office365') ? '#0369a1' : '#374151', cursor: 'pointer'
+                      }}
+                    >
+                      Outlook 365 Preset
+                    </button>
+                  </div>
+                </div>
+
+                {/* Region selector helper for Oracle Cloud */}
+                {(smtpForm.host.includes('oraclecloud') || smtpForm.host.includes('oracle')) && (
+                  <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fffbeb', borderRadius: 6, border: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#92400e' }}>OCI Region Endpoint:</span>
+                    {[
+                      { name: 'Frankfurt (eu-frankfurt-1)', host: 'smtp.email.eu-frankfurt-1.oci.oraclecloud.com' },
+                      { name: 'Johannesburg (af-johannesburg-1)', host: 'smtp.email.af-johannesburg-1.oci.oraclecloud.com' },
+                      { name: 'Ashburn (us-ashburn-1)', host: 'smtp.email.us-ashburn-1.oci.oraclecloud.com' },
+                      { name: 'London (uk-london-1)', host: 'smtp.email.uk-london-1.oci.oraclecloud.com' },
+                      { name: 'Phoenix (us-phoenix-1)', host: 'smtp.email.us-phoenix-1.oci.oraclecloud.com' },
+                    ].map(r => (
+                      <button
+                        key={r.host}
+                        type="button"
+                        onClick={() => setSmtpForm(p => ({ ...p, host: r.host }))}
+                        style={{
+                          padding: '2px 8px', fontSize: 11, borderRadius: 4, cursor: 'pointer',
+                          background: smtpForm.host === r.host ? '#f59e0b' : '#ffffff',
+                          color: smtpForm.host === r.host ? '#ffffff' : '#92400e',
+                          border: '1px solid #fcd34d', fontWeight: smtpForm.host === r.host ? 700 : 500
+                        }}
+                      >
+                        {r.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                  <Input
+                    label="SMTP Host"
+                    placeholder="smtp.email.eu-frankfurt-1.oci.oraclecloud.com"
+                    value={smtpForm.host}
+                    onChange={v => setSmtpForm(p => ({ ...p, host: v }))}
+                  />
+                  <Input
+                    label="SMTP Port"
+                    placeholder="587"
+                    type="number"
+                    value={String(smtpForm.port)}
+                    onChange={v => setSmtpForm(p => ({ ...p, port: parseInt(v) || 587 }))}
+                  />
+                  <Input
+                    label="Account Username / OCID"
+                    placeholder="e.g. ocid1.user.oc1... or email"
+                    value={smtpForm.username}
+                    onChange={v => setSmtpForm(p => ({ ...p, username: v, fromEmail: p.fromEmail || (v.includes('@') ? v : '') }))}
+                  />
+                  <Input
+                    label="Password / SMTP Secret"
+                    placeholder="Enter SMTP Password (or leave blank to keep unchanged)"
+                    type="password"
+                    value={smtpForm.password}
+                    onChange={v => setSmtpForm(p => ({ ...p, password: v }))}
+                  />
+                  <Input
+                    label="From Email (Approved Sender)"
+                    placeholder="e.g. noreply@biashara360.co.ke"
+                    value={smtpForm.fromEmail}
+                    onChange={v => setSmtpForm(p => ({ ...p, fromEmail: v }))}
+                  />
+                  <Input
+                    label="From Sender Name"
+                    placeholder="Biashara360"
+                    value={smtpForm.fromName}
+                    onChange={v => setSmtpForm(p => ({ ...p, fromName: v }))}
+                  />
+                </div>
+
+                {/* Helpful Note for Provider Requirements */}
+                {(smtpForm.host.includes('oraclecloud') || smtpForm.host.includes('oracle')) ? (
+                  <div style={{ marginTop: 12, padding: 12, background: '#fffbeb', borderRadius: 6, fontSize: 12, color: '#92400e', lineHeight: 1.5, border: '1px solid #fde68a' }}>
+                    <strong>Oracle Cloud Infrastructure (OCI) Email Delivery Setup:</strong>
+                    <ol style={{ margin: '6px 0 0 16px', padding: 0 }}>
+                      <li><strong>Email Domain:</strong> In OCI Console &rarr; <em>Developer Services &gt; Email Delivery &gt; Email Domains</em>, create your domain (e.g., <code>biashara360.co.ke</code>).</li>
+                      <li><strong>DNS Verification:</strong> Add DKIM and SPF (<code>v=spf1 include:rp.oracleemaildelivery.com ~all</code>) to your DNS manager.</li>
+                      <li><strong>Approved Sender:</strong> Under <em>Email Delivery &gt; Approved Senders</em>, add your sender address (e.g., <code>noreply@biashara360.co.ke</code>). It must match the <em>From Email</em> above.</li>
+                      <li><strong>SMTP Credentials:</strong> In <em>Identity &gt; Users &gt; [User] &gt; SMTP Credentials</em>, click <em>Generate SMTP Credentials</em>. Paste the generated username OCID into <em>Account Username / OCID</em> and secret key into <em>Password</em>.</li>
+                    </ol>
+                  </div>
+                ) : smtpForm.host.includes('gmail') ? (
+                  <div style={{ marginTop: 12, padding: 10, background: '#fef3c7', borderRadius: 6, fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
+                    <strong>Google Gmail Setup Requirement:</strong> Google does not allow standard account passwords for SMTP. You must generate a 16-character <strong>App Password</strong>:
+                    <ol style={{ margin: '6px 0 0 16px', padding: 0 }}>
+                      <li>Enable <strong>2-Step Verification</strong> in your Google Account.</li>
+                      <li>Visit <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" style={{ color: '#b45309', textDecoration: 'underline' }}>myaccount.google.com/apppasswords</a>.</li>
+                      <li>Create an app password named <em>Biashara360</em>.</li>
+                      <li>Paste the generated 16-character code into the password field above.</li>
+                    </ol>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 12, padding: 10, background: '#eff6ff', borderRadius: 6, fontSize: 12, color: '#1e40af' }}>
+                    <strong>Microsoft 365 Setup Note:</strong> Ensure <em>Authenticated SMTP (SMTP AUTH)</em> is enabled for this mailbox in Microsoft 365 Admin Center. If Multi-Factor Authentication is active, generate and use an <em>App Password</em>.
+                  </div>
+                )}
+
+                <div style={{ marginTop: 14, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <Btn variant="secondary" small onClick={() => setEditingSmtp(false)}>Cancel</Btn>
+                  <Btn small disabled={savingSmtp} onClick={handleSaveSmtp}>{savingSmtp ? 'Saving...' : 'Save SMTP Settings'}</Btn>
+                </div>
+              </div>
+            )}
+          </Section>
+
           <Section title="Alerts & Notification Preferences">
             <Toggle label="SMS Alerts (Payment confirmation, low inventory)" checked={smsAlerts} onChange={setSmsAlerts} />
             <Toggle label="Email Alerts (Daily sales summary, tax reminders)" checked={emailAlerts} onChange={setEmailAlerts} />

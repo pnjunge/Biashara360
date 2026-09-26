@@ -1238,6 +1238,41 @@ export const superAdminApi = {
     const res = await client.put<ApiResponse<{ key: string; value: string }>>('/admin/settings/mpesa-callback', { value })
     return res.data
   },
+  getEmailStatus: async () => {
+    const res = await client.get<ApiResponse<{
+      configured: boolean
+      host: string
+      port: number
+      username: string
+      fromEmail: string
+      fromName: string
+    }>>('/admin/email/status')
+    return res.data
+  },
+  updateEmailSettings: async (data: {
+    host?: string
+    port?: number
+    username?: string
+    password?: string
+    fromEmail?: string
+    fromName?: string
+  }) => {
+    const res = await client.put<ApiResponse<{
+      configured: boolean
+      host: string
+      port: number
+      username: string
+      fromEmail: string
+      fromName: string
+    }>>('/admin/email/settings', data)
+    return res.data
+  },
+  sendTestEmail: async (email: string) => {
+    const res = await client.post<ApiResponse<void>>('/admin/email/test', { email })
+    return res.data
+  },
 }
+
+export const adminApi = superAdminApi
 
 export default client
