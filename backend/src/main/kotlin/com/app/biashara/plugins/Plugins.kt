@@ -101,9 +101,9 @@ fun Application.configureCors() {
                 "localhost:8080",
                 // Production
                 "biashara360.co.ke",
+                "www.biashara360.co.ke",
                 "app.biashara360.co.ke",
-                "admin.biashara360.co.ke",
-                "enw9p7mvty.us-east-1.awsapprunner.com"
+                "admin.biashara360.co.ke"
             )
         
         allowedDomains.forEach { domain ->

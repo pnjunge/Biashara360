@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../App'
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
   CreditCard, BarChart3, Settings, LogOut, Bell, Search,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, FileCheck, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Link, Download, ChefHat
+  ChevronLeft, ChevronRight, ChevronDown, Menu, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Download, ChefHat, CalendarClock
 } from 'lucide-react'
 import styles from './AppShell.module.css'
-import { accessApi, hospitalityApi } from '../../services/api'
+import PortalOrdersInbox from '../orders/PortalOrdersInbox'
+import { accessApi, hospitalityApi, servicesApi } from '../../services/api'
 
 const navItems = [
   { key:'DASHBOARD', to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
@@ -16,33 +17,48 @@ const navItems = [
   { key:'HOSPITALITY_OPS', to: '/hospitality-operations', icon: Building2, label: 'Hospitality Operations' },
   { key:'OPEN_TABS', to: '/open-tabs', icon: ShoppingCart, label: 'Open Tabs' },
   { key:'HOSPITALITY', to: '/kitchen-display', icon: ChefHat, label: 'Kitchen & Bar Display' },
+  { key:'SERVICES', to: '/services', icon: CalendarClock, label: 'Appointments & Services' },
   { key:'INVENTORY', to: '/inventory',     icon: Package,         label: 'Inventory' },
   { key:'ORDERS', to: '/orders',        icon: ShoppingCart,    label: 'Orders' },
   { key:'CUSTOMERS', to: '/customers',     icon: Users,           label: 'Customers' },
   { key:'EXPENSES', to: '/expenses',      icon: Receipt,         label: 'Expenses' },
   { key:'PAYMENTS', to: '/payments',      icon: CreditCard,      label: 'Payments' },
-  { key:'TAX', to: '/tax',           icon: Receipt,          label: 'Tax' },
-  { key:'KRA', to: '/kra',           icon: FileCheck,        label: 'KRA iTax' },
   { key:'SOCIAL', to: '/social',        icon: MessageSquare,    label: 'Social Inbox' },
-  { key:'SOCIAL_SETUP', to: '/social-onboarding', icon: Link,         label: 'Social Setup' },
   { key:'USERS', to: '/users',         icon: UserPlus,         label: 'Users & Access' },
   { key:'REPORTS', to: '/reports',       icon: BarChart3,        label: 'Reports' },
   { key:'DOWNLOADS', to: '/downloads',     icon: Download,         label: 'Download Apps' },
+  { key:'SETTINGS', to: '/settings',     icon: Settings,         label: 'Settings' },
+]
+
+const navSectionDefinitions = [
+  { key: 'OPERATIONS', label: 'OPERATIONS', itemKeys: ['HOSPITALITY', 'HOSPITALITY_OPS', 'OPEN_TABS', 'SERVICES', 'INVENTORY', 'ORDERS', 'CUSTOMERS'] },
+  { key: 'FINANCE', label: 'FINANCE', itemKeys: ['EXPENSES', 'PAYMENTS'] },
+  { key: 'ENGAGEMENT', label: 'ENGAGEMENT', itemKeys: ['SOCIAL', 'REPORTS', 'DOWNLOADS'] },
+  { key: 'ADMINISTRATION', label: 'ADMINISTRATION', itemKeys: ['USERS', 'SETTINGS'] },
 ]
 
 export default function AppShell() {
   const { logout, user } = useAuth()
+  const location = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [allowedMenus, setAllowedMenus] = useState<Set<string> | null>(null)
+  const [servicesEnabled, setServicesEnabled] = useState(false)
   const [hospitalityEnabled, setHospitalityEnabled] = useState<boolean | null>(null)
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    OPERATIONS: true,
+    FINANCE: true,
+    ENGAGEMENT: true,
+    ADMINISTRATION: true,
+  })
   useEffect(() => {
     accessApi.me().then(result => {
       if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
     }).catch(() => setAllowedMenus(null))
+    servicesApi.status().then(result => setServicesEnabled(result.success && result.data?.enabled === true)).catch(() => setServicesEnabled(false))
     hospitalityApi.status().then(result => {
       if (result.success && result.data) setHospitalityEnabled(result.data.enabled)
     }).catch(() => setHospitalityEnabled(null))
@@ -50,17 +66,42 @@ export default function AppShell() {
       const enabled = (event as CustomEvent<{ enabled: boolean }>).detail?.enabled
       if (typeof enabled === 'boolean') setHospitalityEnabled(enabled)
     }
+    const handleServicesChange = (event: Event) => {
+      setServicesEnabled((event as CustomEvent<{ enabled: boolean }>).detail?.enabled === true)
+      accessApi.me().then(result => {
+        if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
+      }).catch(() => {})
+    }
+    window.addEventListener('services-mode-changed', handleServicesChange)
     window.addEventListener('hospitality-mode-changed', handleModeChange)
-    return () => window.removeEventListener('hospitality-mode-changed', handleModeChange)
+    return () => { window.removeEventListener('hospitality-mode-changed', handleModeChange); window.removeEventListener('services-mode-changed', handleServicesChange) }
   }, [user?.id])
   const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
   const visibleNavItems = navItems.filter(item => {
-    if (allowedMenus && !allowedMenus.has(item.key) && !(item.key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS'))) return false
+    if (item.key === 'SERVICES' && !servicesEnabled) return false
+    const accessKeys = [item.key]
+    if (allowedMenus && !accessKeys.some(key => allowedMenus.has(key) || (key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS')))) return false
     const isHospitalityNav = item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS' || item.to === '/kitchen-display'
     if (isHospitalityNav && hospitalityEnabled !== true) return false
     if (!isStaff) return true
-    return item.to !== '/users' && item.to !== '/business' && item.to !== '/cybersource-settings'
+    return item.to !== '/users' && item.to !== '/settings' && item.to !== '/business' && item.to !== '/cybersource-settings'
   })
+
+  const visibleTopNavItems = visibleNavItems.filter(item => item.key === 'DASHBOARD' || item.key === 'POS')
+  const visibleNavSections = navSectionDefinitions.map(section => ({
+    ...section,
+    items: section.itemKeys.flatMap(key => visibleNavItems.filter(item => item.key === key))
+  })).filter(section => section.items.length > 0)
+
+  const renderNavItem = (item: typeof navItems[number]) => {
+    const Icon = item.icon
+    return (
+      <NavLink key={item.to} to={item.to!} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`} title={collapsed ? item.label : undefined} onClick={() => setMobileOpen(false)}>
+        <Icon size={18} className={styles.navIcon} />
+        {!collapsed && <span>{item.label}</span>}
+      </NavLink>
+    )
+  }
 
   const userInitials = user?.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'
 
@@ -86,32 +127,26 @@ export default function AppShell() {
         </div>
 
         <nav className={styles.nav}>
-          {visibleNavItems.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to} to={to}
-              className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
-              title={collapsed ? label : undefined}
-              onClick={() => setMobileOpen(false)}
-            >
-              <Icon size={18} className={styles.navIcon} />
-              {!collapsed && <span>{label}</span>}
-            </NavLink>
+          {visibleTopNavItems.map(renderNavItem)}
+          {visibleNavSections.map(section => (
+            <div key={section.key} className={styles.navSection}>
+              {!collapsed && (
+                <button
+                  type="button"
+                  className={styles.navSectionHeader}
+                  onClick={() => setOpenSections(current => ({ ...current, [section.key]: !current[section.key] }))}
+                  aria-expanded={openSections[section.key]}
+                >
+                  <span>{section.label}</span>
+                  <ChevronDown size={14} className={`${styles.groupChevron} ${openSections[section.key] ? styles.groupChevronOpen : ''}`} />
+                </button>
+              )}
+              {(collapsed || openSections[section.key]) && section.items.map(renderNavItem)}
+            </div>
           ))}
         </nav>
 
         <div className={styles.sidebarBottom}>
-          {!isStaff && (!allowedMenus || allowedMenus.has('SETTINGS')) && (
-            <NavLink
-              to="/settings"
-              className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
-              title={collapsed ? 'Settings' : undefined}
-              onClick={() => setMobileOpen(false)}
-            >
-              <Settings size={18} className={styles.navIcon} />
-              {!collapsed && <span>Settings</span>}
-            </NavLink>
-          )}
-          
           <button
             className={styles.collapseBtn}
             onClick={() => setCollapsed(c => !c)}
@@ -134,13 +169,15 @@ export default function AppShell() {
             <Search size={16} className={styles.searchIcon} />
             <input
               className={styles.searchInput}
-              placeholder="Search anything..."
+              placeholder="Search orders, tables, menu items..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
+            <span className={styles.searchShortcut}>Ctrl + K</span>
           </div>
 
           <div className={styles.topbarRight}>
+            {user?.businessId && <PortalOrdersInbox key={`${user.businessId}:${user.id}`} />}
             <button className={styles.iconBtn} title="Notifications">
               <Bell size={18} />
               <span className={styles.notifDot} />

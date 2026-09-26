@@ -267,9 +267,9 @@ fun DashboardScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     KpiCard(
                         modifier = Modifier.weight(1f),
-                        title = "This Month Revenue",
-                        value = "KES ${"%,.0f".format(if (state.monthRevenue > 0) state.monthRevenue else 8850.0)}",
-                        change = "↑ 12.5% vs last month",
+                        title = "${state.selectedPeriod.label} Revenue",
+                        value = "KES ${"%,.0f".format(state.monthRevenue)}",
+                        change = "",
                         icon = Icons.AutoMirrored.Filled.TrendingUp,
                         color = Color(0xFF00B074),
                         cardBgColor = Color(0xFFF2FBF7),
@@ -279,8 +279,8 @@ fun DashboardScreen(
                     KpiCard(
                         modifier = Modifier.weight(1f),
                         title = "Net Profit",
-                        value = "KES ${"%,.0f".format(if (state.netProfit > 0) state.netProfit else 4450.0)}",
-                        change = "↑ 8.3% vs last month",
+                        value = "KES ${"%,.0f".format(state.netProfit)}",
+                        change = "",
                         icon = Icons.Filled.Business,
                         color = Color(0xFF2563EB),
                         cardBgColor = Color(0xFFF2F6FF),
@@ -295,9 +295,9 @@ fun DashboardScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     KpiCard(
                         modifier = Modifier.weight(1f),
-                        title = "Orders Today",
-                        value = "${if (state.totalOrders > 0) state.totalOrders else 63}",
-                        change = "↑ 15.2% vs yesterday",
+                        title = "Total Orders",
+                        value = "${state.totalOrders}",
+                        change = "",
                         icon = Icons.Filled.ShoppingCart,
                         color = Color(0xFFF59E0B),
                         cardBgColor = Color(0xFFFFF9F0),
@@ -307,8 +307,8 @@ fun DashboardScreen(
                     KpiCard(
                         modifier = Modifier.weight(1f),
                         title = "Pending Payments",
-                        value = "${if (state.pendingOrders > 0) state.pendingOrders else 14}",
-                        change = "↑ 7 vs yesterday",
+                        value = "${state.pendingOrders}",
+                        change = "",
                         icon = Icons.Filled.AccessTime,
                         color = Color(0xFFEF4444),
                         cardBgColor = Color(0xFFFFF2F2),
@@ -484,13 +484,6 @@ fun KpiCard(
     iconBgColor: Color = color.copy(0.12f),
     onClick: () -> Unit = {}
 ) {
-    val points = when (title) {
-        "Net Profit" -> listOf(0.25f, 0.15f, 0.4f, 0.3f, 0.55f, 0.35f, 0.45f, 0.6f)
-        "Orders Today" -> listOf(0.35f, 0.25f, 0.5f, 0.4f, 0.3f, 0.45f, 0.35f, 0.4f)
-        "Pending Payments" -> listOf(0.2f, 0.3f, 0.15f, 0.25f, 0.2f, 0.35f, 0.25f, 0.2f)
-        else -> listOf(0.15f, 0.35f, 0.2f, 0.45f, 0.3f, 0.5f, 0.4f, 0.65f)
-    }
-
     Card(
         modifier = modifier.clip(RoundedCornerShape(24.dp)).clickable(onClick = onClick),
         shape = RoundedCornerShape(24.dp),
@@ -499,15 +492,6 @@ fun KpiCard(
         border = BorderStroke(1.dp, color.copy(alpha = 0.15f))
     ) {
         Box(modifier = Modifier.fillMaxWidth().height(160.dp)) {
-            WavyLineChart(
-                color = color,
-                points = points,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .height(48.dp)
-            )
-
             Column(
                 modifier = Modifier.fillMaxSize().padding(16.dp),
                 verticalArrangement = Arrangement.SpaceBetween
@@ -537,7 +521,7 @@ fun KpiCard(
                     Text(title, fontSize = 13.sp, color = Color(0xFF475569), fontWeight = FontWeight.SemiBold)
                     Text(value, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
                     
-                    Row(
+                    if (change.isNotBlank()) Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -574,14 +558,10 @@ fun RevenueBarChart(
     modifier: Modifier = Modifier,
     weeklyRevenue: List<Pair<String, Double>> = emptyList()
 ) {
-    val labels = listOf("May 8", "May 9", "May 10", "May 11", "May 12", "May 13", "May 14")
-    val defaultPoints = listOf(0.15f, 0.3f, 0.42f, 0.48f, 0.55f, 0.58f, 0.88f)
-    val points = if (weeklyRevenue.size >= 7) {
-        val max = weeklyRevenue.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 10000.0
-        weeklyRevenue.take(7).map { (it.second / max).toFloat().coerceIn(0.1f, 0.95f) }
-    } else {
-        defaultPoints
-    }
+    val series = weeklyRevenue.takeLast(7)
+    val labels = series.map { it.first }
+    val maximum = (series.maxOfOrNull { it.second } ?: 0.0).coerceAtLeast(1.0)
+    val points = series.map { (it.second / maximum).toFloat() }
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -613,7 +593,7 @@ fun RevenueBarChart(
                     }
                     Column {
                         Text("Revenue Trend", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
-                        Text("Last 7 days", fontSize = 12.sp, color = Color(0xFF64748B))
+                        Text(if (series.isEmpty()) "Revenue data unavailable" else "Last 7 days", fontSize = 12.sp, color = Color(0xFF64748B))
                     }
                 }
                 Row(
@@ -660,7 +640,7 @@ fun RevenueBarChart(
                         verticalArrangement = Arrangement.SpaceBetween,
                         horizontalAlignment = Alignment.Start
                     ) {
-                        listOf("10K", "7.5K", "5K", "2.5K", "0").forEach { label ->
+                        (4 downTo 0).map { "%,.0f".format(maximum * it / 4.0) }.forEach { label ->
                             Text(label, fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium)
                         }
                     }
@@ -761,8 +741,8 @@ fun RevenueBarChart(
                             }
                         }
 
-                        // Tooltip Badge on Latest Point
-                        Surface(
+                        // Latest observed revenue
+                        if (series.isNotEmpty()) Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = Color(0xFF00B074),
                             modifier = Modifier
@@ -773,8 +753,8 @@ fun RevenueBarChart(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text("KES 8,850", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                Text("May 14", fontSize = 8.sp, color = Color.White.copy(alpha = 0.9f))
+                                Text("KES ${"%,.2f".format(series.last().second)}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(series.last().first, fontSize = 8.sp, color = Color.White.copy(alpha = 0.9f))
                             }
                         }
                     }

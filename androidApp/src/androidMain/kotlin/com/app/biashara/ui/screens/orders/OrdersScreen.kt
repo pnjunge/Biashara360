@@ -148,7 +148,7 @@ fun OrderCard(order: Order, onClick: () -> Unit) {
             HorizontalDivider(color = Color(0xFFF1F5F9))
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("KES ${"%,.0f".format(order.subtotal)}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color(0xFF0F172A))
+                Text("KES ${"%,.0f".format(order.total)}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color(0xFF0F172A))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     StatusBadge(order.paymentStatus.displayLabel(), paymentStatusColor(order.paymentStatus.name))
                     StatusBadge(order.deliveryStatus.displayLabel(), Color.Gray)
@@ -222,7 +222,7 @@ fun OrderDetailScreen(
                         Text("Delivery Status", color = Color(0xFF64748B)); Text(order.deliveryStatus.displayLabel(), color = Color(0xFF0F172A))
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Total", color = Color(0xFF64748B)); Text("KES ${"%,.0f".format(order.subtotal)}", fontWeight = FontWeight.Bold, color = B360Green)
+                        Text("Total", color = Color(0xFF64748B)); Text("KES ${"%,.0f".format(order.total)}", fontWeight = FontWeight.Bold, color = B360Green)
                     }
                     if (!order.mpesaTransactionCode.isNullOrEmpty()) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

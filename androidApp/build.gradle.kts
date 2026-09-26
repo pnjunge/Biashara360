@@ -18,6 +18,9 @@ android {
     }
 
     defaultConfig {
+        val apiBaseUrl = providers.gradleProperty("API_BASE_URL").orElse(providers.environmentVariable("API_BASE_URL")).getOrElse("https://api.biashara360.co.ke/v1")
+        require(apiBaseUrl.startsWith("https://")) { "API_BASE_URL must use HTTPS" }
+        buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl.trimEnd('/').replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         applicationId = "com.app.biashara"
         minSdk = 24
         targetSdk = 34

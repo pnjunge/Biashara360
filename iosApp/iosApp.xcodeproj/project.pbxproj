@@ -21,6 +21,8 @@
 		B3600012 /* B360Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600112 /* B360Theme.swift */; };
 		B3600013 /* ViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600113 /* ViewModels.swift */; };
 		B3600015 /* BiometricAuthentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600115 /* BiometricAuthentication.swift */; };
+		B3600016 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3600116 /* APIClient.swift */; };
+		B3600017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B3600117 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +42,8 @@
 		B3600113 /* ViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewModels/ViewModels.swift"; sourceTree = "<group>"; };
 		B3600114 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B3600115 /* BiometricAuthentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Security/BiometricAuthentication.swift"; sourceTree = "<group>"; };
+		B3600116 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Networking/APIClient.swift"; sourceTree = "<group>"; };
+		B3600117 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,6 +82,8 @@
 				B3600112 /* B360Theme.swift */,
 				B3600113 /* ViewModels.swift */,
 				B3600115 /* BiometricAuthentication.swift */,
+				B3600116 /* APIClient.swift */,
+				B3600117 /* Assets.xcassets */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
@@ -143,6 +149,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B3600017 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -167,6 +174,7 @@
 				B3600012 /* B360Theme.swift in Sources */,
 				B3600013 /* ViewModels.swift in Sources */,
 				B3600015 /* BiometricAuthentication.swift in Sources */,
+				B3600016 /* APIClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

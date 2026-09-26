@@ -57,8 +57,44 @@ data class MetaOnboardingConfigurationResponse(
     val configured: Boolean,
     val appId: String? = null,
     val configurationId: String? = null,
+    val businessLoginConfigured: Boolean = false,
+    val businessLoginConfigurationId: String? = null,
     val graphApiVersion: String = "v25.0",
-    val missing: List<String> = emptyList()
+    val missing: List<String> = emptyList(),
+    val businessLoginMissing: List<String> = emptyList()
+)
+
+@Serializable
+data class MetaBusinessLoginDiscoveryRequest(val code: String)
+
+@Serializable
+data class MetaBusinessAsset(
+    val platform: String,
+    val accountId: String,
+    val name: String,
+    val pageId: String,
+    val pageName: String,
+    val username: String? = null,
+    val pictureUrl: String? = null
+)
+
+@Serializable
+data class MetaBusinessLoginDiscoveryResponse(
+    val sessionToken: String,
+    val assets: List<MetaBusinessAsset>
+)
+
+@Serializable
+data class MetaBusinessAssetSelection(
+    val platform: String,
+    val accountId: String,
+    val channelName: String? = null
+)
+
+@Serializable
+data class MetaBusinessLoginConnectRequest(
+    val sessionToken: String,
+    val selections: List<MetaBusinessAssetSelection>
 )
 
 @Serializable

@@ -66,6 +66,32 @@
   overflow-y: auto;
 }
 
+.navSection {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+}
+
+.navSectionHeader {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px 5px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.navSectionHeader:hover {
+  color: white;
+}
+
 .navItem {
   display: flex;
   align-items: center;
@@ -89,6 +115,50 @@
   color: white;
   border-left: 3px solid var(--b360-green);
   padding-left: 9px;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navGroup > .navItem {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  background: transparent;
+}
+
+.groupChevron {
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+
+.groupChevronOpen {
+  transform: rotate(180deg);
+}
+
+.navSubItems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 30px;
+}
+
+.navSubItem {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.navSubItem:hover,
+.navSubItemActive {
+  color: white;
+  background: var(--b360-sidebar-hover);
 }
 
 .sidebar.collapsed .navItem {
@@ -150,7 +220,7 @@
 .searchWrap {
   position: relative;
   flex: 1;
-  max-width: 400px;
+  max-width: 660px;
 }
 .searchIcon {
   position: absolute;
@@ -173,6 +243,20 @@
   border-color: var(--b360-green);
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
   background: white;
+}
+.searchShortcut {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  padding: 3px 7px;
+  color: var(--b360-text-secondary);
+  font-size: 10px;
+  line-height: 1.2;
+  border: 1px solid var(--b360-border);
+  border-radius: 5px;
+  background: white;
+  pointer-events: none;
 }
 
 .topbarRight {
@@ -382,6 +466,7 @@
   .searchWrap { max-width: none; min-width: 0; }
   .searchInput { padding: 9px 10px 9px 34px; font-size: 12px; }
   .searchIcon { left: 11px; }
+  .searchShortcut { display: none; }
   .topbarRight { gap: 6px; }
   .topbarUserCard { padding: 5px; border: 0; }
   .topbarUserInfo, .chevronDown { display: none; }

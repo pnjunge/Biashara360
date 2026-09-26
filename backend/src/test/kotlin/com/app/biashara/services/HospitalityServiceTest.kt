@@ -23,4 +23,25 @@ class HospitalityServiceTest {
         assertEquals("KITCHEN", hospitalityStationFor("Food & Beverage"))
         assertEquals("BAR", hospitalityStationFor("Beer & Wine"))
     }
+    @Test
+    fun `mixed order sends only food to kitchen and preserves full customer tab`() {
+        val food = "Meals" to 2
+        val order = listOf(food, "Beer & Wine" to 3, "Drinks" to 1)
+
+        assertEquals(listOf(food), kitchenItems(order) { it.first })
+        assertEquals(3, order.size)
+        assertEquals(6, order.sumOf { it.second })
+    }
+
+    @Test
+    fun `drinks and retail only order needs no kitchen ticket`() {
+        val categories = listOf("Beer & Wine", "Spirits", "Cocktails", "Juice", "Soda", "Water", "Clothing")
+        assertEquals(emptyList(), kitchenItems(categories) { it })
+    }
+
+    @Test
+    fun `food selection handles category case and surrounding whitespace`() {
+        assertEquals(listOf("  FOOD  ", "Snacks", "Bakery"),
+            kitchenItems(listOf("  FOOD  ", "Snacks", "Bakery", " DRINKS ")) { it })
+    }
 }

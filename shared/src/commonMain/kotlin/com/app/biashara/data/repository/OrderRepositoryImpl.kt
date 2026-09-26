@@ -55,6 +55,9 @@ data class OrderDto(
     val taxIncluded: Boolean = false,
     val taxRate: Double = 0.0,
     val taxAmount: Double = 0.0,
+    val hospitalityTableId: String? = null,
+    val serviceType: String = "RETAIL",
+    val guestCount: Int = 1,
     val notes: String = "",
     val createdAt: String,
     val updatedAt: String
@@ -72,7 +75,10 @@ private data class CreateOrderRequestDto(
     val paymentStatus: String? = null,
     val includeTax: Boolean,
     val taxRate: Double,
-    val notes: String
+    val notes: String,
+    val hospitalityTableId: String?,
+    val serviceType: String,
+    val guestCount: Int
 )
 
 @kotlinx.serialization.Serializable
@@ -141,7 +147,10 @@ class OrderRepositoryImpl(
                     paymentStatus = order.paymentStatus.name,
                     includeTax = order.includeTax,
                     taxRate = order.taxRate,
-                    notes = order.notes
+                    notes = order.notes,
+                    hospitalityTableId = order.hospitalityTableId,
+                    serviceType = order.serviceType,
+                    guestCount = order.guestCount
                 )
             )
         }.body()
@@ -160,7 +169,8 @@ class OrderRepositoryImpl(
             payment_status = saved.paymentStatus, delivery_status = saved.deliveryStatus,
             payment_method = saved.paymentMethod, mpesa_transaction_code = saved.mpesaTransactionCode,
             notes = saved.notes, subtotal = saved.items.sumOf { it.quantity * it.unitPrice },
-            created_at = saved.createdAt, updated_at = saved.updatedAt
+            created_at = saved.createdAt, updated_at = saved.updatedAt,
+            tax_included = if (saved.taxIncluded) 1L else 0L, tax_rate = saved.taxRate
         )
         saved.items.forEach { item ->
             queries.insertOrderItem(
@@ -307,13 +317,13 @@ class OrderRepositoryImpl(
                 }
             }.body()
 
-            val paged = response.data
-            if (paged != null) {
-                remoteOrders += paged.data
-                hasMore = paged.hasMore
-            } else {
-                hasMore = false
+            check(response.success) { response.message.ifBlank { "Failed to fetch orders" } }
+            val paged = requireNotNull(response.data) { "Order response has no data" }
+            check(paged.page == page && (!paged.hasMore || paged.data.isNotEmpty())) {
+                "Incomplete order pagination"
             }
+            remoteOrders += paged.data
+            hasMore = paged.hasMore
             page += 1
         } while (hasMore)
 
@@ -347,7 +357,8 @@ class OrderRepositoryImpl(
                     notes = dto.notes,
                     subtotal = dto.items.sumOf { it.quantity * it.unitPrice },
                     created_at = dto.createdAt,
-                    updated_at = dto.updatedAt
+                    updated_at = dto.updatedAt,
+                    tax_included = if (dto.taxIncluded) 1L else 0L, tax_rate = dto.taxRate
                 )
 
                 dto.items.forEach { item ->
@@ -386,6 +397,9 @@ class OrderRepositoryImpl(
         deliveryStatus = DeliveryStatus.fromString(deliveryStatus),
         paymentMethod = PaymentMethod.fromString(paymentMethod),
         mpesaTransactionCode = mpesaTransactionCode,
+        hospitalityTableId = hospitalityTableId,
+        serviceType = serviceType,
+        guestCount = guestCount,
         includeTax = taxIncluded,
         taxRate = taxRate,
         notes = notes,
@@ -416,6 +430,8 @@ class OrderRepositoryImpl(
              deliveryStatus = DeliveryStatus.fromString(delivery_status),
              paymentMethod = PaymentMethod.fromString(payment_method),
              mpesaTransactionCode = mpesa_transaction_code,
+             includeTax = tax_included != 0L,
+             taxRate = tax_rate,
              notes = notes,
              createdAt = runCatching { Instant.parse(created_at) }
                  .getOrDefault(kotlinx.datetime.Clock.System.now()),

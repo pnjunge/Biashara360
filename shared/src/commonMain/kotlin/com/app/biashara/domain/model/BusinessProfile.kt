@@ -27,6 +27,8 @@ data class BusinessProfile(
     val receiptHeader: String = "Welcome to our store!",
     val receiptFooter: String = "Thank you for shopping with us!",
     val receiptLogo: String? = null,
+    val receiptLogoWidthMm: Int = 42,
+    val receiptLogoHeightMm: Int = 20,
     val receiptShowTax: Boolean = true,
     val receiptShowCustomer: Boolean = true
 )

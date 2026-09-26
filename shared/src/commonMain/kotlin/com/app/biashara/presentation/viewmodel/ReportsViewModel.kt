@@ -37,9 +37,12 @@ class ReportsViewModel(
         // Sync in background
         scope.launch {
             _state.update { it.copy(isSyncing = true) }
+            var syncError: String? = null
             try {
-                orderRepository?.syncOrdersFromApi(businessId)
-            } catch (_: Exception) {}
+                orderRepository?.syncOrdersFromApi(businessId)?.getOrThrow()
+            } catch (e: Exception) {
+                syncError = e.message ?: "Could not refresh orders"
+            }
             try {
                 expenseRepository?.syncExpensesFromApi(businessId)
             } catch (_: Exception) {}
@@ -49,13 +52,13 @@ class ReportsViewModel(
             
             _state.update { it.copy(isSyncing = false) }
             // Reload report with updated synced data
-            loadLocalReport(businessId, periodLabel)
+            loadLocalReport(businessId, periodLabel, syncError)
         }
     }
 
-    private fun loadLocalReport(businessId: String, periodLabel: String) {
+    private fun loadLocalReport(businessId: String, periodLabel: String, syncError: String? = null) {
         scope.launch {
-            _state.update { it.copy(isLoading = true, error = null, selectedPeriodLabel = periodLabel) }
+            _state.update { it.copy(isLoading = true, error = syncError, selectedPeriodLabel = periodLabel) }
             try {
                 val period = buildPeriod(periodLabel)
                 val summary = getProfitSummaryUseCase(businessId, period)

@@ -54,3 +54,8 @@ Auth (4) · Products (6) · Orders (4) · Customers (4) · Expenses (3) · Payme
 - Approve: 4242 4242 4242 4242 (Visa), 5555 5555 5555 4444 (MC)
 - Decline: 4111 1111 1111 1111
 - Expiry: 12/2031, CVV: 123
+
+## Social signup
+
+Business owners can sign up and sign in on the web with Google or Facebook.
+See [provider configuration and verification](backend/SOCIAL_SIGN_IN.md) for setup.

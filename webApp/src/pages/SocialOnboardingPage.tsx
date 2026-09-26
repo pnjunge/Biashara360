@@ -5,7 +5,7 @@ import {
   Cpu, CheckCircle2, AlertCircle, Info, Settings, ShieldAlert, Zap,
   Play, Link as LinkIcon, ExternalLink
 } from 'lucide-react'
-import { socialApi, SocialChannel, MetaOnboardingConfiguration } from '../services/api'
+import { socialApi, SocialChannel, MetaOnboardingConfiguration, MetaBusinessAsset } from '../services/api'
 import { PageHeader, Card, Btn, Input, ProgressBar, AlertBanner } from '../components/ui'
 
 // ── Platform Brand Styling ───────────────────────────────────────────────────
@@ -111,6 +111,8 @@ export default function SocialOnboardingPage() {
   const [loading, setLoading] = useState(true)
   const [metaConfiguration, setMetaConfiguration] = useState<MetaOnboardingConfiguration | null>(null)
   const [metaAuthorizationCode, setMetaAuthorizationCode] = useState('')
+  const [metaBusinessAssets, setMetaBusinessAssets] = useState<MetaBusinessAsset[]>([])
+  const [metaBusinessSessionToken, setMetaBusinessSessionToken] = useState('')
 
   // Credentials form
   const [channelName, setChannelName] = useState('')
@@ -259,6 +261,94 @@ export default function SocialOnboardingPage() {
     }
   }
 
+  const launchMetaBusinessLogin = () => {
+    if (!metaConfiguration?.businessLoginConfigured || !metaConfiguration.appId || !metaConfiguration.businessLoginConfigurationId) {
+      setErrorMsg('Facebook and Instagram business login is not configured for this deployment.')
+      return
+    }
+    const start = () => (window as any).FB.login(
+      async (response: any) => {
+        const code = response?.authResponse?.code
+        if (!code) {
+          setErrorMsg('Meta sign-in was cancelled or did not grant access.')
+          return
+        }
+        setSavingChannel(true)
+        setErrorMsg('')
+        try {
+          const result = await socialApi.discoverMetaBusinessAssets(String(code))
+          if (!result.success || !result.data) {
+            setErrorMsg(result.message || 'Meta could not load your business accounts.')
+            return
+          }
+          const matching = result.data.assets.filter(asset => asset.platform === selectedPlatform)
+          setMetaBusinessAssets(matching)
+          setMetaBusinessSessionToken(result.data.sessionToken)
+          if (matching.length === 0) {
+            setErrorMsg(selectedPlatform === 'INSTAGRAM'
+              ? 'No Instagram professional account linked to an authorized Facebook Page was found.'
+              : 'No authorized Facebook Page was found.')
+          }
+        } catch (e: any) {
+          setErrorMsg(e.response?.data?.message || 'Unable to complete Meta sign-in.')
+        } finally {
+          setSavingChannel(false)
+        }
+      },
+      {
+        config_id: metaConfiguration.businessLoginConfigurationId,
+        response_type: 'code',
+        override_default_response_type: true
+      }
+    )
+    if ((window as any).FB) {
+      start()
+      return
+    }
+    ;(window as any).fbAsyncInit = () => {
+      ;(window as any).FB.init({
+        appId: metaConfiguration.appId,
+        cookie: true,
+        xfbml: true,
+        version: metaConfiguration.graphApiVersion || 'v25.0'
+      })
+      start()
+    }
+    if (!document.getElementById('facebook-jssdk')) {
+      const script = document.createElement('script')
+      script.id = 'facebook-jssdk'
+      script.async = true
+      script.defer = true
+      script.crossOrigin = 'anonymous'
+      script.src = 'https://connect.facebook.net/en_US/sdk.js'
+      document.body.appendChild(script)
+    }
+  }
+
+  const connectMetaBusinessAsset = async (asset: MetaBusinessAsset) => {
+    if (!metaBusinessSessionToken) return
+    setSavingChannel(true)
+    setErrorMsg('')
+    try {
+      const result = await socialApi.connectMetaBusinessAssets({
+        sessionToken: metaBusinessSessionToken,
+        selections: [{ platform: asset.platform, accountId: asset.accountId, channelName: asset.name }]
+      })
+      const channel = result.data?.find(item => item.platform === asset.platform && item.externalId === asset.accountId)
+      if (!result.success || !channel) {
+        setErrorMsg(result.message || 'Meta could not connect the selected account.')
+        return
+      }
+      setCreatedChannel(channel)
+      setChannels(previous => [...previous.filter(item => item.id !== channel.id), channel])
+      setCurrentStep(3)
+    } catch (e: any) {
+      setErrorMsg(e.response?.data?.message || 'Unable to connect the selected Meta account.')
+    } finally {
+      setSavingChannel(false)
+    }
+  }
+
   const loadChannels = async () => {
     setLoading(true)
     try {
@@ -293,6 +383,8 @@ export default function SocialOnboardingPage() {
     setChannelName(`${PLATFORMS.find(p => p.id === platformId)?.name} Integration`)
     setExternalId('')
     setAccessToken('')
+    setMetaBusinessAssets([])
+    setMetaBusinessSessionToken('')
     setCreatedChannel(null)
     setVerificationStage('idle')
     setVerificationLogs([])
@@ -661,7 +753,7 @@ export default function SocialOnboardingPage() {
               <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>
                 {selectedPlatform === 'WHATSAPP'
                   ? 'Meta securely authorizes your business account. No tokens or technical identifiers need to be copied.'
-                  : 'Input API and identifier credentials generated from your developer profile.'}
+                  : 'Sign in once, choose the account, and Biashara360 completes the technical setup.'}
               </span>
             </div>
           </div>
@@ -689,8 +781,63 @@ export default function SocialOnboardingPage() {
             </div>
           )}
 
-          {selectedPlatform !== 'WHATSAPP' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, flexWrap: 'wrap' }}>
+          {selectedPlatform !== 'WHATSAPP' && (<>
+          <div style={{ padding: 18, border: `1px solid ${platformMeta.color}33`, borderRadius: 12, background: platformMeta.bg }}>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6 }}>Connect with Meta</div>
+            <div style={{ fontSize: 12, color: 'var(--b360-text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>
+              Sign in to Meta and select the {selectedPlatform === 'FACEBOOK' ? 'Facebook Page' : 'Instagram professional account'} you want to connect. Access tokens and webhook subscriptions are handled securely in the background.
+            </div>
+            {!metaConfiguration?.businessLoginConfigured && metaConfiguration && (
+              <AlertBanner
+                message={`Meta Business Login needs administrator configuration: ${metaConfiguration.businessLoginMissing.join(', ')}`}
+                icon={<ShieldAlert size={16} />}
+                color="var(--b360-red)"
+              />
+            )}
+            <div style={{ marginTop: 12 }}>
+              <Btn onClick={launchMetaBusinessLogin} disabled={savingChannel || !metaConfiguration?.businessLoginConfigured}>
+                {savingChannel ? 'Connecting...' : 'Continue with Meta'}
+              </Btn>
+            </div>
+          </div>
+
+          {metaBusinessAssets.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 800 }}>Choose an account</div>
+              {metaBusinessAssets.map(asset => (
+                <button
+                  key={`${asset.platform}:${asset.accountId}`}
+                  type="button"
+                  onClick={() => connectMetaBusinessAsset(asset)}
+                  disabled={savingChannel}
+                  style={{
+                    border: '1px solid var(--b360-border)', background: 'white', borderRadius: 10,
+                    padding: 14, cursor: savingChannel ? 'wait' : 'pointer', display: 'flex',
+                    alignItems: 'center', justifyContent: 'space-between', textAlign: 'left'
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {asset.pictureUrl
+                      ? <img src={asset.pictureUrl} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }} />
+                      : <span style={{ width: 38, height: 38, borderRadius: '50%', background: platformMeta.bg, display: 'grid', placeItems: 'center' }}>{platformMeta.icon}</span>}
+                    <span>
+                      <strong style={{ display: 'block', fontSize: 13 }}>{asset.name}</strong>
+                      <small style={{ color: 'var(--b360-text-secondary)' }}>
+                        {asset.username ? `@${asset.username} · ` : ''}{asset.pageName}
+                      </small>
+                    </span>
+                  </span>
+                  <span style={{ color: platformMeta.color, fontWeight: 800, fontSize: 12 }}>Connect</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <details style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 14 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--b360-text-secondary)' }}>
+              Advanced: connect with an account ID and access token
+            </summary>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <Input
                 label="Integration Display Name *"
@@ -736,13 +883,14 @@ export default function SocialOnboardingPage() {
               </div>
             </div>
           </div>
-          )}
+          </details>
+          </>)}
 
           <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 20, display: 'flex', justifyContent: 'space-between' }}>
             <Btn variant="secondary" onClick={() => setCurrentStep(0)} icon={<ArrowLeft size={14} />}>
               Back
             </Btn>
-            {selectedPlatform !== 'WHATSAPP' && (
+            {selectedPlatform !== 'WHATSAPP' && accessToken.trim() && externalId.trim() && (
               <Btn onClick={handleSaveCredentials} disabled={savingChannel}>
                 {savingChannel ? 'Saving Details...' : 'Save & Continue'}
               </Btn>

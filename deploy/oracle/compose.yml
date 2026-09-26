@@ -1,0 +1,120 @@
+name: biashara360
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    platform: linux/arm64
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN:-biashara360.co.ke}
+      WEB_ALT_DOMAIN: ${WEB_ALT_DOMAIN:-www.biashara360.co.ke}
+      API_DOMAIN: ${API_DOMAIN:-api.biashara360.co.ke}
+      TLS_EMAIL: ${TLS_EMAIL:-admin@biashara360.co.ke}
+    volumes:
+      - ../hetzner/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks: [edge]
+
+  web:
+    platform: linux/arm64
+    build:
+      context: ../../webApp
+      args:
+        VITE_API_BASE_URL: https://${API_DOMAIN:-api.biashara360.co.ke}/v1
+        VITE_META_APP_ID: ${META_APP_ID:-}
+        VITE_META_EMBEDDED_SIGNUP_CONFIG_ID: ${META_EMBEDDED_SIGNUP_CONFIG_ID:-}
+        VITE_ANDROID_DOWNLOAD_URL: ${VITE_ANDROID_DOWNLOAD_URL:-}
+        VITE_IOS_DOWNLOAD_URL: ${VITE_IOS_DOWNLOAD_URL:-}
+        VITE_WINDOWS_DOWNLOAD_URL: ${VITE_WINDOWS_DOWNLOAD_URL:-}
+        VITE_LINUX_DOWNLOAD_URL: ${VITE_LINUX_DOWNLOAD_URL:-}
+        VITE_MACOS_DOWNLOAD_URL: ${VITE_MACOS_DOWNLOAD_URL:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [edge]
+
+  api:
+    platform: linux/arm64
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: 8080
+      ENVIRONMENT: production
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      MPESA_CALLBACK_URL: https://${API_DOMAIN:-api.biashara360.co.ke}/v1/payments/mpesa/callback
+      WEBHOOK_BASE_URL: https://${API_DOMAIN:-api.biashara360.co.ke}/v1/social/webhook
+      # Keep a production-sized heap resident so the API has predictable latency
+      # and the 6 GB A1 VM reflects its real reserved application capacity.
+      JAVA_TOOL_OPTIONS: -Xms1280m -Xmx1536m -XX:+UseG1GC
+    mem_limit: 2048m
+    cpus: 1.5
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    networks: [edge, internal]
+
+  postgres:
+    image: postgres:18-alpine
+    platform: linux/arm64
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=2GB
+      - -c
+      - max_connections=60
+      - -c
+      - wal_compression=on
+    mem_limit: 1536m
+    volumes:
+      # PostgreSQL 18+ stores PGDATA below its major-version directory.
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+networks:
+  edge:
+  internal:
+    internal: true
+
+volumes:
+  postgres_data:
+  uploads:
+  caddy_data:
+  caddy_config:

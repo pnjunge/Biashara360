@@ -1,7 +1,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-ARG VITE_API_BASE_URL=https://sddgmezqj2.us-east-1.awsapprunner.com/v1
+ARG VITE_API_BASE_URL=https://api.biashara360.co.ke/v1
 ARG VITE_META_APP_ID
 ARG VITE_META_EMBEDDED_SIGNUP_CONFIG_ID
 ARG VITE_ANDROID_DOWNLOAD_URL

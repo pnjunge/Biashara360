@@ -22,34 +22,8 @@ struct IOSSocialMsg: Identifiable {
     let content: String; let messageType: String; let time: String; let isAiGenerated: Bool
 }
 
-private let iosConvs: [IOSSocialConv] = [
-    IOSSocialConv(id:"c1", platform:"WHATSAPP",  customerName:"Amina Wanjiru",   customerPhone:"+254712345678", status:"OPEN",            unreadCount:3, lastMessage:"Hii unga inauzwa bei gani?",     lastMessageAt:"14:30", isAiHandled:false),
-    IOSSocialConv(id:"c2", platform:"INSTAGRAM", customerName:"Kevin Omondi",    customerPhone:nil,             status:"PENDING_PAYMENT", unreadCount:0, lastMessage:"Sawa, nitapeleka M-Pesa sasa", lastMessageAt:"13:55", isAiHandled:true),
-    IOSSocialConv(id:"c3", platform:"FACEBOOK",  customerName:"Grace Muthoni",   customerPhone:"+254798765432", status:"OPEN",            unreadCount:1, lastMessage:"Do you do deliveries to Nakuru?", lastMessageAt:"12:20", isAiHandled:false),
-    IOSSocialConv(id:"c4", platform:"TIKTOK",    customerName:"TikTok User 902", customerPhone:nil,             status:"COMPLETED",       unreadCount:0, lastMessage:"Asante sana! Order imefika 🙏", lastMessageAt:"10:00", isAiHandled:true),
-    IOSSocialConv(id:"c5", platform:"WHATSAPP",  customerName:"Peter Kamau",     customerPhone:"+254711223344", status:"OPEN",            unreadCount:2, lastMessage:"Mnafungua saa ngapi?",           lastMessageAt:"09:45", isAiHandled:false),
-]
-
-private let iosMsgs: [String: [IOSSocialMsg]] = [
-    "c1": [
-        IOSSocialMsg(id:"m1", direction:"INBOUND",  senderType:"CUSTOMER", content:"Habari! Mnauza unga wa dhahabu?",                                                                   messageType:"TEXT", time:"14:20", isAiGenerated:false),
-        IOSSocialMsg(id:"m2", direction:"OUTBOUND", senderType:"AI",       content:"Habari yako! Ndiyo, tunazo unga. Bei ni KES 180 kwa 2kg, KES 320 kwa 5kg. Ungependa kuagiza? 😊", messageType:"TEXT", time:"14:21", isAiGenerated:true),
-        IOSSocialMsg(id:"m3", direction:"INBOUND",  senderType:"CUSTOMER", content:"Hii unga inauzwa bei gani kwa debe?",                                                               messageType:"TEXT", time:"14:30", isAiGenerated:false),
-    ],
-    "c2": [
-        IOSSocialMsg(id:"m4", direction:"INBOUND",  senderType:"CUSTOMER", content:"Ninaomba order ya 3 bottles za cooking oil",                       messageType:"TEXT",            time:"13:30", isAiGenerated:false),
-        IOSSocialMsg(id:"m5", direction:"OUTBOUND", senderType:"AI",       content:"Asante Kevin! Cooking oil × 3 = KES 585. Nitakutumia maelekezo ya kulipa! 🛍️", messageType:"TEXT", time:"13:31", isAiGenerated:true),
-        IOSSocialMsg(id:"m6", direction:"OUTBOUND", senderType:"AGENT",    content:"Hujambo Kevin! 🛍️\n\nCooking Oil × 3\n💰 KES 585\n\n💳 Lipa Mpesa:\nPaybill: 174379\nAccount: ORD-0122\nKiasi: KES 585\n\nAsante! 🙏", messageType:"PAYMENT_REQUEST", time:"13:32", isAiGenerated:false),
-        IOSSocialMsg(id:"m7", direction:"INBOUND",  senderType:"CUSTOMER", content:"Sawa, nitapeleka M-Pesa sasa",                                     messageType:"TEXT",            time:"13:55", isAiGenerated:false),
-    ],
-    "c3": [
-        IOSSocialMsg(id:"m8", direction:"INBOUND", senderType:"CUSTOMER", content:"Do you do deliveries to Nakuru?", messageType:"TEXT", time:"12:20", isAiGenerated:false),
-    ],
-    "c5": [
-        IOSSocialMsg(id:"m12", direction:"INBOUND", senderType:"CUSTOMER", content:"Mnafungua saa ngapi?",          messageType:"TEXT", time:"09:45", isAiGenerated:false),
-        IOSSocialMsg(id:"m13", direction:"INBOUND", senderType:"CUSTOMER", content:"Na mnafunga saa ngapi jioni?",  messageType:"TEXT", time:"09:46", isAiGenerated:false),
-    ],
-]
+private let iosConvs: [IOSSocialConv] = []
+private let iosMsgs: [String: [IOSSocialMsg]] = [:]
 
 // ── Main View ─────────────────────────────────────────────────────────────────
 struct SocialView: View {

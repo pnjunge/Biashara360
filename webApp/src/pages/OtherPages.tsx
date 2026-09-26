@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
-import { expenseApi, paymentApi, orderApi, reportApi, customerApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, CustomerResponse, userApi, superAdminApi, businessApi, accessApi, AccessConfig, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest } from '../services/api'
+import { expenseApi, paymentApi, orderApi, reportApi, customerApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, CustomerResponse, userApi, superAdminApi, businessApi, accessApi, AccessConfig, AuditLogResponse, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest } from '../services/api'
 import { useAuth } from '../App'
 import { ShareableReport, downloadReportCsv, emailReport, printReport, whatsappReport } from '../utils/reportShare'
 
@@ -654,11 +654,18 @@ export function UserCreationPage() {
   const [selectedBusinessId, setSelectedBusinessId] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [auditLogs, setAuditLogs] = useState<AuditLogResponse[]>([])
+  const [auditLoading, setAuditLoading] = useState(false)
+  const [showAuditLog, setShowAuditLog] = useState(false)
   const [accessConfig, setAccessConfig] = useState<AccessConfig | null>(null)
   const [accessMessage, setAccessMessage] = useState('')
   const [roleDraft, setRoleDraft] = useState({ name:'', description:'', allowedMenus:[] as string[] })
   const [groupDraft, setGroupDraft] = useState({ name:'', description:'', roleIds:[] as string[] })
-  const [accessSaving, setAccessSaving] = useState<'MENUS'|'ROLE'|'GROUP'|null>(null)
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
+  const [inviteGroupId, setInviteGroupId] = useState('')
+  const [accessSaving, setAccessSaving] = useState<'MENUS'|'ROLE'|'GROUP'|'INVITE_GROUP'|null>(null)
+  const accessBusinessId = isSuperAdmin ? selectedBusinessId : undefined
 
   const loadUsers = () => {
     if (isSuperAdmin && !selectedBusinessId) {
@@ -672,8 +679,23 @@ export function UserCreationPage() {
   }
 
   const loadAccess = () => {
-    if (isSuperAdmin) return
-    return accessApi.config().then(res => { if (res.success && res.data) setAccessConfig(res.data) }).catch((e:any) => setAccessMessage(e.response?.data?.message || 'Could not load roles and groups.'))
+    if (isSuperAdmin && !selectedBusinessId) {
+      setAccessConfig(null)
+      return
+    }
+    return accessApi.config(accessBusinessId).then(res => { if (res.success && res.data) setAccessConfig(res.data) }).catch((e:any) => setAccessMessage(e.response?.data?.message || 'Could not load roles and groups.'))
+  }
+
+  const loadAuditLogs = () => {
+    if (isSuperAdmin && !selectedBusinessId) {
+      setAuditLogs([])
+      return
+    }
+    setAuditLoading(true)
+    userApi.auditLogs(100, isSuperAdmin ? selectedBusinessId : undefined)
+      .then(res => { if (res.success && res.data) setAuditLogs(res.data) })
+      .catch(() => {})
+      .finally(() => setAuditLoading(false))
   }
 
   const loadBusinesses = () => {
@@ -699,6 +721,7 @@ export function UserCreationPage() {
   useEffect(() => {
     loadUsers()
     loadAccess()
+    loadAuditLogs()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuperAdmin, selectedBusinessId])
 
@@ -707,7 +730,7 @@ export function UserCreationPage() {
     if (!accessConfig) return
     setAccessSaving('MENUS'); setAccessMessage('')
     try {
-      const res = await accessApi.updateMenus(accessConfig.enabledMenus)
+      const res = await accessApi.updateMenus(accessConfig.enabledMenus, accessBusinessId)
       if (res.success && res.data) { setAccessConfig(res.data); setAccessMessage('Menu availability saved.') }
       else setAccessMessage(res.message || 'Could not save menu availability.')
     } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not save menu availability.') }
@@ -718,10 +741,17 @@ export function UserCreationPage() {
     if (!roleDraft.allowedMenus.length) return setAccessMessage('Select at least one menu for this role.')
     setAccessSaving('ROLE'); setAccessMessage('')
     try {
-      const res = await accessApi.createRole(roleDraft)
-      if (res.success) { setRoleDraft({name:'',description:'',allowedMenus:[]}); await loadAccess(); setAccessMessage('Role created.') }
-      else setAccessMessage(res.message || 'Could not create role.')
-    } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not create role.') }
+      const current = editingRoleId ? accessConfig?.roles.find(role => role.id === editingRoleId) : undefined
+      const res = editingRoleId
+        ? await accessApi.updateRole(editingRoleId, { ...roleDraft, isActive: current?.isActive ?? true }, accessBusinessId)
+        : await accessApi.createRole(roleDraft, accessBusinessId)
+      if (res.success) {
+        setRoleDraft({name:'',description:'',allowedMenus:[]})
+        setEditingRoleId(null)
+        await loadAccess()
+        setAccessMessage(editingRoleId ? 'Role updated.' : 'Role created.')
+      } else setAccessMessage(res.message || (editingRoleId ? 'Could not update role.' : 'Could not create role.'))
+    } catch (e:any) { setAccessMessage(e.response?.data?.message || (editingRoleId ? 'Could not update role.' : 'Could not create role.')) }
     finally { setAccessSaving(null) }
   }
   const createAccessGroup = async () => {
@@ -729,30 +759,54 @@ export function UserCreationPage() {
     if (!groupDraft.roleIds.length) return setAccessMessage('Select at least one role for this group.')
     setAccessSaving('GROUP'); setAccessMessage('')
     try {
-      const res = await accessApi.createGroup(groupDraft)
-      if (res.success) { setGroupDraft({name:'',description:'',roleIds:[]}); await loadAccess(); setAccessMessage('Group created.') }
-      else setAccessMessage(res.message || 'Could not create group.')
-    } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not create group.') }
+      const current = editingGroupId ? accessConfig?.groups.find(group => group.id === editingGroupId) : undefined
+      const res = editingGroupId
+        ? await accessApi.updateGroup(editingGroupId, { ...groupDraft, isActive: current?.isActive ?? true }, accessBusinessId)
+        : await accessApi.createGroup(groupDraft, accessBusinessId)
+      if (res.success) {
+        setGroupDraft({name:'',description:'',roleIds:[]})
+        setEditingGroupId(null)
+        await loadAccess()
+        setAccessMessage(editingGroupId ? 'Group updated.' : 'Group created.')
+      } else setAccessMessage(res.message || (editingGroupId ? 'Could not update group.' : 'Could not create group.'))
+    } catch (e:any) { setAccessMessage(e.response?.data?.message || (editingGroupId ? 'Could not update group.' : 'Could not create group.')) }
     finally { setAccessSaving(null) }
   }
   const toggleGroupUser = async (groupId: string, current: string[], userId: string) => {
     setAccessMessage('')
     try {
-      const res = await accessApi.assignUsers(groupId, toggleValue(current, userId))
+      const res = await accessApi.assignUsers(groupId, toggleValue(current, userId), accessBusinessId)
       if (res.success) await loadAccess(); else setAccessMessage(res.message || 'Could not update group members.')
     } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update group members.') }
   }
   const updateAccessRole = async (role: AccessConfig['roles'][number], isActive = role.isActive) => {
     setAccessMessage('')
     try {
-      const res = await accessApi.updateRole(role.id, {...role,isActive})
+      const res = await accessApi.updateRole(role.id, {...role,isActive}, accessBusinessId)
       if (res.success) await loadAccess(); else setAccessMessage(res.message || 'Could not update role.')
     } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update role.') }
+  }
+  const deleteAccessRole = async (role: AccessConfig['roles'][number]) => {
+    if (!window.confirm(`Delete the role “${role.name}”? This cannot be undone.`)) return
+    setAccessMessage('')
+    try {
+      const res = await accessApi.deleteRole(role.id, accessBusinessId)
+      if (res.success) {
+        if (editingRoleId === role.id) {
+          setEditingRoleId(null)
+          setRoleDraft({ name: '', description: '', allowedMenus: [] })
+        }
+        await loadAccess()
+        setAccessMessage('Role deleted.')
+      } else setAccessMessage(res.message || 'Could not delete role.')
+    } catch (e: any) {
+      setAccessMessage(e.response?.data?.message || 'Could not delete role. Remove it from access groups first.')
+    }
   }
   const updateAccessGroup = async (group: AccessConfig['groups'][number], isActive = group.isActive) => {
     setAccessMessage('')
     try {
-      const res = await accessApi.updateGroup(group.id, {...group,isActive})
+      const res = await accessApi.updateGroup(group.id, {...group,isActive}, accessBusinessId)
       if (res.success) await loadAccess(); else setAccessMessage(res.message || 'Could not update group.')
     } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update group.') }
   }
@@ -792,10 +846,26 @@ export function UserCreationPage() {
     try {
       const res = await userApi.invite(form, isSuperAdmin ? selectedBusinessId : undefined)
       if (res.success && res.data) {
+        let inviteMessage = ''
+        if (inviteGroupId && accessConfig) {
+          const group = accessConfig.groups.find(item => item.id === inviteGroupId)
+          if (group) {
+            try {
+              setAccessSaving('INVITE_GROUP')
+              const groupRes = await accessApi.assignUsers(group.id, [...group.userIds, res.data.id], accessBusinessId)
+              if (!groupRes.success) inviteMessage = `User created, but group assignment failed: ${groupRes.message || 'try again from Access groups.'}`
+              await loadAccess()
+            } catch (e:any) {
+              inviteMessage = `User created, but group assignment failed: ${e.response?.data?.message || 'try again from Access groups.'}`
+            } finally { setAccessSaving(null) }
+          }
+        }
         setShowAdd(false)
         setForm(emptyUser)
+        setInviteGroupId('')
         if (!isSuperAdmin) setSelectedBusinessId('')
         loadUsers()
+        if (inviteMessage) setError(inviteMessage)
       }
       else setError(res.message || 'Failed to create user.')
     } catch (e: any) {
@@ -847,10 +917,31 @@ export function UserCreationPage() {
   }
 
   const ROLES = [{ value: 'ADMIN', label: 'Admin' }, { value: 'MANAGER', label: 'Manager' }, { value: 'STAFF', label: 'Staff' }]
-  const roleColor = (role: string) => role === 'ADMIN' ? 'PAID' : role === 'MANAGER' ? 'PENDING' : 'COD'
+  const activeGroups = accessConfig?.groups.filter(group => group.isActive) ?? []
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {showAuditLog && (
+        <Modal title="User & access audit log" wide onClose={() => setShowAuditLog(false)}>
+          {auditLoading ? (
+            <div style={{padding:24,textAlign:'center',color:'var(--b360-text-secondary)'}}>Loading audit events…</div>
+          ) : auditLogs.length === 0 ? (
+            <div style={{padding:24,textAlign:'center',color:'var(--b360-text-secondary)'}}>No user or access changes have been recorded.</div>
+          ) : (
+            <DataTable
+              headers={['When','Action','Actor','Target','Details']}
+              rows={auditLogs.map(log => [
+                new Date(log.createdAt).toLocaleString('en-KE'),
+                <StatusBadge key="action" status={log.action.replace(/_/g, ' ')} />,
+                log.actorName || 'System',
+                log.targetName || '—',
+                log.details || '—',
+              ])}
+            />
+          )}
+        </Modal>
+      )}
 
       {/* ── Create Admin Modal (SUPERADMIN) ── */}
       {showCreateAdmin && (
@@ -880,7 +971,7 @@ export function UserCreationPage() {
 
       {/* ── Add User Modal (regular admin) ── */}
       {showAdd && (
-        <Modal title="Add New User" onClose={() => { setShowAdd(false); setForm(emptyUser); setSelectedBusinessId(''); setError('') }}>
+        <Modal title="Add New User" onClose={() => { setShowAdd(false); setForm(emptyUser); setInviteGroupId(''); setSelectedBusinessId(''); setError('') }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Input label="Full Name" value={form.name} onChange={f('name')} placeholder="e.g. Jane Mwangi" />
             <Input label="Email" value={form.email} onChange={f('email')} placeholder="jane@example.com" />
@@ -889,6 +980,15 @@ export function UserCreationPage() {
               The user will receive a one-time password setup code by email. It expires after 10 minutes.
             </div>
             <Select label="Role" value={form.role ?? 'STAFF'} onChange={f('role')} options={ROLES} />
+            {!isSuperAdmin && activeGroups.length > 0 && (
+              <Select
+                label="Access group (optional)"
+                value={inviteGroupId}
+                onChange={setInviteGroupId}
+                options={[{ value: '', label: 'No group — use default staff access' }, ...activeGroups.map(group => ({ value: group.id, label: group.name }))]}
+              />
+            )}
+            {!isSuperAdmin && activeGroups.length > 0 && <div style={{ color: 'var(--b360-text-secondary)', fontSize: 12 }}>The account role controls sign-in authority. Access groups control which business areas the user can open.</div>}
             {isSuperAdmin && (
               <Select
                 label="Business *"
@@ -899,7 +999,7 @@ export function UserCreationPage() {
               />
             )}
             {error && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{error}</div>}
-            <Btn onClick={handleAdd} disabled={saving}>{saving ? 'Sending...' : 'Send Invitation'}</Btn>
+            <Btn onClick={handleAdd} disabled={saving || accessSaving !== null}>{saving ? 'Sending...' : 'Send Invitation'}</Btn>
           </div>
         </Modal>
       )}
@@ -951,10 +1051,12 @@ export function UserCreationPage() {
         </>
       )}
 
-      {!isSuperAdmin && accessConfig && (
+      {accessConfig && (
         <>
-          <PageHeader title="Menus, Roles & Groups" />
+          {isSuperAdmin && <Card style={{ padding: 16 }}><Select label="Business to manage" value={selectedBusinessId} onChange={setSelectedBusinessId} options={businesses.map(b => ({ value: b.id, label: `${b.name} · ${b.type}` }))} placeholder={bizLoading ? 'Loading businesses…' : 'Select business'} /></Card>}
+          <PageHeader title={`Menus, Roles & Groups${isSuperAdmin ? ` · ${businesses.find(b => b.id === selectedBusinessId)?.name || 'Selected business'}` : ''}`} />
           {accessMessage && <div style={{fontSize:13,color:'var(--b360-blue)'}}>{accessMessage}</div>}
+          <div style={{fontSize:12,color:'var(--b360-text-secondary)',background:'var(--b360-surface)',border:'1px solid var(--b360-border)',borderRadius:8,padding:'10px 12px'}}>Account roles control authentication and administrative authority. Custom access roles are bundled into groups, then assigned to users to control menu access.</div>
           <div className="responsive-grid responsive-grid-2" style={{gap:16}}>
             <Card style={{padding:20}}>
               <h3 style={{margin:'0 0 6px'}}>Business menus</h3>
@@ -965,38 +1067,39 @@ export function UserCreationPage() {
               <Btn small disabled={accessSaving!==null} onClick={saveMenus}>{accessSaving==='MENUS'?'Saving…':'Save menu availability'}</Btn>
             </Card>
             <Card style={{padding:20}}>
-              <h3 style={{margin:'0 0 12px'}}>Create role</h3>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}><h3 style={{margin:'0 0 12px'}}>{editingRoleId ? 'Edit role' : 'Create role'}</h3>{editingRoleId && <Btn small variant="secondary" onClick={()=>{setEditingRoleId(null);setRoleDraft({name:'',description:'',allowedMenus:[]})}}>Cancel</Btn>}</div>
               <Input label="Role name" value={roleDraft.name} onChange={v=>setRoleDraft({...roleDraft,name:v})} placeholder="e.g. Cashier" />
               <Input label="Description" value={roleDraft.description} onChange={v=>setRoleDraft({...roleDraft,description:v})} placeholder="What this role is for" />
               <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:7,margin:'12px 0'}}>{accessConfig.menus.map(menu=><label key={menu.key} style={{fontSize:12}}><input type="checkbox" checked={roleDraft.allowedMenus.includes(menu.key)} onChange={()=>setRoleDraft({...roleDraft,allowedMenus:toggleValue(roleDraft.allowedMenus,menu.key)})}/> {menu.label}</label>)}</div>
-              <Btn small disabled={accessSaving!==null} onClick={createAccessRole}>{accessSaving==='ROLE'?'Creating…':'Create role'}</Btn>
+              <Btn small disabled={accessSaving!==null} onClick={createAccessRole}>{accessSaving==='ROLE'?(editingRoleId?'Saving…':'Creating…'):(editingRoleId?'Save role':'Create role')}</Btn>
             </Card>
           </div>
           <Card style={{padding:20}}>
-            <h3 style={{margin:'0 0 12px'}}>Create group</h3>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}><h3 style={{margin:'0 0 12px'}}>{editingGroupId ? 'Edit group' : 'Create group'}</h3>{editingGroupId && <Btn small variant="secondary" onClick={()=>{setEditingGroupId(null);setGroupDraft({name:'',description:'',roleIds:[]})}}>Cancel</Btn>}</div>
             <div className="responsive-grid responsive-grid-2" style={{gap:12}}><Input label="Group name" value={groupDraft.name} onChange={v=>setGroupDraft({...groupDraft,name:v})} placeholder="e.g. Front Desk"/><Input label="Description" value={groupDraft.description} onChange={v=>setGroupDraft({...groupDraft,description:v})} placeholder="Team description"/></div>
             <div style={{display:'flex',gap:14,flexWrap:'wrap',margin:'12px 0'}}>{accessConfig.roles.map(role=><label key={role.id} style={{fontSize:12}}><input type="checkbox" checked={groupDraft.roleIds.includes(role.id)} onChange={()=>setGroupDraft({...groupDraft,roleIds:toggleValue(groupDraft.roleIds,role.id)})}/> {role.name}</label>)}</div>
-            <Btn small disabled={accessSaving!==null} onClick={createAccessGroup}>{accessSaving==='GROUP'?'Creating…':'Create group'}</Btn>
+            <Btn small disabled={accessSaving!==null} onClick={createAccessGroup}>{accessSaving==='GROUP'?(editingGroupId?'Saving…':'Creating…'):(editingGroupId?'Save group':'Create group')}</Btn>
           </Card>
-          <Card style={{padding:20}}><h3 style={{margin:'0 0 12px'}}>Existing roles</h3>{accessConfig.roles.map(role=><div key={role.id} style={{display:'flex',justifyContent:'space-between',gap:12,padding:'10px 0',borderTop:'1px solid var(--b360-border)'}}><div><b>{role.name}</b><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{role.allowedMenus.length} menus · {role.isActive?'Active':'Disabled'}</div></div><Btn small variant="secondary" onClick={()=>updateAccessRole(role,!role.isActive)}>{role.isActive?'Disable':'Enable'}</Btn></div>)}</Card>
-          {accessConfig.groups.map(group => <Card key={group.id} style={{padding:16,opacity:group.isActive?1:.65}}><div style={{display:'flex',justifyContent:'space-between',gap:12}}><div style={{fontWeight:700}}>{group.name}</div><Btn small variant="secondary" onClick={()=>updateAccessGroup(group,!group.isActive)}>{group.isActive?'Disable':'Enable'}</Btn></div><div style={{fontSize:12,color:'var(--b360-text-secondary)',marginBottom:10}}>{group.description || 'No description'} · Roles: {accessConfig.roles.filter(r=>group.roleIds.includes(r.id)).map(r=>r.name).join(', ') || 'None'}</div><div style={{display:'flex',gap:12,flexWrap:'wrap'}}>{users.map(member=><label key={member.id} style={{fontSize:12}}><input type="checkbox" disabled={!group.isActive} checked={group.userIds.includes(member.id)} onChange={()=>toggleGroupUser(group.id,group.userIds,member.id)}/> {member.name}</label>)}</div></Card>)}
+          <Card style={{padding:20}}><h3 style={{margin:'0 0 12px'}}>Existing roles</h3>{accessConfig.roles.map(role=><div key={role.id} style={{display:'flex',justifyContent:'space-between',gap:12,padding:'10px 0',borderTop:'1px solid var(--b360-border)'}}><div><b>{role.name}</b><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{role.allowedMenus.length} menus · {role.isActive?'Active':'Disabled'}</div></div><div style={{display:'flex',gap:6}}><Btn small variant="secondary" onClick={()=>{setEditingRoleId(role.id);setRoleDraft({name:role.name,description:role.description,allowedMenus:role.allowedMenus});window.scrollTo({top:0,behavior:'smooth'})}}>Edit</Btn><Btn small variant="secondary" onClick={()=>updateAccessRole(role,!role.isActive)}>{role.isActive?'Disable':'Enable'}</Btn><Btn small variant="danger" onClick={()=>deleteAccessRole(role)}>Delete</Btn></div></div>)}</Card>
+          {accessConfig.groups.map(group => <Card key={group.id} style={{padding:16,opacity:group.isActive?1:.65}}><div style={{display:'flex',justifyContent:'space-between',gap:12}}><div><div style={{fontWeight:700}}>{group.name}</div><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{group.description || 'No description'} · Roles: {accessConfig.roles.filter(r=>group.roleIds.includes(r.id)).map(r=>r.name).join(', ') || 'None'}</div></div><div style={{display:'flex',gap:6}}><Btn small variant="secondary" onClick={()=>{setEditingGroupId(group.id);setGroupDraft({name:group.name,description:group.description,roleIds:group.roleIds});window.scrollTo({top:0,behavior:'smooth'})}}>Edit</Btn><Btn small variant="secondary" onClick={()=>updateAccessGroup(group,!group.isActive)}>{group.isActive?'Disable':'Enable'}</Btn></div></div><div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:10}}>{users.map(member=><label key={member.id} style={{fontSize:12}}><input type="checkbox" disabled={!group.isActive} checked={group.userIds.includes(member.id)} onChange={()=>toggleGroupUser(group.id,group.userIds,member.id)}/> {member.name}</label>)}</div></Card>)}
         </>
       )}
 
       {/* ── User Management ── */}
-      <PageHeader title="User Management" action={<Btn onClick={() => { setSelectedBusinessId(businesses[0]?.id ?? ''); setShowAdd(true) }} icon={<Plus size={14} />}>Add User</Btn>} />
+      <PageHeader title="User Management" action={<div style={{display:'flex',gap:8}}><Btn variant="secondary" onClick={() => { loadAuditLogs(); setShowAuditLog(true) }} icon={<FileText size={14} />}>Audit log</Btn><Btn onClick={() => { setSelectedBusinessId(businesses[0]?.id ?? ''); setShowAdd(true) }} icon={<Plus size={14} />}>Add User</Btn></div>} />
       {error && <div style={{color:'var(--b360-red)',fontSize:13}}>{error}</div>}
       <Card style={{ padding: 0 }}>
         {usersLoading ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading users…</div>
         ) : (
           <DataTable
-            headers={['Name', 'Email', 'Phone', 'Role', 'Status', '']}
+            headers={['Name', 'Email', 'Phone', 'Account role', 'Access groups', 'Status', '']}
             rows={users.map(u => [
               u.name,
               u.email,
               u.phone,
               <select key="role" value={u.role} disabled={u.id===currentUser?.id} onChange={event=>handleUserRoleChange(u.id,event.target.value)} style={{padding:'6px 8px',borderRadius:7}}>{ROLES.map(role=><option key={role.value} value={role.value}>{role.label}</option>)}</select>,
+              <span key="groups" style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{u.assignedGroups?.length ? u.assignedGroups.join(', ') : accessConfig?.groups.filter(group=>group.userIds.includes(u.id)).map(group=>group.name).join(', ') || 'Default access'}</span>,
               <StatusBadge key="status" status={u.isActive === false ? 'INACTIVE' : 'ACTIVE'} />,
               <Btn key="del" disabled={u.id===currentUser?.id} variant={u.isActive === false ? 'secondary' : 'danger'} small onClick={() => handleToggleUserStatus(u.id, u.isActive === false)}>
                 {u.isActive === false ? 'Enable' : 'Disable'}
@@ -1018,6 +1121,14 @@ const emptyProfile: BusinessProfileRequest = {
   storefrontThemeColor: '#0F766E', storefrontHeadline: 'Shop with us online',
   storefrontDescription: '', storefrontBannerUrl: null, storefrontLayout: 'GRID',
 }
+
+const BUSINESS_TYPE_OPTIONS = [
+  { value: 'RETAIL', label: 'Retail' }, { value: 'GROCERY', label: 'Grocery' }, { value: 'BOUTIQUE', label: 'Boutique' },
+  { value: 'WHOLESALE', label: 'Wholesale' }, { value: 'DISTRIBUTION', label: 'Distribution' }, { value: 'SALON', label: 'Salon' },
+  { value: 'BARBERSHOP', label: 'Barbershop' }, { value: 'SPA', label: 'Spa' }, { value: 'LAUNDRY', label: 'Laundry' },
+  { value: 'CAR_WASH', label: 'Car wash' }, { value: 'HOTEL', label: 'Hotel' }, { value: 'LODGE', label: 'Lodge' },
+  { value: 'GYM', label: 'Gym' }, { value: 'CLINIC', label: 'Clinic' }, { value: 'REPAIR_SHOP', label: 'Repair shop' }, { value: 'SERVICE', label: 'Service' }, { value: 'HYBRID', label: 'Hybrid' }, { value: 'ONLINE_SELLER', label: 'Online seller' },
+]
 
 const BizSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <Card style={{ padding: 20, marginBottom: 16 }}>
@@ -1123,6 +1234,7 @@ export function BusinessPage() {
               name: d.name, owner: d.owner, phone: d.phone, email: d.email, type: d.type, county: d.county, address: d.address,
               kraPin: d.kraPin, paybillNumber: d.paybillNumber, accountNumber: d.accountNumber,
               receiptHeader: d.receiptHeader, receiptFooter: d.receiptFooter, receiptLogo: d.receiptLogo,
+              receiptLogoWidthMm: d.receiptLogoWidthMm, receiptLogoHeightMm: d.receiptLogoHeightMm,
               receiptShowTax: d.receiptShowTax, receiptShowCustomer: d.receiptShowCustomer,
               storefrontThemeColor: d.storefrontThemeColor || '#0F766E', storefrontHeadline: d.storefrontHeadline || 'Shop with us online',
               storefrontDescription: d.storefrontDescription || '', storefrontBannerUrl: d.storefrontBannerUrl || null,
@@ -1170,12 +1282,7 @@ export function BusinessPage() {
 
   // ── SuperAdmin view: list of all businesses ──
   if (isSuperAdmin) {
-    const BIZ_TYPES = [
-      { value: 'RETAIL', label: 'Retail' },
-      { value: 'SERVICE', label: 'Service' },
-      { value: 'HYBRID', label: 'Hybrid' },
-      { value: 'ONLINE_SELLER', label: 'Online Seller' },
-    ]
+    const BIZ_TYPES = BUSINESS_TYPE_OPTIONS
     return (
       <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -1283,7 +1390,7 @@ export function BusinessPage() {
         <BizField label="Owner Name"    value={form.owner} onChange={f('owner')} />
         <BizField label="Phone Number"  value={form.phone} onChange={f('phone')} />
         <BizField label="Email Address" value={form.email} onChange={f('email')} />
-        <BizField label="Business Type" value={form.type} onChange={f('type')} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontSize: 13, color: 'var(--b360-text-secondary)', width: 160 }}>Business Type</span><select value={form.type || 'RETAIL'} onChange={event => f('type')(event.target.value)} style={{ flex: 1, maxWidth: 320, padding: '8px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}>{BUSINESS_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
         <BizField label="County"        value={form.county} onChange={f('county')} />
         <BizField label="Address"       value={form.address} onChange={f('address')} />
       </BizSection>

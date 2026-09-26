@@ -90,6 +90,7 @@ class AuthService(
     }
 
     fun register(req: RegisterRequest): ApiResponse<UserResponse> = transaction {
+        if (req.userCount !in 1..10) return@transaction ApiResponse(false, message = "Number of users must be between 1 and 10")
         val emailExists = UsersTable.select { UsersTable.email eq req.email }.count() > 0
         if (emailExists) return@transaction ApiResponse(false, message = "Email already registered")
 
@@ -107,6 +108,7 @@ class AuthService(
             it[type] = req.businessType
             it[ownerPhone] = req.phone
             it[ownerEmail] = req.email
+            it[maxUsers] = 1
             it[createdAt] = now
             it[updatedAt] = now
         }
@@ -133,6 +135,39 @@ class AuthService(
             ?: return@transaction ApiResponse(false, message = "Invalid credentials")
         if (!PasswordUtils.verify(req.password, user[UsersTable.passwordHash]))
             return@transaction ApiResponse(false, message = "Invalid credentials")
+        loginUser(user)
+    }
+
+    fun socialLogin(profile: SocialProfile): ApiResponse<SocialLoginResult> = transaction {
+        val identity = SocialIdentitiesTable.select {
+            (SocialIdentitiesTable.provider eq profile.provider) and (SocialIdentitiesTable.subject eq profile.subject)
+        }.firstOrNull()
+        if (identity == null) {
+            if (UsersTable.select { UsersTable.email.lowerCase() eq profile.email.lowercase() }.any())
+                return@transaction ApiResponse(false, message = "This email already has an account. Sign in with your existing method.")
+            return@transaction ApiResponse(true, SocialLoginResult(profile))
+        }
+        val user = UsersTable.select { UsersTable.id eq identity[SocialIdentitiesTable.userId] }.single()
+        val result = loginUser(user)
+        ApiResponse(result.success, result.data?.let { SocialLoginResult(profile, it) }, result.message)
+    }
+
+    fun registerSocial(req: RegisterRequest, profile: SocialProfile): ApiResponse<UserResponse> = transaction {
+        if (SocialIdentitiesTable.select {
+            (SocialIdentitiesTable.provider eq profile.provider) and (SocialIdentitiesTable.subject eq profile.subject)
+        }.any()) return@transaction ApiResponse(false, message = "This social account is already registered. Please sign in.")
+        if (UsersTable.select { UsersTable.email.lowerCase() eq profile.email.lowercase() }.any())
+            return@transaction ApiResponse(false, message = "This email already has an account. Sign in with your existing method.")
+        val result = register(req)
+        if (result.success) SocialIdentitiesTable.insert {
+            it[provider] = profile.provider
+            it[subject] = profile.subject
+            it[userId] = result.data!!.id
+        }
+        result
+    }
+
+    private fun loginUser(user: ResultRow): ApiResponse<LoginResponse> = transaction {
         if (!user[UsersTable.isActive])
             return@transaction ApiResponse(false, message = "Account is deactivated")
         businessAccessError(user[UsersTable.businessId])?.let { message ->

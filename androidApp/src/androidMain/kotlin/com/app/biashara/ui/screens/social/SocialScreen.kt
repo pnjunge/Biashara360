@@ -24,11 +24,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
+import com.app.biashara.presentation.viewmodel.SocialViewModel
+import com.app.biashara.ui.kmpViewModel
 import com.app.biashara.ui.theme.*
 
 // ── Platform Meta ─────────────────────────────────────────────────────────────
@@ -78,7 +81,7 @@ fun SocialScreen() {
                             .background(B360GreenBg, RoundedCornerShape(20.dp))
                             .padding(horizontal = 12.dp, vertical = 5.dp)
                     ) {
-                        Text("AI On", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = B360Green)
+                        Text("AI unavailable", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = B360Green)
                     }
                 }
             )
@@ -134,7 +137,11 @@ fun SocialInboxTab() {
     var messages by remember { mutableStateOf(emptyMap<String, List<SocialMsg>>().toMutableMap()) }
 
     if (selectedId != null) {
-        val conv = conversations.find { it.id == selectedId }!!
+        val conv = conversations.find { it.id == selectedId }
+        if (conv == null) {
+            LaunchedEffect(selectedId) { selectedId = null }
+            return
+        }
         ChatView(conv, messages[selectedId] ?: emptyList(),
             onBack = { selectedId = null },
             onSend = { text ->
@@ -198,7 +205,7 @@ fun SocialInboxTab() {
 
 @Composable
 fun ConversationListItem(conv: SocialConv, onClick: () -> Unit) {
-    val p     = PLATFORMS[conv.platform]!!
+    val p = PLATFORMS[conv.platform] ?: PlatformMeta(conv.platform, "•", Color.Gray, Color(0xFFF1F5F9))
     val statusColor = when (conv.status) {
         "OPEN"            -> B360Green
         "PENDING_PAYMENT" -> Color(0xFFF59E0B)
@@ -266,40 +273,15 @@ fun ChatView(
     onSend: (String) -> Unit,
     onSendPayment: (String, String) -> Unit
 ) {
-    val p             = PLATFORMS[conv.platform]!!
+    val p = PLATFORMS[conv.platform] ?: PlatformMeta(conv.platform, "•", Color.Gray, Color(0xFFF1F5F9))
     var draft         by remember { mutableStateOf("") }
-    var aiSuggestion  by remember { mutableStateOf<String?>(null) }
-    var aiLoading     by remember { mutableStateOf(false) }
     var showPaySheet  by remember { mutableStateOf(false) }
     var payAmt        by remember { mutableStateOf("") }
     var payDesc       by remember { mutableStateOf("") }
     val listState     = rememberLazyListState()
-    val scope         = rememberCoroutineScope()
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
-    }
-
-    fun getAiReply() {
-        aiLoading = true
-        val last = messages.lastOrNull { it.direction == "INBOUND" }?.content ?: ""
-        val reply = when {
-            last.contains("bei", ignoreCase = true) || last.contains("price", ignoreCase = true) ->
-                "Habari! Bei yetu:\n• Unga 2kg - KES 180\n• Unga 5kg - KES 320\n• Debe - KES 1,200\n\nUngependa kuagiza? 😊"
-            last.contains("delivery", ignoreCase = true) || last.contains("deliver", ignoreCase = true) ->
-                "Ndiyo! Tunafanya delivery Nairobi yote. Delivery fee ni KES 150. Unataka tuwasilishe wapi? 📦"
-            last.contains("saa ngapi", ignoreCase = true) || last.contains("open", ignoreCase = true) ->
-                "Tunafungua 7:00 asubuhi hadi 9:00 usiku kila siku! 🕖 Je, ungependa kuagiza kitu?"
-            last.contains("payment", ignoreCase = true) || last.contains("kulipa", ignoreCase = true) ->
-                "Tunakubali M-Pesa, Cash, na Card. Unataka kulipa kwa njia gani? 💳"
-            else ->
-                "Habari ${conv.customerName.split(" ")[0]}! Asante kwa kuwasiliana. Ninawezaje kukusaidia leo? 😊"
-        }
-        scope.launch {
-            kotlinx.coroutines.delay(1200)
-            aiSuggestion = reply
-            aiLoading    = false
-        }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(B360Surface)) {
@@ -342,40 +324,6 @@ fun ChatView(
         }
 
         // AI Suggestion
-        aiSuggestion?.let { sug ->
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                colors   = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                shape    = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFFDCFCE7))
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Default.Bolt, contentDescription = null, tint = B360Green, modifier = Modifier.size(14.dp))
-                        Text("AI Suggested Reply", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = B360Green)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text(sug, fontSize = 13.sp, lineHeight = 19.sp, color = Color(0xFF0F172A))
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick  = { draft = sug; aiSuggestion = null },
-                            modifier = Modifier.weight(1f),
-                            colors   = ButtonDefaults.outlinedButtonColors(contentColor = B360Green),
-                            shape    = RoundedCornerShape(20.dp),
-                            border   = BorderStroke(1.dp, B360Green)
-                        ) { Text("Edit Suggestion", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-                        Button(
-                            onClick  = { onSend(sug); aiSuggestion = null },
-                            modifier = Modifier.weight(1f),
-                            colors   = ButtonDefaults.buttonColors(containerColor = B360Green),
-                            shape    = RoundedCornerShape(20.dp)
-                        ) { Text("Send Instantly", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-                    }
-                }
-            }
-        }
-
         // Compose bar
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -385,11 +333,11 @@ fun ChatView(
         ) {
             Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(
-                    onClick  = { if (!aiLoading) getAiReply() },
+                    onClick = {},
+                    enabled = false,
                     modifier = Modifier.background(B360GreenBg, RoundedCornerShape(10.dp)).size(44.dp)
                 ) {
-                    if (aiLoading) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = B360Green, strokeWidth = 2.dp)
-                    else Icon(Icons.Default.Bolt, contentDescription = "AI Reply", tint = B360Green, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Bolt, contentDescription = "AI replies unavailable", tint = B360Green, modifier = Modifier.size(20.dp))
                 }
                 OutlinedTextField(
                     value         = draft,
@@ -541,13 +489,56 @@ fun ChatBubble(msg: SocialMsg) {
 // ── Channels Tab ──────────────────────────────────────────────────────────────
 @Composable
 fun SocialChannelsTab() {
-    val context = LocalContext.current
+    val viewModel: SocialViewModel = kmpViewModel()
+    val state by viewModel.state.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadChannelsAndInbox()
+    }
+
+    if (state.isLoading && state.channels.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = B360Green)
+        }
+        return
+    }
+
+    state.error?.let { error ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Could not load social channels", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(error, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+            Button(onClick = { viewModel.loadChannelsAndInbox() }) { Text("Retry") }
+        }
+        return
+    }
+
+    if (state.channels.isEmpty()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("No social channels connected", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(
+                "Connect a social channel from the merchant web application to see it here.",
+                color = Color(0xFF64748B),
+                textAlign = TextAlign.Center
+            )
+        }
+        return
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(PLATFORMS.entries.toList()) { (key, meta) ->
-            val isConnected = key != "TIKTOK"
+        items(state.channels, key = { it.id }) { channel ->
+            val meta = PLATFORMS[channel.platform]
+                ?: PlatformMeta(channel.platform, "•", Color.Gray, Color(0xFFF1F5F9))
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 shape = RoundedCornerShape(16.dp),
@@ -560,49 +551,13 @@ fun SocialChannelsTab() {
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(meta.label, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
-                            Text(if (isConnected) "Connected" else "Not connected", fontSize = 12.sp,
-                                color = if (isConnected) meta.color else Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+                            Text(channel.channelName, fontSize = 12.sp, color = Color(0xFF64748B))
+                            Text(if (channel.isActive) "Connected" else "Inactive", fontSize = 12.sp,
+                                color = if (channel.isActive) meta.color else Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
                         }
-                        if (isConnected) {
+                        if (channel.isActive) {
                             Box(modifier = Modifier.background(B360GreenBg, RoundedCornerShape(20.dp)).padding(horizontal = 10.dp, vertical = 4.dp)) {
                                 Text("Active", color = B360Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        } else {
-                            Button(
-                                onClick = {
-                                    val url = when (key) {
-                                        "WHATSAPP" -> "https://business.whatsapp.com/"
-                                        "INSTAGRAM" -> "https://www.instagram.com/accounts/login/"
-                                        "FACEBOOK" -> "https://www.facebook.com/business/"
-                                        else -> "https://www.tiktok.com/business/"
-                                    }
-                                    try {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                    } catch (_: ActivityNotFoundException) {
-                                        android.widget.Toast.makeText(context, "No browser is available", android.widget.Toast.LENGTH_LONG).show()
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = meta.color),
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Text("Setup guide", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        }
-                    }
-                    if (isConnected) {
-                        Spacer(Modifier.height(12.dp))
-                        Row(modifier = Modifier.fillMaxWidth().background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp)).padding(10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("AI Reply", fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold)
-                                Text("ON", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = B360Green)
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("Today", fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold)
-                                Text("${(5..20).random()} msgs", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("Orders", fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold)
-                                Text("${(1..5).random()}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                             }
                         }
                     }
@@ -615,62 +570,15 @@ fun SocialChannelsTab() {
 // ── Analytics Tab ─────────────────────────────────────────────────────────────
 @Composable
 fun SocialAnalyticsTab() {
-    val stats = listOf(
-        "WHATSAPP"  to Triple(48, 12, 87600),
-        "INSTAGRAM" to Triple(31,  8, 52400),
-        "FACEBOOK"  to Triple(19,  4, 28800),
-        "TIKTOK"    to Triple(14,  3, 18900)
-    )
-    LazyColumn(modifier = Modifier.fillMaxSize().background(B360Surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                KraKpiCard("Total Convs", "112", "All channels", B360Green, Modifier.weight(1f))
-                KraKpiCard("Orders", "27", "From social", Color(0xFF3B82F6), Modifier.weight(1f))
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                KraKpiCard("Revenue", "KES 188K", "Social orders", Color(0xFFF59E0B), Modifier.weight(1f))
-                KraKpiCard("AI Handled", "74%", "Auto-replied", Color(0xFFEF4444), Modifier.weight(1f))
-            }
-        }
-        item { Text("Platform Breakdown", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A)) }
-        items(stats) { platformData ->
-            val (platform, data) = platformData
-            val (convs, orders, revenue) = data
-            val p   = PLATFORMS[platform]!!
-            val cvr = (orders.toFloat() / convs * 100).toInt()
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
-            ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(p.emoji, fontSize = 28.sp)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(p.label, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
-                        Spacer(Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            StatChip("$convs convs", Color(0xFF64748B))
-                            StatChip("$orders orders", p.color)
-                            StatChip("KES ${revenue/1000}K", B360Green)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            LinearProgressIndicator(
-                                progress = { cvr / 100f },
-                                modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
-                                color = p.color,
-                                trackColor = Color(0xFFF1F5F9)
-                            )
-                            Text("$cvr%", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = p.color)
-                        }
-                    }
-                }
-            }
-        }
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Social analytics unavailable", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text("Live social reporting is not connected in the Android app. View your social reports in the web application.")
     }
 }
+
 
 @Composable
 private fun StatChip(text: String, color: Color) {

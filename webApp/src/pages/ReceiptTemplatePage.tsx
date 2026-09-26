@@ -10,6 +10,8 @@ export default function ReceiptTemplatePage() {
   const [showTax, setShowTax] = useState(true)
   const [showCustomer, setShowCustomer] = useState(true)
   const [logo, setLogo] = useState<string | null>(null)
+  const [logoWidth, setLogoWidth] = useState(42)
+  const [logoHeight, setLogoHeight] = useState(20)
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -28,6 +30,8 @@ export default function ReceiptTemplatePage() {
           setShowTax(res.data.receiptShowTax !== false)
           setShowCustomer(res.data.receiptShowCustomer !== false)
           setLogo(res.data.receiptLogo || null)
+          setLogoWidth(res.data.receiptLogoWidthMm ?? 42)
+          setLogoHeight(res.data.receiptLogoHeightMm ?? 20)
         }
       })
       .catch(() => {
@@ -46,6 +50,8 @@ export default function ReceiptTemplatePage() {
         receiptHeader: header,
         receiptFooter: footer,
         receiptLogo: logo,
+        receiptLogoWidthMm: logoWidth,
+        receiptLogoHeightMm: logoHeight,
         receiptShowTax: showTax,
         receiptShowCustomer: showCustomer
       })
@@ -88,7 +94,7 @@ export default function ReceiptTemplatePage() {
       ], paymentStatus: 'PAID', deliveryStatus: 'DELIVERED', paymentMethod: 'CASH', mpesaTransactionCode: null,
       baseAmount: 4900, taxIncluded: true, taxRate: 0.16, taxAmount: 784, subtotal: 5684,
       salesChannel: 'WEB', notes: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    }, { ...profile, receiptHeader: header, receiptFooter: footer, receiptLogo: logo, receiptShowTax: showTax, receiptShowCustomer: showCustomer })
+    }, { ...profile, receiptHeader: header, receiptFooter: footer, receiptLogo: logo, receiptLogoWidthMm: logoWidth, receiptLogoHeightMm: logoHeight, receiptShowTax: showTax, receiptShowCustomer: showCustomer })
   }
 
   if (loading) {
@@ -133,6 +139,15 @@ export default function ReceiptTemplatePage() {
                 </div>
               </div>
               <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)', marginTop: 5 }}>PNG, JPEG, or WebP; maximum 500 KB.</div>
+              {logo && <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginTop:14 }}>
+                <label style={{fontSize:12,fontWeight:600}}>Logo width: {logoWidth} mm
+                  <input aria-label="Receipt logo width" type="range" min={10} max={68} value={logoWidth} onChange={event=>setLogoWidth(Number(event.target.value))} style={{display:'block',width:'100%',marginTop:7}} />
+                </label>
+                <label style={{fontSize:12,fontWeight:600}}>Logo height: {logoHeight} mm
+                  <input aria-label="Receipt logo height" type="range" min={5} max={40} value={logoHeight} onChange={event=>setLogoHeight(Number(event.target.value))} style={{display:'block',width:'100%',marginTop:7}} />
+                </label>
+                <div style={{gridColumn:'1 / -1',fontSize:11,color:'var(--b360-text-secondary)'}}>The image keeps its proportions inside this area. Maximum width is limited to the printable receipt area.</div>
+              </div>}
             </div>
             <Input
               label="Header Message"

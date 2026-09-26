@@ -13,6 +13,15 @@ actual class DatabaseDriverFactory {
         dbPath.parentFile.mkdirs()
         if (!isNewDb) {
             migrateLegacyProductColumnOrder(dbPath)
+            DriverManager.getConnection("jdbc:sqlite:${dbPath.absolutePath}").use { connection ->
+                connection.createStatement().use { statement ->
+                    val columns = statement.executeQuery("PRAGMA table_info(OrderEntity)").use { rows ->
+                        buildSet { while (rows.next()) add(rows.getString("name")) }
+                    }
+                    if ("tax_included" !in columns) statement.executeUpdate("ALTER TABLE OrderEntity ADD COLUMN tax_included INTEGER NOT NULL DEFAULT 0")
+                    if ("tax_rate" !in columns) statement.executeUpdate("ALTER TABLE OrderEntity ADD COLUMN tax_rate REAL NOT NULL DEFAULT 0")
+                }
+            }
         }
         val driver = JdbcSqliteDriver("jdbc:sqlite:${dbPath.absolutePath}")
         if (isNewDb) {

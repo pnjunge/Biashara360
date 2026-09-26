@@ -10,7 +10,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: previewPort,
     strictPort: true,
-    allowedHosts: ['web-production-76557.up.railway.app', '*.up.railway.app', '*.awsapprunner.com', 'localhost'],
+    allowedHosts: ['biashara360.co.ke', 'www.biashara360.co.ke', 'localhost'],
   },
   build: { outDir: 'dist' }
 })

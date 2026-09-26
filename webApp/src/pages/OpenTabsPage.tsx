@@ -14,8 +14,8 @@ export default function OpenTabsPage() {
   const [settleOrder,setSettleOrder]=useState<OrderResponse|null>(null)
   const [receiptProfile,setReceiptProfile]=useState<BusinessProfileResponse|null>(null)
 
-  const load = () => {
-    setLoading(true)
+  const load = (showLoading = true) => {
+    if (showLoading) setLoading(true)
     setError('')
     hospitalityApi.dashboard()
       .then(result => {
@@ -26,7 +26,11 @@ export default function OpenTabsPage() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [])
+  useEffect(() => {
+    load()
+    const timer = window.setInterval(() => load(false), 5000)
+    return () => window.clearInterval(timer)
+  }, [])
   useEffect(()=>{businessApi.getProfile().then(result=>{if(result.success&&result.data)setReceiptProfile(result.data)}).catch(()=>undefined)},[])
   const transfer=async(orderId:string,tableId:string)=>{if(!tableId)return;setError('');try{const result=await hospitalityApi.transferTab(orderId,tableId);if(!result.success)throw new Error(result.message);load()}catch(e:any){setError(e.response?.data?.message||e.message||'Could not transfer tab.')}}
   const total = useMemo(() => data?.openTabs.reduce((sum, tab) => sum + tab.subtotal, 0) || 0, [data])
@@ -46,7 +50,7 @@ export default function OpenTabsPage() {
       </div>
       {loading ? <Card style={{padding:32,textAlign:'center'}}>Loading open tabs…</Card> : !data?.openTabs.length ? <Card style={{padding:32,textAlign:'center',color:'var(--b360-text-secondary)'}}>No open tabs.</Card> : <Card><DataTable headers={['Table','Receipt / Tab','Customer','Guests / Items','Open','Amount','Status','Actions']} rows={data.openTabs.map(order => {
         const table = data.tables.find(item => item.id === order.hospitalityTableId)
-        return [<strong>{table?.name || order.serviceType?.replace(/_/g, ' ') || 'Takeaway'}</strong>, <span style={{fontFamily:'monospace',fontWeight:800,color:'var(--b360-green)'}}>{order.orderNumber}</span>, order.customerName || 'Walk-in Guest', `${order.guestCount || 1} guest(s) · ${order.items.length} item(s)`, age(order.createdAt), <strong>KES {order.subtotal.toLocaleString()}</strong>, <StatusBadge status={order.tabStatus || 'OPEN'} />,<div style={{display:'flex',gap:6,alignItems:'center',minWidth:310}}><Btn small onClick={()=>setSettleOrder(order)}>{order.tabStatus==='AWAITING_PAYMENT'?'Retry / settle':'Settle'}</Btn><Btn small variant="secondary" icon={<Printer size={12}/>} onClick={()=>printOrderReceipt(order,receiptProfile, true)}>Print Bill</Btn>{table&&<select aria-label={`Transfer ${order.orderNumber}`} defaultValue="" onChange={event=>transfer(order.id,event.target.value)} style={{padding:7,border:'1px solid var(--b360-border)',borderRadius:7}}><option value="">Transfer…</option>{data.tables.filter(item=>item.id!==table.id&&!item.mergedIntoTableId).map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>}</div>]
+        return [<strong>{table?.name || order.serviceType?.replace(/_/g, ' ') || 'Takeaway'}</strong>, <span style={{fontFamily:'monospace',fontWeight:800,color:'var(--b360-green)'}}>{order.orderNumber}</span>, order.customerName || 'Walk-in Guest', `${order.guestCount || 1} guest(s) · ${order.items.length} item(s)`, age(order.createdAt), <strong>KES {order.subtotal.toLocaleString()}</strong>, <StatusBadge status={order.tabStatus || 'OPEN'} />,<div style={{display:'flex',gap:6,alignItems:'center',minWidth:310}}><Btn small onClick={()=>setSettleOrder(order)}>{order.tabStatus==='AWAITING_PAYMENT'?'Retry / settle':'Settle'}</Btn><Btn small variant="secondary" icon={<Printer size={12}/>} onClick={()=>printOrderReceipt(order,receiptProfile)}>{order.paymentStatus === 'PAID' ? 'Print Receipt' : 'Print Bill'}</Btn>{table&&<select aria-label={`Transfer ${order.orderNumber}`} defaultValue="" onChange={event=>transfer(order.id,event.target.value)} style={{padding:7,border:'1px solid var(--b360-border)',borderRadius:7}}><option value="">Transfer…</option>{data.tables.filter(item=>item.id!==table.id&&!item.mergedIntoTableId).map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>}</div>]
       })} /></Card>}
       {settleOrder&&<SettlementModal order={settleOrder} onClose={()=>setSettleOrder(null)} onComplete={async()=>load()}/>}
     </div>

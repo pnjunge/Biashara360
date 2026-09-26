@@ -98,7 +98,7 @@ struct KraView: View {
 // ── Compliance View ───────────────────────────────────────────────────────────
 
 struct KraComplianceView: View {
-    let score = 82
+    let score = 0
 
     var scoreColor: Color { score >= 80 ? b360Green : score >= 50 ? Color(red:1,green:0.56,blue:0) : Color(red:0.78,green:0.16,blue:0.16) }
 
@@ -132,7 +132,7 @@ struct KraComplianceView: View {
                 .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    KraKpiCard(title: "KRA PIN", value: "P051234567X", sub: "Taxpayer ID", color: b360Green)
+                    KraKpiCard(title: "KRA PIN", value: "Not configured", sub: "Taxpayer ID", color: b360Green)
                     KraKpiCard(title: "eTIMS Rate", value: "94%", sub: "Invoices transmitted", color: Color(red:0.08,green:0.40,blue:0.75))
                 }
 
@@ -188,7 +188,7 @@ struct KraComplianceView: View {
 // ── eTIMS View ────────────────────────────────────────────────────────────────
 
 struct KraEtimsView: View {
-    @State private var invoices = sampleEtims
+    @State private var invoices: [EtimsInvoiceItem] = []
     @State private var filterAll = true
 
     var errors: Int { invoices.filter { $0.status == "ERROR" || $0.status == "PENDING" }.count }
@@ -269,7 +269,7 @@ struct KraEtimsView: View {
 // ── Returns View ──────────────────────────────────────────────────────────────
 
 struct KraReturnsView: View {
-    @State private var returns = sampleKraReturns
+    @State private var returns: [TaxReturnItem] = []
     @State private var ackInputs: [String: String] = [:]
 
     var body: some View {
@@ -339,8 +339,8 @@ struct KraReturnsView: View {
 // ── Setup View ────────────────────────────────────────────────────────────────
 
 struct KraSetupView: View {
-    @State private var pin = "P051234567X"
-    @State private var sdcId = "SDCK2024001"
+    @State private var pin = ""
+    @State private var sdcId = ""
     @State private var env = "sandbox"
     @State private var saved = false
 

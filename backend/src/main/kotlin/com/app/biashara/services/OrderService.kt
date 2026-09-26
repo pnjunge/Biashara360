@@ -171,6 +171,8 @@ class OrderService {
                     existingOrder.customerName == req.customerName &&
                     existingOrder.customerPhone == req.customerPhone &&
                     existingOrder.paymentMethod == req.paymentMethod &&
+                    existingOrder.serviceType == req.serviceType &&
+                    existingOrder.hospitalityTableId == req.hospitalityTableId &&
                     existingOrder.items.size == req.items.size &&
                     existingOrder.items.zip(req.items).all { (saved, submitted) ->
                         saved.productId == submitted.productId &&

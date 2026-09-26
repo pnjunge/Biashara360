@@ -38,7 +38,7 @@ fun appModule(config: ApplicationConfig) = module {
                 json(Json { ignoreUnknownKeys = true; isLenient = true; encodeDefaults = true })
             }
             install(Logging) {
-                level = LogLevel.INFO
+                level = LogLevel.NONE
             }
         }
     }
@@ -50,6 +50,7 @@ fun appModule(config: ApplicationConfig) = module {
 
     // Services
     single { AuthService(get(), get(), get()) }
+    single { SocialAuthService(config, get()) }
     single { ProductService() }
     single { InventoryCategoryService() }
     single { OrderService() }
@@ -64,10 +65,12 @@ fun appModule(config: ApplicationConfig) = module {
     single { SuperAdminService() }
     single { BusinessProfileService() }
     single { DashboardService(get(), get(), get()) }
-    single { StorefrontService(get(), get()) }
+    single { StorefrontService(get(), get(), get()) }
     single { AccessControlService() }
     single { HospitalityService(get()) }
     single { AdvancedHospitalityService() }
+    single { ServiceManagementService(get()) }
+    single { SubscriptionService(get(), get(), get()) }
     single { ReportService() }
 
     // CyberSource card payment services

@@ -10,6 +10,8 @@ import io.ktor.server.auth.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.routing.*
+import java.io.File
+import java.security.KeyStore
 import com.app.biashara.models.HealthResponse
 import io.ktor.server.plugins.callloging.*
 import io.ktor.server.plugins.callid.*
@@ -21,8 +23,38 @@ import com.app.biashara.cache.RateLimitStore
 import org.koin.ktor.ext.get
 
 fun main() {
+    val tlsEnabled = System.getenv("TLS_ENABLED")?.toBooleanStrictOrNull() ?: false
     val port = System.getenv("PORT")?.toIntOrNull() ?: 8080
-    embeddedServer(Netty, port = port, host = "0.0.0.0", module = Application::module)
+    val httpsPort = System.getenv("HTTPS_PORT")?.toIntOrNull() ?: 8443
+
+    if (!tlsEnabled) {
+        embeddedServer(Netty, port = port, host = "0.0.0.0", module = Application::module)
+            .start(wait = true)
+        return
+    }
+
+    val keyStorePath = System.getenv("TLS_KEYSTORE_PATH")
+        ?: error("TLS_KEYSTORE_PATH is required when TLS_ENABLED=true")
+    val keyStorePassword = System.getenv("TLS_KEYSTORE_PASSWORD")
+        ?: error("TLS_KEYSTORE_PASSWORD is required when TLS_ENABLED=true")
+    val keyAlias = System.getenv("TLS_KEY_ALIAS") ?: "application"
+    val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
+        File(keyStorePath).inputStream().use { load(it, keyStorePassword.toCharArray()) }
+    }
+
+    val environment = applicationEngineEnvironment {
+        sslConnector(
+            keyStore = keyStore,
+            keyAlias = keyAlias,
+            keyStorePassword = { keyStorePassword.toCharArray() },
+            privateKeyPassword = { keyStorePassword.toCharArray() }
+        ) {
+            host = "0.0.0.0"
+            this.port = httpsPort
+        }
+        module(Application::module)
+    }
+    embeddedServer(Netty, environment = environment)
         .start(wait = true)
 }
 
@@ -71,6 +103,7 @@ fun Application.module() {
             // Public routes (no auth)
             healthRoutes()  // Comprehensive health checks
             authRoutesValidated()
+            subscriptionRoutes()
             // Mpesa Daraja callback — called by Safaricom, no JWT required
             mpesaCallbackRoute()
             publicBusinessRoutes()
@@ -84,6 +117,7 @@ fun Application.module() {
                 dashboardRoute()
                 productRoutesValidated()
                 orderRoutes()
+                portalOrderRoutes()
                 customerRoutes()
                 expenseRoutes()
                 paymentRoutes()
@@ -91,6 +125,7 @@ fun Application.module() {
                 userRoutes()
                 accessControlRoutes()
                 hospitalityRoutes()
+                serviceRoutes()
                 cyberSourceRoutes()
                 taxRoutes()
                 kraRoutes()

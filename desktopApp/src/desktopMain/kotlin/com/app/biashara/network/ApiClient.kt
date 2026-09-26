@@ -22,7 +22,7 @@ object ApiClient {
     /**
      * Base URL for API (configurable via environment or config)
      */
-    var baseUrl: String = System.getenv("API_BASE_URL") ?: "http://localhost:8080/v1"
+    var baseUrl: String = System.getenv("API_BASE_URL") ?: "https://api.biashara360.co.ke/v1"
     
     /**
      * Authentication token storage
@@ -45,14 +45,10 @@ object ApiClient {
             })
         }
         
-        // Logging (for development)
+        // Do not log request or response data; errors may contain credentials.
         install(Logging) {
             logger = Logger.DEFAULT
-            level = LogLevel.INFO
-            filter { request ->
-                // Don't log auth endpoints to avoid leaking credentials
-                !request.url.encodedPath.contains("/auth/")
-            }
+            level = LogLevel.NONE
         }
         
         // Timeout configuration

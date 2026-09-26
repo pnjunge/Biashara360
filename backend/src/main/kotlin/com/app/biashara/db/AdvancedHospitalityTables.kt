@@ -30,7 +30,7 @@ object BarStockEventsTable : Table("bar_stock_events") {
 object HospitalityShiftsTable : Table("hospitality_shifts") {
     val id=varchar("id",36); val businessId=varchar("business_id",36); val openedBy=varchar("opened_by",36); val closedBy=varchar("closed_by",36).nullable()
     val openedAt=timestamp("opened_at"); val closedAt=timestamp("closed_at").nullable(); val openingFloat=double("opening_float"); val expectedCash=double("expected_cash").nullable(); val actualCash=double("actual_cash").nullable()
-    val mpesaTotal=double("mpesa_total").nullable(); val cardTotal=double("card_total").nullable(); val tipsTotal=double("tips_total"); val expensesTotal=double("expenses_total"); val status=varchar("status",20); val notes=varchar("notes",500); override val primaryKey=PrimaryKey(id)
+    val mpesaTotal=double("mpesa_total").nullable(); val cardTotal=double("card_total").nullable(); val mpesaActual=double("mpesa_actual").nullable(); val cardActual=double("card_actual").nullable(); val tipsTotal=double("tips_total"); val expensesTotal=double("expenses_total"); val status=varchar("status",20); val notes=varchar("notes",500); override val primaryKey=PrimaryKey(id)
 }
 object SuppliersTable : Table("suppliers") {
     val id=varchar("id",36); val businessId=varchar("business_id",36); val name=varchar("name",255); val phone=varchar("phone",20); val email=varchar("email",255).nullable(); val address=varchar("address",500).nullable(); val isActive=bool("is_active"); val createdAt=timestamp("created_at"); val updatedAt=timestamp("updated_at"); override val primaryKey=PrimaryKey(id)

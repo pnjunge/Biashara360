@@ -40,9 +40,28 @@ import com.app.biashara.ui.theme.*
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import org.koin.compose.koinInject
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import com.app.biashara.data.remote.ApiResponse
+import com.app.biashara.data.remote.BASE_URL
 
-/** Kenya standard VAT rate. TODO: Source from business profile KRA config. */
-private const val VAT_RATE = 0.16
+@kotlinx.serialization.Serializable
+private data class PosTable(val id: String, val name: String, val area: String = "", val capacity: Int = 1, val status: String = "AVAILABLE", val mergedIntoTableId: String? = null)
+
+@kotlinx.serialization.Serializable
+private data class PosHospitalityDashboard(val tables: List<PosTable> = emptyList())
+
+@kotlinx.serialization.Serializable
+private data class PosTaxRate(
+    val id: String,
+    val name: String,
+    val rate: Double,
+    val taxType: String,
+    val isInclusive: Boolean,
+    val isActive: Boolean,
+    val appliesTo: String
+)
 
 data class MobileCartItem(val product: Product, var qty: Int)
 
@@ -241,6 +260,32 @@ fun PosScreen(
     val coroutineScope = rememberCoroutineScope()
     val businessId = remember { UserSession.getBusinessId() }
     val networkAvailable = LocalNetworkAvailable.current
+    val client: HttpClient = koinInject()
+    var taxRates by remember(businessId) { mutableStateOf<List<PosTaxRate>>(emptyList()) }
+    var selectedTaxId by remember(businessId) { mutableStateOf<String?>(null) }
+    var taxesLoaded by remember(businessId) { mutableStateOf(false) }
+    var taxError by remember(businessId) { mutableStateOf<String?>(null) }
+    var taxRetry by remember { mutableIntStateOf(0) }
+    LaunchedEffect(businessId, networkAvailable, taxRetry) {
+        taxesLoaded = false
+        taxError = null
+        try {
+            val response: ApiResponse<List<PosTaxRate>> = client.get("$BASE_URL/tax/rates").body()
+            check(response.success) { response.message.ifBlank { "Could not load tax rates" } }
+            taxRates = requireNotNull(response.data) { "Tax rates unavailable" }.filter {
+                it.isActive && it.taxType == "VAT" && !it.isInclusive &&
+                    it.appliesTo in listOf("ALL", "PRODUCTS") && it.rate.isFinite() && it.rate in 0.0..1.0
+            }
+            if (taxRates.none { it.id == selectedTaxId }) selectedTaxId = null
+            taxesLoaded = true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            taxError = e.message ?: "Could not load tax rates"
+        }
+    }
+    val selectedTax = taxRates.find { it.id == selectedTaxId }
+    val taxRate = selectedTax?.rate ?: 0.0
 
     LaunchedEffect(Unit) {
         inventoryViewModel.loadProducts(businessId)
@@ -253,6 +298,32 @@ fun PosScreen(
     val customersState by customersViewModel.state.collectAsState()
     val mpesaState by businessViewModel.mpesaState.collectAsState()
     val businessProfileState by businessViewModel.profileState.collectAsState()
+
+    val hospitalityEnabled = businessProfileState.profile?.hospitalityEnabled == true || businessProfileState.profile?.type == "HOSPITALITY"
+    var serviceType by remember(businessId) { mutableStateOf("DINE_IN") }
+    var selectedTableId by remember(businessId) { mutableStateOf<String?>(null) }
+    var tables by remember(businessId) { mutableStateOf<List<PosTable>>(emptyList()) }
+    var tableError by remember { mutableStateOf<String?>(null) }
+    var tablesLoading by remember { mutableStateOf(false) }
+    var tableRetry by remember { mutableIntStateOf(0) }
+    var guestCount by remember { mutableStateOf("1") }
+    var tableMenuExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(hospitalityEnabled, networkAvailable, tableRetry, businessId) {
+        if (!hospitalityEnabled) return@LaunchedEffect
+        tablesLoading = true
+        tableError = null
+        try {
+            val response: ApiResponse<PosHospitalityDashboard> = client.get("$BASE_URL/hospitality").body()
+            check(response.success) { response.message.ifBlank { "Could not load tables" } }
+            tables = requireNotNull(response.data) { "Tables unavailable" }.tables.filter { it.mergedIntoTableId == null }
+            if (tables.none { it.id == selectedTableId }) selectedTableId = null
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            tableError = e.message ?: "Could not load tables"
+        } finally { tablesLoading = false }
+    }
+    val selectedTable = tables.find { it.id == selectedTableId }
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(PosFilter.ALL) }
@@ -303,8 +374,8 @@ fun PosScreen(
     }
 
     val subtotal = cart.sumOf { it.product.sellingPrice * it.qty }
-    val tax = subtotal * VAT_RATE  // 16% Kenya standard VAT
-    val grandTotal = subtotal + tax
+    val tax = kotlin.math.round(subtotal * taxRate * 100.0) / 100.0
+    val grandTotal = kotlin.math.round((subtotal + tax) * 100.0) / 100.0
 
     Scaffold(
         containerColor = Color(0xFFF8FAFB),
@@ -429,7 +500,7 @@ fun PosScreen(
                 ) {
                     Icon(Icons.Filled.ShoppingCart, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Cart (${cart.sumOf { it.qty }}) • KES ${"%,.0f".format(grandTotal)}", fontWeight = FontWeight.Bold)
+                    Text("Cart (${cart.sumOf { it.qty }}) • KES ${"%,.2f".format(grandTotal)}", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -687,6 +758,33 @@ fun PosScreen(
                         }
                     }
 
+                    if (hospitalityEnabled) {
+                        Text("Service & table", fontWeight = FontWeight.Bold)
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("DINE_IN", "TAKEAWAY", "DELIVERY").forEach { type ->
+                                FilterChip(selected = serviceType == type, onClick = { serviceType = type }, label = { Text(type.replace('_', ' ')) })
+                            }
+                        }
+                        if (serviceType == "DINE_IN") {
+                            if (tablesLoading) Text("Loading tables…")
+                            tableError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                            Box {
+                                OutlinedButton(onClick = { tableMenuExpanded = true }, enabled = !tablesLoading && tableError == null && tables.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+                                    Text(selectedTable?.let { "${it.name} · ${it.area}" } ?: "Select table (required)")
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                }
+                                DropdownMenu(expanded = tableMenuExpanded, onDismissRequest = { tableMenuExpanded = false }) {
+                                    tables.forEach { table ->
+                                        DropdownMenuItem(text = { Text("${table.name} · ${table.area} · ${table.capacity} seats · ${table.status}") }, onClick = { selectedTableId = table.id; tableMenuExpanded = false })
+                                    }
+                                }
+                            }
+                            if (!tablesLoading && tableError == null && tables.isEmpty()) Text("No tables configured. Add tables in Hospitality Operations.")
+                            TextButton(onClick = { tableRetry++ }, enabled = !tablesLoading) { Text("Refresh tables") }
+                            OutlinedTextField(value = guestCount, onValueChange = { guestCount = it.filter(Char::isDigit).take(3) }, label = { Text("Guest count (1–100)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+
                     if (selectedCustomer == null) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(value = walkInName, onValueChange = { walkInName = it }, label = { Text("Name") }, modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(14.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = B360Green, unfocusedBorderColor = Color(0xFFE2E8F0)))
@@ -721,11 +819,28 @@ fun PosScreen(
                         }
                     }
 
+                    Text("Sales tax", fontWeight = FontWeight.Bold)
+                    if (taxError != null) {
+                        Text(taxError.orEmpty(), color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = { taxRetry++ }) { Text("Retry tax rates") }
+                    } else if (!taxesLoaded) {
+                        Text("Loading saved tax rates…")
+                    } else {
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(selected = selectedTaxId == null, onClick = { selectedTaxId = null }, label = { Text("No added tax") })
+                            taxRates.forEach { rate ->
+                                FilterChip(selected = selectedTaxId == rate.id, onClick = { selectedTaxId = rate.id }, label = { Text("${rate.name} (${"%.2f".format(rate.rate * 100)}%)") })
+                            }
+                        }
+                        Text("Select a saved exclusive VAT rate, or no added tax for exempt or tax-inclusive prices.", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    Text("Subtotal: KES ${"%,.2f".format(subtotal)} · Added tax: KES ${"%,.2f".format(tax)}", fontSize = 12.sp)
+
                     OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Sale Notes") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(14.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = B360Green, unfocusedBorderColor = Color(0xFFE2E8F0)))
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Total amount due", color = Color.Gray, fontSize = 13.sp)
-                        Text("KES ${"%,.0f".format(grandTotal)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = B360Green)
+                        Text("KES ${"%,.2f".format(grandTotal)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = B360Green)
                     }
 
                     Button(
@@ -734,16 +849,28 @@ fun PosScreen(
                                 errorMessage = "You’re offline. Reconnect before creating an order or collecting payment."
                                 return@Button
                             }
+                            if (hospitalityEnabled && serviceType == "DINE_IN" && (selectedTable == null || tablesLoading || tableError != null)) {
+                                errorMessage = "Select a table before completing a dine-in order."
+                                return@Button
+                            }
+                            if (hospitalityEnabled && serviceType == "DINE_IN" && guestCount.toIntOrNull() !in 1..100) {
+                                errorMessage = "Enter a guest count from 1 to 100."
+                                return@Button
+                            }
                             isCheckingOut = true; errorMessage = null
                             coroutineScope.launch {
                                 val order = Order(
                                     id = generateId(), orderNumber = "B360-POS-${System.currentTimeMillis() % 10000}",
                                     businessId = businessId, customerId = selectedCustomer?.id,
                                     customerName = walkInName, customerPhone = walkInPhone,
-                                    deliveryLocation = "In-Store POS",
+                                    deliveryLocation = if (hospitalityEnabled && serviceType == "DINE_IN") selectedTable!!.name else "In-Store POS",
+                                    hospitalityTableId = if (hospitalityEnabled && serviceType == "DINE_IN") selectedTableId else null,
+                                    serviceType = if (hospitalityEnabled) serviceType else "RETAIL",
+                                    guestCount = if (hospitalityEnabled && serviceType == "DINE_IN") guestCount.toInt() else 1,
                                     items = cart.map { OrderItem(productId = it.product.id, productName = it.product.name, quantity = it.qty, unitPrice = it.product.sellingPrice, buyingPrice = it.product.buyingPrice) },
                                     paymentStatus = if (paymentMethod == PaymentMethod.CASH) PaymentStatus.PAID else PaymentStatus.PENDING,
                                     deliveryStatus = DeliveryStatus.DELIVERED, paymentMethod = paymentMethod, notes = notes,
+                                    includeTax = selectedTax != null, taxRate = taxRate,
                                     createdAt = Clock.System.now(), updatedAt = Clock.System.now()
                                 )
                                 createOrderUseCase(order)
@@ -780,6 +907,9 @@ fun PosScreen(
                                         checkoutResult = result
                                         cart.clear()
                                         notes = ""
+                                        selectedTableId = null
+                                        guestCount = "1"
+                                        tableRetry++
                                         showCartSheet = false
                                         inventoryViewModel.loadProducts(businessId)
                                     }
@@ -790,7 +920,7 @@ fun PosScreen(
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                         shape = RoundedCornerShape(24.dp),
-                        enabled = !isCheckingOut && cart.isNotEmpty() && networkAvailable
+                        enabled = !isCheckingOut && cart.isNotEmpty() && networkAvailable && taxesLoaded
                     ) {
                         if (isCheckingOut) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                         else Text(

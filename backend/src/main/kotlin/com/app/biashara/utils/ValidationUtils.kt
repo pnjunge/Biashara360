@@ -16,14 +16,11 @@ object ValidationUtils {
         "^(\\+?254|0)[1-9]\\d{8}\$"
     )
 
-    // Password strength requirements:
-    // - Minimum 12 characters (NIST 800-63B compliant)
-    // - At least one uppercase letter
-    // - At least one lowercase letter
-    // - At least one digit
-    // - At least one special character from allowed set
+    // Registration passwords must be practical for merchant onboarding while still
+    // enforcing a basic level of complexity: minimum 6 chars, at least one lowercase
+    // letter, one digit, and one allowed special character.
     private val PASSWORD_REGEX = Regex(
-        "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&_\\-+=])[A-Za-z\\d@$!%*?&_\\-+=]{12,}\$"
+        "^(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&_\\-+=.])[A-Za-z\\d@$!%*?&_\\-+=.]{6,}\$"
     )
 
     /**
@@ -69,7 +66,7 @@ object ValidationUtils {
      * @return true if valid, false otherwise
      */
     fun isValidPassword(password: String): Boolean {
-        if (password.length < 12) return false
+        if (password.length < 6) return false
         
         // Check complexity requirements
         if (!PASSWORD_REGEX.matches(password)) return false
@@ -91,7 +88,7 @@ object ValidationUtils {
      * @return Requirements description
      */
     fun getPasswordRequirements(): String =
-        "Password must be at least 12 characters with uppercase, lowercase, digit, and special character"
+        "Password must be at least 6 characters with a letter, a digit, and a special character"
 
     /**
      * Validates business name.

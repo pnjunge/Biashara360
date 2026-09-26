@@ -88,6 +88,10 @@ export class Biashara360ApiStack extends cdk.Stack {
           apiSecret,
           'META_EMBEDDED_SIGNUP_CONFIG_ID'
         ),
+        META_BUSINESS_LOGIN_CONFIG_ID: ecs.Secret.fromSecretsManager(
+          apiSecret,
+          'META_BUSINESS_LOGIN_CONFIG_ID'
+        ),
         META_WEBHOOK_VERIFY_TOKEN: ecs.Secret.fromSecretsManager(apiSecret, 'META_WEBHOOK_VERIFY_TOKEN'),
         SOCIAL_TOKEN_ENCRYPTION_KEY: ecs.Secret.fromSecretsManager(apiSecret, 'SOCIAL_TOKEN_ENCRYPTION_KEY')
       },

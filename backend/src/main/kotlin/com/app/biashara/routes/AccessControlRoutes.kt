@@ -22,7 +22,7 @@ fun Route.accessControlRoutes() {
 
         route("/config") {
             intercept(ApplicationCallPipeline.Call) {
-                if (!call.hasRole("ADMIN")) {
+                if (!call.hasRole("ADMIN", "SUPERADMIN")) {
                     call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
                     finish()
                 }

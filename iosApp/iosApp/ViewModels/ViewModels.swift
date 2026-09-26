@@ -9,31 +9,44 @@ class AuthViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
     @Published var currentUserId: String = ""
+    @Published var otpChannel: String = "SMS"
     let biometrics = BiometricAuthentication()
 
     func login(email: String, password: String) async {
+        guard !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, password.count >= 6 else {
+            errorMessage = "Enter a valid email and password."
+            return
+        }
         isLoading = true; errorMessage = nil
-        try? await Task.sleep(nanoseconds: 800_000_000)
-        // Demo: any login works
-        isLoading = false
-        requiresOtp = true
-        currentUserId = "demo-user-id"
+        defer { isLoading = false }
+        do {
+            let result = try await APIClient.shared.login(email: email.trimmingCharacters(in: .whitespacesAndNewlines), password: password)
+            currentUserId = result.userId
+            otpChannel = result.otpChannels.first ?? "SMS"
+            requiresOtp = result.requiresOtp
+            if !result.requiresOtp, let access = result.accessToken, let refresh = result.refreshToken {
+                try SessionStore.save(accessToken: access, refreshToken: refresh)
+                isAuthenticated = true
+            }
+        } catch { errorMessage = error.localizedDescription }
     }
 
     func verifyOtp(code: String) async {
-        isLoading = true
-        try? await Task.sleep(nanoseconds: 600_000_000)
-        isLoading = false
-        if code == "123456" || code.count == 6 {
+        guard code.count == 6 else { errorMessage = "Enter the 6-digit code."; return }
+        isLoading = true; errorMessage = nil
+        defer { isLoading = false }
+        do {
+            let result = try await APIClient.shared.verifyOTP(userId: currentUserId, otp: code, channel: otpChannel)
+            currentUserId = result.user.id
             isAuthenticated = true
-        } else {
-            errorMessage = "Invalid OTP. Use 6 digits."
-        }
+            requiresOtp = false
+        } catch { errorMessage = error.localizedDescription }
     }
 
     func logout() {
         isAuthenticated = false
         requiresOtp = false
+        SessionStore.clear()
     }
 
     func loginWithBiometrics() async {
@@ -45,6 +58,7 @@ class AuthViewModel: ObservableObject {
             currentUserId = try await biometrics.authenticateAndRestoreAccount(
                 reason: "Sign in to Biashara360."
             )
+            guard SessionStore.hasSession else { throw BiometricAuthenticationError.missingAccount }
             isAuthenticated = true
             errorMessage = nil
         } catch {
@@ -56,11 +70,11 @@ class AuthViewModel: ObservableObject {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 @MainActor
 class DashboardViewModel: ObservableObject {
-    @Published var monthRevenue: Double = 145650
-    @Published var netProfit: Double = 38200
-    @Published var ordersToday: Int = 24
-    @Published var pendingPayments: Double = 12300
-    @Published var lowStockCount: Int = 3
+    @Published var monthRevenue: Double = 0
+    @Published var netProfit: Double = 0
+    @Published var ordersToday: Int = 0
+    @Published var pendingPayments: Double = 0
+    @Published var lowStockCount: Int = 0
     @Published var isLoading = false
 
     struct RecentOrder: Identifiable {
@@ -69,16 +83,10 @@ class DashboardViewModel: ObservableObject {
         let amount: Double
     }
 
-    @Published var recentOrders: [RecentOrder] = [
-        .init(number: "B360-0042", customer: "Amina Hassan", status: "PAID", amount: 4500),
-        .init(number: "B360-0041", customer: "Brian Otieno", status: "PENDING", amount: 1500),
-        .init(number: "B360-0040", customer: "Grace Njeri", status: "COD", amount: 3200),
-        .init(number: "B360-0039", customer: "David Kamau", status: "PAID", amount: 6800),
-    ]
+    @Published var recentOrders: [RecentOrder] = []
 
     func load() async {
         isLoading = true
-        try? await Task.sleep(nanoseconds: 500_000_000)
         isLoading = false
     }
 }
@@ -97,14 +105,7 @@ class InventoryViewModel: ObservableObject {
         var margin: Double { sellingPrice > 0 ? profit / sellingPrice * 100 : 0 }
     }
 
-    @Published var products: [Product] = [
-        .init(name: "Black Dress Size M",  sku: "SKU-001", category: "Clothing",    buyingPrice: 800,  sellingPrice: 1500, stock: 2,  threshold: 5),
-        .init(name: "Ankara Print Fabric", sku: "SKU-002", category: "Fabric",      buyingPrice: 350,  sellingPrice: 700,  stock: 12, threshold: 5),
-        .init(name: "Gold Hoop Earrings",  sku: "SKU-003", category: "Accessories", buyingPrice: 150,  sellingPrice: 450,  stock: 3,  threshold: 5),
-        .init(name: "White Sneakers 38",   sku: "SKU-004", category: "Shoes",       buyingPrice: 1200, sellingPrice: 2200, stock: 0,  threshold: 3),
-        .init(name: "Silk Blouse Pink",    sku: "SKU-005", category: "Clothing",    buyingPrice: 600,  sellingPrice: 1200, stock: 8,  threshold: 5),
-        .init(name: "Beaded Necklace",     sku: "SKU-006", category: "Accessories", buyingPrice: 200,  sellingPrice: 600,  stock: 15, threshold: 5),
-    ]
+    @Published var products: [Product] = []
 
     @Published var searchText = ""
     @Published var showLowStockOnly = false
@@ -255,12 +256,7 @@ class PaymentsViewModel: ObservableObject {
         let reconciled: Bool
     }
 
-    @Published var payments: [Payment] = [
-        .init(transactionCode: "RGK71HXYZ", payerName: "Amina Hassan", phone: "0712345678", amount: 4500, method: "Mpesa", status: "SUCCESS", date: "Today 2:30PM",  reconciled: true),
-        .init(transactionCode: "PLM23NQRS", payerName: "David Kamau",  phone: "0745678901", amount: 6800, method: "Mpesa", status: "SUCCESS", date: "Yesterday",     reconciled: true),
-        .init(transactionCode: "QWE45RTYU", payerName: "Sarah Wangui", phone: "0767890123", amount: 1200, method: "Airtel",status: "SUCCESS", date: "Yesterday",     reconciled: false),
-        .init(transactionCode: "ZXC89VBNM", payerName: "Tom Mutua",    phone: "0778901234", amount: 2300, method: "Mpesa", status: "SUCCESS", date: "Mon",           reconciled: false),
-    ]
+    @Published var payments: [Payment] = []
 
     var unreconciled: [Payment] { payments.filter { !$0.reconciled } }
     var totalCollected: Double { payments.filter { $0.reconciled }.reduce(0) { $0 + $1.amount } }

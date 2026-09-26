@@ -23,7 +23,8 @@ class ValidationUtilsTest {
     @Test
     fun enforcesStrongPasswordRules() {
         assertTrue(ValidationUtils.isValidPassword("SecureTrade_9"))
-        assertFalse(ValidationUtils.isValidPassword("shortA_9"))
+        assertTrue(ValidationUtils.isValidPassword("abc.123"))
+        assertFalse(ValidationUtils.isValidPassword("shortA"))
         assertFalse(ValidationUtils.isValidPassword("Password_123"))
         assertFalse(ValidationUtils.isValidPassword("NOLOWERCASE_9"))
     }

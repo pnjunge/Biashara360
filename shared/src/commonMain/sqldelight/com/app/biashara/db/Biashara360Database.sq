@@ -78,7 +78,9 @@ CREATE TABLE IF NOT EXISTS OrderEntity (
     notes TEXT NOT NULL DEFAULT '',
     subtotal REAL NOT NULL,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    tax_included INTEGER NOT NULL DEFAULT 0,
+    tax_rate REAL NOT NULL DEFAULT 0
 );
 
 CREATE INDEX idx_order_business ON OrderEntity(business_id);
@@ -98,7 +100,7 @@ selectOrderById:
 SELECT * FROM OrderEntity WHERE id = :id;
 
 insertOrder:
-INSERT OR REPLACE INTO OrderEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO OrderEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 deleteOrder:
 DELETE FROM OrderEntity WHERE id = :orderId;
