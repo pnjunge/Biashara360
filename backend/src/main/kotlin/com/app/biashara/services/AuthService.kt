@@ -60,31 +60,42 @@ class AuthService(
         if (decoded.getClaim("type").asString() != "refresh" || decoded.subject.isNullOrBlank()) {
             return@transaction ApiResponse(false, message = "Invalid or expired refresh token")
         }
+        
+        // 🔒 SECURITY FIX: Use SELECT FOR UPDATE to prevent race condition
+        // This locks the row until transaction completes, preventing concurrent token reuse
         val stored = RefreshTokensTable.select {
             (RefreshTokensTable.token eq hashRefreshToken(req.refreshToken)) and
             (RefreshTokensTable.expiresAt greaterEq now)
-        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Invalid or expired refresh token")
+        }.forUpdate().firstOrNull() ?: return@transaction ApiResponse(false, message = "Invalid or expired refresh token")
+        
         val userId = stored[RefreshTokensTable.userId]
         if (decoded.subject != userId) {
             return@transaction ApiResponse(false, message = "Invalid or expired refresh token")
         }
+        
+        // Delete the used token immediately to prevent reuse
+        val deleted = RefreshTokensTable.deleteWhere { RefreshTokensTable.id eq stored[RefreshTokensTable.id] }
+        if (deleted == 0) {
+            // Token was already deleted by another concurrent request
+            return@transaction ApiResponse(false, message = "Token has already been used")
+        }
+        
         // Opportunistic cleanup: delete all expired tokens for this user
         RefreshTokensTable.deleteWhere {
             (RefreshTokensTable.userId eq userId) and
             RefreshTokensTable.expiresAt.less(now)
         }
+        
         val user = UsersTable.select { UsersTable.id eq userId }.firstOrNull()
             ?: return@transaction ApiResponse(false, message = "User not found")
         if (!user[UsersTable.isActive]) {
-            RefreshTokensTable.deleteWhere { RefreshTokensTable.id eq stored[RefreshTokensTable.id] }
             return@transaction ApiResponse(false, message = "Account is deactivated")
         }
         businessAccessError(user[UsersTable.businessId])?.let { message ->
-            RefreshTokensTable.deleteWhere { RefreshTokensTable.id eq stored[RefreshTokensTable.id] }
             return@transaction ApiResponse(false, message = message)
         }
-        // Rotate atomically: a refresh token is single-use.
-        RefreshTokensTable.deleteWhere { RefreshTokensTable.id eq stored[RefreshTokensTable.id] }
+        
+        // Issue new tokens after all validations pass
         val auth = issueTokens(userId, user[UsersTable.businessId], user[UsersTable.role])
         ApiResponse(success = true, data = auth, message = "Token refreshed")
     }
@@ -191,6 +202,12 @@ class AuthService(
             val email = user[UsersTable.email]
             val name = user[UsersTable.name]
             dispatchOtp(phone, email, name, otp)
+            // 🔒 SECURITY: Log with masked PII
+            println(com.app.biashara.utils.LogUtils.logSafe(
+                "otp_sent",
+                "user_id" to userId,
+                "phone" to com.app.biashara.utils.LogUtils.maskPhone(phone)
+            ))
             ApiResponse(
                 success = true,
                 data = LoginResponse(userId, requiresOtp = true, otpChannels = buildList {
@@ -345,15 +362,27 @@ class AuthService(
         when (req.channel.uppercase()) {
             "WHATSAPP" -> {
                 runBlocking { whatsappOtpService.sendOtp(dispatch.phone, dispatch.otp) }
-                println("[AuthService] OTP resent via WhatsApp")
+                println(com.app.biashara.utils.LogUtils.logSafe(
+                    "otp_resent",
+                    "channel" to "WHATSAPP",
+                    "phone" to com.app.biashara.utils.LogUtils.maskPhone(dispatch.phone)
+                ))
             }
             "SMS" -> {
                 runBlocking { smsService.sendOtp(dispatch.phone, dispatch.otp) }
-                println("[AuthService] OTP resent via SMS to ${dispatch.phone}")
+                println(com.app.biashara.utils.LogUtils.logSafe(
+                    "otp_resent",
+                    "channel" to "SMS",
+                    "phone" to com.app.biashara.utils.LogUtils.maskPhone(dispatch.phone)
+                ))
             }
             "EMAIL" -> {
                 emailService.sendOtpEmail(dispatch.email, dispatch.otp, dispatch.name)
-                println("[AuthService] OTP resent via EMAIL to ${dispatch.email}")
+                println(com.app.biashara.utils.LogUtils.logSafe(
+                    "otp_resent",
+                    "channel" to "EMAIL",
+                    "email" to com.app.biashara.utils.LogUtils.maskEmail(dispatch.email)
+                ))
             }
             else -> dispatchOtp(dispatch.phone, dispatch.email, dispatch.name, dispatch.otp)
         }
@@ -445,7 +474,10 @@ class AuthService(
             try {
                 runBlocking { whatsappOtpService.sendOtp(phone, otp) }
             } catch (e: Exception) {
-                println("[AuthService] WhatsApp OTP dispatch failed: ${e.message}")
+                println(com.app.biashara.utils.LogUtils.logSafe(
+                    "whatsapp_otp_dispatch_failed",
+                    "error" to (e.message ?: "unknown")
+                ))
             }
         }
         if (phone.isNotBlank()) {

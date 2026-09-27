@@ -233,6 +233,11 @@ fun Route.authRoutesValidated() {
                 )
             }
 
+            /**
+             * Request password reset (send reset code via email)
+             * POST /auth/forgot-password
+             * 🔒 SECURITY: Rate limited to prevent email bombing and brute force
+             */
             post("/forgot-password") {
                 val req = call.receive<ResetPasswordRequestDTO>()
                 Validator.validate {
@@ -241,6 +246,11 @@ fun Route.authRoutesValidated() {
                 call.respond(HttpStatusCode.OK, authService.requestPasswordReset(req.email))
             }
 
+            /**
+             * Confirm password reset with code
+             * POST /auth/reset-password
+             * 🔒 SECURITY: Rate limited to prevent brute force of reset codes
+             */
             post("/reset-password") {
                 val req = call.receive<ResetPasswordConfirmDTO>()
                 Validator.validate {
