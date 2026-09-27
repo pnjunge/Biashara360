@@ -21,6 +21,8 @@ import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.ResultRow
 import org.koin.ktor.ext.inject
 
 /**
@@ -52,13 +54,59 @@ fun Route.paymentRoutesValidated() {
                 }
             }
             
-            // Fetch order to get amount
-            val order = transaction {
-                OrdersTable.select {
+            // 🔒 SECURITY: Idempotency check - prevent duplicate payment requests
+            val existingAttempt = transaction {
+                val order = OrdersTable.select {
                     (OrdersTable.id eq req.orderId) and (OrdersTable.businessId eq businessId)
-                }.firstOrNull()
-            } ?: throw NotFoundException("Order", req.orderId)
+                }.firstOrNull() ?: return@transaction null
+                
+                // Check if order already has a pending/successful payment
+                if (order[OrdersTable.paymentStatus] in setOf("PAID", "PROCESSING")) {
+                    return@transaction "duplicate"
+                }
+                
+                // Check if there's a recent checkout attempt (within last 2 minutes)
+                val checkoutRequestId = order[OrdersTable.stkCheckoutRequestId]
+                if (!checkoutRequestId.isNullOrBlank()) {
+                    val recentAttempt = MpesaCheckoutAttemptsTable.select {
+                        (MpesaCheckoutAttemptsTable.checkoutRequestId eq checkoutRequestId) and
+                        (MpesaCheckoutAttemptsTable.orderId eq req.orderId)
+                    }.orderBy(MpesaCheckoutAttemptsTable.createdAt, SortOrder.DESC)
+                    .firstOrNull()
+                    
+                    if (recentAttempt != null) {
+                        val attemptTime = recentAttempt[MpesaCheckoutAttemptsTable.createdAt]
+                        val now = Clock.System.now()
+                        val ageSeconds = (now - attemptTime).inWholeSeconds
+                        
+                        if (ageSeconds < 120) { // 2 minutes
+                            return@transaction "recent"
+                        }
+                    }
+                }
+                
+                order
+            }
             
+            when (existingAttempt) {
+                "duplicate" -> {
+                    call.respond(
+                        HttpStatusCode.Conflict,
+                        ApiResponse<Unit>(false, message = "Payment already processed or in progress for this order")
+                    )
+                    return@post
+                }
+                "recent" -> {
+                    call.respond(
+                        HttpStatusCode.TooEarly,
+                        ApiResponse<Unit>(false, message = "A payment request was recently sent. Please wait before retrying.")
+                    )
+                    return@post
+                }
+                null -> throw NotFoundException("Order", req.orderId)
+            }
+            
+            val order = existingAttempt as ResultRow
             val amount = order[OrdersTable.subtotal]
             
             // Validate amount
@@ -217,9 +265,30 @@ fun Route.mpesaCallbackRouteValidated() {
                     val orderSubtotal = orderRow[OrdersTable.subtotal]
                     val now = Clock.System.now()
                     
-                    // Validate amount matches order
+                    // 🔒 SECURITY: Idempotency check - prevent duplicate payment processing
+                    // Check if payment with this transaction code already exists
+                    val existingPayment = PaymentsTable.select {
+                        (PaymentsTable.transactionCode eq txCode) and
+                        (PaymentsTable.businessId eq businessId)
+                    }.firstOrNull()
+                    
+                    if (existingPayment != null) {
+                        application.log.warn("""{"event":"mpesa_callback_duplicate","transaction_code":"${txCode.take(8)}***","order_id":"$orderId"}""")
+                        // Already processed, acknowledge without re-processing
+                        return@transaction
+                    }
+                    
+                    // Check if order is already marked as paid
+                    if (orderRow[OrdersTable.paymentStatus] == "PAID") {
+                        application.log.warn("""{"event":"mpesa_callback_already_paid","order_id":"$orderId"}""")
+                        return@transaction
+                    }
+                    
+                    // Validate amount matches order (allow 1% tolerance for rounding)
                     if (Math.abs(amount - orderSubtotal) > orderSubtotal * 0.01) {
-                        application.log.warn("""{"event":"mpesa_callback_rejected","reason":"amount_mismatch","order_id":"$orderId"}""")
+                        application.log.warn("""{"event":"mpesa_callback_rejected","reason":"amount_mismatch","order_id":"$orderId","expected":$orderSubtotal,"received":$amount}""")
+                        // Don't process payment if amount doesn't match
+                        return@transaction
                     }
                     
                     // Save payment record
@@ -252,7 +321,7 @@ fun Route.mpesaCallbackRouteValidated() {
                     
                     application.log.info("""{"event":"payment_completed","provider":"mpesa","order_id":"$orderId"}""")
                 } else {
-                    application.log.warn("""{"event":"mpesa_callback_unmatched"}""")
+                    application.log.warn("""{"event":"mpesa_callback_unmatched","checkout_request_id":"${checkoutRequestId.take(8)}***"}""")
                 }
             }
         } else {
