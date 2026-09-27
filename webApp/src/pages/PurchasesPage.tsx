@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Receipt, Plus, Search, Package, AlertTriangle, FileText,
-  DollarSign, CheckCircle2, Clock, Trash2, Eye
+  CheckCircle2, Clock, Trash2, Eye, X, Check, Store, Phone, CreditCard, Hash
 } from 'lucide-react'
 import {
   KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select
@@ -47,11 +47,6 @@ export default function PurchasesPage() {
   const [notes, setNotes] = useState('')
   const [draftItems, setDraftItems] = useState<LineItemDraft[]>([])
 
-  // Selector for adding line item
-  const [selectedProductId, setSelectedProductId] = useState('')
-  const [itemQty, setItemQty] = useState('1')
-  const [itemCost, setItemCost] = useState('')
-
   const loadData = async () => {
     setLoading(true)
     setError('')
@@ -86,10 +81,18 @@ export default function PurchasesPage() {
     setPaymentStatus('PAID')
     setInvoiceDate(new Date().toISOString().split('T')[0])
     setNotes('')
-    setDraftItems([])
-    setSelectedProductId('')
-    setItemQty('1')
-    setItemCost('')
+    const firstProd = products[0]
+    if (firstProd) {
+      setDraftItems([{
+        productId: firstProd.id,
+        productName: firstProd.name,
+        sku: firstProd.sku,
+        quantity: 1,
+        unitCost: firstProd.buyingPrice || 1000
+      }])
+    } else {
+      setDraftItems([])
+    }
     setError('')
   }
 
@@ -98,46 +101,37 @@ export default function PurchasesPage() {
     setShowRecordModal(true)
   }
 
-  const handleProductSelect = (productId: string) => {
-    setSelectedProductId(productId)
-    const found = products.find(p => p.id === productId)
-    if (found) {
-      setItemCost(String(found.buyingPrice || 0))
-    }
-  }
-
   const handleAddLineItem = () => {
-    if (!selectedProductId) {
-      setError('Please choose a product to add.')
-      return
-    }
-    const qty = Number(itemQty)
-    const cost = Number(itemCost)
-    if (isNaN(qty) || qty <= 0) {
-      setError('Quantity must be greater than zero.')
-      return
-    }
-    if (isNaN(cost) || cost < 0) {
-      setError('Unit cost must be a valid amount.')
-      return
-    }
-    const found = products.find(p => p.id === selectedProductId)
-    if (!found) return
-
+    const firstProd = products[0]
     setDraftItems(prev => [
       ...prev,
       {
-        productId: found.id,
-        productName: found.name,
-        sku: found.sku,
-        quantity: qty,
-        unitCost: cost
+        productId: firstProd?.id || '',
+        productName: firstProd?.name || '',
+        sku: firstProd?.sku || '',
+        quantity: 1,
+        unitCost: firstProd?.buyingPrice || 0
       }
     ])
-    setSelectedProductId('')
-    setItemQty('1')
-    setItemCost('')
     setError('')
+  }
+
+  const handleUpdateItem = (index: number, updates: Partial<LineItemDraft>) => {
+    setDraftItems(prev => prev.map((item, i) => {
+      if (i !== index) return item
+      const updated = { ...item, ...updates }
+      if (updates.productId) {
+        const found = products.find(p => p.id === updates.productId)
+        if (found) {
+          updated.productName = found.name
+          updated.sku = found.sku
+          if (found.buyingPrice > 0) {
+            updated.unitCost = found.buyingPrice
+          }
+        }
+      }
+      return updated
+    }))
   }
 
   const handleRemoveLineItem = (index: number) => {
@@ -157,6 +151,10 @@ export default function PurchasesPage() {
     }
     if (draftItems.length === 0) {
       setError('Please add at least one line item to the invoice.')
+      return
+    }
+    if (draftItems.some(it => !it.productId || it.quantity <= 0)) {
+      setError('Please ensure every line item has a selected product and valid quantity.')
       return
     }
 
@@ -217,16 +215,16 @@ export default function PurchasesPage() {
   const pendingCount = purchases.filter(p => p.paymentStatus === 'PENDING').length
 
   const paymentOptions = [
-    { value: 'CASH', label: 'Cash' },
-    { value: 'MPESA', label: 'M-Pesa' },
-    { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
-    { value: 'CREDIT', label: 'Supplier Credit' }
+    { value: 'CASH', label: 'CASH' },
+    { value: 'MPESA', label: 'MPESA' },
+    { value: 'BANK_TRANSFER', label: 'BANK TRANSFER' },
+    { value: 'CREDIT', label: 'CREDIT' }
   ]
 
   const paymentStatusOptions = [
-    { value: 'PAID', label: 'Fully Paid' },
-    { value: 'PENDING', label: 'Pending Due' },
-    { value: 'PARTIAL', label: 'Partially Paid' }
+    { value: 'PAID', label: 'PAID' },
+    { value: 'PENDING', label: 'PENDING' },
+    { value: 'PARTIAL', label: 'PARTIAL' }
   ]
 
   return (
@@ -380,7 +378,7 @@ export default function PurchasesPage() {
 
         {/* Invoices List */}
         {loading ? (
-          <div style={{ padding: 32, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>
             Loading purchase invoices...
           </div>
         ) : filteredPurchases.length === 0 ? (
@@ -435,221 +433,508 @@ export default function PurchasesPage() {
         )}
       </Card>
 
-      {/* Record Purchase Modal */}
+      {/* Record Purchase Modal (Matching User Mockup) */}
       {showRecordModal && (
         <Modal
-          title="Record Purchase Invoice (Augment Inventory)"
+          wide
+          title=""
           onClose={() => setShowRecordModal(false)}
-          footer={
-            <>
-              <Btn variant="secondary" onClick={() => setShowRecordModal(false)}>
-                Cancel
-              </Btn>
-              <Btn onClick={handleSavePurchase} disabled={saving}>
-                {saving ? 'Recording & Stocking...' : 'Save & Augment Stock'}
-              </Btn>
-            </>
-          }
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Custom Header matching mockup */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  background: '#E6F7F0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#059669'
+                }}>
+                  <Receipt size={24} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#0F1F3A' }}>
+                    Record Purchase Invoice
+                  </h3>
+                  <p style={{ margin: 0, fontSize: 12, color: '#64748B' }}>
+                    Receive supplier stock and augment inventory counts
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {error && (
               <p style={{ color: 'var(--b360-red)', fontSize: 12, margin: 0, fontWeight: 600 }}>
                 {error}
               </p>
             )}
 
-            {/* Note banner on inventory augmentation */}
+            {/* Step 1: Invoice & Supplier Details Card */}
             <div style={{
-              background: 'var(--b360-green-subtle)',
-              border: '1px solid var(--b360-green)',
-              borderRadius: 8,
-              padding: '10px 14px',
-              fontSize: 12,
-              color: 'var(--b360-text)',
-              display: 'flex',
-              gap: 8,
-              alignItems: 'center'
-            }}>
-              <CheckCircle2 size={16} style={{ color: 'var(--b360-green)', flexShrink: 0 }} />
-              <div>
-                <strong>Automatic Stock In:</strong> Quantities entered on this invoice will immediately augment the current stock of corresponding products and create audit records.
-              </div>
-            </div>
-
-            {/* Invoice Details Header */}
-            <div className="responsive-grid responsive-grid-2" style={{ gap: 12 }}>
-              <Input
-                label="Invoice Number *"
-                value={invoiceNumber}
-                onChange={setInvoiceNumber}
-                placeholder="e.g. INV-2024-001 or Bill #"
-              />
-              <Input
-                label="Supplier Name *"
-                value={supplierName}
-                onChange={setSupplierName}
-                placeholder="e.g. Kenya Wine Agencies Ltd"
-              />
-            </div>
-
-            <div className="responsive-grid responsive-grid-3" style={{ gap: 12 }}>
-              <Input
-                label="Supplier Phone"
-                value={supplierPhone}
-                onChange={setSupplierPhone}
-                placeholder="e.g. 0712345678"
-              />
-              <Input
-                label="Invoice Date"
-                type="date"
-                value={invoiceDate}
-                onChange={setInvoiceDate}
-              />
-              <Select
-                label="Payment Method"
-                value={paymentMethod}
-                onChange={setPaymentMethod}
-                options={paymentOptions}
-              />
-            </div>
-
-            <div className="responsive-grid responsive-grid-2" style={{ gap: 12 }}>
-              <Select
-                label="Payment Status"
-                value={paymentStatus}
-                onChange={setPaymentStatus}
-                options={paymentStatusOptions}
-              />
-              <Input
-                label="Notes / Delivery Ref"
-                value={notes}
-                onChange={setNotes}
-                placeholder="Optional supplier notes"
-              />
-            </div>
-
-            {/* Line items section */}
-            <div style={{
-              border: '1px solid var(--b360-border)',
-              borderRadius: 10,
-              padding: 14,
+              border: '1px solid #E2E8F0',
+              borderRadius: 12,
+              padding: 16,
               display: 'flex',
               flexDirection: 'column',
-              gap: 10
+              gap: 14
             }}>
-              <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Invoice Line Items</h4>
+              {/* Step 1 Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: '#2563EB',
+                  color: 'white',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  1
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#0F1F3A' }}>
+                  Invoice & Supplier Details
+                </span>
+              </div>
 
-              {/* Add line item inputs */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, alignItems: 'flex-end' }}>
-                <Select
-                  label="Select Product to Stock"
-                  value={selectedProductId}
-                  onChange={handleProductSelect}
-                  options={[
-                    { value: '', label: '-- Choose Product --' },
-                    ...products.map(p => ({
-                      value: p.id,
-                      label: `${p.name} (Stock: ${p.currentStock}) - ${p.sku}`
-                    }))
-                  ]}
-                />
-                <Input
-                  label="Qty"
-                  type="number"
-                  value={itemQty}
-                  onChange={setItemQty}
-                  placeholder="1"
-                />
-                <Input
-                  label="Unit Cost (KES)"
-                  type="number"
-                  value={itemCost}
-                  onChange={setItemCost}
-                  placeholder="0.00"
-                />
-                <div style={{ paddingBottom: 2 }}>
-                  <Btn
-                    variant="secondary"
-                    icon={<Plus size={14} />}
-                    onClick={handleAddLineItem}
-                  >
-                    Add
-                  </Btn>
+              {/* Row 1 */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+                    Invoice Number <span style={{ color: 'red' }}>*</span>
+                  </label>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    border: '1.5px solid #3B82F6',
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                    background: 'white',
+                    gap: 8
+                  }}>
+                    <Hash size={16} style={{ color: '#059669', flexShrink: 0 }} />
+                    <input
+                      value={invoiceNumber}
+                      onChange={e => setInvoiceNumber(e.target.value)}
+                      placeholder="Enter invoice number"
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        fontSize: 13,
+                        width: '100%',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+                    Supplier Name <span style={{ color: 'red' }}>*</span>
+                  </label>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                    background: 'white',
+                    gap: 8
+                  }}>
+                    <Store size={16} style={{ color: '#64748B', flexShrink: 0 }} />
+                    <input
+                      value={supplierName}
+                      onChange={e => setSupplierName(e.target.value)}
+                      placeholder="Search or select supplier"
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        fontSize: 13,
+                        width: '100%',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Draft Items List */}
-              {draftItems.length === 0 ? (
-                <div style={{
-                  padding: 16,
-                  textAlign: 'center',
-                  color: 'var(--b360-text-secondary)',
-                  fontSize: 12,
-                  background: 'var(--b360-bg)',
-                  borderRadius: 6
-                }}>
-                  No items added yet. Select a product above and click Add.
+              {/* Row 2 */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+                    Supplier Phone (Optional)
+                  </label>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                    background: 'white',
+                    gap: 8
+                  }}>
+                    <Phone size={16} style={{ color: '#64748B', flexShrink: 0 }} />
+                    <input
+                      value={supplierPhone}
+                      onChange={e => setSupplierPhone(e.target.value)}
+                      placeholder="e.g. 0712 345 678"
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        fontSize: 13,
+                        width: '100%',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                  </div>
                 </div>
-              ) : (
-                <div style={{
-                  border: '1px solid var(--b360-border)',
-                  borderRadius: 8,
-                  overflow: 'hidden'
-                }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ background: 'var(--b360-bg)', borderBottom: '1px solid var(--b360-border)', textAlign: 'left' }}>
-                        <th style={{ padding: '8px 10px' }}>Product</th>
-                        <th style={{ padding: '8px 10px' }}>SKU</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Qty</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Unit Cost</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Line Total</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'center' }}>Remove</th>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+                    Payment Method
+                  </label>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                    background: 'white',
+                    gap: 8
+                  }}>
+                    <CreditCard size={16} style={{ color: '#64748B', flexShrink: 0 }} />
+                    <select
+                      value={paymentMethod}
+                      onChange={e => setPaymentMethod(e.target.value)}
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        fontSize: 13,
+                        width: '100%',
+                        background: 'transparent',
+                        fontFamily: 'inherit',
+                        fontWeight: 600
+                      }}
+                    >
+                      {paymentOptions.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+                    Payment Status
+                  </label>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                    background: 'white',
+                    gap: 8
+                  }}>
+                    <CheckCircle2 size={16} style={{ color: '#059669', flexShrink: 0 }} />
+                    <select
+                      value={paymentStatus}
+                      onChange={e => setPaymentStatus(e.target.value)}
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        fontSize: 13,
+                        width: '100%',
+                        background: 'transparent',
+                        fontFamily: 'inherit',
+                        fontWeight: 600
+                      }}
+                    >
+                      {paymentStatusOptions.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 2: Line Items Card */}
+            <div style={{
+              border: '1px solid #E2E8F0',
+              borderRadius: 12,
+              padding: 16,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14
+            }}>
+              {/* Step 2 Header with "+ Add Item" Button */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    background: '#2563EB',
+                    color: 'white',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    2
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#0F1F3A' }}>
+                    Line Items (Augments Inventory Stock)
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddLineItem}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: '#2563EB',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '8px 14px',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Plus size={15} /> Add Item
+                </button>
+              </div>
+
+              {/* Items Table */}
+              <div style={{
+                border: '1px solid #E2E8F0',
+                borderRadius: 8,
+                overflow: 'hidden'
+              }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569' }}>
+                      <th style={{ padding: '10px 12px', width: 36, textAlign: 'center' }}>#</th>
+                      <th style={{ padding: '10px 12px' }}>Product *</th>
+                      <th style={{ padding: '10px 12px', width: 110, textAlign: 'center' }}>Qty Received *</th>
+                      <th style={{ padding: '10px 12px', width: 140 }}>Unit Cost (KES) *</th>
+                      <th style={{ padding: '10px 12px', width: 120, textAlign: 'right' }}>Total (KES)</th>
+                      <th style={{ padding: '10px 12px', width: 60, textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {draftItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ padding: '36px 16px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                            <Package size={36} style={{ color: '#94A3B8' }} />
+                            <strong style={{ fontSize: 14, color: '#1E293B' }}>No items added yet.</strong>
+                            <span style={{ fontSize: 12, color: '#64748B' }}>
+                              Select a product above to add to this purchase invoice.
+                            </span>
+                          </div>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {draftItems.map((item, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid var(--b360-border)' }}>
-                          <td style={{ padding: '8px 10px', fontWeight: 500 }}>{item.productName}</td>
-                          <td style={{ padding: '8px 10px', color: 'var(--b360-text-secondary)' }}>{item.sku}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{item.quantity}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                            KES {item.unitCost.toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                    ) : (
+                      draftItems.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                          <td style={{ padding: '10px 12px', textAlign: 'center', color: '#64748B', fontWeight: 600 }}>
+                            {idx + 1}
                           </td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>
-                            KES {(item.quantity * item.unitCost).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                          </td>
-                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                            <button
-                              onClick={() => handleRemoveLineItem(idx)}
+                          <td style={{ padding: '8px 12px' }}>
+                            <select
+                              value={item.productId}
+                              onChange={e => handleUpdateItem(idx, { productId: e.target.value })}
                               style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--b360-red)',
-                                cursor: 'pointer',
-                                padding: 2
+                                width: '100%',
+                                padding: '8px 10px',
+                                borderRadius: 6,
+                                border: '1px solid #CBD5E1',
+                                fontSize: 13,
+                                outline: 'none',
+                                background: 'white'
                               }}
                             >
-                              <Trash2 size={14} />
+                              <option value="">Search or select product</option>
+                              {products.map(p => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} ({p.sku}) - Stock: {p.currentStock}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={e => handleUpdateItem(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+                              style={{
+                                width: 80,
+                                padding: '8px 8px',
+                                borderRadius: 6,
+                                border: '1px solid #CBD5E1',
+                                fontSize: 13,
+                                textAlign: 'center',
+                                outline: 'none'
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 12px' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.unitCost}
+                              onChange={e => handleUpdateItem(idx, { unitCost: Math.max(0, Number(e.target.value) || 0) })}
+                              style={{
+                                width: '100%',
+                                padding: '8px 10px',
+                                borderRadius: 6,
+                                border: '1px solid #CBD5E1',
+                                fontSize: 13,
+                                outline: 'none'
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#059669', fontSize: 14 }}>
+                            {(item.quantity * item.unitCost).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLineItem(idx)}
+                              style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: 6,
+                                background: '#FEE2E2',
+                                border: 'none',
+                                color: '#EF4444',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Trash2 size={16} />
                             </button>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ background: 'var(--b360-bg)', fontWeight: 'bold' }}>
-                        <td colSpan={4} style={{ padding: '10px 10px', textAlign: 'right' }}>
-                          Total Invoice Amount:
-                        </td>
-                        <td style={{ padding: '10px 10px', textAlign: 'right', color: 'var(--b360-green)' }}>
-                          KES {computedTotal.toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Total Invoice Amount Banner */}
+              <div style={{
+                background: '#E8FDF3',
+                borderRadius: 10,
+                padding: '14px 20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: '#0F1F3A' }}>
+                  Total Invoice Amount:
+                </span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: '#059669' }}>
+                  KES {computedTotal.toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              {/* Invoice Notes */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+                  Invoice Notes / Delivery Remarks (Optional)
+                </label>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  background: 'white',
+                  gap: 8
+                }}>
+                  <FileText size={16} style={{ color: '#94A3B8', marginTop: 2, flexShrink: 0 }} />
+                  <textarea
+                    rows={2}
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder="Enter any notes or delivery remarks..."
+                    style={{
+                      border: 'none',
+                      outline: 'none',
+                      fontSize: 13,
+                      width: '100%',
+                      fontFamily: 'inherit',
+                      resize: 'vertical'
+                    }}
+                  />
                 </div>
-              )}
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setShowRecordModal(false)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'white',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: 8,
+                  padding: '10px 20px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#334155',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={16} /> Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePurchase}
+                disabled={saving}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: '#059669',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 24px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: 'white',
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  opacity: saving ? 0.7 : 1
+                }}
+              >
+                <Check size={16} /> {saving ? 'Augmenting...' : 'Confirm & Augment Stock'}
+              </button>
             </div>
           </div>
         </Modal>

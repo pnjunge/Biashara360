@@ -1607,9 +1607,9 @@ fun DesktopOrdersScreen(
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 13.dp)
                 ) {
-                    Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+                    Icon(Icons.Default.Storefront, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(7.dp))
-                    Text("New Order", fontWeight = FontWeight.Bold)
+                    Text("Point of Sale (POS)", fontWeight = FontWeight.Bold)
                 }
             }
         }

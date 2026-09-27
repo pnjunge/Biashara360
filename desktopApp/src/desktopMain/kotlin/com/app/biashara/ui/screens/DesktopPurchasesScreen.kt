@@ -5,6 +5,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
@@ -488,6 +489,124 @@ fun DesktopPurchasesScreen(
     }
 }
 
+data class PurchaseDraftItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val productId: String = "",
+    val productName: String = "",
+    val sku: String = "",
+    val quantityStr: String = "1",
+    val unitCostStr: String = "0"
+)
+
+@Composable
+private fun PurchaseDraftItemRow(
+    index: Int,
+    item: PurchaseDraftItem,
+    products: List<Product>,
+    onUpdate: (PurchaseDraftItem) -> Unit,
+    onDelete: () -> Unit
+) {
+    var rowDropdownExpanded by remember { mutableStateOf(false) }
+    val q = item.quantityStr.toIntOrNull() ?: 0
+    val c = item.unitCostStr.toDoubleOrNull() ?: 0.0
+    val lineTotal = q * c
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("${index + 1}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFF64748B), modifier = Modifier.width(32.dp))
+
+        // Product Dropdown
+        Box(modifier = Modifier.weight(2.5f).padding(end = 8.dp)) {
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                color = Color.White,
+                modifier = Modifier.fillMaxWidth().clickable { rowDropdownExpanded = true }
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(item.productName.ifBlank { "Search or select product" }, fontSize = 13.sp, maxLines = 1)
+                    Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
+                }
+            }
+            DropdownMenu(
+                expanded = rowDropdownExpanded,
+                onDismissRequest = { rowDropdownExpanded = false }
+            ) {
+                products.forEach { p ->
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(p.name, fontWeight = FontWeight.SemiBold)
+                                Text("${p.sku} • In Stock: ${p.currentStock}", fontSize = 11.sp, color = Color.Gray)
+                            }
+                        },
+                        onClick = {
+                            onUpdate(
+                                item.copy(
+                                    productId = p.id,
+                                    productName = p.name,
+                                    sku = p.sku,
+                                    unitCostStr = if (p.buyingPrice > 0.0) p.buyingPrice.toInt().toString() else item.unitCostStr
+                                )
+                            )
+                            rowDropdownExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        // Qty Received
+        OutlinedTextField(
+            value = item.quantityStr,
+            onValueChange = { newQty ->
+                onUpdate(item.copy(quantityStr = newQty.filter { it.isDigit() }))
+            },
+            modifier = Modifier.width(110.dp).padding(end = 8.dp),
+            singleLine = true,
+            shape = RoundedCornerShape(6.dp)
+        )
+
+        // Unit Cost
+        OutlinedTextField(
+            value = item.unitCostStr,
+            onValueChange = { newCost ->
+                onUpdate(item.copy(unitCostStr = newCost.filter { it.isDigit() || it == '.' }))
+            },
+            modifier = Modifier.width(130.dp).padding(end = 8.dp),
+            singleLine = true,
+            shape = RoundedCornerShape(6.dp)
+        )
+
+        // Line Total
+        Text(
+            String.format("%,.2f", lineTotal),
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            color = Color(0xFF059669),
+            modifier = Modifier.width(110.dp)
+        )
+
+        // Delete Action inside light red box
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(0xFFFEE2E2))
+                .clickable { onDelete() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Delete, null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecordPurchaseInvoiceDialog(
@@ -506,27 +625,20 @@ fun RecordPurchaseInvoiceDialog(
     var isSubmitting by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
 
-    // Line items being added to the purchase invoice
-    data class DraftItem(
-        val productId: String,
-        val productName: String,
-        val sku: String,
-        var quantityStr: String,
-        var unitCostStr: String
-    )
-
-    var draftItems by remember { mutableStateOf<List<DraftItem>>(emptyList()) }
-
-    // Selector state for adding a product line
-    var selectedProduct by remember { mutableStateOf<Product?>(products.firstOrNull()) }
-    var addQtyStr by remember { mutableStateOf("1") }
-    var addCostStr by remember { mutableStateOf(selectedProduct?.buyingPrice?.toInt()?.toString() ?: "0") }
-    var productDropdownExpanded by remember { mutableStateOf(false) }
-
-    LaunchedEffect(selectedProduct) {
-        selectedProduct?.let { p ->
-            addCostStr = if (p.buyingPrice > 0.0) p.buyingPrice.toInt().toString() else "0"
-        }
+    var draftItems by remember {
+        mutableStateOf<List<PurchaseDraftItem>>(
+            products.firstOrNull()?.let { p ->
+                listOf(
+                    PurchaseDraftItem(
+                        productId = p.id,
+                        productName = p.name,
+                        sku = p.sku,
+                        quantityStr = "1",
+                        unitCostStr = if (p.buyingPrice > 0.0) p.buyingPrice.toInt().toString() else "1000"
+                    )
+                )
+            } ?: emptyList()
+        )
     }
 
     val totalCalculated = remember(draftItems) {
@@ -540,7 +652,7 @@ fun RecordPurchaseInvoiceDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .width(760.dp)
+                .width(820.dp)
                 .wrapContentHeight()
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
@@ -552,23 +664,23 @@ fun RecordPurchaseInvoiceDialog(
                     .fillMaxWidth()
                     .padding(24.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(18.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Header
+                // Header matching mockup
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(44.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(Color(0xFFE6F7F0)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.ReceiptLong, null, tint = B360Green, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Default.ReceiptLong, null, tint = Color(0xFF059669), modifier = Modifier.size(24.dp))
                         }
                         Column {
                             Text("Record Purchase Invoice", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
@@ -576,7 +688,7 @@ fun RecordPurchaseInvoiceDialog(
                         }
                     }
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, null, tint = Color.Gray)
+                        Icon(Icons.Default.Close, null, tint = Color(0xFF64748B))
                     }
                 }
 
@@ -593,302 +705,279 @@ fun RecordPurchaseInvoiceDialog(
                     }
                 }
 
-                // Section 1: Invoice Information
-                Text("1. INVOICE & SUPPLIER DETAILS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Invoice Number (Requested prominent field)
-                    OutlinedTextField(
-                        value = invoiceNumber,
-                        onValueChange = { invoiceNumber = it; validationError = null },
-                        label = { Text("Invoice Number *") },
-                        placeholder = { Text("e.g. INV-2026-081, ETR-4412") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
-                        leadingIcon = { Icon(Icons.Default.Tag, null, tint = B360Green) }
-                    )
-
-                    OutlinedTextField(
-                        value = supplierName,
-                        onValueChange = { supplierName = it; validationError = null },
-                        label = { Text("Supplier Name *") },
-                        placeholder = { Text("e.g. Brookside Dairy, Farmer's Choice") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
-                        leadingIcon = { Icon(Icons.Default.Store, null, tint = Color.Gray) }
-                    )
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = supplierPhone,
-                        onValueChange = { supplierPhone = it },
-                        label = { Text("Supplier Phone (Optional)") },
-                        placeholder = { Text("0712 345 678") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-
-                    // Payment Method
-                    var methodExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = methodExpanded,
-                        onExpandedChange = { methodExpanded = it },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        OutlinedTextField(
-                            value = paymentMethod,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Payment Method") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = methodExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        ExposedDropdownMenu(
-                            expanded = methodExpanded,
-                            onDismissRequest = { methodExpanded = false }
-                        ) {
-                            listOf("CASH", "MPESA", "BANK_TRANSFER", "CREDIT").forEach { method ->
-                                DropdownMenuItem(
-                                    text = { Text(method) },
-                                    onClick = { paymentMethod = method; methodExpanded = false }
-                                )
-                            }
-                        }
-                    }
-
-                    // Payment Status
-                    var statusExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = statusExpanded,
-                        onExpandedChange = { statusExpanded = it },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        OutlinedTextField(
-                            value = paymentStatus,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Payment Status") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        ExposedDropdownMenu(
-                            expanded = statusExpanded,
-                            onDismissRequest = { statusExpanded = false }
-                        ) {
-                            listOf("PAID", "PENDING", "PARTIAL").forEach { status ->
-                                DropdownMenuItem(
-                                    text = { Text(status) },
-                                    onClick = { paymentStatus = status; statusExpanded = false }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Section 2: Items to Augment Inventory
-                Text("2. LINE ITEMS (AUGMENTS INVENTORY STOCK)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-
-                // Line item adder form
+                // ── Card 1: Invoice & Supplier Details ──
                 Surface(
-                    color = Color(0xFFF8FAFC),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    color = Color.White,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Product Selector
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        // Section 1 Title
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                modifier = Modifier.size(24.dp).clip(CircleShape).background(Color(0xFF2563EB)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("1", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                            Text("Invoice & Supplier Details", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A))
+                        }
+
+                        // Row 1
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = invoiceNumber,
+                                onValueChange = { invoiceNumber = it; validationError = null },
+                                label = { Text("Invoice Number *") },
+                                placeholder = { Text("Enter invoice number") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                shape = RoundedCornerShape(8.dp),
+                                leadingIcon = {
+                                    Text("#", color = Color(0xFF059669), fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(start = 12.dp, end = 4.dp))
+                                },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF3B82F6),
+                                    unfocusedBorderColor = Color(0xFFCBD5E1)
+                                )
+                            )
+
+                            OutlinedTextField(
+                                value = supplierName,
+                                onValueChange = { supplierName = it; validationError = null },
+                                label = { Text("Supplier Name *") },
+                                placeholder = { Text("Search or select supplier") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                shape = RoundedCornerShape(8.dp),
+                                leadingIcon = { Icon(Icons.Default.Store, null, tint = Color(0xFF64748B)) },
+                                trailingIcon = { Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF64748B)) }
+                            )
+                        }
+
+                        // Row 2
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = supplierPhone,
+                                onValueChange = { supplierPhone = it },
+                                label = { Text("Supplier Phone (Optional)") },
+                                placeholder = { Text("e.g. 0712 345 678") },
+                                modifier = Modifier.weight(1.2f),
+                                singleLine = true,
+                                shape = RoundedCornerShape(8.dp),
+                                leadingIcon = { Icon(Icons.Default.Phone, null, tint = Color(0xFF64748B)) }
+                            )
+
+                            // Payment Method
+                            var methodExpanded by remember { mutableStateOf(false) }
                             ExposedDropdownMenuBox(
-                                expanded = productDropdownExpanded,
-                                onExpandedChange = { productDropdownExpanded = it },
-                                modifier = Modifier.weight(2.5f)
+                                expanded = methodExpanded,
+                                onExpandedChange = { methodExpanded = it },
+                                modifier = Modifier.weight(1f)
                             ) {
                                 OutlinedTextField(
-                                    value = selectedProduct?.name ?: "Select Product from Inventory",
+                                    value = paymentMethod,
                                     onValueChange = {},
                                     readOnly = true,
-                                    label = { Text("Product") },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = productDropdownExpanded) },
+                                    label = { Text("Payment Method") },
+                                    leadingIcon = { Icon(Icons.Default.Payment, null, tint = Color(0xFF64748B)) },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = methodExpanded) },
                                     modifier = Modifier.menuAnchor().fillMaxWidth(),
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 ExposedDropdownMenu(
-                                    expanded = productDropdownExpanded,
-                                    onDismissRequest = { productDropdownExpanded = false }
+                                    expanded = methodExpanded,
+                                    onDismissRequest = { methodExpanded = false }
                                 ) {
-                                    if (products.isEmpty()) {
+                                    listOf("CASH", "MPESA", "BANK_TRANSFER", "CREDIT").forEach { method ->
                                         DropdownMenuItem(
-                                            text = { Text("No products found in inventory") },
-                                            onClick = { productDropdownExpanded = false }
+                                            text = { Text(method) },
+                                            onClick = { paymentMethod = method; methodExpanded = false }
                                         )
-                                    } else {
-                                        products.forEach { p ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Column {
-                                                        Text(p.name, fontWeight = FontWeight.SemiBold)
-                                                        Text("SKU: ${p.sku} • Current Stock: ${p.currentStock}", fontSize = 11.sp, color = Color.Gray)
-                                                    }
-                                                },
-                                                onClick = {
-                                                    selectedProduct = p
-                                                    productDropdownExpanded = false
-                                                }
-                                            )
-                                        }
                                     }
                                 }
                             }
 
-                            // Quantity
-                            OutlinedTextField(
-                                value = addQtyStr,
-                                onValueChange = { addQtyStr = it.filter { c -> c.isDigit() } },
-                                label = { Text("Qty Received") },
-                                modifier = Modifier.weight(1.2f),
-                                singleLine = true,
-                                shape = RoundedCornerShape(8.dp)
-                            )
+                            // Payment Status
+                            var statusExpanded by remember { mutableStateOf(false) }
+                            ExposedDropdownMenuBox(
+                                expanded = statusExpanded,
+                                onExpandedChange = { statusExpanded = it },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                OutlinedTextField(
+                                    value = paymentStatus,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Payment Status") },
+                                    leadingIcon = { Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF059669)) },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusExpanded) },
+                                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = statusExpanded,
+                                    onDismissRequest = { statusExpanded = false }
+                                ) {
+                                    listOf("PAID", "PENDING", "PARTIAL").forEach { status ->
+                                        DropdownMenuItem(
+                                            text = { Text(status) },
+                                            onClick = { paymentStatus = status; statusExpanded = false }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
-                            // Unit Cost
-                            OutlinedTextField(
-                                value = addCostStr,
-                                onValueChange = { addCostStr = it.filter { c -> c.isDigit() || c == '.' } },
-                                label = { Text("Unit Cost (KES)") },
-                                modifier = Modifier.weight(1.4f),
-                                singleLine = true,
-                                shape = RoundedCornerShape(8.dp)
-                            )
+                // ── Card 2: Line Items (Augments Inventory Stock) ──
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    color = Color.White,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        // Section 2 Header with "+ Add Item" Button
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(
+                                    modifier = Modifier.size(24.dp).clip(CircleShape).background(Color(0xFF2563EB)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("2", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                                Text("Line Items (Augments Inventory Stock)", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A))
+                            }
 
                             Button(
                                 onClick = {
-                                    val p = selectedProduct
-                                    val qty = addQtyStr.toIntOrNull()
-                                    val cost = addCostStr.toDoubleOrNull()
-                                    if (p == null) {
-                                        validationError = "Please select a product from inventory."
-                                    } else if (qty == null || qty <= 0) {
-                                        validationError = "Enter a positive quantity received."
-                                    } else if (cost == null || cost < 0.0) {
-                                        validationError = "Enter a valid unit cost."
-                                    } else {
-                                        draftItems = draftItems + DraftItem(
-                                            productId = p.id,
-                                            productName = p.name,
-                                            sku = p.sku,
-                                            quantityStr = qty.toString(),
-                                            unitCostStr = cost.toString()
+                                    val firstP = products.firstOrNull()
+                                    if (firstP != null) {
+                                        draftItems = draftItems + PurchaseDraftItem(
+                                            productId = firstP.id,
+                                            productName = firstP.name,
+                                            sku = firstP.sku,
+                                            quantityStr = "1",
+                                            unitCostStr = if (firstP.buyingPrice > 0.0) firstP.buyingPrice.toInt().toString() else "1000"
                                         )
-                                        addQtyStr = "1"
                                         validationError = null
                                     }
                                 },
                                 shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = B360Blue),
-                                modifier = Modifier.height(52.dp)
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                             ) {
                                 Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Add Item")
+                                Spacer(Modifier.width(6.dp))
+                                Text("Add Item", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                         }
-                    }
-                }
 
-                // Table of added items
-                if (draftItems.isEmpty()) {
-                    Text(
-                        "No items added yet. Select a product above to add to this purchase invoice.",
-                        fontSize = 13.sp,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                } else {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().background(Color(0xFFF1F5F9)).padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("PRODUCT", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.Gray, modifier = Modifier.weight(2.5f))
-                                Text("QTY", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.Gray, modifier = Modifier.weight(1f))
-                                Text("UNIT COST", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.Gray, modifier = Modifier.weight(1.5f))
-                                Text("LINE TOTAL", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.Gray, modifier = Modifier.weight(1.5f))
-                                Text("", modifier = Modifier.width(36.dp))
-                            }
-                            draftItems.forEachIndexed { index, item ->
-                                val q = item.quantityStr.toIntOrNull() ?: 0
-                                val c = item.unitCostStr.toDoubleOrNull() ?: 0.0
+                        // Table Box
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            color = Color.White,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
+                                // Table Header
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                                    modifier = Modifier.fillMaxWidth().background(Color(0xFFF8FAFC)).padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column(modifier = Modifier.weight(2.5f)) {
-                                        Text(item.productName, fontWeight = FontWeight.Medium, fontSize = 13.sp)
-                                        Text(item.sku, fontSize = 11.sp, color = Color.Gray)
-                                    }
-                                    Text("+${q} units", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, color = B360Green, fontSize = 13.sp)
-                                    Text("KES ${String.format("%,.0f", c)}", modifier = Modifier.weight(1.5f), fontSize = 13.sp)
-                                    Text("KES ${String.format("%,.0f", q * c)}", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    IconButton(
-                                        onClick = { draftItems = draftItems.filterIndexed { i, _ -> i != index } },
-                                        modifier = Modifier.size(28.dp)
+                                    Text("#", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(32.dp))
+                                    Text("Product *", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.weight(2.5f))
+                                    Text("Qty Received *", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(110.dp))
+                                    Text("Unit Cost (KES) *", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(130.dp))
+                                    Text("Total (KES)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(110.dp))
+                                    Text("Action", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(50.dp))
+                                }
+
+                                if (draftItems.isEmpty()) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Icon(Icons.Default.Delete, null, tint = B360Red, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Inventory2, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(40.dp))
+                                        Text("No items added yet.", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1E293B))
+                                        Text("Select a product above to add to this purchase invoice.", fontSize = 12.sp, color = Color(0xFF64748B))
+                                    }
+                                } else {
+                                    draftItems.forEachIndexed { index, item ->
+                                        HorizontalDivider(color = Color(0xFFE2E8F0))
+                                        PurchaseDraftItemRow(
+                                            index = index,
+                                            item = item,
+                                            products = products,
+                                            onUpdate = { updated ->
+                                                draftItems = draftItems.toMutableList().also { it[index] = updated }
+                                            },
+                                            onDelete = {
+                                                draftItems = draftItems.filterIndexed { i, _ -> i != index }
+                                            }
+                                        )
                                     }
                                 }
-                                HorizontalDivider(color = Color(0xFFF1F5F9))
                             }
+                        }
+
+                        // Total Invoice Amount Banner matching mockup
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFFE8FDF3),
+                            border = BorderStroke(1.dp, Color(0xFFB7F4D8))
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Total Invoice Amount:", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F1F3A))
+                                Text("KES ${String.format("%,.2f", totalCalculated)}", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = Color(0xFF059669))
+                            }
+                        }
+
+                        // Notes Field
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Invoice Notes / Delivery Remarks (Optional)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+                            OutlinedTextField(
+                                value = notes,
+                                onValueChange = { notes = it },
+                                placeholder = { Text("Enter any notes or delivery remarks...") },
+                                leadingIcon = { Icon(Icons.Default.Description, null, tint = Color(0xFF94A3B8)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            )
                         }
                     }
                 }
 
-                // Total Summary Card
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFE6F7F0))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Total Invoice Amount:", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
-                    Text("KES ${String.format("%,.0f", totalCalculated)}", fontWeight = FontWeight.Black, fontSize = 18.sp, color = B360Green)
-                }
-
-                // Notes
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Invoice Notes / Delivery Remarks (Optional)") },
-                    placeholder = { Text("e.g. Received via delivery truck #KBZ-123A") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp)
-                )
-
-                // Dialog Action Buttons
+                // Footer Buttons matching mockup
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss, enabled = !isSubmitting) {
-                        Text("Cancel", color = Color(0xFF64748B))
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        enabled = !isSubmitting,
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
+                    ) {
+                        Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp), tint = Color(0xFF334155))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Cancel", color = Color(0xFF334155), fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.width(12.dp))
                     Button(
@@ -952,16 +1041,17 @@ fun RecordPurchaseInvoiceDialog(
                         },
                         enabled = !isSubmitting,
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = B360Green)
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669)),
+                        contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)
                     ) {
                         if (isSubmitting) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                             Spacer(Modifier.width(8.dp))
-                            Text("Augmenting Inventory...")
+                            Text("Augmenting Inventory...", color = Color.White, fontWeight = FontWeight.Bold)
                         } else {
-                            Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Confirm & Augment Stock", fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp), tint = Color.White)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Confirm & Augment Stock", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
