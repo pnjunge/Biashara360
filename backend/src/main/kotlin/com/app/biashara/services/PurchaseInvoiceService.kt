@@ -83,9 +83,7 @@ class PurchaseInvoiceService {
         if (invoiceNum.isBlank()) {
             return@transaction ApiResponse(false, message = "Invoice Number is required")
         }
-        if (req.supplierName.trim().isBlank()) {
-            return@transaction ApiResponse(false, message = "Supplier Name is required")
-        }
+        val supplier = req.supplierName.trim()
         if (req.items.isEmpty()) {
             return@transaction ApiResponse(false, message = "At least one item must be included in the purchase invoice")
         }
@@ -106,8 +104,8 @@ class PurchaseInvoiceService {
             it[PurchaseInvoicesTable.id] = id
             it[PurchaseInvoicesTable.businessId] = businessId
             it[PurchaseInvoicesTable.invoiceNumber] = invoiceNum
-            it[PurchaseInvoicesTable.supplierName] = req.supplierName.trim()
-            it[PurchaseInvoicesTable.supplierPhone] = req.supplierPhone?.trim()?.takeIf { it.isNotBlank() }
+            it[PurchaseInvoicesTable.supplierName] = supplier.ifBlank { "Unspecified" }
+            it[PurchaseInvoicesTable.supplierPhone] = req.supplierPhone?.trim()?.takeIf { p -> p.isNotBlank() }
             it[PurchaseInvoicesTable.invoiceDate] = parsedDate
             it[PurchaseInvoicesTable.totalAmount] = total
             it[PurchaseInvoicesTable.paymentStatus] = req.paymentStatus?.ifBlank { "PAID" } ?: "PAID"
@@ -116,6 +114,26 @@ class PurchaseInvoiceService {
             it[PurchaseInvoicesTable.itemsJson] = itemsJsonStr
             it[PurchaseInvoicesTable.createdAt] = now
             it[PurchaseInvoicesTable.updatedAt] = now
+        }
+
+        // Link / record supplier in SuppliersTable if provided
+        if (supplier.isNotBlank() && !supplier.equals("unspecified", ignoreCase = true)) {
+            val exists = SuppliersTable.select {
+                (SuppliersTable.businessId eq businessId) and (SuppliersTable.name.lowerCase() eq supplier.lowercase())
+            }.any()
+            if (!exists) {
+                SuppliersTable.insert {
+                    it[SuppliersTable.id] = UUID.randomUUID().toString()
+                    it[SuppliersTable.businessId] = businessId
+                    it[name] = supplier
+                    it[phone] = req.supplierPhone?.trim().orEmpty()
+                    it[email] = null
+                    it[address] = null
+                    it[isActive] = true
+                    it[createdAt] = now
+                    it[updatedAt] = now
+                }
+            }
         }
 
         // 2. Augment Inventory: increase product current_stock and record STOCK_IN movement

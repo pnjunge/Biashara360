@@ -517,6 +517,15 @@ export interface AccessGroup { id: string; name: string; description: string; ro
 export interface AccessConfig { menus: MenuDefinition[]; enabledMenus: string[]; roles: AccessRole[]; groups: AccessGroup[] }
 export interface InventoryCategory { id: string; name: string; isActive: boolean; productCount: number; imageUrl?: string | null }
 
+export interface Supplier {
+  id: string
+  name: string
+  phone: string
+  email?: string | null
+  address?: string | null
+  isActive: boolean
+}
+
 export interface ServiceCatalogItem {
   id: string; name: string; description: string; category: string
   durationMinutes: number; price: number; isActive: boolean; createdAt: string; updatedAt: string
@@ -984,6 +993,16 @@ export const hospitalityOpsApi = {
   decideApproval: async (id:string,approved:boolean) => (await client.post(`/hospitality/operations/approvals/${id}/decision`,{approved})).data,
   splitBill: async (orderId:string,payments:any[]) => (await client.post(`/hospitality/operations/tabs/${orderId}/split`,{payments})).data,
   report: async (startDate:string,endDate:string) => (await client.get(`/hospitality/operations/report`,{params:{startDate,endDate}})).data,
+}
+
+export const supplierApi = {
+  list: async () => (await client.get<ApiResponse<Supplier[]>>('/suppliers')).data,
+  create: async (data: { name: string; phone?: string; email?: string; address?: string }) =>
+    (await client.post<ApiResponse<Supplier>>('/suppliers', data)).data,
+  update: async (id: string, data: { name: string; phone?: string; email?: string; address?: string }) =>
+    (await client.put<ApiResponse<Supplier>>(`/suppliers/${id}`, data)).data,
+  delete: async (id: string) =>
+    (await client.delete<ApiResponse<boolean>>(`/suppliers/${id}`)).data,
 }
 
 export const servicesApi = {

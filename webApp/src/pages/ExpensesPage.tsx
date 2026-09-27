@@ -150,7 +150,9 @@ export default function ExpensesPage() {
               businessId: pi.businessId,
               category: 'STOCK_PURCHASE',
               amount: pi.totalAmount,
-              description: `Stock Purchase: #${pi.invoiceNumber} - ${pi.supplierName}`,
+              description: pi.supplierName && pi.supplierName !== 'Unspecified' && pi.supplierName.trim() !== ''
+                ? `Stock Purchase: #${pi.invoiceNumber} - ${pi.supplierName}`
+                : `Stock Purchase: #${pi.invoiceNumber}`,
               expenseDate: invDate,
               receiptUrl: null,
               recordedAt: pi.createdAt || new Date().toISOString(),

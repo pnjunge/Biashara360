@@ -625,6 +625,20 @@ fun RecordPurchaseInvoiceDialog(
     var isSubmitting by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
 
+    var suppliers by remember { mutableStateOf<List<DesktopSupplier>>(emptyList()) }
+    var supplierDropdownExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        runCatching {
+            client.get("$BASE_URL/suppliers").body<ApiResponse<List<DesktopSupplier>>>()
+        }.onSuccess { res ->
+            val data = res.data
+            if (res.success && data != null) {
+                suppliers = data
+            }
+        }
+    }
+
     var draftItems by remember {
         mutableStateOf<List<PurchaseDraftItem>>(
             products.firstOrNull()?.let { p ->
@@ -743,17 +757,54 @@ fun RecordPurchaseInvoiceDialog(
                                 )
                             )
 
-                            OutlinedTextField(
-                                value = supplierName,
-                                onValueChange = { supplierName = it; validationError = null },
-                                label = { Text("Supplier Name *") },
-                                placeholder = { Text("Search or select supplier") },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true,
-                                shape = RoundedCornerShape(8.dp),
-                                leadingIcon = { Icon(Icons.Default.Store, null, tint = Color(0xFF64748B)) },
-                                trailingIcon = { Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF64748B)) }
-                            )
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedTextField(
+                                    value = supplierName,
+                                    onValueChange = {
+                                        supplierName = it
+                                        validationError = null
+                                        supplierDropdownExpanded = it.isNotBlank() && suppliers.any { s -> s.name.contains(it, ignoreCase = true) }
+                                    },
+                                    label = { Text("Supplier Name (Optional)") },
+                                    placeholder = { Text("Search or select supplier") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(8.dp),
+                                    leadingIcon = { Icon(Icons.Default.Store, null, tint = Color(0xFF64748B)) },
+                                    trailingIcon = {
+                                        if (suppliers.isNotEmpty()) {
+                                            IconButton(onClick = { supplierDropdownExpanded = !supplierDropdownExpanded }) {
+                                                Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF64748B))
+                                            }
+                                        }
+                                    }
+                                )
+                                val matchingSuppliers = suppliers.filter {
+                                    supplierName.isBlank() || it.name.contains(supplierName, ignoreCase = true)
+                                }
+                                DropdownMenu(
+                                    expanded = supplierDropdownExpanded && matchingSuppliers.isNotEmpty(),
+                                    onDismissRequest = { supplierDropdownExpanded = false }
+                                ) {
+                                    matchingSuppliers.take(6).forEach { s ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Column {
+                                                    Text(s.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                                    s.phone.takeIf { it.isNotBlank() }?.let { p ->
+                                                        Text(p, fontSize = 11.sp, color = Color.Gray)
+                                                    }
+                                                }
+                                            },
+                                            onClick = {
+                                                supplierName = s.name
+                                                s.phone.takeIf { it.isNotBlank() }?.let { supplierPhone = it }
+                                                supplierDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         // Row 2
@@ -986,10 +1037,7 @@ fun RecordPurchaseInvoiceDialog(
                                 validationError = "Invoice Number is required."
                                 return@Button
                             }
-                            if (supplierName.trim().isBlank()) {
-                                validationError = "Supplier Name is required."
-                                return@Button
-                            }
+                            // Note: Supplier is optional
                             if (draftItems.isEmpty()) {
                                 validationError = "Please add at least one line item to this invoice."
                                 return@Button
@@ -1008,7 +1056,7 @@ fun RecordPurchaseInvoiceDialog(
 
                             val request = CreatePurchaseInvoiceRequest(
                                 invoiceNumber = invoiceNumber.trim(),
-                                supplierName = supplierName.trim(),
+                                supplierName = supplierName.trim().ifBlank { "Unspecified" },
                                 supplierPhone = supplierPhone.trim().takeIf { it.isNotBlank() },
                                 invoiceDate = Clock.System.now().toString(),
                                 totalAmount = totalCalculated,
