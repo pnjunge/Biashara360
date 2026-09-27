@@ -161,31 +161,22 @@ private fun DesktopSidebarItem(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val bg = if (isSelected) B360SidebarSelected else Color.Transparent
-    val iconColor = if (isSelected) B360Green else Color(0xFF94A3B8)
-    val textColor = if (isSelected) Color.White else Color(0xFF94A3B8)
+    val bg = if (isSelected) Color(0xFFE6F9F0) else Color.Transparent
+    val iconColor = if (isSelected) Color(0xFF059669) else Color(0xFF64748B)
+    val textColor = if (isSelected) Color(0xFF059669) else Color(0xFF475569)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(44.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(bg)
             .clickable(onClick = onClick)
     ) {
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .fillMaxHeight()
-                    .background(B360Green)
-                    .align(Alignment.CenterStart)
-            )
-        }
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = if (isSelected) 16.dp else 12.dp, end = 12.dp),
+                .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
         ) {
@@ -199,9 +190,8 @@ private fun DesktopSidebarItem(
                 Spacer(Modifier.width(12.dp))
                 Text(
                     text = screen.title,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
-                    ),
+                    fontSize = 14.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     color = textColor
                 )
             }
@@ -310,115 +300,156 @@ fun Biashara360DesktopAppContent(
         Row(modifier = Modifier.fillMaxSize()) {
             if (isWideScreen) {
                 val sidebarWidth = if (isExpanded) 240.dp else 72.dp
-                Column(
-                    modifier = Modifier
-                        .width(sidebarWidth)
-                        .fillMaxHeight()
-                        .background(B360SidebarBg)
-                        .padding(horizontal = 12.dp, vertical = 16.dp)
-                ) {
-                    // Header logo
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
+                val sidebarUser by UserSession.currentUser.collectAsState()
+                Row(modifier = Modifier.width(sidebarWidth).fillMaxHeight()) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .background(Color.White)
+                            .padding(horizontal = 12.dp, vertical = 16.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF1E293B)),
-                            contentAlignment = Alignment.Center
+                        // Header logo / user profile
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.ShoppingBag,
-                                contentDescription = "Logo",
-                                tint = B360Green,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        if (isExpanded) {
-                            Spacer(Modifier.width(10.dp))
-                            Text(
-                                text = "Biashara360",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = Color.White
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    // Menu items
-                    Box(modifier = Modifier.weight(1f)) {
-                        val scrollState = rememberScrollState()
-                        Column(
-                            modifier = Modifier.fillMaxSize().verticalScroll(scrollState),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            visibleTopScreens.forEach { screen ->
-                                DesktopSidebarItem(
-                                    screen = screen,
-                                    isExpanded = isExpanded,
-                                    isSelected = currentScreen == screen,
-                                    onClick = { navigationViewModel.navigateTo(screen) }
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFFE6F9F0)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Storefront,
+                                    contentDescription = "Logo",
+                                    tint = Color(0xFF059669),
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
-                            visibleNavGroups.forEach { group ->
-                                if (isExpanded) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(start = 12.dp, top = 10.dp, end = 8.dp, bottom = 2.dp)
-                                            .clickable { openNavGroups = openNavGroups + (group.key to !(openNavGroups[group.key] ?: true)) },
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = group.label,
-                                            color = Color(0xFFCBD5E1),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            letterSpacing = 0.6.sp
-                                        )
-                                        Spacer(Modifier.weight(1f))
-                                        Icon(
-                                            imageVector = if (openNavGroups[group.key] == true) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                            contentDescription = "Toggle ${group.label}",
-                                            tint = Color(0xFF94A3B8),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
+                            if (isExpanded) {
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = sidebarUser?.name?.ifBlank { null } ?: UserSession.getUserName().ifBlank { null } ?: "Biashara360",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1E293B)
+                                    )
+                                    Text(
+                                        text = sidebarUser?.role?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Admin",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF64748B)
+                                    )
                                 }
-                                if (!isExpanded || openNavGroups[group.key] == true) {
-                                    group.screens.forEach { screen ->
-                                        DesktopSidebarItem(
-                                            screen = screen,
-                                            isExpanded = isExpanded,
-                                            isSelected = currentScreen == screen,
-                                            onClick = { navigationViewModel.navigateTo(screen) }
-                                        )
+                            }
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+
+                        // Menu items
+                        Box(modifier = Modifier.weight(1f)) {
+                            val scrollState = rememberScrollState()
+                            Column(
+                                modifier = Modifier.fillMaxSize().verticalScroll(scrollState),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                visibleTopScreens.forEach { screen ->
+                                    DesktopSidebarItem(
+                                        screen = screen,
+                                        isExpanded = isExpanded,
+                                        isSelected = currentScreen == screen,
+                                        onClick = { navigationViewModel.navigateTo(screen) }
+                                    )
+                                }
+                                visibleNavGroups.forEach { group ->
+                                    if (isExpanded) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(start = 12.dp, top = 10.dp, end = 8.dp, bottom = 2.dp)
+                                                .clickable { openNavGroups = openNavGroups + (group.key to !(openNavGroups[group.key] ?: true)) },
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = group.label,
+                                                color = Color(0xFF94A3B8),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 0.6.sp
+                                            )
+                                            Spacer(Modifier.weight(1f))
+                                            Icon(
+                                                imageVector = if (openNavGroups[group.key] == true) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                contentDescription = "Toggle ${group.label}",
+                                                tint = Color(0xFF94A3B8),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    if (!isExpanded || openNavGroups[group.key] == true) {
+                                        group.screens.forEach { screen ->
+                                            DesktopSidebarItem(
+                                                screen = screen,
+                                                isExpanded = isExpanded,
+                                                isSelected = currentScreen == screen,
+                                                onClick = { navigationViewModel.navigateTo(screen) }
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    // Collapse toggle button at the bottom
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
-                    ) {
-                        IconButton(
-                            onClick = { isExpanded = !isExpanded },
-                            modifier = Modifier.padding(horizontal = 8.dp)
+                        // Bottom Sign Out button
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { UserSession.clearUser() }
+                                .padding(horizontal = if (isExpanded) 12.dp else 6.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
                         ) {
                             Icon(
-                                imageVector = if (isExpanded) Icons.Default.KeyboardDoubleArrowLeft else Icons.Default.KeyboardDoubleArrowRight,
-                                contentDescription = "Collapse/Expand Sidebar",
-                                tint = Color(0xFF94A3B8)
+                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                contentDescription = "Sign Out",
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(20.dp)
                             )
+                            if (isExpanded) {
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = "Sign Out",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF475569)
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(4.dp))
+
+                        // Collapse toggle button at the bottom
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
+                        ) {
+                            IconButton(
+                                onClick = { isExpanded = !isExpanded },
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isExpanded) Icons.Default.KeyboardDoubleArrowLeft else Icons.Default.KeyboardDoubleArrowRight,
+                                    contentDescription = "Collapse/Expand Sidebar",
+                                    tint = Color(0xFF94A3B8)
+                                )
+                            }
                         }
                     }
+                    VerticalDivider(color = Color(0xFFE2E8F0))
                 }
             }
 
@@ -467,7 +498,21 @@ fun Biashara360DesktopAppContent(
                                         }
                                         innerTextField()
                                     }
-                                    if (searchQuery.isNotEmpty()) {
+                                    if (searchQuery.isEmpty()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(0xFFE2E8F0).copy(alpha = 0.8f)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("Ctrl", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
+                                                Text("K", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
+                                            }
+                                        }
+                                    } else {
                                         Icon(
                                             Icons.Default.Close,
                                             contentDescription = "Clear",
@@ -514,14 +559,10 @@ fun Biashara360DesktopAppContent(
                         IconButton(onClick = { navigationViewModel.navigateTo(AppScreen.Inventory) }) {
                             BadgedBox(
                                 badge = {
-                                    if (dashboardState.lowStockCount > 0) {
-                                        Badge(
-                                            containerColor = B360Red,
-                                            contentColor = Color.White
-                                        ) {
-                                            Text(dashboardState.lowStockCount.toString(), fontSize = 9.sp)
-                                        }
-                                    }
+                                    Badge(
+                                        containerColor = Color(0xFFEF4444),
+                                        modifier = Modifier.size(8.dp)
+                                    ) {}
                                 }
                             ) {
                                 Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = Color(0xFF64748B))
@@ -537,6 +578,11 @@ fun Biashara360DesktopAppContent(
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            val displayName = user?.name?.ifBlank { null }
+                                ?: user?.email?.substringBefore("@")?.ifBlank { null }
+                                ?: UserSession.getUserName().ifBlank { null }
+                                ?: "Admin"
+                            val userInitial = displayName.firstOrNull()?.toString()?.uppercase() ?: "A"
                             Box(
                                 modifier = Modifier
                                     .size(32.dp)
@@ -545,7 +591,7 @@ fun Biashara360DesktopAppContent(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = user?.name?.firstOrNull()?.toString()?.uppercase() ?: "J",
+                                    text = userInitial,
                                     color = B360Green,
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.bodyMedium
@@ -554,7 +600,7 @@ fun Biashara360DesktopAppContent(
                             Spacer(Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = user?.name ?: "John Admin",
+                                    text = displayName,
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                                     color = Color(0xFF1E293B)
                                 )

@@ -130,7 +130,7 @@ selectItemsByOrder:
 SELECT * FROM OrderItemEntity WHERE order_id = :orderId;
 
 insertOrderItem:
-INSERT INTO OrderItemEntity VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO OrderItemEntity VALUES (?, ?, ?, ?, ?, ?, ?);
 
 deleteItemsByOrder:
 DELETE FROM OrderItemEntity WHERE order_id = :orderId;
@@ -198,7 +198,7 @@ selectExpensesByDateRange:
 SELECT * FROM ExpenseEntity WHERE business_id = :businessId AND expense_date >= :start AND expense_date <= :end ORDER BY expense_date DESC;
 
 insertExpense:
-INSERT INTO ExpenseEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO ExpenseEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 deleteExpense:
 DELETE FROM ExpenseEntity WHERE id = :id;
@@ -234,7 +234,7 @@ selectUnreconciledPayments:
 SELECT * FROM PaymentEntity WHERE business_id = :businessId AND reconciled = 0 AND status = 'SUCCESS';
 
 insertPayment:
-INSERT INTO PaymentEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO PaymentEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 updateReconciliation:
 UPDATE PaymentEntity SET reconciled = 1, order_id = :orderId WHERE id = :paymentId;
