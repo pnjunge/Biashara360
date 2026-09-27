@@ -19,6 +19,7 @@ const navItems = [
   { key:'HOSPITALITY', to: '/kitchen-display', icon: ChefHat, label: 'Kitchen & Bar Display' },
   { key:'SERVICES', to: '/services', icon: CalendarClock, label: 'Appointments & Services' },
   { key:'INVENTORY', to: '/inventory',     icon: Package,         label: 'Inventory' },
+  { key:'PURCHASES', to: '/purchases',     icon: ShoppingBag,     label: 'Purchases' },
   { key:'ORDERS', to: '/orders',        icon: ShoppingCart,    label: 'Orders' },
   { key:'CUSTOMERS', to: '/customers',     icon: Users,           label: 'Customers' },
   { key:'EXPENSES', to: '/expenses',      icon: Receipt,         label: 'Expenses' },
@@ -31,7 +32,7 @@ const navItems = [
 ]
 
 const navSectionDefinitions = [
-  { key: 'OPERATIONS', label: 'OPERATIONS', itemKeys: ['HOSPITALITY', 'HOSPITALITY_OPS', 'OPEN_TABS', 'SERVICES', 'INVENTORY', 'ORDERS', 'CUSTOMERS'] },
+  { key: 'OPERATIONS', label: 'OPERATIONS', itemKeys: ['HOSPITALITY', 'HOSPITALITY_OPS', 'OPEN_TABS', 'SERVICES', 'INVENTORY', 'PURCHASES', 'ORDERS', 'CUSTOMERS'] },
   { key: 'FINANCE', label: 'FINANCE', itemKeys: ['EXPENSES', 'PAYMENTS'] },
   { key: 'ENGAGEMENT', label: 'ENGAGEMENT', itemKeys: ['SOCIAL', 'REPORTS', 'DOWNLOADS'] },
   { key: 'ADMINISTRATION', label: 'ADMINISTRATION', itemKeys: ['USERS', 'SETTINGS'] },
@@ -80,7 +81,7 @@ export default function AppShell() {
   const visibleNavItems = navItems.filter(item => {
     if (item.key === 'SERVICES' && !servicesEnabled) return false
     const accessKeys = [item.key]
-    if (allowedMenus && !accessKeys.some(key => allowedMenus.has(key) || (key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS')))) return false
+    if (allowedMenus && !accessKeys.some(key => allowedMenus.has(key) || (key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS')) || (key === 'PURCHASES' && allowedMenus.has('INVENTORY')))) return false
     const isHospitalityNav = item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS' || item.to === '/kitchen-display'
     if (isHospitalityNav && hospitalityEnabled !== true) return false
     if (!isStaff) return true

@@ -116,6 +116,7 @@ fun Application.module() {
                 accountRoutesValidated()
                 dashboardRoute()
                 productRoutesValidated()
+                purchaseRoutes()
                 orderRoutes()
                 portalOrderRoutes()
                 customerRoutes()

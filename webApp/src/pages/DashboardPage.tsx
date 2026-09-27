@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building, ShoppingCart, Clock, UserPlus, HelpCircle, Activity, ChevronDown, CheckCircle, Smartphone, ExternalLink, Copy, Store } from 'lucide-react'
+import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building, ShoppingCart, Clock, UserPlus, HelpCircle, Activity, ChevronDown, CheckCircle, Smartphone, ExternalLink, Copy, Store, ShoppingBag, FileText } from 'lucide-react'
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
 import { productApi, orderApi, customerApi, reportApi, businessApi, socialApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse, InventoryCategory } from '../services/api'
 import { useAuth } from '../App'
@@ -388,6 +388,7 @@ const emptyProduct = { name:'', sku:'', category:'Other', buyingPrice:'', sellin
 
 export function InventoryPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [lowOnly, setLowOnly] = useState(false)
   const [products, setProducts] = useState<ProductResponse[]>([])
@@ -583,8 +584,57 @@ export function InventoryPage() {
         </Modal>
       )}
 
-      <PageHeader title="Inventory"
-        action={<div style={{ display:'flex', gap:8 }}>{user?.role === 'ADMIN' && <Btn variant="secondary" onClick={() => { setError(''); setShowCategories(true) }}>Categories</Btn>}<Btn variant="secondary" onClick={() => setShowImport(true)}>Import Excel</Btn><Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Product</Btn></div>} />
+      <PageHeader title="Inventory & Stock"
+        action={
+          <div style={{ display:'flex', gap:8 }}>
+            <Btn variant="secondary" icon={<ShoppingBag size={14}/>} onClick={() => navigate('/purchases')}>
+              Purchases & Invoices
+            </Btn>
+            {user?.role === 'ADMIN' && <Btn variant="secondary" onClick={() => { setError(''); setShowCategories(true) }}>Categories</Btn>}
+            <Btn variant="secondary" onClick={() => setShowImport(true)}>Import Excel</Btn>
+            <Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Product</Btn>
+          </div>
+        }
+      />
+
+      {/* Sub-nav Tab Switcher augmenting Inventory with Purchases */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        borderBottom: '1px solid var(--b360-border)',
+        paddingBottom: 8
+      }}>
+        <button
+          style={{
+            background: 'var(--b360-green-subtle)',
+            border: '1px solid var(--b360-green)',
+            padding: '8px 16px',
+            fontSize: 14,
+            fontWeight: 600,
+            color: 'var(--b360-green)',
+            cursor: 'pointer',
+            borderRadius: 6
+          }}
+        >
+          Products & Stock
+        </button>
+        <button
+          onClick={() => navigate('/purchases')}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '8px 16px',
+            fontSize: 14,
+            fontWeight: 500,
+            color: 'var(--b360-text-secondary)',
+            cursor: 'pointer',
+            borderRadius: 6
+          }}
+        >
+          Purchase Invoices (Stock In)
+        </button>
+      </div>
 
       <div className="responsive-grid responsive-grid-4" style={{ gap:12 }}>
         <KpiCard title="Total Products"  value={`${products.length}`}  change="Active items"        icon={<Package size={18}/>} color="var(--b360-blue)" />

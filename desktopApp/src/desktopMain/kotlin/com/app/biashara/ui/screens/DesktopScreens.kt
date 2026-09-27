@@ -1033,6 +1033,7 @@ fun TopCustomerRow(name: String, orders: String, spent: String) {
 @Composable
 fun DesktopInventoryScreen(
     searchQuery: String = "",
+    onNavigateToPurchases: () -> Unit = {},
     viewModel: InventoryViewModel = remember { inject() }
 ) {
     val state by viewModel.state.collectAsState()
@@ -1045,6 +1046,7 @@ fun DesktopInventoryScreen(
     }
 
     var showAddProductDialog by remember { mutableStateOf(false) }
+    var showRecordPurchaseDialog by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<Product?>(null) }
 
     var localSearchQuery by remember { mutableStateOf("") }
@@ -1088,6 +1090,16 @@ fun DesktopInventoryScreen(
                     Text(if (state.isSyncing) "Syncing…" else "Sync Backend", color = B360Green, fontWeight = FontWeight.Bold)
                 }
                 Button(
+                    onClick = { showRecordPurchaseDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = B360Blue),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 13.dp)
+                ) {
+                    Icon(Icons.Default.ReceiptLong, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text("Record Purchase", fontWeight = FontWeight.Bold)
+                }
+                Button(
                     onClick = { showAddProductDialog = true },
                     colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                     shape = RoundedCornerShape(10.dp),
@@ -1096,6 +1108,43 @@ fun DesktopInventoryScreen(
                     Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(7.dp))
                     Text("Add Product", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // Sub-navigation tab augmenting Inventory with Purchases
+        Row(
+            modifier = Modifier
+                .width(360.dp)
+                .height(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFFE2E8F0))
+                .padding(3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Products & Stock", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = B360Green)
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { onNavigateToPurchases() }
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.ReceiptLong, null, modifier = Modifier.size(14.dp), tint = Color(0xFF64748B))
+                    Text("Purchase Invoices", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color(0xFF64748B))
                 }
             }
         }
@@ -1453,6 +1502,19 @@ fun DesktopInventoryScreen(
             },
             shape = RoundedCornerShape(22.dp),
             containerColor = Color.White
+        )
+    }
+
+    if (showRecordPurchaseDialog) {
+        RecordPurchaseInvoiceDialog(
+            products = state.products,
+            onDismiss = { showRecordPurchaseDialog = false },
+            onSaved = { _ ->
+                showRecordPurchaseDialog = false
+                val businessId = UserSession.getBusinessId()
+                viewModel.loadProducts(businessId)
+                viewModel.syncProducts(businessId)
+            }
         )
     }
 }

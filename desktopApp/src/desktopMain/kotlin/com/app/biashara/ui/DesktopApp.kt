@@ -74,6 +74,7 @@ sealed class AppScreen(
     object Hospitality : AppScreen("hospitality", "Bar & Restaurant", Icons.Default.TableRestaurant)
     object OpenTabs : AppScreen("open_tabs", "Open Tabs", Icons.Default.ReceiptLong)
     object Inventory : AppScreen("inventory", "Inventory", Icons.Default.Inventory)
+    object Purchases : AppScreen("purchases", "Purchases", Icons.Default.ReceiptLong)
     object Orders : AppScreen("orders", "Orders", Icons.Default.ShoppingCart)
     object Customers : AppScreen("customers", "Customers", Icons.Default.People)
     object Expenses : AppScreen("expenses", "Expenses", Icons.Default.Receipt)
@@ -103,7 +104,7 @@ private val desktopNavGroups = listOf(
     DesktopNavGroup(
         key = "OPERATIONS",
         label = "OPERATIONS",
-        screens = listOf(AppScreen.Hospitality, AppScreen.OpenTabs, AppScreen.Inventory, AppScreen.Orders, AppScreen.Customers)
+        screens = listOf(AppScreen.Hospitality, AppScreen.OpenTabs, AppScreen.Inventory, AppScreen.Purchases, AppScreen.Orders, AppScreen.Customers)
     ),
     DesktopNavGroup(
         key = "FINANCE",
@@ -251,7 +252,7 @@ fun Biashara360DesktopAppContent(
     val visibleScreens = appScreens.filter { screen ->
         val menu = when (screen) {
             AppScreen.Dashboard -> "DASHBOARD"; AppScreen.Pos -> "POS"; AppScreen.Hospitality -> "HOSPITALITY"
-            AppScreen.OpenTabs -> "OPEN_TABS"; AppScreen.Inventory -> "INVENTORY"; AppScreen.Orders -> "ORDERS"
+            AppScreen.OpenTabs -> "OPEN_TABS"; AppScreen.Inventory -> "INVENTORY"; AppScreen.Purchases -> "INVENTORY"; AppScreen.Orders -> "ORDERS"
             AppScreen.Customers -> "CUSTOMERS"; AppScreen.Expenses -> "EXPENSES"; AppScreen.Payments -> "PAYMENTS"
             AppScreen.Reports -> "REPORTS"; AppScreen.Tax -> "TAX"; AppScreen.KRA -> "KRA"; AppScreen.Social -> "SOCIAL"
             AppScreen.Settings -> "SETTINGS"; else -> null
@@ -610,7 +611,14 @@ fun Biashara360DesktopAppContent(
                         AppScreen.Pos -> DesktopPosScreen()
                         AppScreen.Hospitality -> DesktopHospitalityScreen()
                         AppScreen.OpenTabs -> DesktopOpenTabsScreen()
-                        AppScreen.Inventory -> DesktopInventoryScreen(searchQuery = searchQuery)
+                        AppScreen.Inventory -> DesktopInventoryScreen(
+                            searchQuery = searchQuery,
+                            onNavigateToPurchases = { navigationViewModel.navigateTo(AppScreen.Purchases) }
+                        )
+                        AppScreen.Purchases -> DesktopPurchasesScreen(
+                            searchQuery = searchQuery,
+                            onNavigateToInventory = { navigationViewModel.navigateTo(AppScreen.Inventory) }
+                        )
                         AppScreen.Orders -> DesktopOrdersScreen(searchQuery = searchQuery)
                         AppScreen.Customers -> DesktopCustomersScreen(searchQuery = searchQuery)
                         AppScreen.Expenses -> DesktopExpensesModernScreen()

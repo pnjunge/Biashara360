@@ -128,6 +128,50 @@ export interface ProductResponse {
   category: string; barcode?: string | null; imageUrl: string | null; isActive?: boolean; createdAt: string; updatedAt: string
 }
 
+export interface PurchaseLineItem {
+  productId: string
+  productName: string
+  sku: string
+  quantity: number
+  unitCost: number
+  totalCost: number
+}
+
+export interface PurchaseInvoice {
+  id: string
+  businessId: string
+  invoiceNumber: string
+  supplierName: string
+  supplierPhone?: string | null
+  totalAmount: number
+  paymentStatus: string
+  paymentMethod: string
+  notes?: string | null
+  items: PurchaseLineItem[]
+  invoiceDate: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreatePurchaseInvoiceRequest {
+  invoiceNumber: string
+  supplierName: string
+  supplierPhone?: string | null
+  totalAmount?: number | null
+  paymentStatus?: string | null
+  paymentMethod?: string | null
+  notes?: string | null
+  invoiceDate?: string | null
+  items: Array<{
+    productId: string
+    productName: string
+    sku: string
+    quantity: number
+    unitCost: number
+    totalCost?: number | null
+  }>
+}
+
 export interface OrderItemResponse {
   id: string; productId: string; productName: string; quantity: number
   unitPrice: number; buyingPrice: number; lineTotal: number; lineProfit: number
@@ -528,6 +572,21 @@ export const productApi = {
     const res = await client.put<ApiResponse<InventoryCategory>>(`/products/categories/${id}`, data)
     return res.data
   },
+}
+
+export const purchaseApi = {
+  list: async () => {
+    const res = await client.get<ApiResponse<PurchaseInvoice[]>>('/purchases')
+    return res.data
+  },
+  get: async (id: string) => {
+    const res = await client.get<ApiResponse<PurchaseInvoice>>(`/purchases/${id}`)
+    return res.data
+  },
+  create: async (data: CreatePurchaseInvoiceRequest) => {
+    const res = await client.post<ApiResponse<PurchaseInvoice>>('/purchases', data)
+    return res.data
+  }
 }
 
 export const orderApi = {

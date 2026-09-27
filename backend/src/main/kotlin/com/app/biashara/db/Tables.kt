@@ -447,3 +447,22 @@ object SocialIdentitiesTable : Table("social_identities") {
     val userId = varchar("user_id", 36).references(UsersTable.id, onDelete = CASCADE)
     override val primaryKey = PrimaryKey(provider, subject)
 }
+
+// ─── Purchase Invoices ────────────────────────────────────────────────────────
+object PurchaseInvoicesTable : Table("purchase_invoices") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
+    val invoiceNumber = varchar("invoice_number", 100)
+    val supplierName = varchar("supplier_name", 255)
+    val supplierPhone = varchar("supplier_phone", 30).nullable()
+    val totalAmount = double("total_amount").default(0.0)
+    val paymentStatus = varchar("payment_status", 30).default("PAID")
+    val paymentMethod = varchar("payment_method", 30).default("CASH")
+    val notes = text("notes").default("")
+    val itemsJson = text("items_json").default("[]")
+    val invoiceDate = timestamp("invoice_date")
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
