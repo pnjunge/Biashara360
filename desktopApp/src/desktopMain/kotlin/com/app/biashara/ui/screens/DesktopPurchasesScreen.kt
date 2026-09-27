@@ -92,7 +92,7 @@ fun DesktopPurchasesScreen(
             val matchesSearch = activeSearch.isBlank() ||
                 p.invoiceNumber.contains(activeSearch, ignoreCase = true) ||
                 p.supplierName.contains(activeSearch, ignoreCase = true) ||
-                p.items.any { it.productName.contains(activeSearch, ignoreCase = true) || it.sku.contains(activeSearch, ignoreCase = true) }
+                p.items.any { it.productName.contains(activeSearch, ignoreCase = true) || it.sku?.contains(activeSearch, ignoreCase = true) == true }
 
             val matchesStatus = when (statusFilter) {
                 "PAID" -> p.paymentStatus.equals("PAID", ignoreCase = true)
@@ -568,7 +568,7 @@ private fun PurchaseDraftItemRow(
             onValueChange = { newQty ->
                 onUpdate(item.copy(quantityStr = newQty.filter { it.isDigit() }))
             },
-            modifier = Modifier.width(110.dp).padding(end = 8.dp),
+            modifier = Modifier.width(120.dp).padding(end = 8.dp),
             singleLine = true,
             shape = RoundedCornerShape(6.dp)
         )
@@ -579,18 +579,18 @@ private fun PurchaseDraftItemRow(
             onValueChange = { newCost ->
                 onUpdate(item.copy(unitCostStr = newCost.filter { it.isDigit() || it == '.' }))
             },
-            modifier = Modifier.width(130.dp).padding(end = 8.dp),
+            modifier = Modifier.width(160.dp).padding(end = 8.dp),
             singleLine = true,
             shape = RoundedCornerShape(6.dp)
         )
 
         // Line Total
         Text(
-            String.format("%,.2f", lineTotal),
+            String.format("KES %,.2f", lineTotal),
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp,
             color = Color(0xFF059669),
-            modifier = Modifier.width(110.dp)
+            modifier = Modifier.width(150.dp)
         )
 
         // Delete Action inside light red box
@@ -652,7 +652,7 @@ fun RecordPurchaseInvoiceDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .width(820.dp)
+                .width(980.dp)
                 .wrapContentHeight()
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
@@ -893,11 +893,11 @@ fun RecordPurchaseInvoiceDialog(
                                     modifier = Modifier.fillMaxWidth().background(Color(0xFFF8FAFC)).padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("#", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(32.dp))
+                                    Text("#", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(36.dp))
                                     Text("Product *", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.weight(2.5f))
-                                    Text("Qty Received *", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(110.dp))
-                                    Text("Unit Cost (KES) *", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(130.dp))
-                                    Text("Total (KES)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(110.dp))
+                                    Text("Qty Received *", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(120.dp))
+                                    Text("Unit Cost (KES) *", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(160.dp))
+                                    Text("Total (KES)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(150.dp))
                                     Text("Action", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569), modifier = Modifier.width(50.dp))
                                 }
 
@@ -1011,6 +1011,7 @@ fun RecordPurchaseInvoiceDialog(
                                 supplierName = supplierName.trim(),
                                 supplierPhone = supplierPhone.trim().takeIf { it.isNotBlank() },
                                 invoiceDate = Clock.System.now().toString(),
+                                totalAmount = totalCalculated,
                                 paymentStatus = paymentStatus,
                                 paymentMethod = paymentMethod,
                                 notes = notes.trim(),
@@ -1123,11 +1124,11 @@ fun PurchaseInvoiceDetailsDialog(
                             Row(modifier = Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(2f)) {
                                     Text(item.productName, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                    Text(item.sku, fontSize = 11.sp, color = Color.Gray)
+                                    Text(item.sku.orEmpty(), fontSize = 11.sp, color = Color.Gray)
                                 }
                                 Text("+${item.quantity}", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, color = B360Green, fontSize = 13.sp)
                                 Text("KES ${String.format("%,.0f", item.unitCost)}", modifier = Modifier.weight(1f), fontSize = 13.sp)
-                                Text("KES ${String.format("%,.0f", item.lineTotal)}", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("KES ${String.format("%,.0f", item.lineTotal ?: (item.quantity * item.unitCost))}", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                             HorizontalDivider(color = Color(0xFFF1F5F9))
                         }

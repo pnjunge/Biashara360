@@ -165,9 +165,10 @@ export interface CreatePurchaseInvoiceRequest {
   items: Array<{
     productId: string
     productName: string
-    sku: string
+    sku?: string | null
     quantity: number
     unitCost: number
+    lineTotal?: number | null
     totalCost?: number | null
   }>
 }

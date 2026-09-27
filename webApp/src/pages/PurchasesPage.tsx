@@ -164,20 +164,25 @@ export default function PurchasesPage() {
       const payload: CreatePurchaseInvoiceRequest = {
         invoiceNumber: invoiceNumber.trim().toUpperCase(),
         supplierName: supplierName.trim(),
-        supplierPhone: supplierPhone.trim() || null,
+        supplierPhone: supplierPhone.trim() || undefined,
         totalAmount: computedTotal,
         paymentStatus,
         paymentMethod,
-        notes: notes.trim() || null,
+        notes: notes.trim(),
         invoiceDate,
-        items: draftItems.map(item => ({
-          productId: item.productId,
-          productName: item.productName,
-          sku: item.sku,
-          quantity: item.quantity,
-          unitCost: item.unitCost,
-          totalCost: item.quantity * item.unitCost
-        }))
+        items: draftItems.map(item => {
+          const qty = Math.max(1, Number(item.quantity) || 1)
+          const cost = Math.max(0, Number(item.unitCost) || 0)
+          return {
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku || '',
+            quantity: qty,
+            unitCost: cost,
+            lineTotal: qty * cost,
+            totalCost: qty * cost
+          }
+        })
       }
 
       const res = await purchaseApi.create(payload)
@@ -190,7 +195,8 @@ export default function PurchasesPage() {
         setError(res.message || 'Failed to save purchase invoice.')
       }
     } catch (e: any) {
-      setError(e.response?.data?.message || 'Network error while recording invoice.')
+      const serverMsg = e.response?.data?.error?.message || e.response?.data?.message || e.message
+      setError(serverMsg || 'Failed to record purchase invoice. Please check server connectivity.')
     } finally {
       setSaving(false)
     }
@@ -436,11 +442,11 @@ export default function PurchasesPage() {
       {/* Record Purchase Modal (Matching User Mockup) */}
       {showRecordModal && (
         <Modal
-          wide
+          extraWide
           title=""
           onClose={() => setShowRecordModal(false)}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18, width: '100%', maxWidth: 960, margin: '0 auto' }}>
             {/* Custom Header matching mockup */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -730,12 +736,12 @@ export default function PurchasesPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569' }}>
-                      <th style={{ padding: '10px 12px', width: 36, textAlign: 'center' }}>#</th>
-                      <th style={{ padding: '10px 12px' }}>Product *</th>
-                      <th style={{ padding: '10px 12px', width: 110, textAlign: 'center' }}>Qty Received *</th>
-                      <th style={{ padding: '10px 12px', width: 140 }}>Unit Cost (KES) *</th>
-                      <th style={{ padding: '10px 12px', width: 120, textAlign: 'right' }}>Total (KES)</th>
-                      <th style={{ padding: '10px 12px', width: 60, textAlign: 'center' }}>Action</th>
+                      <th style={{ padding: '10px 14px', width: 40, textAlign: 'center' }}>#</th>
+                      <th style={{ padding: '10px 14px' }}>Product *</th>
+                      <th style={{ padding: '10px 14px', width: 120, textAlign: 'center' }}>Qty Received *</th>
+                      <th style={{ padding: '10px 14px', width: 170 }}>Unit Cost (KES) *</th>
+                      <th style={{ padding: '10px 14px', width: 160, textAlign: 'right' }}>Total (KES)</th>
+                      <th style={{ padding: '10px 14px', width: 60, textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -754,16 +760,16 @@ export default function PurchasesPage() {
                     ) : (
                       draftItems.map((item, idx) => (
                         <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0' }}>
-                          <td style={{ padding: '10px 12px', textAlign: 'center', color: '#64748B', fontWeight: 600 }}>
+                          <td style={{ padding: '10px 14px', textAlign: 'center', color: '#64748B', fontWeight: 600 }}>
                             {idx + 1}
                           </td>
-                          <td style={{ padding: '8px 12px' }}>
+                          <td style={{ padding: '8px 14px' }}>
                             <select
                               value={item.productId}
                               onChange={e => handleUpdateItem(idx, { productId: e.target.value })}
                               style={{
                                 width: '100%',
-                                padding: '8px 10px',
+                                padding: '9px 12px',
                                 borderRadius: 6,
                                 border: '1px solid #CBD5E1',
                                 fontSize: 13,
@@ -779,15 +785,15 @@ export default function PurchasesPage() {
                               ))}
                             </select>
                           </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                          <td style={{ padding: '8px 14px', textAlign: 'center' }}>
                             <input
                               type="number"
                               min="1"
                               value={item.quantity}
                               onChange={e => handleUpdateItem(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
                               style={{
-                                width: 80,
-                                padding: '8px 8px',
+                                width: 85,
+                                padding: '8px 10px',
                                 borderRadius: 6,
                                 border: '1px solid #CBD5E1',
                                 fontSize: 13,
@@ -796,27 +802,39 @@ export default function PurchasesPage() {
                               }}
                             />
                           </td>
-                          <td style={{ padding: '8px 12px' }}>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={item.unitCost}
-                              onChange={e => handleUpdateItem(idx, { unitCost: Math.max(0, Number(e.target.value) || 0) })}
-                              style={{
-                                width: '100%',
-                                padding: '8px 10px',
-                                borderRadius: 6,
-                                border: '1px solid #CBD5E1',
-                                fontSize: 13,
-                                outline: 'none'
-                              }}
-                            />
+                          <td style={{ padding: '8px 14px' }}>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: 6,
+                              padding: '0 8px',
+                              background: 'white',
+                              gap: 4
+                            }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>KES</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.unitCost}
+                                onChange={e => handleUpdateItem(idx, { unitCost: Math.max(0, Number(e.target.value) || 0) })}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 4px',
+                                  borderRadius: 6,
+                                  border: 'none',
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  outline: 'none'
+                                }}
+                              />
+                            </div>
                           </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#059669', fontSize: 14 }}>
-                            {(item.quantity * item.unitCost).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                          <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 800, color: '#059669', fontSize: 14 }}>
+                            KES {(item.quantity * item.unitCost).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
                           </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                          <td style={{ padding: '8px 14px', textAlign: 'center' }}>
                             <button
                               type="button"
                               onClick={() => handleRemoveLineItem(idx)}

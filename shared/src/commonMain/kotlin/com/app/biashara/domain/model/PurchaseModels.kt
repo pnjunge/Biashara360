@@ -4,12 +4,13 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class PurchaseLineItem(
-    val productId: String,
-    val productName: String,
-    val sku: String = "",
-    val quantity: Int,
-    val unitCost: Double,
-    val lineTotal: Double = quantity * unitCost
+    val productId: String = "",
+    val productName: String = "",
+    val sku: String? = "",
+    val quantity: Int = 1,
+    val unitCost: Double = 0.0,
+    val lineTotal: Double? = null,
+    val totalCost: Double? = null
 )
 
 @Serializable
@@ -31,12 +32,13 @@ data class PurchaseInvoice(
 
 @Serializable
 data class CreatePurchaseInvoiceRequest(
-    val invoiceNumber: String,
-    val supplierName: String,
+    val invoiceNumber: String = "",
+    val supplierName: String = "",
     val supplierPhone: String? = null,
     val invoiceDate: String? = null,
-    val paymentStatus: String = "PAID",
-    val paymentMethod: String = "CASH",
-    val notes: String = "",
-    val items: List<PurchaseLineItem>
+    val totalAmount: Double? = null,
+    val paymentStatus: String? = "PAID",
+    val paymentMethod: String? = "CASH",
+    val notes: String? = "",
+    val items: List<PurchaseLineItem> = emptyList()
 )
