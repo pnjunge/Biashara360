@@ -24,6 +24,23 @@ TCP 80 and 443 from anywhere, and UDP 443 from anywhere. Do not expose 5432 or
 
 ## 2. Deploy
 
+### 2.1 Automated CI/CD (GitHub Actions)
+
+When commits are pushed to `main` impacting backend, webApp, or deploy configs, `.github/workflows/deploy-oracle.yml` automatically:
+1. Compiles the FatJar (`backend-all.jar`) on the GitHub runner.
+2. Validates the frontend build (`webApp`).
+3. Updates code on the Oracle VM (`git reset --hard origin/main`).
+4. Transfers `app.jar` to `/opt/biashara360/backend/app.jar`.
+5. Executes `deploy.sh` to build containers and verify health checks.
+
+Required GitHub repository secret:
+- `ORACLE_SSH_KEY`: Content of your private key (e.g. `~/.ssh/biashara360_oracle`).
+Optional secrets (default to production values if omitted):
+- `ORACLE_HOST` (default: `92.4.138.110`)
+- `ORACLE_USER` (default: `ubuntu`)
+
+### 2.2 Manual Initial Setup / Deploy
+
 Point `biashara360.co.ke`, `www.biashara360.co.ke`, and `api.biashara360.co.ke` A records at the OCI
 public IP. Clone the repository to `/opt/biashara360`, then:
 
