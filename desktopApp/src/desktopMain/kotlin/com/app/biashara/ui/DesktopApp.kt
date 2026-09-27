@@ -217,7 +217,7 @@ fun Biashara360DesktopApp() {
         if (!UserSession.isLoggedIn()) {
             // Restore the persisted refresh-token session before deciding which
             // authenticated screens and tenant-scoped data to display.
-            authViewModel.loginWithBiometric(onSuccess = {})
+            authViewModel.loginWithBiometric()
         }
     }
 
@@ -942,15 +942,15 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                 }
             }
 
-            CustomLoginTextField(
-                value = email,
-                onValueChange = { email = it; viewModel.dismissError() },
-                placeholder = "Email / Username",
-                leadingIcon = Icons.Filled.Person,
-                enabled = !state.isLoading
-            )
-
             if (!isPinLoginMode) {
+                CustomLoginTextField(
+                    value = email,
+                    onValueChange = { email = it; viewModel.dismissError() },
+                    placeholder = "Email / Username",
+                    leadingIcon = Icons.Filled.Person,
+                    enabled = !state.isLoading
+                )
+
                 CustomLoginTextField(
                     value = password,
                     onValueChange = { password = it; viewModel.dismissError() },
@@ -1020,11 +1020,11 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                 )
 
                 Button(
-                    onClick = { viewModel.loginWithPin(email, pin) },
+                    onClick = { viewModel.loginWithPin(pin) },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                     shape = RoundedCornerShape(8.dp),
-                    enabled = !state.isLoading && email.isNotBlank() && pin.length == 6
+                    enabled = !state.isLoading && pin.length == 6
                 ) {
                     if (state.isLoading) {
                         CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)

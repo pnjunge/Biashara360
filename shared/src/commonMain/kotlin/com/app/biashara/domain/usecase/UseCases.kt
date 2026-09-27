@@ -297,7 +297,7 @@ class LoginWithBiometricUseCase(private val repo: AuthRepository) {
 }
 
 class LoginWithPinUseCase(private val repo: AuthRepository) {
-    suspend operator fun invoke(email: String, pin: String) = repo.loginWithPin(email, pin)
+    suspend operator fun invoke(pin: String, email: String? = null) = repo.loginWithPin(pin, email)
 }
 
 // --- Helpers ---

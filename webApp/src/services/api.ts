@@ -60,7 +60,7 @@ export interface LoginRequest {
   email: string
   password: string
 }
-export interface PinLoginRequest { email: string; pin: string }
+export interface PinLoginRequest { pin: string; email?: string }
 
 export interface LoginResponse {
   userId: string

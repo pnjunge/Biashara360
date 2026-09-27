@@ -122,12 +122,17 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email.trim() || (loginMode === 'PASSWORD' ? !password : pin.length !== 6)) { setError(loginMode === 'PASSWORD' ? 'Email and password are required' : 'Email and a 6-digit PIN are required'); return }
+    if (loginMode === 'PASSWORD' ? (!email.trim() || !password) : pin.length !== 6) {
+      setError(loginMode === 'PASSWORD' ? 'Email and password are required' : 'A 6-digit staff PIN is required')
+      return
+    }
     setLoading(true)
     setError('')
     setSuccessMsg('')
     try {
-      const result = loginMode === 'PASSWORD' ? await authApi.login({ email, password }) : await authApi.loginWithPin({ email, pin })
+      const result = loginMode === 'PASSWORD'
+        ? await authApi.login({ email, password })
+        : await authApi.loginWithPin({ pin, email: email.trim() || undefined })
       if (result.success && result.data) {
         setUserId(result.data.userId)
         if (result.data.requiresOtp) {
@@ -327,66 +332,84 @@ export default function LoginPage() {
               </div>
 
               <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <CustomLoginTextField
-                  value={email}
-                  onChange={v => { setEmail(v); setError(''); setSuccessMsg('') }}
-                  placeholder="Email / Username"
-                  disabled={loading}
-                  icon={
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                  }
-                />
-
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',padding:3,borderRadius:9,background:'#F1F5F9'}}>
                   {(['PASSWORD','PIN'] as const).map(mode=><button key={mode} type="button" onClick={()=>{setLoginMode(mode);setError('');setSuccessMsg('')}} style={{border:0,borderRadius:7,padding:9,background:loginMode===mode ? 'white' : 'transparent',color:loginMode===mode ? 'var(--b360-green)' : '#64748B',fontWeight:700,cursor:'pointer',boxShadow:loginMode===mode ? '0 1px 3px #0001' : 'none'}}>{mode === 'PASSWORD' ? 'Password' : '6-digit PIN'}</button>)}
                 </div>
 
-                {loginMode === 'PASSWORD' ? <CustomLoginTextField
-                  value={password}
-                  onChange={v => { setPassword(v); setError(''); setSuccessMsg('') }}
-                  placeholder="Password"
-                  type="password"
-                  disabled={loading}
-                  icon={
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                  }
-                /> : <CustomLoginTextField value={pin} onChange={v=>{setPin(v.replace(/\D/g,'').slice(0,6));setError('');setSuccessMsg('')}} placeholder="6-digit PIN" type="password" disabled={loading} icon={<span style={{fontWeight:900,color:'var(--b360-green)'}}>••</span>} />}
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: '#475569' }}>
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={e => setRememberMe(e.target.checked)}
-                      style={{
-                        accentColor: 'var(--b360-green)',
-                        width: 16,
-                        height: 16,
-                        cursor: 'pointer'
-                      }}
+                {loginMode === 'PASSWORD' ? (
+                  <>
+                    <CustomLoginTextField
+                      value={email}
+                      onChange={v => { setEmail(v); setError(''); setSuccessMsg('') }}
+                      placeholder="Email / Username"
+                      disabled={loading}
+                      icon={
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                      }
                     />
-                    Remember me
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => { setStep('forgot'); setError(''); setSuccessMsg('') }}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      color: 'var(--b360-green)',
-                      fontWeight: 600,
-                      fontSize: 14,
-                      cursor: 'pointer',
-                      padding: 0
-                    }}
-                  >
-                    Forgot password?
-                  </button>
-                </div>
+
+                    <CustomLoginTextField
+                      value={password}
+                      onChange={v => { setPassword(v); setError(''); setSuccessMsg('') }}
+                      placeholder="Password"
+                      type="password"
+                      disabled={loading}
+                      icon={
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                      }
+                    />
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: '#475569' }}>
+                        <input
+                          type="checkbox"
+                          checked={rememberMe}
+                          onChange={e => setRememberMe(e.target.checked)}
+                          style={{
+                            accentColor: 'var(--b360-green)',
+                            width: 16,
+                            height: 16,
+                            cursor: 'pointer'
+                          }}
+                        />
+                        Remember me
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => { setStep('forgot'); setError(''); setSuccessMsg('') }}
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          color: 'var(--b360-green)',
+                          fontWeight: 600,
+                          fontSize: 14,
+                          cursor: 'pointer',
+                          padding: 0
+                        }}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <CustomLoginTextField
+                      value={pin}
+                      onChange={v => { setPin(v.replace(/\D/g, '').slice(0, 6)); setError(''); setSuccessMsg('') }}
+                      placeholder="Enter 6-digit Staff PIN"
+                      type="password"
+                      disabled={loading}
+                      icon={<span style={{ fontWeight: 900, color: 'var(--b360-green)' }}>••</span>}
+                    />
+                    <div style={{ fontSize: 12, color: '#64748B', marginTop: -6 }}>
+                      Enter your assigned 6-digit staff PIN for rapid terminal authorization.
+                    </div>
+                  </>
+                )}
 
                 <button
                   type="submit"
-                  disabled={loading || !email.trim() || (loginMode === 'PASSWORD' ? !password : pin.length !== 6)}
+                  disabled={loading || (loginMode === 'PASSWORD' ? (!email.trim() || !password) : pin.length !== 6)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -399,8 +422,8 @@ export default function LoginPage() {
                     borderRadius: 8,
                     fontSize: 14,
                     fontWeight: 'bold',
-                    cursor: (loading || !email.trim() || (loginMode === 'PASSWORD' ? !password : pin.length !== 6)) ? 'not-allowed' : 'pointer',
-                    opacity: (loading || !email.trim() || (loginMode === 'PASSWORD' ? !password : pin.length !== 6)) ? 0.6 : 1,
+                    cursor: (loading || (loginMode === 'PASSWORD' ? (!email.trim() || !password) : pin.length !== 6)) ? 'not-allowed' : 'pointer',
+                    opacity: (loading || (loginMode === 'PASSWORD' ? (!email.trim() || !password) : pin.length !== 6)) ? 0.6 : 1,
                     width: '100%',
                     transition: 'opacity 0.15s ease-in-out'
                   }}
@@ -410,7 +433,7 @@ export default function LoginPage() {
                   ) : (
                     <>
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
-                      <span>Sign In</span>
+                      <span>{loginMode === 'PASSWORD' ? 'Sign In' : 'Sign In with Staff PIN'}</span>
                     </>
                   )}
                 </button>

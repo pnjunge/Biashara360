@@ -564,16 +564,16 @@ fun LoginScreen(
                             }
                         }
 
-                        AndroidCustomLoginTextField(
-                            value = email,
-                            onValueChange = { email = it; viewModel.dismissError() },
-                            placeholder = "Email / Phone",
-                            leadingIcon = Icons.Filled.Person,
-                            enabled = !state.isLoading,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
-                        )
-
                         if (!isPinLoginMode) {
+                            AndroidCustomLoginTextField(
+                                value = email,
+                                onValueChange = { email = it; viewModel.dismissError() },
+                                placeholder = "Email / Phone",
+                                leadingIcon = Icons.Filled.Person,
+                                enabled = !state.isLoading,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
+                            )
+
                             TextButton(
                                 onClick = {
                                     resetEmail = email
@@ -634,11 +634,11 @@ fun LoginScreen(
                             )
 
                             Button(
-                                onClick = { viewModel.loginWithPin(email, pin) },
+                                onClick = { viewModel.loginWithPin(pin) },
                                 modifier = Modifier.fillMaxWidth().height(54.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                                 shape = RoundedCornerShape(14.dp),
-                                enabled = !state.isLoading && email.isNotBlank() && pin.length == 6
+                                enabled = !state.isLoading && pin.length == 6
                             ) {
                                 if (state.isLoading) {
                                     CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)

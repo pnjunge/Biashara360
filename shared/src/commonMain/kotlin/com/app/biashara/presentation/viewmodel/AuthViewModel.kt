@@ -64,14 +64,14 @@ class AuthViewModel(
         }
     }
 
-    fun loginWithPin(email: String, pin: String) {
-        if (email.isBlank() || pin.length != 6) {
-            _state.update { it.copy(error = "Email and a 6-digit staff PIN are required") }
+    fun loginWithPin(pin: String, email: String? = null) {
+        if (pin.length != 6) {
+            _state.update { it.copy(error = "A 6-digit staff PIN is required") }
             return
         }
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            loginWithPinUseCase(email, pin).fold(
+            loginWithPinUseCase(pin, email).fold(
                 onSuccess = { user ->
                     if (user.twoFactorEnabled) {
                         _state.update {
@@ -87,6 +87,7 @@ class AuthViewModel(
             )
         }
     }
+
 
     fun loginWithBiometric() {
         scope.launch {

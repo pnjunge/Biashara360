@@ -30,7 +30,7 @@ data class RegisterRequest(
 data class LoginRequest(val email: String, val password: String)
 
 @Serializable
-data class PinLoginRequest(val email: String, val pin: String)
+data class PinLoginRequest(val pin: String, val email: String? = null)
 
 @Serializable
 data class SetLoginPinRequest(

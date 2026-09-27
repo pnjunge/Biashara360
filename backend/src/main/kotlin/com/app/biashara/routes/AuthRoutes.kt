@@ -134,7 +134,9 @@ fun Route.authRoutesValidated() {
             post("/pin-login") {
                 val req = call.receive<PinLoginRequest>()
                 Validator.validate {
-                    field("email", req.email) { required(); email() }
+                    if (!req.email.isNullOrBlank()) {
+                        field("email", req.email) { email() }
+                    }
                     field("pin", req.pin) {
                         required()
                         custom("PIN must be exactly 6 digits", "INVALID_PIN_FORMAT") {

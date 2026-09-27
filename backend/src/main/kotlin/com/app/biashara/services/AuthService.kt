@@ -217,8 +217,25 @@ class AuthService(
     }
 
     fun loginWithPin(req: PinLoginRequest): ApiResponse<LoginResponse> = transaction {
-        val user = UsersTable.select { UsersTable.email eq req.email.trim() }.firstOrNull()
-            ?: return@transaction ApiResponse(false, message = "Invalid credentials")
+        val trimmedEmail = req.email?.trim()
+        val user = if (!trimmedEmail.isNullOrBlank()) {
+            UsersTable.select { UsersTable.email eq trimmedEmail }.firstOrNull()
+        } else {
+            val activeUsersWithPin = UsersTable.select {
+                (UsersTable.isActive eq true) and UsersTable.loginPinHash.isNotNull()
+            }.toList()
+            val matches = activeUsersWithPin.filter { u ->
+                val hash = u[UsersTable.loginPinHash]
+                hash != null && PasswordUtils.verify(req.pin, hash)
+            }
+            if (matches.isEmpty()) {
+                return@transaction ApiResponse(false, message = "Invalid PIN")
+            }
+            if (matches.size > 1) {
+                return@transaction ApiResponse(false, message = "Multiple accounts match this PIN. Please sign in with email.")
+            }
+            matches.first()
+        } ?: return@transaction ApiResponse(false, message = "Invalid credentials")
         val now = Clock.System.now()
         val lockedUntil = user[UsersTable.pinLockedUntil]
         if (lockedUntil != null && lockedUntil > now) {

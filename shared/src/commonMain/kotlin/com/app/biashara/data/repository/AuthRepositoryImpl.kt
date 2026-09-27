@@ -183,10 +183,10 @@ class AuthRepositoryImpl(
         )
     }
 
-    override suspend fun loginWithPin(email: String, pin: String): Result<User> = runCatching {
+    override suspend fun loginWithPin(pin: String, email: String?): Result<User> = runCatching {
         val response: ApiResponse<LoginResponse> = client.post("$BASE_URL/auth/pin-login") {
             contentType(ContentType.Application.Json)
-            setBody(PinLoginRequest(email = email, pin = pin))
+            setBody(PinLoginRequest(pin = pin, email = email?.takeIf { it.isNotBlank() }))
         }.body()
 
         if (!response.success || response.data == null) {
@@ -202,7 +202,7 @@ class AuthRepositoryImpl(
         val resolvedBizId = loginData.user?.let { resolveBusinessId(it) }
         User(
             id = loginData.userId,
-            email = email,
+            email = loginData.user?.email ?: email.orEmpty(),
             phone = loginData.user?.phone ?: "",
             name = loginData.user?.name ?: "",
             role = loginData.user?.let { runCatching { UserRole.valueOf(it.role) }.getOrDefault(UserRole.STAFF) } ?: UserRole.ADMIN,
