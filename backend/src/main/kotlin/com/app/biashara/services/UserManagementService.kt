@@ -89,71 +89,96 @@ class UserManagementService(
         req: InviteUserRequest,
         callerUserId: String? = null,
         ipAddress: String? = null
-    ): ApiResponse<UserResponse> {
-        val result = transaction {
-            val business = BusinessesTable.select { BusinessesTable.id eq businessId }.singleOrNull()
-                ?: return@transaction ApiResponse(false, message = "Business not found")
-            val activeUsers = UsersTable.select { (UsersTable.businessId eq businessId) and (UsersTable.isActive eq true) }.count()
-            if (activeUsers >= business[BusinessesTable.maxUsers]) return@transaction ApiResponse(false, message = "User limit reached (${business[BusinessesTable.maxUsers]}). Upgrade your subscription to add more users.")
-            if (req.name.isBlank() || req.email.isBlank() || req.phone.isBlank()) {
-                return@transaction ApiResponse(false, message = "Name, email, and phone are required")
-            }
-            val normalizedRole = req.role.trim().uppercase()
-            if (normalizedRole !in ASSIGNABLE_ROLES) {
-                return@transaction ApiResponse(false, message = "Role must be one of: ${ASSIGNABLE_ROLES.joinToString()}")
-            }
+    ): ApiResponse<UserResponse> = transaction {
+        val business = BusinessesTable.select { BusinessesTable.id eq businessId }.singleOrNull()
+            ?: return@transaction ApiResponse(false, message = "Business not found")
+        val activeUsers = UsersTable.select { (UsersTable.businessId eq businessId) and (UsersTable.isActive eq true) }.count()
+        if (activeUsers >= business[BusinessesTable.maxUsers]) {
+            return@transaction ApiResponse(false, message = "User limit reached (${business[BusinessesTable.maxUsers]}). Upgrade your subscription to add more users.")
+        }
+        if (req.name.isBlank() || req.email.isBlank() || req.phone.isBlank()) {
+            return@transaction ApiResponse(false, message = "Name, email, and phone are required")
+        }
+        val normalizedRole = req.role.trim().uppercase()
+        if (normalizedRole !in ASSIGNABLE_ROLES) {
+            return@transaction ApiResponse(false, message = "Role must be one of: ${ASSIGNABLE_ROLES.joinToString()}")
+        }
 
-            val email = req.email.trim().lowercase()
-            val phone = normalizeUserPhone(req.phone)
-            val emailExists = UsersTable.select { UsersTable.email.lowerCase() eq email }.count() > 0
-            if (emailExists) return@transaction ApiResponse(false, message = "Email already registered")
+        val email = req.email.trim().lowercase()
+        val phone = normalizeUserPhone(req.phone)
+        val emailExists = UsersTable.select { UsersTable.email.lowerCase() eq email }.count() > 0
+        if (emailExists) return@transaction ApiResponse(false, message = "Email already registered")
 
-            val phoneExists = UsersTable.select { UsersTable.phone eq phone }.count() > 0
-            if (phoneExists) return@transaction ApiResponse(false, message = "Phone number already registered")
+        val phoneExists = UsersTable.select { UsersTable.phone eq phone }.count() > 0
+        if (phoneExists) return@transaction ApiResponse(false, message = "Phone number already registered")
 
-            val now = Clock.System.now()
-            val userId = generateId()
-            val unguessablePassword = buildString(48) {
-                val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#%&*"
-                val random = java.security.SecureRandom()
-                repeat(48) { append(alphabet[random.nextInt(alphabet.length)]) }
-            }
+        val rawPassword = req.password?.trim()?.takeIf { it.isNotBlank() } ?: "123456"
+        if (rawPassword.length < 6) {
+            return@transaction ApiResponse(false, message = "Password must be at least 6 characters")
+        }
 
-            UsersTable.insert {
-                it[id] = userId
-                it[UsersTable.businessId] = businessId
-                it[name] = req.name.trim()
-                it[UsersTable.email] = email
-                it[UsersTable.phone] = phone
-                it[passwordHash] = PasswordUtils.hash(unguessablePassword)
-                it[role] = normalizedRole
-                it[twoFactorEnabled] = false
-                it[preferredLanguage] = "ENGLISH"
+        val now = Clock.System.now()
+        val userId = generateId()
+
+        UsersTable.insert {
+            it[id] = userId
+            it[UsersTable.businessId] = businessId
+            it[name] = req.name.trim()
+            it[UsersTable.email] = email
+            it[UsersTable.phone] = phone
+            it[passwordHash] = PasswordUtils.hash(rawPassword)
+            it[role] = normalizedRole
+            it[twoFactorEnabled] = false
+            it[preferredLanguage] = "ENGLISH"
+            it[isActive] = true
+            it[createdAt] = now
+            it[updatedAt] = now
+        }
+
+        // Ensure "Front" access group exists and assign the user to it
+        val frontGroup = AccessGroupsTable.select {
+            (AccessGroupsTable.businessId eq businessId) and (AccessGroupsTable.name.lowerCase() eq "front")
+        }.firstOrNull()
+
+        val frontGroupId = if (frontGroup != null) {
+            frontGroup[AccessGroupsTable.id]
+        } else {
+            val newGroupId = generateId()
+            AccessGroupsTable.insert {
+                it[id] = newGroupId
+                it[AccessGroupsTable.businessId] = businessId
+                it[name] = "Front"
+                it[description] = "Front operations"
                 it[isActive] = true
                 it[createdAt] = now
                 it[updatedAt] = now
             }
-
-            auditLogService.logEvent(businessId, callerUserId, userId, "INVITE_USER", ipAddress, "Invited user with role $normalizedRole")
-
-            val user = UserResponse(userId, req.name.trim(), email, phone, normalizedRole, businessId, "ENGLISH", isActive = true)
-            ApiResponse(success = true, data = user)
+            newGroupId
         }
 
-        if (!result.success) return result
-        val invitation = authService.requestPasswordReset(result.data!!.email, invitation = true)
-        if (!invitation.success) {
-            result.data.id.let { userId ->
-                transaction {
-                    com.app.biashara.db.OtpTable.deleteWhere {
-                        com.app.biashara.db.OtpTable.userId eq userId
-                    }
-                    UsersTable.deleteWhere { UsersTable.id eq userId }
-                }
-            }
-            return ApiResponse(false, message = invitation.message)
+        UserAccessGroupsTable.deleteWhere {
+            (UserAccessGroupsTable.userId eq userId) and (UserAccessGroupsTable.groupId eq frontGroupId)
         }
-        return result.copy(message = "Invitation sent. The reset code expires in 10 minutes.")
+        UserAccessGroupsTable.insert {
+            it[UserAccessGroupsTable.userId] = userId
+            it[UserAccessGroupsTable.groupId] = frontGroupId
+        }
+
+        auditLogService.logEvent(businessId, callerUserId, userId, "CREATE_USER", ipAddress, "Created user with role $normalizedRole in Front access group")
+
+        val user = UserResponse(
+            id = userId,
+            name = req.name.trim(),
+            email = email,
+            phone = phone,
+            role = normalizedRole,
+            businessId = businessId,
+            preferredLanguage = "ENGLISH",
+            isActive = true,
+            hasPinSet = false,
+            assignedGroups = listOf("Front")
+        )
+        ApiResponse(success = true, data = user, message = "User created successfully")
     }
 
     fun updateRole(

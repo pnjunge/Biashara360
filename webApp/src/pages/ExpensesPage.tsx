@@ -21,7 +21,8 @@ import {
   Home,
   ArrowUpDown,
 } from 'lucide-react'
-import { expenseApi, ExpenseResponse } from '../services/api'
+import { useNavigate } from 'react-router-dom'
+import { expenseApi, purchaseApi, ExpenseResponse } from '../services/api'
 import { Modal, Btn, Input, Select } from '../components/ui'
 
 const EXPENSE_CATEGORIES = [
@@ -123,21 +124,51 @@ export default function ExpensesPage() {
     ]
   }, [])
 
-  const loadExpenses = () => {
+  const navigate = useNavigate()
+
+  const loadExpenses = async () => {
     setLoading(true)
-    expenseApi
-      .list()
-      .then((res) => {
-        if (res.success && res.data && res.data.length > 0) {
-          setExpenses(res.data)
-        } else {
-          setExpenses(sampleExpenses)
-        }
-      })
-      .catch(() => {
+    try {
+      const [expRes, purRes] = await Promise.allSettled([
+        expenseApi.list(),
+        purchaseApi.list()
+      ])
+
+      const list: ExpenseResponse[] = []
+      if (expRes.status === 'fulfilled' && expRes.value?.success && expRes.value.data) {
+        list.push(...expRes.value.data)
+      }
+
+      const existingIds = new Set(list.map((e) => e.id))
+
+      if (purRes.status === 'fulfilled' && purRes.value?.success && purRes.value.data) {
+        purRes.value.data.forEach((pi) => {
+          if (!existingIds.has(pi.id)) {
+            const invDate = pi.invoiceDate ? pi.invoiceDate.slice(0, 10) : new Date().toISOString().slice(0, 10)
+            list.push({
+              id: pi.id,
+              businessId: pi.businessId,
+              category: 'STOCK_PURCHASE',
+              amount: pi.totalAmount,
+              description: `Stock Purchase: #${pi.invoiceNumber} - ${pi.supplierName}`,
+              expenseDate: invDate,
+              receiptUrl: null,
+              recordedAt: pi.createdAt || new Date().toISOString(),
+            })
+          }
+        })
+      }
+
+      if (list.length > 0) {
+        setExpenses(list.sort((a, b) => new Date(b.expenseDate).getTime() - new Date(a.expenseDate).getTime()))
+      } else {
         setExpenses(sampleExpenses)
-      })
-      .finally(() => setLoading(false))
+      }
+    } catch {
+      setExpenses(sampleExpenses)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -497,6 +528,29 @@ export default function ExpensesPage() {
             )}
           </div>
 
+          {/* Stock Purchase Button */}
+          <button
+            type="button"
+            onClick={() => navigate('/purchases')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: '#0F172A',
+              color: 'white',
+              border: 'none',
+              borderRadius: 10,
+              padding: '12px 18px',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
+            }}
+          >
+            <ShoppingCart size={18} />
+            <span>Stock Purchase</span>
+          </button>
+
           {/* Add Expense Button */}
           <button
             type="button"
@@ -526,19 +580,23 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      {/* ── 4 KPI Metric Cards (Dynamic) ─────────────────────────── */}
+      {/* ── 4 KPI Metric Cards (Dynamic & Clickable to Filter) ───── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         {/* Total This Month */}
         <div
+          onClick={() => setSelectedCategory('')}
           style={{
             background: 'white',
             borderRadius: 14,
-            border: '1px solid #E2E8F0',
+            border: selectedCategory === '' ? '2px solid #00B874' : '1px solid #E2E8F0',
             padding: 20,
             display: 'flex',
             alignItems: 'center',
             gap: 16,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
           }}
+          title="Click to view all expenses"
         >
           <div
             style={{
@@ -580,15 +638,19 @@ export default function ExpensesPage() {
 
         {/* Stock Purchase */}
         <div
+          onClick={() => setSelectedCategory(selectedCategory === 'STOCK_PURCHASE' ? '' : 'STOCK_PURCHASE')}
           style={{
             background: 'white',
             borderRadius: 14,
-            border: '1px solid #E2E8F0',
+            border: selectedCategory === 'STOCK_PURCHASE' ? '2px solid #00B874' : '1px solid #E2E8F0',
             padding: 20,
             display: 'flex',
             alignItems: 'center',
             gap: 16,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
           }}
+          title="Click to filter by Stock Purchase"
         >
           <div
             style={{

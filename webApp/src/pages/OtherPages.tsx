@@ -629,7 +629,7 @@ export function ReportsPage() {
 // ── Settings ──────────────────────────────────────────────────────────────────
 // ── User Creation ─────────────────────────────────────────────────────────────
 const emptyBusinessAdmin = { businessName: '', businessType: '', adminName: '', adminEmail: '', adminPhone: '', adminPassword: '' }
-const emptyUser: InviteUserRequest = { name: '', email: '', phone: '', role: 'STAFF' }
+const emptyUser: InviteUserRequest = { name: '', email: '', phone: '', role: 'STAFF', password: '' }
 
 export function UserCreationPage() {
   const { user: currentUser } = useAuth()
@@ -841,33 +841,20 @@ export function UserCreationPage() {
 
   const handleAdd = async () => {
     if (!form.name || !form.email || !form.phone) { setError('Name, email, and phone are required.'); return }
+    if (!form.password || form.password.length < 6) { setError('Password must be at least 6 characters.'); return }
     if (isSuperAdmin && !selectedBusinessId) { setError('Please select a business.'); return }
     setSaving(true); setError('')
     try {
       const res = await userApi.invite(form, isSuperAdmin ? selectedBusinessId : undefined)
       if (res.success && res.data) {
-        let inviteMessage = ''
-        if (inviteGroupId && accessConfig) {
-          const group = accessConfig.groups.find(item => item.id === inviteGroupId)
-          if (group) {
-            try {
-              setAccessSaving('INVITE_GROUP')
-              const groupRes = await accessApi.assignUsers(group.id, [...group.userIds, res.data.id], accessBusinessId)
-              if (!groupRes.success) inviteMessage = `User created, but group assignment failed: ${groupRes.message || 'try again from Access groups.'}`
-              await loadAccess()
-            } catch (e:any) {
-              inviteMessage = `User created, but group assignment failed: ${e.response?.data?.message || 'try again from Access groups.'}`
-            } finally { setAccessSaving(null) }
-          }
-        }
         setShowAdd(false)
         setForm(emptyUser)
         setInviteGroupId('')
         if (!isSuperAdmin) setSelectedBusinessId('')
         loadUsers()
-        if (inviteMessage) setError(inviteMessage)
+      } else {
+        setError(res.message || 'Failed to create user.')
       }
-      else setError(res.message || 'Failed to create user.')
     } catch (e: any) {
       setError(e.response?.data?.message || 'Network error. Please try again.')
     } finally { setSaving(false) }
@@ -916,7 +903,11 @@ export function UserCreationPage() {
     }
   }
 
-  const ROLES = [{ value: 'ADMIN', label: 'Admin' }, { value: 'MANAGER', label: 'Manager' }, { value: 'STAFF', label: 'Staff' }]
+  const ROLES = [
+    { value: 'STAFF', label: 'Staff' },
+    { value: 'MANAGER', label: 'Manager' },
+    { value: 'ADMIN', label: 'Admin' },
+  ]
   const activeGroups = accessConfig?.groups.filter(group => group.isActive) ?? []
 
   return (
@@ -969,26 +960,19 @@ export function UserCreationPage() {
         </Modal>
       )}
 
-      {/* ── Add User Modal (regular admin) ── */}
+      {/* ── Create User Modal ── */}
       {showAdd && (
-        <Modal title="Add New User" onClose={() => { setShowAdd(false); setForm(emptyUser); setInviteGroupId(''); setSelectedBusinessId(''); setError('') }}>
+        <Modal title="Create New User" onClose={() => { setShowAdd(false); setForm(emptyUser); setInviteGroupId(''); setSelectedBusinessId(''); setError('') }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Input label="Full Name" value={form.name} onChange={f('name')} placeholder="e.g. Jane Mwangi" />
-            <Input label="Email" value={form.email} onChange={f('email')} placeholder="jane@example.com" />
-            <Input label="Phone" value={form.phone} onChange={f('phone')} placeholder="+254 7XX XXX XXX" />
-            <div style={{ color: 'var(--b360-text-secondary)', fontSize: 13 }}>
-              The user will receive a one-time password setup code by email. It expires after 10 minutes.
+            <Input label="Full Name *" value={form.name} onChange={f('name')} placeholder="e.g. Jane Mwangi" />
+            <Input label="Email *" value={form.email} onChange={f('email')} placeholder="jane@example.com" />
+            <Input label="Phone *" value={form.phone} onChange={f('phone')} placeholder="+254 7XX XXX XXX" />
+            <Input label="Password *" type="password" value={form.password || ''} onChange={f('password')} placeholder="Min 6 characters" />
+            <Select label="Role *" value={form.role ?? 'STAFF'} onChange={f('role')} options={ROLES} />
+            <Input label="Access Group" value="Front" disabled />
+            <div style={{ color: 'var(--b360-text-secondary)', fontSize: 12 }}>
+              Assigned access group is <strong>Front</strong>. User is created directly and can sign in immediately with these credentials.
             </div>
-            <Select label="Role" value={form.role ?? 'STAFF'} onChange={f('role')} options={ROLES} />
-            {!isSuperAdmin && activeGroups.length > 0 && (
-              <Select
-                label="Access group (optional)"
-                value={inviteGroupId}
-                onChange={setInviteGroupId}
-                options={[{ value: '', label: 'No group — use default staff access' }, ...activeGroups.map(group => ({ value: group.id, label: group.name }))]}
-              />
-            )}
-            {!isSuperAdmin && activeGroups.length > 0 && <div style={{ color: 'var(--b360-text-secondary)', fontSize: 12 }}>The account role controls sign-in authority. Access groups control which business areas the user can open.</div>}
             {isSuperAdmin && (
               <Select
                 label="Business *"
@@ -999,7 +983,7 @@ export function UserCreationPage() {
               />
             )}
             {error && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{error}</div>}
-            <Btn onClick={handleAdd} disabled={saving || accessSaving !== null}>{saving ? 'Sending...' : 'Send Invitation'}</Btn>
+            <Btn onClick={handleAdd} disabled={saving}>{saving ? 'Creating...' : 'Create User'}</Btn>
           </div>
         </Modal>
       )}
@@ -1086,7 +1070,7 @@ export function UserCreationPage() {
       )}
 
       {/* ── User Management ── */}
-      <PageHeader title="User Management" action={<div style={{display:'flex',gap:8}}><Btn variant="secondary" onClick={() => { loadAuditLogs(); setShowAuditLog(true) }} icon={<FileText size={14} />}>Audit log</Btn><Btn onClick={() => { setSelectedBusinessId(businesses[0]?.id ?? ''); setShowAdd(true) }} icon={<Plus size={14} />}>Add User</Btn></div>} />
+      <PageHeader title="User Management" action={<div style={{display:'flex',gap:8}}><Btn variant="secondary" onClick={() => { loadAuditLogs(); setShowAuditLog(true) }} icon={<FileText size={14} />}>Audit log</Btn><Btn onClick={() => { setSelectedBusinessId(businesses[0]?.id ?? ''); setShowAdd(true) }} icon={<Plus size={14} />}>Create User</Btn></div>} />
       {error && <div style={{color:'var(--b360-red)',fontSize:13}}>{error}</div>}
       <Card style={{ padding: 0 }}>
         {usersLoading ? (

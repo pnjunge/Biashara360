@@ -151,7 +151,41 @@ class CustomerService {
 
 class ExpenseService {
 
+    private fun syncMissingPurchaseInvoices(businessId: String) {
+        try {
+            val existingExpenseIds = ExpensesTable.slice(ExpensesTable.id)
+                .select { ExpensesTable.businessId eq businessId }
+                .map { it[ExpensesTable.id] }
+                .toSet()
+
+            val missing = PurchaseInvoicesTable.select { PurchaseInvoicesTable.businessId eq businessId }
+                .filter { it[PurchaseInvoicesTable.id] !in existingExpenseIds }
+
+            for (row in missing) {
+                val invDate = try {
+                    row[PurchaseInvoicesTable.invoiceDate].toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+                } catch (_: Exception) {
+                    Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+                }
+                ExpensesTable.insert {
+                    it[ExpensesTable.id] = row[PurchaseInvoicesTable.id]
+                    it[ExpensesTable.businessId] = businessId
+                    it[category] = "STOCK_PURCHASE"
+                    it[amount] = row[PurchaseInvoicesTable.totalAmount]
+                    it[description] = "Stock Purchase: #${row[PurchaseInvoicesTable.invoiceNumber]} - ${row[PurchaseInvoicesTable.supplierName]}"
+                    it[expenseDate] = invDate
+                    it[receiptUrl] = null
+                    it[recordedAt] = row[PurchaseInvoicesTable.createdAt]
+                }
+            }
+        } catch (_: Exception) {
+            // Ignore error if table is locked or insert collision
+        }
+    }
+
     fun getAll(businessId: String, category: String? = null, startDate: String? = null, endDate: String? = null): List<ExpenseResponse> = transaction {
+        syncMissingPurchaseInvoices(businessId)
+
         var stmt = ExpensesTable.select { ExpensesTable.businessId eq businessId }
         if (!category.isNullOrBlank()) stmt = stmt.andWhere { ExpensesTable.category eq category }
         if (!startDate.isNullOrBlank()) {
@@ -194,11 +228,16 @@ class ExpenseService {
         val deleted = ExpensesTable.deleteWhere {
             (ExpensesTable.id eq id) and (ExpensesTable.businessId eq businessId)
         }
-        if (deleted == 0) ApiResponse(false, message = "Expense not found")
+        val piDeleted = PurchaseInvoicesTable.deleteWhere {
+            (PurchaseInvoicesTable.id eq id) and (PurchaseInvoicesTable.businessId eq businessId)
+        }
+        if (deleted == 0 && piDeleted == 0) ApiResponse(false, message = "Expense not found")
         else ApiResponse(true, message = "Expense deleted")
     }
 
     fun getProfitSummary(businessId: String, startDate: String, endDate: String): ProfitSummaryResponse = transaction {
+        syncMissingPurchaseInvoices(businessId)
+
         val start = kotlinx.datetime.LocalDate.parse(startDate)
         val end   = kotlinx.datetime.LocalDate.parse(endDate)
 

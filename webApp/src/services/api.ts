@@ -504,7 +504,8 @@ export interface InviteUserRequest {
   name: string
   email: string
   phone: string
-  role?: string   // 'ADMIN' | 'STAFF', defaults to 'STAFF'
+  role?: string   // 'STAFF' | 'MANAGER' | 'ADMIN'
+  password?: string
 }
 
 export interface MenuDefinition { key: string; label: string }

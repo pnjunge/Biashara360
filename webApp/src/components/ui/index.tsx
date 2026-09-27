@@ -150,15 +150,17 @@ export function ProgressBar({ value, color = 'var(--b360-green)' }: { value: num
 }
 
 // ── Input ─────────────────────────────────────────────────────────────────────
-export function Input({ label, placeholder, value, onChange, type = 'text' }:
-  { label?: string; placeholder?: string; value: string; onChange: (v: string) => void; type?: string }) {
+export function Input({ label, placeholder, value, onChange, type = 'text', disabled, readOnly }:
+  { label?: string; placeholder?: string; value: string; onChange?: (v: string) => void; type?: string; disabled?: boolean; readOnly?: boolean }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:5, minWidth:0, width:'100%' }}>
       {label && <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)' }}>{label}</label>}
       <input
         type={type} placeholder={placeholder} value={value}
-        onChange={e => onChange(e.target.value)}
-        style={{ width:'100%', minWidth:0, boxSizing:'border-box', padding:'10px 14px', border:'1px solid var(--b360-border)', borderRadius:'var(--radius-sm)', fontSize:13, outline:'none', fontFamily:'inherit', background:'white', color:'var(--b360-text)' }}
+        disabled={disabled}
+        readOnly={readOnly}
+        onChange={e => onChange?.(e.target.value)}
+        style={{ width:'100%', minWidth:0, boxSizing:'border-box', padding:'10px 14px', border:'1px solid var(--b360-border)', borderRadius:'var(--radius-sm)', fontSize:13, outline:'none', fontFamily:'inherit', background: disabled ? '#F1F5F9' : 'white', color:'var(--b360-text)', cursor: disabled ? 'not-allowed' : 'text' }}
       />
     </div>
   )

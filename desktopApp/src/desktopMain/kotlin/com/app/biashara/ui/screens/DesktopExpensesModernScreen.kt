@@ -418,7 +418,9 @@ fun DesktopExpensesModernScreen(
                 isTrendUp = true,
                 icon = Icons.Default.Description,
                 iconColor = Color(0xFFFF4D6D),
-                iconBg = Color(0xFFFFEEEE)
+                iconBg = Color(0xFFFFEEEE),
+                isSelected = selectedCategoryFilter == null,
+                onClick = { selectedCategoryFilter = null }
             )
 
             ExpensesKpiCard(
@@ -430,7 +432,11 @@ fun DesktopExpensesModernScreen(
                 isTrendUp = false,
                 icon = Icons.Default.ShoppingCart,
                 iconColor = ExpensesGreen,
-                iconBg = Color(0xFFE8FAF2)
+                iconBg = Color(0xFFE8FAF2),
+                isSelected = selectedCategoryFilter == ExpenseCategory.STOCK_PURCHASE,
+                onClick = {
+                    selectedCategoryFilter = if (selectedCategoryFilter == ExpenseCategory.STOCK_PURCHASE) null else ExpenseCategory.STOCK_PURCHASE
+                }
             )
 
             ExpensesKpiCard(
@@ -442,7 +448,11 @@ fun DesktopExpensesModernScreen(
                 isTrendUp = true,
                 icon = Icons.Default.Campaign,
                 iconColor = Color(0xFF0284C7),
-                iconBg = Color(0xFFE0F2FE)
+                iconBg = Color(0xFFE0F2FE),
+                isSelected = selectedCategoryFilter == ExpenseCategory.ADVERTISING,
+                onClick = {
+                    selectedCategoryFilter = if (selectedCategoryFilter == ExpenseCategory.ADVERTISING) null else ExpenseCategory.ADVERTISING
+                }
             )
 
             ExpensesKpiCard(
@@ -454,7 +464,11 @@ fun DesktopExpensesModernScreen(
                 isTrendUp = true,
                 icon = Icons.Default.Settings,
                 iconColor = Color(0xFFD97706),
-                iconBg = Color(0xFFFEF3C7)
+                iconBg = Color(0xFFFEF3C7),
+                isSelected = selectedCategoryFilter == ExpenseCategory.RENT,
+                onClick = {
+                    selectedCategoryFilter = if (selectedCategoryFilter == ExpenseCategory.RENT) null else ExpenseCategory.RENT
+                }
             )
         }
 
@@ -922,13 +936,16 @@ private fun ExpensesKpiCard(
     isTrendUp: Boolean,
     icon: ImageVector,
     iconColor: Color,
-    iconBg: Color
+    iconBg: Color,
+    isSelected: Boolean = false,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier
+            .then(if (onClick != null) Modifier.clip(RoundedCornerShape(14.dp)).clickable { onClick() } else Modifier),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = ExpensesCardBg),
-        border = BorderStroke(1.dp, ExpensesBorder)
+        border = if (isSelected) BorderStroke(2.dp, ExpensesGreen) else BorderStroke(1.dp, ExpensesBorder)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(18.dp),

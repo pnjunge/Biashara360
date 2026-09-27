@@ -4,6 +4,8 @@ import com.app.biashara.db.*
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.*
@@ -147,6 +149,27 @@ class PurchaseInvoiceService {
                     }
                 }
             }
+        }
+
+        // 3. Record stock purchase in ExpensesTable so it appears under Expenses
+        try {
+            val expDate = try {
+                parsedDate.toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+            } catch (_: Exception) {
+                Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+            }
+            ExpensesTable.insert {
+                it[ExpensesTable.id] = id
+                it[ExpensesTable.businessId] = businessId
+                it[category] = "STOCK_PURCHASE"
+                it[amount] = total
+                it[description] = "Stock Purchase: #${invoiceNum} - ${req.supplierName.trim()}"
+                it[expenseDate] = expDate
+                it[receiptUrl] = null
+                it[recordedAt] = now
+            }
+        } catch (_: Exception) {
+            // Already present or ignore
         }
 
         val invoice = PurchaseInvoice(

@@ -472,7 +472,8 @@ data class InviteUserRequest(
     val name: String,
     val email: String,
     val phone: String,
-    val role: String = "STAFF"   // ADMIN | STAFF
+    val role: String = "STAFF",   // ADMIN | MANAGER | STAFF
+    val password: String? = null
 )
 
 @Serializable
