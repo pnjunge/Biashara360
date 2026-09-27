@@ -664,8 +664,18 @@ export function UserCreationPage() {
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [inviteGroupId, setInviteGroupId] = useState('')
+  const [manageGroupsUser, setManageGroupsUser] = useState<UserResponse | null>(null)
+  const [selectedUserGroupIds, setSelectedUserGroupIds] = useState<string[]>([])
+  const [savingUserGroups, setSavingUserGroups] = useState(false)
   const [accessSaving, setAccessSaving] = useState<'MENUS'|'ROLE'|'GROUP'|'INVITE_GROUP'|null>(null)
   const accessBusinessId = isSuperAdmin ? selectedBusinessId : undefined
+
+  const ROLES = [
+    { value: 'STAFF', label: 'Staff' },
+    { value: 'MANAGER', label: 'Manager' },
+    { value: 'ADMIN', label: 'Admin' },
+  ]
+  const activeGroups = accessConfig?.groups.filter(group => group.isActive) ?? []
 
   const loadUsers = () => {
     if (isSuperAdmin && !selectedBusinessId) {
@@ -811,6 +821,55 @@ export function UserCreationPage() {
     } catch (e:any) { setAccessMessage(e.response?.data?.message || 'Could not update group.') }
   }
 
+  const deleteAccessGroup = async (group: AccessConfig['groups'][number]) => {
+    if (!window.confirm(`Delete the group “${group.name}”? Members will be unassigned from this group.`)) return
+    setAccessMessage('')
+    try {
+      const res = await accessApi.deleteGroup(group.id, accessBusinessId)
+      if (res.success) {
+        if (editingGroupId === group.id) {
+          setEditingGroupId(null)
+          setGroupDraft({ name: '', description: '', roleIds: [] })
+        }
+        await loadAccess()
+        loadUsers()
+        setAccessMessage('Group deleted.')
+      } else setAccessMessage(res.message || 'Could not delete group.')
+    } catch (e: any) {
+      setAccessMessage(e.response?.data?.message || 'Could not delete group.')
+    }
+  }
+
+  const handleUserGroupChange = async (userId: string, groupIds: string[]) => {
+    setError('')
+    try {
+      const res = await userApi.updateGroups(userId, groupIds, isSuperAdmin ? selectedBusinessId : undefined)
+      if (!res.success || !res.data) {
+        return setError(res.message || 'Could not update user access groups.')
+      }
+      setUsers(prev => prev.map(u => (u.id === userId ? res.data! : u)))
+      await loadAccess()
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Could not update user access groups.')
+    }
+  }
+
+  const openManageGroups = (u: UserResponse) => {
+    setManageGroupsUser(u)
+    const currentGroupIds = u.assignedGroupIds && u.assignedGroupIds.length > 0
+      ? u.assignedGroupIds
+      : accessConfig?.groups.filter(g => g.userIds.includes(u.id) || u.assignedGroups?.includes(g.name)).map(g => g.id) || []
+    setSelectedUserGroupIds(currentGroupIds)
+  }
+
+  const saveManageGroups = async () => {
+    if (!manageGroupsUser) return
+    setSavingUserGroups(true)
+    await handleUserGroupChange(manageGroupsUser.id, selectedUserGroupIds)
+    setSavingUserGroups(false)
+    setManageGroupsUser(null)
+  }
+
   // ── Handlers ──
 
   const af = (k: keyof typeof emptyBusinessAdmin) => (v: string) =>
@@ -845,13 +904,20 @@ export function UserCreationPage() {
     if (isSuperAdmin && !selectedBusinessId) { setError('Please select a business.'); return }
     setSaving(true); setError('')
     try {
-      const res = await userApi.invite(form, isSuperAdmin ? selectedBusinessId : undefined)
+      const selectedGroup = inviteGroupId || activeGroups.find(g => g.name.toLowerCase() === 'front')?.id || activeGroups[0]?.id
+      const payload: InviteUserRequest = {
+        ...form,
+        groupId: selectedGroup || undefined,
+        groupIds: selectedGroup ? [selectedGroup] : []
+      }
+      const res = await userApi.invite(payload, isSuperAdmin ? selectedBusinessId : undefined)
       if (res.success && res.data) {
         setShowAdd(false)
         setForm(emptyUser)
         setInviteGroupId('')
         if (!isSuperAdmin) setSelectedBusinessId('')
         loadUsers()
+        loadAccess()
       } else {
         setError(res.message || 'Failed to create user.')
       }
@@ -902,13 +968,6 @@ export function UserCreationPage() {
       setBusinesses(prev => prev.map(b => (b.id === business.id ? res.data! : b)))
     }
   }
-
-  const ROLES = [
-    { value: 'STAFF', label: 'Staff' },
-    { value: 'MANAGER', label: 'Manager' },
-    { value: 'ADMIN', label: 'Admin' },
-  ]
-  const activeGroups = accessConfig?.groups.filter(group => group.isActive) ?? []
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -969,9 +1028,18 @@ export function UserCreationPage() {
             <Input label="Phone *" value={form.phone} onChange={f('phone')} placeholder="+254 7XX XXX XXX" />
             <Input label="Password *" type="password" value={form.password || ''} onChange={f('password')} placeholder="Min 6 characters" />
             <Select label="Role *" value={form.role ?? 'STAFF'} onChange={f('role')} options={ROLES} />
-            <Input label="Access Group" value="Front" disabled />
+            <Select
+              label="Access Group *"
+              value={inviteGroupId || activeGroups.find(g => g.name.toLowerCase() === 'front')?.id || activeGroups[0]?.id || ''}
+              onChange={setInviteGroupId}
+              options={
+                activeGroups.length > 0
+                  ? activeGroups.map(g => ({ value: g.id, label: `${g.name}${g.description ? ` (${g.description})` : ''}` }))
+                  : [{ value: '', label: 'Front (Default)' }]
+              }
+            />
             <div style={{ color: 'var(--b360-text-secondary)', fontSize: 12 }}>
-              Assigned access group is <strong>Front</strong>. User is created directly and can sign in immediately with these credentials.
+              The user inherits menu access and feature permissions configured for this group. User is created directly and can sign in immediately.
             </div>
             {isSuperAdmin && (
               <Select
@@ -984,6 +1052,67 @@ export function UserCreationPage() {
             )}
             {error && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{error}</div>}
             <Btn onClick={handleAdd} disabled={saving}>{saving ? 'Creating...' : 'Create User'}</Btn>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Assign Access Groups Modal ── */}
+      {manageGroupsUser && (
+        <Modal
+          title={`Assign Access Groups · ${manageGroupsUser.name}`}
+          onClose={() => setManageGroupsUser(null)}
+          footer={
+            <>
+              <Btn variant="secondary" onClick={() => setManageGroupsUser(null)}>Cancel</Btn>
+              <Btn onClick={saveManageGroups} disabled={savingUserGroups}>
+                {savingUserGroups ? 'Saving...' : 'Save Groups'}
+              </Btn>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 13, color: 'var(--b360-text-secondary)' }}>
+              Select which access groups <strong>{manageGroupsUser.name}</strong> belongs to. The user will inherit menu access permissions from all selected groups.
+            </div>
+            {activeGroups.length === 0 ? (
+              <div style={{ padding: 16, color: 'var(--b360-text-secondary)', textAlign: 'center' }}>
+                No active groups available. Create a group first in the section below.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+                {activeGroups.map(group => {
+                  const isChecked = selectedUserGroupIds.includes(group.id)
+                  const roleNames = accessConfig?.roles.filter(r => group.roleIds.includes(r.id)).map(r => r.name).join(', ')
+                  return (
+                    <label
+                      key={group.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 12px',
+                        border: `1px solid ${isChecked ? 'var(--b360-blue)' : 'var(--b360-border)'}`,
+                        borderRadius: 8,
+                        background: isChecked ? 'rgba(59, 130, 246, 0.05)' : 'var(--b360-surface)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => setSelectedUserGroupIds(prev => toggleValue(prev, group.id))}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{group.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>
+                          {group.description || 'No description'} {roleNames ? `· Roles: ${roleNames}` : ''}
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </Modal>
       )}
@@ -1065,7 +1194,7 @@ export function UserCreationPage() {
             <Btn small disabled={accessSaving!==null} onClick={createAccessGroup}>{accessSaving==='GROUP'?(editingGroupId?'Saving…':'Creating…'):(editingGroupId?'Save group':'Create group')}</Btn>
           </Card>
           <Card style={{padding:20}}><h3 style={{margin:'0 0 12px'}}>Existing roles</h3>{accessConfig.roles.map(role=><div key={role.id} style={{display:'flex',justifyContent:'space-between',gap:12,padding:'10px 0',borderTop:'1px solid var(--b360-border)'}}><div><b>{role.name}</b><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{role.allowedMenus.length} menus · {role.isActive?'Active':'Disabled'}</div></div><div style={{display:'flex',gap:6}}><Btn small variant="secondary" onClick={()=>{setEditingRoleId(role.id);setRoleDraft({name:role.name,description:role.description,allowedMenus:role.allowedMenus});window.scrollTo({top:0,behavior:'smooth'})}}>Edit</Btn><Btn small variant="secondary" onClick={()=>updateAccessRole(role,!role.isActive)}>{role.isActive?'Disable':'Enable'}</Btn><Btn small variant="danger" onClick={()=>deleteAccessRole(role)}>Delete</Btn></div></div>)}</Card>
-          {accessConfig.groups.map(group => <Card key={group.id} style={{padding:16,opacity:group.isActive?1:.65}}><div style={{display:'flex',justifyContent:'space-between',gap:12}}><div><div style={{fontWeight:700}}>{group.name}</div><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{group.description || 'No description'} · Roles: {accessConfig.roles.filter(r=>group.roleIds.includes(r.id)).map(r=>r.name).join(', ') || 'None'}</div></div><div style={{display:'flex',gap:6}}><Btn small variant="secondary" onClick={()=>{setEditingGroupId(group.id);setGroupDraft({name:group.name,description:group.description,roleIds:group.roleIds});window.scrollTo({top:0,behavior:'smooth'})}}>Edit</Btn><Btn small variant="secondary" onClick={()=>updateAccessGroup(group,!group.isActive)}>{group.isActive?'Disable':'Enable'}</Btn></div></div><div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:10}}>{users.map(member=><label key={member.id} style={{fontSize:12}}><input type="checkbox" disabled={!group.isActive} checked={group.userIds.includes(member.id)} onChange={()=>toggleGroupUser(group.id,group.userIds,member.id)}/> {member.name}</label>)}</div></Card>)}
+          {accessConfig.groups.map(group => <Card key={group.id} style={{padding:16,opacity:group.isActive?1:.65}}><div style={{display:'flex',justifyContent:'space-between',gap:12}}><div><div style={{fontWeight:700}}>{group.name}</div><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{group.description || 'No description'} · Roles: {accessConfig.roles.filter(r=>group.roleIds.includes(r.id)).map(r=>r.name).join(', ') || 'None'}</div></div><div style={{display:'flex',gap:6}}><Btn small variant="secondary" onClick={()=>{setEditingGroupId(group.id);setGroupDraft({name:group.name,description:group.description,roleIds:group.roleIds});window.scrollTo({top:0,behavior:'smooth'})}}>Edit</Btn><Btn small variant="secondary" onClick={()=>updateAccessGroup(group,!group.isActive)}>{group.isActive?'Disable':'Enable'}</Btn><Btn small variant="danger" onClick={()=>deleteAccessGroup(group)}>Delete</Btn></div></div><div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:10}}>{users.map(member=><label key={member.id} style={{fontSize:12}}><input type="checkbox" disabled={!group.isActive} checked={group.userIds.includes(member.id)} onChange={()=>toggleGroupUser(group.id,group.userIds,member.id)}/> {member.name}</label>)}</div></Card>)}
         </>
       )}
 
@@ -1078,17 +1207,54 @@ export function UserCreationPage() {
         ) : (
           <DataTable
             headers={['Name', 'Email', 'Phone', 'Account role', 'Access groups', 'Status', '']}
-            rows={users.map(u => [
-              u.name,
-              u.email,
-              u.phone,
-              <select key="role" value={u.role} disabled={u.id===currentUser?.id} onChange={event=>handleUserRoleChange(u.id,event.target.value)} style={{padding:'6px 8px',borderRadius:7}}>{ROLES.map(role=><option key={role.value} value={role.value}>{role.label}</option>)}</select>,
-              <span key="groups" style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{u.assignedGroups?.length ? u.assignedGroups.join(', ') : accessConfig?.groups.filter(group=>group.userIds.includes(u.id)).map(group=>group.name).join(', ') || 'Default access'}</span>,
-              <StatusBadge key="status" status={u.isActive === false ? 'INACTIVE' : 'ACTIVE'} />,
-              <Btn key="del" disabled={u.id===currentUser?.id} variant={u.isActive === false ? 'secondary' : 'danger'} small onClick={() => handleToggleUserStatus(u.id, u.isActive === false)}>
-                {u.isActive === false ? 'Enable' : 'Disable'}
-              </Btn>,
-            ])}
+            rows={users.map(u => {
+              const currentGId = u.assignedGroupIds?.[0] ||
+                accessConfig?.groups.find(g => g.userIds.includes(u.id))?.id ||
+                accessConfig?.groups.find(g => u.assignedGroups?.includes(g.name))?.id ||
+                ''
+              return [
+                u.name,
+                u.email,
+                u.phone,
+                <select key="role" value={u.role} disabled={u.id===currentUser?.id} onChange={event=>handleUserRoleChange(u.id,event.target.value)} style={{padding:'6px 8px',borderRadius:7}}>{ROLES.map(role=><option key={role.value} value={role.value}>{role.label}</option>)}</select>,
+                <div key="groups" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <select
+                    value={currentGId}
+                    onChange={event => {
+                      const newGroupId = event.target.value
+                      if (newGroupId) handleUserGroupChange(u.id, [newGroupId])
+                    }}
+                    style={{
+                      padding: '6px 8px',
+                      borderRadius: 7,
+                      fontSize: 12,
+                      background: 'var(--b360-surface)',
+                      color: 'var(--b360-text)',
+                      border: '1px solid var(--b360-border)',
+                      maxWidth: 130
+                    }}
+                  >
+                    {activeGroups.map(group => (
+                      <option key={group.id} value={group.id}>{group.name}</option>
+                    ))}
+                    {activeGroups.length === 0 && <option value="">Front (Default)</option>}
+                  </select>
+                  <span title="Manage all assigned groups">
+                    <Btn
+                      small
+                      variant="secondary"
+                      onClick={() => openManageGroups(u)}
+                    >
+                      {u.assignedGroups && u.assignedGroups.length > 1 ? `+${u.assignedGroups.length - 1}` : 'Groups'}
+                    </Btn>
+                  </span>
+                </div>,
+                <StatusBadge key="status" status={u.isActive === false ? 'INACTIVE' : 'ACTIVE'} />,
+                <Btn key="del" disabled={u.id===currentUser?.id} variant={u.isActive === false ? 'secondary' : 'danger'} small onClick={() => handleToggleUserStatus(u.id, u.isActive === false)}>
+                  {u.isActive === false ? 'Enable' : 'Disable'}
+                </Btn>,
+              ]
+            })}
           />
         )}
       </Card>

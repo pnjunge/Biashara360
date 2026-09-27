@@ -498,6 +498,7 @@ export interface UserResponse {
   preferredLanguage: string
   isActive?: boolean
   assignedGroups?: string[]
+  assignedGroupIds?: string[]
 }
 
 export interface InviteUserRequest {
@@ -506,6 +507,8 @@ export interface InviteUserRequest {
   phone: string
   role?: string   // 'STAFF' | 'MANAGER' | 'ADMIN'
   password?: string
+  groupId?: string
+  groupIds?: string[]
 }
 
 export interface MenuDefinition { key: string; label: string }
@@ -917,6 +920,12 @@ export const userApi = {
     })
     return res.data
   },
+  updateGroups: async (id: string, groupIds: string[], businessId?: string) => {
+    const res = await client.put<ApiResponse<UserResponse>>(`/users/${id}/groups`, { groupIds }, {
+      params: businessId ? { businessId } : undefined,
+    })
+    return res.data
+  },
 }
 
 export interface AuditLogResponse {
@@ -941,6 +950,7 @@ export const accessApi = {
   deleteRole: async (id: string, businessId?: string) => (await client.delete<ApiResponse<boolean>>(`/access/config/roles/${id}`, { params: businessId ? { businessId } : undefined })).data,
   createGroup: async (data: { name: string; description: string; roleIds: string[] }, businessId?: string) => (await client.post<ApiResponse<AccessGroup>>('/access/config/groups', data, { params: businessId ? { businessId } : undefined })).data,
   updateGroup: async (id: string, data: { name: string; description: string; roleIds: string[]; isActive: boolean }, businessId?: string) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${id}`, data, { params: businessId ? { businessId } : undefined })).data,
+  deleteGroup: async (id: string, businessId?: string) => (await client.delete<ApiResponse<boolean>>(`/access/config/groups/${id}`, { params: businessId ? { businessId } : undefined })).data,
   assignUsers: async (groupId: string, userIds: string[], businessId?: string) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${groupId}/users`, { userIds }, { params: businessId ? { businessId } : undefined })).data,
 }
 

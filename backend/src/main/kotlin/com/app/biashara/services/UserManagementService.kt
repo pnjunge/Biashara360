@@ -135,36 +135,65 @@ class UserManagementService(
             it[updatedAt] = now
         }
 
-        // Ensure "Front" access group exists and assign the user to it
-        val frontGroup = AccessGroupsTable.select {
-            (AccessGroupsTable.businessId eq businessId) and (AccessGroupsTable.name.lowerCase() eq "front")
-        }.firstOrNull()
+        // Assign groups: use provided group(s) or default to Front
+        val targetGroupIds = when {
+            req.groupIds.isNotEmpty() -> req.groupIds
+            !req.groupId.isNullOrBlank() -> listOf(req.groupId)
+            else -> emptyList()
+        }
 
-        val frontGroupId = if (frontGroup != null) {
-            frontGroup[AccessGroupsTable.id]
-        } else {
-            val newGroupId = generateId()
-            AccessGroupsTable.insert {
-                it[id] = newGroupId
-                it[AccessGroupsTable.businessId] = businessId
-                it[name] = "Front"
-                it[description] = "Front operations"
-                it[isActive] = true
-                it[createdAt] = now
-                it[updatedAt] = now
+        val assignedGroupNames = mutableListOf<String>()
+        val assignedGroupIdsList = mutableListOf<String>()
+
+        if (targetGroupIds.isNotEmpty()) {
+            val validGroups = AccessGroupsTable.select {
+                (AccessGroupsTable.businessId eq businessId) and (AccessGroupsTable.id inList targetGroupIds)
+            }.map { it[AccessGroupsTable.id] to it[AccessGroupsTable.name] }
+
+            for ((gId, gName) in validGroups) {
+                UserAccessGroupsTable.insert {
+                    it[UserAccessGroupsTable.userId] = userId
+                    it[UserAccessGroupsTable.groupId] = gId
+                }
+                assignedGroupNames.add(gName)
+                assignedGroupIdsList.add(gId)
             }
-            newGroupId
+        }
+        
+        if (assignedGroupNames.isEmpty()) {
+            // Default to "Front" access group if exists, or create Front
+            val frontGroup = AccessGroupsTable.select {
+                (AccessGroupsTable.businessId eq businessId) and (AccessGroupsTable.name.lowerCase() eq "front")
+            }.firstOrNull()
+
+            val frontGroupId = if (frontGroup != null) {
+                frontGroup[AccessGroupsTable.id]
+            } else {
+                val newGroupId = generateId()
+                AccessGroupsTable.insert {
+                    it[id] = newGroupId
+                    it[AccessGroupsTable.businessId] = businessId
+                    it[name] = "Front"
+                    it[description] = "Front operations"
+                    it[isActive] = true
+                    it[createdAt] = now
+                    it[updatedAt] = now
+                }
+                newGroupId
+            }
+
+            UserAccessGroupsTable.deleteWhere {
+                (UserAccessGroupsTable.userId eq userId) and (UserAccessGroupsTable.groupId eq frontGroupId)
+            }
+            UserAccessGroupsTable.insert {
+                it[UserAccessGroupsTable.userId] = userId
+                it[UserAccessGroupsTable.groupId] = frontGroupId
+            }
+            assignedGroupNames.add("Front")
+            assignedGroupIdsList.add(frontGroupId)
         }
 
-        UserAccessGroupsTable.deleteWhere {
-            (UserAccessGroupsTable.userId eq userId) and (UserAccessGroupsTable.groupId eq frontGroupId)
-        }
-        UserAccessGroupsTable.insert {
-            it[UserAccessGroupsTable.userId] = userId
-            it[UserAccessGroupsTable.groupId] = frontGroupId
-        }
-
-        auditLogService.logEvent(businessId, callerUserId, userId, "CREATE_USER", ipAddress, "Created user with role $normalizedRole in Front access group")
+        auditLogService.logEvent(businessId, callerUserId, userId, "CREATE_USER", ipAddress, "Created user with role $normalizedRole in groups ${assignedGroupNames.joinToString()}")
 
         val user = UserResponse(
             id = userId,
@@ -176,9 +205,46 @@ class UserManagementService(
             preferredLanguage = "ENGLISH",
             isActive = true,
             hasPinSet = false,
-            assignedGroups = listOf("Front")
+            assignedGroups = assignedGroupNames,
+            assignedGroupIds = assignedGroupIdsList
         )
         ApiResponse(success = true, data = user, message = "User created successfully")
+    }
+
+    fun updateUserGroups(
+        userId: String,
+        businessId: String,
+        groupIds: List<String>,
+        callerUserId: String? = null,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> = transaction {
+        val exists = UsersTable.select {
+            (UsersTable.id eq userId) and (UsersTable.businessId eq businessId)
+        }.any()
+        if (!exists) return@transaction ApiResponse(false, message = "User not found")
+
+        val validGroupIds = if (groupIds.isNotEmpty()) {
+            AccessGroupsTable.select {
+                (AccessGroupsTable.businessId eq businessId) and (AccessGroupsTable.id inList groupIds)
+            }.map { it[AccessGroupsTable.id] }
+        } else {
+            emptyList()
+        }
+
+        UserAccessGroupsTable.deleteWhere {
+            (UserAccessGroupsTable.userId eq userId)
+        }
+        for (gId in validGroupIds) {
+            UserAccessGroupsTable.insert {
+                it[UserAccessGroupsTable.userId] = userId
+                it[UserAccessGroupsTable.groupId] = gId
+            }
+        }
+
+        auditLogService.logEvent(businessId, callerUserId, userId, "UPDATE_USER_GROUPS", ipAddress, "Updated access groups for user")
+
+        val updatedUser = UsersTable.select { UsersTable.id eq userId }.first().toUserResponse()
+        ApiResponse(true, data = updatedUser, message = "User access groups updated")
     }
 
     fun updateRole(
@@ -252,25 +318,28 @@ class UserManagementService(
         ApiResponse(success = true, data = updated.toUserResponse(), message = if (req.isActive) "User activated" else "User deactivated")
     }
 
-    private fun ResultRow.toUserResponse() = UserResponse(
-        id = this[UsersTable.id],
-        name = this[UsersTable.name],
-        email = this[UsersTable.email],
-        phone = this[UsersTable.phone],
-        role = this[UsersTable.role],
-        businessId = this[UsersTable.businessId],
-        preferredLanguage = this[UsersTable.preferredLanguage],
-        isActive = this[UsersTable.isActive],
-        hasPinSet = this[UsersTable.loginPinHash] != null,
-        assignedGroups = (UserAccessGroupsTable innerJoin AccessGroupsTable)
-            .slice(AccessGroupsTable.name)
+    private fun ResultRow.toUserResponse(): UserResponse {
+        val groups = (UserAccessGroupsTable innerJoin AccessGroupsTable)
+            .slice(AccessGroupsTable.id, AccessGroupsTable.name)
             .select {
                 (UserAccessGroupsTable.userId eq this@toUserResponse[UsersTable.id]) and
                     (AccessGroupsTable.businessId eq (this@toUserResponse[UsersTable.businessId] ?: "")) and
                     (AccessGroupsTable.isActive eq true)
             }
-            .map { it[AccessGroupsTable.name] }
-    )
+        return UserResponse(
+            id = this[UsersTable.id],
+            name = this[UsersTable.name],
+            email = this[UsersTable.email],
+            phone = this[UsersTable.phone],
+            role = this[UsersTable.role],
+            businessId = this[UsersTable.businessId],
+            preferredLanguage = this[UsersTable.preferredLanguage],
+            isActive = this[UsersTable.isActive],
+            hasPinSet = this[UsersTable.loginPinHash] != null,
+            assignedGroups = groups.map { it[AccessGroupsTable.name] },
+            assignedGroupIds = groups.map { it[AccessGroupsTable.id] }
+        )
+    }
 
     private fun activeAdminCount(businessId: String) = UsersTable.select {
         (UsersTable.businessId eq businessId) and (UsersTable.role eq "ADMIN") and (UsersTable.isActive eq true)

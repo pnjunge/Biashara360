@@ -720,6 +720,21 @@ fun Route.userRoutes() {
                 val result = userService.setActiveStatus(userId, businessId, callerUserId, req, ipAddress)
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
             }
+
+            put("/groups") {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN") {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                    return@put
+                }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@put
+                val userId = call.parameters["id"]!!
+                val req = call.receive<UpdateUserGroupsRequest>()
+                val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject
+                val ipAddress = call.request.local.remoteHost
+                val result = userService.updateUserGroups(userId, businessId, req.groupIds, callerUserId, ipAddress)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
         }
     }
 }

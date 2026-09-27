@@ -27,7 +27,61 @@ private val DEFAULT_STAFF_MENUS = MENU_KEYS - setOf("USERS", "SETTINGS")
 
 class AccessControlService {
     fun config(businessId: String): AccessConfigResponse = transaction {
+        ensureDefaults(businessId)
         AccessConfigResponse(BUSINESS_MENUS, businessMenus(businessId), roles(businessId), groups(businessId))
+    }
+
+    private fun ensureDefaults(businessId: String) {
+        val now = Clock.System.now()
+        val existingRoles = AccessRolesTable.select { AccessRolesTable.businessId eq businessId }.count()
+        val defaultRoleId = if (existingRoles == 0L) {
+            val roleId = generateId()
+            AccessRolesTable.insert {
+                it[id] = roleId
+                it[AccessRolesTable.businessId] = businessId
+                it[name] = "Staff Access"
+                it[description] = "Standard operational menus for staff"
+                it[allowedMenus] = DEFAULT_STAFF_MENUS.joinToString(",")
+                it[isActive] = true
+                it[createdAt] = now
+                it[updatedAt] = now
+            }
+            roleId
+        } else {
+            AccessRolesTable.select { AccessRolesTable.businessId eq businessId }.first()[AccessRolesTable.id]
+        }
+
+        val existingGroups = AccessGroupsTable.select { AccessGroupsTable.businessId eq businessId }.count()
+        if (existingGroups == 0L) {
+            val groupId = generateId()
+            AccessGroupsTable.insert {
+                it[id] = groupId
+                it[AccessGroupsTable.businessId] = businessId
+                it[name] = "Front"
+                it[description] = "Front operations team"
+                it[isActive] = true
+                it[createdAt] = now
+                it[updatedAt] = now
+            }
+            AccessGroupRolesTable.insert {
+                it[AccessGroupRolesTable.groupId] = groupId
+                it[AccessGroupRolesTable.roleId] = defaultRoleId
+            }
+        } else {
+            val frontGroup = AccessGroupsTable.select {
+                (AccessGroupsTable.businessId eq businessId) and (AccessGroupsTable.name.lowerCase() eq "front")
+            }.firstOrNull()
+            if (frontGroup != null) {
+                val fId = frontGroup[AccessGroupsTable.id]
+                val hasRoles = AccessGroupRolesTable.select { AccessGroupRolesTable.groupId eq fId }.any()
+                if (!hasRoles) {
+                    AccessGroupRolesTable.insert {
+                        it[AccessGroupRolesTable.groupId] = fId
+                        it[AccessGroupRolesTable.roleId] = defaultRoleId
+                    }
+                }
+            }
+        }
     }
 
     fun myMenus(businessId: String, userId: String, builtInRole: String): MyMenuAccessResponse = transaction {
