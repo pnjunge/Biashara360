@@ -50,7 +50,7 @@ services:
     platform: linux/arm64
     build:
       context: ../..
-      dockerfile: Dockerfile
+      dockerfile: deploy/oracle/Dockerfile.api
     restart: unless-stopped
     env_file: .env
     environment:

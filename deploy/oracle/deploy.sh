@@ -11,6 +11,11 @@ cd "$(dirname "$0")"
   exit 1
 }
 
+if [[ ! -f ../../backend/build/libs/backend-all.jar ]]; then
+  echo "Building backend FatJar..."
+  (cd ../.. && ./gradlew :backend:buildFatJar -x test)
+fi
+
 docker compose -f compose.yml config --quiet
 docker compose -f compose.yml build --pull
 docker compose -f compose.yml up -d --remove-orphans
