@@ -1,6 +1,6 @@
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY backend/build/libs/*-all.jar app.jar
+COPY backend/app.jar app.jar
 COPY backend/entrypoint.sh /app/entrypoint.sh
 COPY backend/src/main/resources/application-docker.conf /app/application.conf
 RUN mkdir -p uploads config && chmod +x /app/entrypoint.sh
