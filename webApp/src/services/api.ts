@@ -499,6 +499,8 @@ export interface UserResponse {
   isActive?: boolean
   assignedGroups?: string[]
   assignedGroupIds?: string[]
+  assignedRoles?: string[]
+  assignedRoleIds?: string[]
 }
 
 export interface InviteUserRequest {
@@ -509,6 +511,14 @@ export interface InviteUserRequest {
   password?: string
   groupId?: string
   groupIds?: string[]
+  roleIds?: string[]
+}
+
+export interface ReassignUserRequest {
+  role?: string
+  groupIds?: string[]
+  roleIds?: string[]
+  businessId?: string
 }
 
 export interface MenuDefinition { key: string; label: string }
@@ -906,7 +916,7 @@ export const userApi = {
     return res.data
   },
   auditLogs: async (limit = 100, businessId?: string) => {
-    const res = await client.get<ApiResponse<AuditLogResponse[]>>('/users/audit-logs', {
+    const res = await client.get<ApiResponse<AuditLogResponse[]>>('/audit-logs', {
       params: { ...(businessId ? { businessId } : {}), limit },
     })
     return res.data
@@ -935,6 +945,18 @@ export const userApi = {
     })
     return res.data
   },
+  updateRoles: async (id: string, roleIds: string[], businessId?: string) => {
+    const res = await client.put<ApiResponse<UserResponse>>(`/users/${id}/roles`, { roleIds }, {
+      params: businessId ? { businessId } : undefined,
+    })
+    return res.data
+  },
+  reassign: async (id: string, data: ReassignUserRequest, businessId?: string) => {
+    const res = await client.put<ApiResponse<UserResponse>>(`/users/${id}/reassign`, data, {
+      params: businessId ? { businessId } : undefined,
+    })
+    return res.data
+  },
 }
 
 export interface AuditLogResponse {
@@ -948,6 +970,24 @@ export interface AuditLogResponse {
   ipAddress?: string | null
   details?: string | null
   createdAt: string
+}
+
+export interface AuditLogFilter {
+  limit?: number
+  businessId?: string
+  action?: string
+  search?: string
+  startDate?: string
+  endDate?: string
+}
+
+export const auditLogApi = {
+  list: async (filters: AuditLogFilter = {}) => {
+    const res = await client.get<ApiResponse<AuditLogResponse[]>>('/audit-logs', {
+      params: filters,
+    })
+    return res.data
+  },
 }
 
 export const accessApi = {

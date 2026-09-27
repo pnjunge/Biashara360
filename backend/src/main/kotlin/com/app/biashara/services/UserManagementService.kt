@@ -3,7 +3,9 @@ package com.app.biashara.services
 import com.app.biashara.auth.PasswordUtils
 import com.app.biashara.auth.generateId
 import com.app.biashara.db.AccessGroupsTable
+import com.app.biashara.db.AccessRolesTable
 import com.app.biashara.db.UserAccessGroupsTable
+import com.app.biashara.db.UserAccessRolesTable
 import com.app.biashara.db.UsersTable
 import com.app.biashara.db.RefreshTokensTable
 import com.app.biashara.db.BusinessesTable
@@ -193,7 +195,31 @@ class UserManagementService(
             assignedGroupIdsList.add(frontGroupId)
         }
 
-        auditLogService.logEvent(businessId, callerUserId, userId, "CREATE_USER", ipAddress, "Created user with role $normalizedRole in groups ${assignedGroupNames.joinToString()}")
+        val assignedRoleNames = mutableListOf<String>()
+        val assignedRoleIdsList = mutableListOf<String>()
+
+        if (req.roleIds.isNotEmpty()) {
+            val validRoles = AccessRolesTable.select {
+                (AccessRolesTable.businessId eq businessId) and (AccessRolesTable.id inList req.roleIds)
+            }.map { it[AccessRolesTable.id] to it[AccessRolesTable.name] }
+
+            for ((rId, rName) in validRoles) {
+                UserAccessRolesTable.insert {
+                    it[UserAccessRolesTable.userId] = userId
+                    it[UserAccessRolesTable.roleId] = rId
+                }
+                assignedRoleNames.add(rName)
+                assignedRoleIdsList.add(rId)
+            }
+        }
+
+        val logDetails = buildString {
+            append("Created user with role $normalizedRole in groups ${assignedGroupNames.joinToString()}")
+            if (assignedRoleNames.isNotEmpty()) {
+                append(" with roles ${assignedRoleNames.joinToString()}")
+            }
+        }
+        auditLogService.logEvent(businessId, callerUserId, userId, "CREATE_USER", ipAddress, logDetails)
 
         val user = UserResponse(
             id = userId,
@@ -206,7 +232,9 @@ class UserManagementService(
             isActive = true,
             hasPinSet = false,
             assignedGroups = assignedGroupNames,
-            assignedGroupIds = assignedGroupIdsList
+            assignedGroupIds = assignedGroupIdsList,
+            assignedRoles = assignedRoleNames,
+            assignedRoleIds = assignedRoleIdsList
         )
         ApiResponse(success = true, data = user, message = "User created successfully")
     }
@@ -245,6 +273,155 @@ class UserManagementService(
 
         val updatedUser = UsersTable.select { UsersTable.id eq userId }.first().toUserResponse()
         ApiResponse(true, data = updatedUser, message = "User access groups updated")
+    }
+
+    fun updateUserRoles(
+        userId: String,
+        businessId: String,
+        roleIds: List<String>,
+        callerUserId: String? = null,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> = transaction {
+        val exists = UsersTable.select {
+            (UsersTable.id eq userId) and (UsersTable.businessId eq businessId)
+        }.any()
+        if (!exists) return@transaction ApiResponse(false, message = "User not found")
+
+        val validRoleIds = if (roleIds.isNotEmpty()) {
+            AccessRolesTable.select {
+                (AccessRolesTable.businessId eq businessId) and (AccessRolesTable.id inList roleIds)
+            }.map { it[AccessRolesTable.id] }
+        } else {
+            emptyList()
+        }
+
+        UserAccessRolesTable.deleteWhere {
+            (UserAccessRolesTable.userId eq userId)
+        }
+        for (rId in validRoleIds) {
+            UserAccessRolesTable.insert {
+                it[UserAccessRolesTable.userId] = userId
+                it[UserAccessRolesTable.roleId] = rId
+            }
+        }
+
+        auditLogService.logEvent(businessId, callerUserId, userId, "UPDATE_USER_ROLES", ipAddress, "Updated direct access roles for user")
+
+        val updatedUser = UsersTable.select { UsersTable.id eq userId }.first().toUserResponse()
+        ApiResponse(true, data = updatedUser, message = "User access roles updated")
+    }
+
+    fun reassignUser(
+        userId: String,
+        businessId: String,
+        callerUserId: String,
+        callerRole: String,
+        req: ReassignUserRequest,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> = transaction {
+        val row = UsersTable.select {
+            (UsersTable.id eq userId) and (UsersTable.businessId eq businessId)
+        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "User not found")
+
+        if (row[UsersTable.role] == "SUPERADMIN") {
+            return@transaction ApiResponse(false, message = "Cannot modify a SUPERADMIN account")
+        }
+
+        val now = Clock.System.now()
+        var roleChanged = false
+        var targetRole = row[UsersTable.role]
+
+        // 1. Account Role change if provided
+        if (!req.role.isNullOrBlank()) {
+            val normalizedRole = req.role.trim().uppercase()
+            if (normalizedRole !in ASSIGNABLE_ROLES) {
+                return@transaction ApiResponse(false, message = "Role must be one of: ${ASSIGNABLE_ROLES.joinToString()}")
+            }
+            if (normalizedRole != targetRole) {
+                if (userId == callerUserId) {
+                    return@transaction ApiResponse(false, message = "You cannot change your own role")
+                }
+                if (targetRole == "ADMIN" && normalizedRole != "ADMIN" && activeAdminCount(businessId) <= 1) {
+                    return@transaction ApiResponse(false, message = "The business must retain at least one active administrator")
+                }
+                targetRole = normalizedRole
+                roleChanged = true
+            }
+        }
+
+        // 2. Business reassign if provided (Only SUPERADMIN can move across businesses)
+        var newBusinessId = businessId
+        if (!req.businessId.isNullOrBlank() && req.businessId != businessId) {
+            if (callerRole != "SUPERADMIN") {
+                return@transaction ApiResponse(false, message = "Only Superadmins can move users across businesses")
+            }
+            val targetBizExists = BusinessesTable.select { BusinessesTable.id eq req.businessId }.count() > 0
+            if (!targetBizExists) {
+                return@transaction ApiResponse(false, message = "Target business not found")
+            }
+            newBusinessId = req.businessId
+        }
+
+        // 3. Update Groups if provided
+        val groupsUpdated = req.groupIds != null
+        if (req.groupIds != null) {
+            val validGroupIds = if (req.groupIds.isNotEmpty()) {
+                AccessGroupsTable.select {
+                    (AccessGroupsTable.businessId eq newBusinessId) and (AccessGroupsTable.id inList req.groupIds)
+                }.map { it[AccessGroupsTable.id] }
+            } else {
+                emptyList()
+            }
+            UserAccessGroupsTable.deleteWhere { UserAccessGroupsTable.userId eq userId }
+            for (gId in validGroupIds) {
+                UserAccessGroupsTable.insert {
+                    it[UserAccessGroupsTable.userId] = userId
+                    it[UserAccessGroupsTable.groupId] = gId
+                }
+            }
+        }
+
+        // 4. Update Direct Access Roles if provided
+        val rolesUpdated = req.roleIds != null
+        if (req.roleIds != null) {
+            val validRoleIds = if (req.roleIds.isNotEmpty()) {
+                AccessRolesTable.select {
+                    (AccessRolesTable.businessId eq newBusinessId) and (AccessRolesTable.id inList req.roleIds)
+                }.map { it[AccessRolesTable.id] }
+            } else {
+                emptyList()
+            }
+            UserAccessRolesTable.deleteWhere { UserAccessRolesTable.userId eq userId }
+            for (rId in validRoleIds) {
+                UserAccessRolesTable.insert {
+                    it[UserAccessRolesTable.userId] = userId
+                    it[UserAccessRolesTable.roleId] = rId
+                }
+            }
+        }
+
+        // 5. Update user row if role or business changed
+        if (roleChanged || newBusinessId != businessId) {
+            UsersTable.update({ UsersTable.id eq userId }) {
+                it[role] = targetRole
+                it[UsersTable.businessId] = newBusinessId
+                it[tokenValidAfter] = now
+                it[updatedAt] = now
+            }
+            RefreshTokensTable.deleteWhere { RefreshTokensTable.userId eq userId }
+        }
+
+        val logDetails = buildString {
+            append("Reassigned user: ")
+            if (roleChanged) append("Role -> $targetRole. ")
+            if (groupsUpdated) append("Groups updated. ")
+            if (rolesUpdated) append("Direct access roles updated. ")
+            if (newBusinessId != businessId) append("Business -> $newBusinessId. ")
+        }
+        auditLogService.logEvent(businessId, callerUserId, userId, "REASSIGN_USER", ipAddress, logDetails.trim())
+
+        val updated = UsersTable.select { UsersTable.id eq userId }.first().toUserResponse()
+        ApiResponse(success = true, data = updated, message = "User reassigned successfully")
     }
 
     fun updateRole(
@@ -319,15 +496,24 @@ class UserManagementService(
     }
 
     private fun ResultRow.toUserResponse(): UserResponse {
+        val userId = this[UsersTable.id]
+        val businessId = this[UsersTable.businessId] ?: ""
         val groups = (UserAccessGroupsTable innerJoin AccessGroupsTable)
             .slice(AccessGroupsTable.id, AccessGroupsTable.name)
             .select {
-                (UserAccessGroupsTable.userId eq this@toUserResponse[UsersTable.id]) and
-                    (AccessGroupsTable.businessId eq (this@toUserResponse[UsersTable.businessId] ?: "")) and
+                (UserAccessGroupsTable.userId eq userId) and
+                    (AccessGroupsTable.businessId eq businessId) and
                     (AccessGroupsTable.isActive eq true)
             }
+        val roles = (UserAccessRolesTable innerJoin AccessRolesTable)
+            .slice(AccessRolesTable.id, AccessRolesTable.name)
+            .select {
+                (UserAccessRolesTable.userId eq userId) and
+                    (AccessRolesTable.businessId eq businessId) and
+                    (AccessRolesTable.isActive eq true)
+            }
         return UserResponse(
-            id = this[UsersTable.id],
+            id = userId,
             name = this[UsersTable.name],
             email = this[UsersTable.email],
             phone = this[UsersTable.phone],
@@ -337,7 +523,9 @@ class UserManagementService(
             isActive = this[UsersTable.isActive],
             hasPinSet = this[UsersTable.loginPinHash] != null,
             assignedGroups = groups.map { it[AccessGroupsTable.name] },
-            assignedGroupIds = groups.map { it[AccessGroupsTable.id] }
+            assignedGroupIds = groups.map { it[AccessGroupsTable.id] },
+            assignedRoles = roles.map { it[AccessRolesTable.name] },
+            assignedRoleIds = roles.map { it[AccessRolesTable.id] }
         )
     }
 

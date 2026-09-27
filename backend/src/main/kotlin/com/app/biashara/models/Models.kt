@@ -78,7 +78,9 @@ data class UserResponse(
     val isActive: Boolean = true,
     val hasPinSet: Boolean = false,
     val assignedGroups: List<String> = emptyList(),
-    val assignedGroupIds: List<String> = emptyList()
+    val assignedGroupIds: List<String> = emptyList(),
+    val assignedRoles: List<String> = emptyList(),
+    val assignedRoleIds: List<String> = emptyList()
 )
 
 @Serializable
@@ -476,7 +478,8 @@ data class InviteUserRequest(
     val role: String = "STAFF",   // ADMIN | MANAGER | STAFF
     val password: String? = null,
     val groupId: String? = null,
-    val groupIds: List<String> = emptyList()
+    val groupIds: List<String> = emptyList(),
+    val roleIds: List<String> = emptyList()
 )
 
 @Serializable
@@ -487,6 +490,17 @@ data class UpdateUserStatusRequest(val isActive: Boolean)
 
 @Serializable
 data class UpdateUserGroupsRequest(val groupIds: List<String>)
+
+@Serializable
+data class UpdateUserRolesRequest(val roleIds: List<String>)
+
+@Serializable
+data class ReassignUserRequest(
+    val role: String? = null,
+    val groupIds: List<String>? = null,
+    val roleIds: List<String>? = null,
+    val businessId: String? = null
+)
 
 // ─── Common ───────────────────────────────────────────────────────────────────
 

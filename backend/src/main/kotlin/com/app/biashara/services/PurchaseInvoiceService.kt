@@ -13,7 +13,9 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID
 
-class PurchaseInvoiceService {
+class PurchaseInvoiceService(
+    private val auditLogService: AuditLogService? = null
+) {
     private val json = Json { ignoreUnknownKeys = true }
 
     fun list(businessId: String, query: String? = null): ApiResponse<List<PurchaseInvoice>> = transaction {
@@ -189,6 +191,8 @@ class PurchaseInvoiceService {
         } catch (_: Exception) {
             // Already present or ignore
         }
+
+        auditLogService?.logEvent(businessId, null, null, "CREATE_PURCHASE_INVOICE", null, "Created purchase invoice #${invoiceNum} from ${req.supplierName.trim()} for KES $total")
 
         val invoice = PurchaseInvoice(
             id = id,

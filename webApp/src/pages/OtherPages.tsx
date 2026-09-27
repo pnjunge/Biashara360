@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer } from 'lucide-react'
+import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer, ArrowRightLeft, Shield } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
 import { expenseApi, paymentApi, orderApi, reportApi, customerApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, CustomerResponse, userApi, superAdminApi, businessApi, accessApi, AccessConfig, AuditLogResponse, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest } from '../services/api'
 import { useAuth } from '../App'
@@ -657,6 +657,7 @@ export function UserCreationPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLogResponse[]>([])
   const [auditLoading, setAuditLoading] = useState(false)
   const [showAuditLog, setShowAuditLog] = useState(false)
+  const navigate = useNavigate()
   const [accessConfig, setAccessConfig] = useState<AccessConfig | null>(null)
   const [accessMessage, setAccessMessage] = useState('')
   const [roleDraft, setRoleDraft] = useState({ name:'', description:'', allowedMenus:[] as string[] })
@@ -664,11 +665,21 @@ export function UserCreationPage() {
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [inviteGroupId, setInviteGroupId] = useState('')
+  const [inviteRoleIds, setInviteRoleIds] = useState<string[]>([])
   const [manageGroupsUser, setManageGroupsUser] = useState<UserResponse | null>(null)
   const [selectedUserGroupIds, setSelectedUserGroupIds] = useState<string[]>([])
   const [savingUserGroups, setSavingUserGroups] = useState(false)
   const [accessSaving, setAccessSaving] = useState<'MENUS'|'ROLE'|'GROUP'|'INVITE_GROUP'|null>(null)
   const accessBusinessId = isSuperAdmin ? selectedBusinessId : undefined
+
+  // Reassign Modal State
+  const [reassignModalUser, setReassignModalUser] = useState<UserResponse | null>(null)
+  const [reassignRole, setReassignRole] = useState('STAFF')
+  const [reassignGroupIds, setReassignGroupIds] = useState<string[]>([])
+  const [reassignRoleIds, setReassignRoleIds] = useState<string[]>([])
+  const [reassignBizId, setReassignBizId] = useState('')
+  const [reassignSaving, setReassignSaving] = useState(false)
+  const [reassignError, setReassignError] = useState('')
 
   const ROLES = [
     { value: 'STAFF', label: 'Staff' },
@@ -676,6 +687,7 @@ export function UserCreationPage() {
     { value: 'ADMIN', label: 'Admin' },
   ]
   const activeGroups = accessConfig?.groups.filter(group => group.isActive) ?? []
+  const activeRoles = accessConfig?.roles.filter(role => role.isActive) ?? []
 
   const loadUsers = () => {
     if (isSuperAdmin && !selectedBusinessId) {
@@ -870,6 +882,47 @@ export function UserCreationPage() {
     setManageGroupsUser(null)
   }
 
+  const openReassignUser = (u: UserResponse) => {
+    setReassignModalUser(u)
+    setReassignRole(u.role)
+    const currentGroupIds = u.assignedGroupIds && u.assignedGroupIds.length > 0
+      ? u.assignedGroupIds
+      : accessConfig?.groups.filter(g => g.userIds.includes(u.id) || u.assignedGroups?.includes(g.name)).map(g => g.id) || []
+    setReassignGroupIds(currentGroupIds)
+    setReassignRoleIds(u.assignedRoleIds || [])
+    setReassignBizId(u.businessId || selectedBusinessId || '')
+    setReassignError('')
+  }
+
+  const handleSaveReassign = async () => {
+    if (!reassignModalUser) return
+    setReassignSaving(true)
+    setReassignError('')
+    try {
+      const res = await userApi.reassign(
+        reassignModalUser.id,
+        {
+          role: reassignRole,
+          groupIds: reassignGroupIds,
+          roleIds: reassignRoleIds,
+          businessId: isSuperAdmin && reassignBizId !== reassignModalUser.businessId ? reassignBizId : undefined,
+        },
+        isSuperAdmin ? selectedBusinessId : undefined
+      )
+      if (res.success && res.data) {
+        setUsers(prev => prev.map(u => (u.id === reassignModalUser.id ? res.data! : u)))
+        setReassignModalUser(null)
+        await loadAccess()
+      } else {
+        setReassignError(res.message || 'Failed to reassign user.')
+      }
+    } catch (e: any) {
+      setReassignError(e.response?.data?.message || 'Network error while reassigning user.')
+    } finally {
+      setReassignSaving(false)
+    }
+  }
+
   // ── Handlers ──
 
   const af = (k: keyof typeof emptyBusinessAdmin) => (v: string) =>
@@ -908,13 +961,15 @@ export function UserCreationPage() {
       const payload: InviteUserRequest = {
         ...form,
         groupId: selectedGroup || undefined,
-        groupIds: selectedGroup ? [selectedGroup] : []
+        groupIds: selectedGroup ? [selectedGroup] : [],
+        roleIds: inviteRoleIds,
       }
       const res = await userApi.invite(payload, isSuperAdmin ? selectedBusinessId : undefined)
       if (res.success && res.data) {
         setShowAdd(false)
         setForm(emptyUser)
         setInviteGroupId('')
+        setInviteRoleIds([])
         if (!isSuperAdmin) setSelectedBusinessId('')
         loadUsers()
         loadAccess()
@@ -1021,7 +1076,7 @@ export function UserCreationPage() {
 
       {/* ── Create User Modal ── */}
       {showAdd && (
-        <Modal title="Create New User" onClose={() => { setShowAdd(false); setForm(emptyUser); setInviteGroupId(''); setSelectedBusinessId(''); setError('') }}>
+        <Modal title="Create New User" onClose={() => { setShowAdd(false); setForm(emptyUser); setInviteGroupId(''); setInviteRoleIds([]); setSelectedBusinessId(''); setError('') }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Input label="Full Name *" value={form.name} onChange={f('name')} placeholder="e.g. Jane Mwangi" />
             <Input label="Email *" value={form.email} onChange={f('email')} placeholder="jane@example.com" />
@@ -1038,8 +1093,30 @@ export function UserCreationPage() {
                   : [{ value: '', label: 'Front (Default)' }]
               }
             />
+            {activeRoles.length > 0 && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>
+                  Direct Access Roles (Optional)
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 110, overflowY: 'auto', border: '1px solid var(--b360-border)', borderRadius: 8, padding: 8 }}>
+                  {activeRoles.map(role => {
+                    const isChecked = inviteRoleIds.includes(role.id)
+                    return (
+                      <label key={role.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => setInviteRoleIds(prev => toggleValue(prev, role.id))}
+                        />
+                        <span>{role.name} ({role.allowedMenus.length} menus)</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
             <div style={{ color: 'var(--b360-text-secondary)', fontSize: 12 }}>
-              The user inherits menu access and feature permissions configured for this group. User is created directly and can sign in immediately.
+              The user inherits menu access and feature permissions configured for assigned group(s) and role(s).
             </div>
             {isSuperAdmin && (
               <Select
@@ -1113,6 +1190,143 @@ export function UserCreationPage() {
                 })}
               </div>
             )}
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Reassign User Modal ── */}
+      {reassignModalUser && (
+        <Modal
+          title={`Reassign User · ${reassignModalUser.name}`}
+          onClose={() => setReassignModalUser(null)}
+          footer={
+            <>
+              <Btn variant="secondary" onClick={() => setReassignModalUser(null)}>Cancel</Btn>
+              <Btn onClick={handleSaveReassign} disabled={reassignSaving}>
+                {reassignSaving ? 'Reassigning...' : 'Save Assignments'}
+              </Btn>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {reassignError && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{reassignError}</div>}
+
+            <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--b360-border)', fontSize: 12 }}>
+              Reassign role level, operational groups, and individual role privileges for <strong>{reassignModalUser.name}</strong> ({reassignModalUser.email}).
+            </div>
+
+            {/* Account Role */}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>Account Level Role *</label>
+              <Select
+                value={reassignRole}
+                onChange={setReassignRole}
+                options={ROLES}
+                disabled={reassignModalUser.id === currentUser?.id}
+              />
+              <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)', marginTop: 4 }}>
+                STAFF: Standard operational team. MANAGER: Store supervisor. ADMIN: Business administrator.
+              </div>
+            </div>
+
+            {/* If Superadmin, Business reassign */}
+            {isSuperAdmin && businesses.length > 0 && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>Assigned Business / Store *</label>
+                <Select
+                  value={reassignBizId}
+                  onChange={setReassignBizId}
+                  options={businesses.map(b => ({ value: b.id, label: `${b.name} (${b.type})` }))}
+                />
+              </div>
+            )}
+
+            {/* Access Groups */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Access Groups (Team Permissions)</span>
+                <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{reassignGroupIds.length} selected</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto', border: '1px solid var(--b360-border)', borderRadius: 8, padding: 8 }}>
+                {activeGroups.map(group => {
+                  const isChecked = reassignGroupIds.includes(group.id)
+                  return (
+                    <label
+                      key={group.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 8px',
+                        borderRadius: 6,
+                        background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+                        cursor: 'pointer',
+                        fontSize: 12
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => setReassignGroupIds(prev => toggleValue(prev, group.id))}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontWeight: 600 }}>{group.name}</span>
+                        {group.description && <span style={{ color: 'var(--b360-text-secondary)', marginLeft: 6 }}>· {group.description}</span>}
+                      </div>
+                    </label>
+                  )
+                })}
+                {activeGroups.length === 0 && (
+                  <div style={{ padding: 8, color: 'var(--b360-text-secondary)', fontSize: 12, textAlign: 'center' }}>
+                    No access groups defined.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Direct Access Roles */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Direct Access Roles (Specific Privileges)</span>
+                <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{reassignRoleIds.length} selected</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto', border: '1px solid var(--b360-border)', borderRadius: 8, padding: 8 }}>
+                {activeRoles.map(role => {
+                  const isChecked = reassignRoleIds.includes(role.id)
+                  return (
+                    <label
+                      key={role.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 8px',
+                        borderRadius: 6,
+                        background: isChecked ? 'rgba(147, 51, 234, 0.08)' : 'transparent',
+                        cursor: 'pointer',
+                        fontSize: 12
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => setReassignRoleIds(prev => toggleValue(prev, role.id))}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontWeight: 600 }}>{role.name}</span>
+                        <span style={{ color: 'var(--b360-text-secondary)', marginLeft: 6 }}>({role.allowedMenus.length} menus)</span>
+                        {role.description && <span style={{ color: 'var(--b360-text-secondary)', marginLeft: 6 }}>· {role.description}</span>}
+                      </div>
+                    </label>
+                  )
+                })}
+                {activeRoles.length === 0 && (
+                  <div style={{ padding: 8, color: 'var(--b360-text-secondary)', fontSize: 12, textAlign: 'center' }}>
+                    No custom roles defined.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </Modal>
       )}
@@ -1199,60 +1413,102 @@ export function UserCreationPage() {
       )}
 
       {/* ── User Management ── */}
-      <PageHeader title="User Management" action={<div style={{display:'flex',gap:8}}><Btn variant="secondary" onClick={() => { loadAuditLogs(); setShowAuditLog(true) }} icon={<FileText size={14} />}>Audit log</Btn><Btn onClick={() => { setSelectedBusinessId(businesses[0]?.id ?? ''); setShowAdd(true) }} icon={<Plus size={14} />}>Create User</Btn></div>} />
-      {error && <div style={{color:'var(--b360-red)',fontSize:13}}>{error}</div>}
+      <PageHeader
+        title="User Management"
+        action={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn variant="secondary" onClick={() => navigate('/audit-logs')} icon={<FileText size={14} />}>
+              Audit Log
+            </Btn>
+            <Btn onClick={() => { setSelectedBusinessId(businesses[0]?.id ?? ''); setShowAdd(true) }} icon={<Plus size={14} />}>
+              Create User
+            </Btn>
+          </div>
+        }
+      />
+      {error && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{error}</div>}
       <Card style={{ padding: 0 }}>
         {usersLoading ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading users…</div>
         ) : (
           <DataTable
-            headers={['Name', 'Email', 'Phone', 'Account role', 'Access groups', 'Status', '']}
+            headers={['Name', 'Email', 'Phone', 'Account Role', 'Assigned Groups & Roles', 'Status', 'Actions']}
             rows={users.map(u => {
-              const currentGId = u.assignedGroupIds?.[0] ||
-                accessConfig?.groups.find(g => g.userIds.includes(u.id))?.id ||
-                accessConfig?.groups.find(g => u.assignedGroups?.includes(g.name))?.id ||
-                ''
+              const userGroups = u.assignedGroups && u.assignedGroups.length > 0
+                ? u.assignedGroups
+                : accessConfig?.groups.filter(g => g.userIds.includes(u.id)).map(g => g.name) || []
+              const userDirectRoles = u.assignedRoles || []
+
               return [
-                u.name,
+                <div key="name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontWeight: 600 }}>{u.name}</span>
+                  {u.id === currentUser?.id && (
+                    <span style={{ fontSize: 10, background: 'rgba(59, 130, 246, 0.1)', color: '#1d4ed8', padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>
+                      You
+                    </span>
+                  )}
+                </div>,
                 u.email,
-                u.phone,
-                <select key="role" value={u.role} disabled={u.id===currentUser?.id} onChange={event=>handleUserRoleChange(u.id,event.target.value)} style={{padding:'6px 8px',borderRadius:7}}>{ROLES.map(role=><option key={role.value} value={role.value}>{role.label}</option>)}</select>,
-                <div key="groups" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <select
-                    value={currentGId}
-                    onChange={event => {
-                      const newGroupId = event.target.value
-                      if (newGroupId) handleUserGroupChange(u.id, [newGroupId])
-                    }}
-                    style={{
-                      padding: '6px 8px',
-                      borderRadius: 7,
-                      fontSize: 12,
-                      background: 'var(--b360-surface)',
-                      color: 'var(--b360-text)',
-                      border: '1px solid var(--b360-border)',
-                      maxWidth: 130
-                    }}
-                  >
-                    {activeGroups.map(group => (
-                      <option key={group.id} value={group.id}>{group.name}</option>
-                    ))}
-                    {activeGroups.length === 0 && <option value="">Front (Default)</option>}
-                  </select>
-                  <span title="Manage all assigned groups">
-                    <Btn
-                      small
-                      variant="secondary"
-                      onClick={() => openManageGroups(u)}
-                    >
-                      {u.assignedGroups && u.assignedGroups.length > 1 ? `+${u.assignedGroups.length - 1}` : 'Groups'}
-                    </Btn>
+                u.phone || '—',
+                <div key="role">
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    background: u.role === 'ADMIN' || u.role === 'SUPERADMIN' ? 'rgba(99, 102, 241, 0.12)' : u.role === 'MANAGER' ? 'rgba(14, 165, 233, 0.12)' : 'rgba(100, 116, 139, 0.12)',
+                    color: u.role === 'ADMIN' || u.role === 'SUPERADMIN' ? '#4f46e5' : u.role === 'MANAGER' ? '#0284c7' : '#475569',
+                    border: `1px solid ${u.role === 'ADMIN' || u.role === 'SUPERADMIN' ? 'rgba(99, 102, 241, 0.25)' : u.role === 'MANAGER' ? 'rgba(14, 165, 233, 0.25)' : 'rgba(100, 116, 139, 0.25)'}`
+                  }}>
+                    {u.role}
                   </span>
                 </div>,
+                <div key="assignments" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 160, maxWidth: 280 }}>
+                  {userGroups.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                      <span style={{ fontSize: 10, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Groups:</span>
+                      {userGroups.map(name => (
+                        <span key={name} style={{ display: 'inline-flex', alignItems: 'center', background: 'rgba(59, 130, 246, 0.1)', color: '#1d4ed8', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: 12, padding: '1px 8px', fontSize: 11, fontWeight: 500 }}>
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {userDirectRoles.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                      <span style={{ fontSize: 10, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Roles:</span>
+                      {userDirectRoles.map(name => (
+                        <span key={name} style={{ display: 'inline-flex', alignItems: 'center', background: 'rgba(147, 51, 234, 0.1)', color: '#7e22ce', border: '1px solid rgba(147, 51, 234, 0.25)', borderRadius: 12, padding: '1px 8px', fontSize: 11, fontWeight: 500 }}>
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {userGroups.length === 0 && userDirectRoles.length === 0 && (
+                    <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)', fontStyle: 'italic' }}>Front (Default)</span>
+                  )}
+                </div>,
                 <StatusBadge key="status" status={u.isActive === false ? 'INACTIVE' : 'ACTIVE'} />,
-                <Btn key="del" disabled={u.id===currentUser?.id} variant={u.isActive === false ? 'secondary' : 'danger'} small onClick={() => handleToggleUserStatus(u.id, u.isActive === false)}>
-                  {u.isActive === false ? 'Enable' : 'Disable'}
-                </Btn>,
+                <div key="actions" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <Btn
+                    small
+                    variant="secondary"
+                    onClick={() => openReassignUser(u)}
+                    icon={<ArrowRightLeft size={13} />}
+                  >
+                    Reassign
+                  </Btn>
+                  <Btn
+                    disabled={u.id === currentUser?.id}
+                    variant={u.isActive === false ? 'secondary' : 'danger'}
+                    small
+                    onClick={() => handleToggleUserStatus(u.id, u.isActive === false)}
+                  >
+                    {u.isActive === false ? 'Enable' : 'Disable'}
+                  </Btn>
+                </div>,
               ]
             })}
           />

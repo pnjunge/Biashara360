@@ -149,7 +149,9 @@ class CustomerService {
 
 // ─── Expense Service ──────────────────────────────────────────────────────────
 
-class ExpenseService {
+class ExpenseService(
+    private val auditLogService: AuditLogService? = null
+) {
 
     private fun syncMissingPurchaseInvoices(businessId: String) {
         try {
@@ -220,6 +222,7 @@ class ExpenseService {
             it[receiptUrl] = req.receiptUrl
             it[recordedAt] = now
         }
+        auditLogService?.logEvent(businessId, null, null, "RECORD_EXPENSE", null, "Recorded expense KES ${req.amount} for ${req.category}: ${req.description}")
         val expense = ExpensesTable.select { ExpensesTable.id eq id }.first().toResponse()
         ApiResponse(true, data = expense, message = "Expense recorded")
     }
@@ -232,7 +235,10 @@ class ExpenseService {
             (PurchaseInvoicesTable.id eq id) and (PurchaseInvoicesTable.businessId eq businessId)
         }
         if (deleted == 0 && piDeleted == 0) ApiResponse(false, message = "Expense not found")
-        else ApiResponse(true, message = "Expense deleted")
+        else {
+            auditLogService?.logEvent(businessId, null, null, "DELETE_EXPENSE", null, "Deleted expense record $id")
+            ApiResponse(true, message = "Expense deleted")
+        }
     }
 
     fun getProfitSummary(businessId: String, startDate: String, endDate: String): ProfitSummaryResponse = transaction {
@@ -309,7 +315,9 @@ class ExpenseService {
 
 // ─── Payment Service ──────────────────────────────────────────────────────────
 
-class PaymentService {
+class PaymentService(
+    private val auditLogService: AuditLogService? = null
+) {
 
     fun getAll(businessId: String, reconciledOnly: Boolean? = null): List<PaymentResponse> = transaction {
         var stmt = PaymentsTable.leftJoin(OrdersTable, { orderId }, { id })
@@ -342,6 +350,7 @@ class PaymentService {
             it[paymentStatus] = "PAID"
             it[updatedAt] = Clock.System.now()
         }
+        auditLogService?.logEvent(businessId, null, null, "RECONCILE_PAYMENT", null, "Reconciled payment $paymentId with order ${req.orderId}")
         ApiResponse(true, message = "Payment reconciled")
     }
 

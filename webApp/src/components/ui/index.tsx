@@ -211,14 +211,14 @@ export function Modal({ title, onClose, children, footer, wide, extraWide }: {
 }
 
 // ── Select ────────────────────────────────────────────────────────────────────
-export function Select({ label, value, onChange, options, placeholder }: {
-  label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; placeholder?: string
+export function Select({ label, value, onChange, options, placeholder, disabled }: {
+  label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; placeholder?: string; disabled?: boolean
 }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
       {label && <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)' }}>{label}</label>}
-      <select value={value} onChange={e => onChange(e.target.value)}
-        style={{ padding:'10px 14px', border:'1px solid var(--b360-border)', borderRadius:'var(--radius-sm)', fontSize:13, outline:'none', fontFamily:'inherit', background:'white', color:'var(--b360-text)' }}>
+      <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
+        style={{ padding:'10px 14px', border:'1px solid var(--b360-border)', borderRadius:'var(--radius-sm)', fontSize:13, outline:'none', fontFamily:'inherit', background: disabled ? 'var(--b360-surface)' : 'white', color:'var(--b360-text)', cursor: disabled ? 'not-allowed' : 'pointer' }}>
         {placeholder && <option value="" disabled>{placeholder}</option>}
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>

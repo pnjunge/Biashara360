@@ -88,6 +88,12 @@ object UserAccessGroupsTable : Table("user_access_groups") {
     override val primaryKey = PrimaryKey(userId, groupId)
 }
 
+object UserAccessRolesTable : Table("user_access_roles") {
+    val userId = varchar("user_id", 36).references(UsersTable.id, onDelete = CASCADE)
+    val roleId = varchar("role_id", 36).references(AccessRolesTable.id, onDelete = CASCADE)
+    override val primaryKey = PrimaryKey(userId, roleId)
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 object UsersTable : Table("users") {

@@ -14,18 +14,23 @@ val BUSINESS_MENUS = listOf(
     MenuDefinition("HOSPITALITY_OPS", "Hospitality Operations"),
     MenuDefinition("SERVICES", "Appointments & Services"),
     MenuDefinition("OPEN_TABS", "Open Tabs"),
-    MenuDefinition("INVENTORY", "Inventory"), MenuDefinition("ORDERS", "Orders"),
+    MenuDefinition("INVENTORY", "Inventory"), MenuDefinition("PURCHASES", "Purchases"),
+    MenuDefinition("ORDERS", "Orders"),
     MenuDefinition("CUSTOMERS", "Customers"), MenuDefinition("EXPENSES", "Expenses"),
     MenuDefinition("PAYMENTS", "M-Pesa Payments"), MenuDefinition("CARD_PAYMENTS", "Card Payments"),
     MenuDefinition("TAX", "Tax"), MenuDefinition("KRA", "KRA iTax"),
     MenuDefinition("SOCIAL", "Social Inbox"), MenuDefinition("SOCIAL_SETUP", "Social Setup"),
-    MenuDefinition("USERS", "Users, Roles & Groups"), MenuDefinition("REPORTS", "Reports"),
+    MenuDefinition("USERS", "Users, Roles & Groups"),
+    MenuDefinition("AUDIT_LOG", "Audit Log"),
+    MenuDefinition("REPORTS", "Reports"),
     MenuDefinition("DOWNLOADS", "Download Apps"), MenuDefinition("SETTINGS", "Settings")
 )
 private val MENU_KEYS = BUSINESS_MENUS.map { it.key }.toSet()
-private val DEFAULT_STAFF_MENUS = MENU_KEYS - setOf("USERS", "SETTINGS")
+private val DEFAULT_STAFF_MENUS = MENU_KEYS - setOf("USERS", "AUDIT_LOG", "SETTINGS")
 
-class AccessControlService {
+class AccessControlService(
+    private val auditLogService: AuditLogService? = null
+) {
     fun config(businessId: String): AccessConfigResponse = transaction {
         ensureDefaults(businessId)
         AccessConfigResponse(BUSINESS_MENUS, businessMenus(businessId), roles(businessId), groups(businessId))
@@ -87,13 +92,23 @@ class AccessControlService {
     fun myMenus(businessId: String, userId: String, builtInRole: String): MyMenuAccessResponse = transaction {
         val enabled = businessMenus(businessId).toSet()
         if (builtInRole == "ADMIN") return@transaction MyMenuAccessResponse(enabled.toList())
-        val assignedRoleIds = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)
+        val groupRoleIds = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)
             .slice(AccessGroupRolesTable.roleId)
             .select {
                 (UserAccessGroupsTable.userId eq userId) and
                     (AccessGroupsTable.businessId eq businessId) and
                     (AccessGroupsTable.isActive eq true)
             }.map { it[AccessGroupRolesTable.roleId] }
+
+        val directRoleIds = (UserAccessRolesTable innerJoin AccessRolesTable)
+            .slice(UserAccessRolesTable.roleId)
+            .select {
+                (UserAccessRolesTable.userId eq userId) and
+                    (AccessRolesTable.businessId eq businessId) and
+                    (AccessRolesTable.isActive eq true)
+            }.map { it[UserAccessRolesTable.roleId] }
+
+        val assignedRoleIds = (groupRoleIds + directRoleIds).distinct()
         val allowed = if (assignedRoleIds.isEmpty()) DEFAULT_STAFF_MENUS else AccessRolesTable
             .select {
                 (AccessRolesTable.id inList assignedRoleIds) and
@@ -106,6 +121,7 @@ class AccessControlService {
     fun updateMenus(businessId: String, request: UpdateMenusRequest): AccessConfigResponse = transaction {
         val menus = validateMenus(request.enabledMenus)
         BusinessesTable.update({ BusinessesTable.id eq businessId }) { it[enabledMenus] = menus.joinToString(",") }
+        auditLogService?.logEvent(businessId, null, null, "UPDATE_BUSINESS_MENUS", null, "Updated enabled menus (${menus.size} menus active)")
         config(businessId)
     }
 
@@ -114,6 +130,7 @@ class AccessControlService {
         require(AccessRolesTable.select { AccessRolesTable.businessId eq businessId }.none { it[AccessRolesTable.name].equals(request.name.trim(), ignoreCase = true) }) { "A role with this name already exists" }
         val id = generateId(); val now = Clock.System.now(); val menus = validateMenus(request.allowedMenus)
         AccessRolesTable.insert { row -> row[AccessRolesTable.id]=id; row[AccessRolesTable.businessId]=businessId; row[name]=request.name.trim(); row[description]=request.description.trim().take(255); row[allowedMenus]=menus.joinToString(","); row[isActive]=request.isActive; row[createdAt]=now; row[updatedAt]=now }
+        auditLogService?.logEvent(businessId, null, null, "CREATE_ACCESS_ROLE", null, "Created access role ${request.name.trim()} with ${menus.size} menus")
         AccessRoleResponse(id, request.name.trim(), request.description.trim().take(255), menus, request.isActive)
     }
 
@@ -133,6 +150,7 @@ class AccessControlService {
             it[isActive] = request.isActive
             it[updatedAt] = Clock.System.now()
         }
+        auditLogService?.logEvent(businessId, null, null, "UPDATE_ACCESS_ROLE", null, "Updated access role $name (active: ${request.isActive})")
         AccessRoleResponse(roleId, name, request.description.trim().take(255), menus, request.isActive)
     }
 
@@ -237,6 +255,14 @@ class AccessControlService {
         val userMap=UserAccessGroupsTable.selectAll().groupBy({it[UserAccessGroupsTable.groupId]},{it[UserAccessGroupsTable.userId]})
         return AccessGroupsTable.select { AccessGroupsTable.businessId eq businessId }.orderBy(AccessGroupsTable.name).map { AccessGroupResponse(it[AccessGroupsTable.id],it[AccessGroupsTable.name],it[AccessGroupsTable.description],roleMap[it[AccessGroupsTable.id]].orEmpty(),userMap[it[AccessGroupsTable.id]].orEmpty(),it[AccessGroupsTable.isActive]) }
     }
+    fun hasMenuAccess(userId: String, businessId: String, menuKey: String): Boolean = transaction {
+        val user = UsersTable.select { (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }.firstOrNull() ?: return@transaction false
+        if (user[UsersTable.role] == "ADMIN" || user[UsersTable.role] == "SUPERADMIN") return@transaction true
+        val access = myMenus(businessId, userId, user[UsersTable.role])
+        access.enabledMenus.contains(menuKey.uppercase())
+    }
+
     private fun validateMenus(values: List<String>): List<String> { val normalized=values.map { it.trim().uppercase() }.distinct(); require(normalized.all { it in MENU_KEYS }) { "Unknown menu selection" }; return normalized }
     private fun csv(value: String)=value.split(',').map { it.trim().uppercase() }.filter { it.isNotEmpty() }
 }
+

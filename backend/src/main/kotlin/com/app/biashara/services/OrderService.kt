@@ -57,7 +57,9 @@ internal fun resolveInitialOrderStatuses(
     return InitialOrderStatuses(payment, delivery)
 }
 
-class OrderService {
+class OrderService(
+    private val auditLogService: AuditLogService? = null
+) {
 
     fun recordMpesaCheckoutAttempt(
         businessId: String,
@@ -335,6 +337,7 @@ class OrderService {
         }
 
         val order = OrdersTable.select { OrdersTable.id eq orderId }.first().toResponse()
+        auditLogService?.logEvent(businessId, null, null, "CREATE_ORDER", null, "Created order $orderNumber with total amount ${order.subtotal} ($salesChannel - ${req.paymentMethod})")
         ApiResponse(true, data = order, message = "Order $orderNumber created")
         }
     } catch (exception: ConcurrentStockException) {
@@ -351,6 +354,7 @@ class OrderService {
         }
         if (updated == 0) return@transaction ApiResponse(false, message = "Order not found")
         val order = OrdersTable.select { OrdersTable.id eq id }.first().toResponse()
+        auditLogService?.logEvent(businessId, null, null, "UPDATE_ORDER_PAYMENT", null, "Updated payment status for order ${order.orderNumber} to ${req.status}")
         ApiResponse(true, data = order)
     }
 
@@ -363,6 +367,7 @@ class OrderService {
         }
         if (updated == 0) return@transaction ApiResponse(false, message = "Order not found")
         val order = OrdersTable.select { OrdersTable.id eq id }.first().toResponse()
+        auditLogService?.logEvent(businessId, null, null, "UPDATE_ORDER_DELIVERY", null, "Updated delivery status for order ${order.orderNumber} to ${req.status}")
         ApiResponse(true, data = order)
     }
 
@@ -442,6 +447,7 @@ class OrderService {
 
         val updatedOrder = OrdersTable.select { OrdersTable.id eq id }.first().toResponse()
         val action = if (isVoid) "voided" else "cancelled"
+        auditLogService?.logEvent(businessId, null, null, if (isVoid) "VOID_ORDER" else "CANCEL_ORDER", null, "Order ${order[OrdersTable.orderNumber]} was $action")
         ApiResponse(true, data = updatedOrder, message = "Order ${order[OrdersTable.orderNumber]} $action successfully")
     }
 

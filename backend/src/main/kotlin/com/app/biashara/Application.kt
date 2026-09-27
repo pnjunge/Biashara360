@@ -125,6 +125,7 @@ fun Application.module() {
                 paymentRoutes()
                 reportRoutes()
                 userRoutes()
+                auditLogRoutes()
                 accessControlRoutes()
                 hospitalityRoutes()
                 serviceRoutes()

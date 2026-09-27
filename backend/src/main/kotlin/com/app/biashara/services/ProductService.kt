@@ -9,7 +9,9 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.Instant
 
-class ProductService {
+class ProductService(
+    private val auditLogService: AuditLogService? = null
+) {
 
     fun getAll(businessId: String, query: String? = null, lowStockOnly: Boolean = false, includeInactive: Boolean = false): List<ProductResponse> = transaction {
         var stmt = if (includeInactive) {
@@ -38,6 +40,7 @@ class ProductService {
         }
         if (updated == 0) ApiResponse(false, message = "Product not found")
         else {
+            auditLogService?.logEvent(businessId, null, null, if (isActive) "ENABLE_PRODUCT" else "DISABLE_PRODUCT", null, "Product $id status changed to isActive=$isActive")
             val product = ProductsTable.select { ProductsTable.id eq id }.first().toResponse()
             ApiResponse(true, data = product, message = if (isActive) "Product enabled" else "Product disabled")
         }
@@ -74,6 +77,7 @@ class ProductService {
             it[createdAt] = now
             it[updatedAt] = now
         }
+        auditLogService?.logEvent(businessId, null, null, "CREATE_PRODUCT", null, "Created product ${req.name} (SKU: ${req.sku})")
         val product = ProductsTable.select { ProductsTable.id eq id }.first().toResponse()
         ApiResponse(true, data = product, message = "Product created")
     }
@@ -124,6 +128,7 @@ class ProductService {
                 it[StockMovementsTable.recordedAt] = Clock.System.now()
             }
         }
+        auditLogService?.logEvent(businessId, null, null, "UPDATE_PRODUCT", null, "Updated product ${req.name} (SKU: ${req.sku})")
         val product = ProductsTable.select { ProductsTable.id eq id }.first().toResponse()
         ApiResponse(true, data = product)
     }
@@ -156,6 +161,7 @@ class ProductService {
             it[recordedAt] = Clock.System.now()
         }
 
+        auditLogService?.logEvent(businessId, null, null, "UPDATE_STOCK", null, "Stock updated for ${product[ProductsTable.name]} ($currentStock -> $newStock, type: ${req.type})")
         val updated = ProductsTable.select { ProductsTable.id eq productId }.first().toResponse()
         ApiResponse(true, data = updated, message = "Stock updated")
     }
@@ -168,7 +174,10 @@ class ProductService {
             it[updatedAt] = Clock.System.now()
         }
         if (updated == 0) ApiResponse(false, message = "Product not found")
-        else ApiResponse(true, message = "Product deleted")
+        else {
+            auditLogService?.logEvent(businessId, null, null, "DELETE_PRODUCT", null, "Deactivated/deleted product $id")
+            ApiResponse(true, message = "Product deleted")
+        }
     }
 
     private fun ResultRow.toResponse(): ProductResponse {

@@ -24,6 +24,7 @@ const KraPage = lazy(() => import('./pages/KraPage'))
 const SocialPage = lazy(() => import('./pages/SocialPage'))
 const SocialOnboardingPage = lazy(() => import('./pages/SocialOnboardingPage'))
 const UserCreationPage = lazy(() => import('./pages/UserCreationPage'))
+const AuditLogPage = lazy(() => import('./pages/AuditLogPage'))
 const BusinessPage = lazy(() => import('./pages/BusinessPage'))
 const DownloadsPage = lazy(() => import('./pages/DownloadsPage'))
 
@@ -187,6 +188,7 @@ export default function App() {
             <Route path="social"        element={<SocialPage />} />
             <Route path="social-onboarding" element={<SocialOnboardingPage />} />
             <Route path="users"         element={<RoleProtectedRoute blockedRoles={["STAFF"]}><UserCreationPage /></RoleProtectedRoute>} />
+            <Route path="audit-logs"    element={<RoleProtectedRoute blockedRoles={["STAFF"]}><AuditLogPage /></RoleProtectedRoute>} />
             <Route path="business"      element={<RoleProtectedRoute blockedRoles={["STAFF"]}><BusinessPage /></RoleProtectedRoute>} />
             <Route path="mpesa-settings" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><MpesaSettingsPage /></RoleProtectedRoute>} />
             <Route path="receipt-template" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><ReceiptTemplatePage /></RoleProtectedRoute>} />

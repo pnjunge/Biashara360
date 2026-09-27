@@ -49,26 +49,26 @@ fun appModule(config: ApplicationConfig) = module {
     single { WhatsAppOtpService(config, get()) }
 
     // Services
+    single { AuditLogService() }
     single { AuthService(get(), get(), get()) }
     single { SocialAuthService(config, get()) }
-    single { ProductService() }
-    single { PurchaseInvoiceService() }
+    single { ProductService(get()) }
+    single { PurchaseInvoiceService(get()) }
     single { SupplierService() }
     single { InventoryCategoryService() }
-    single { OrderService() }
+    single { OrderService(get()) }
     single { CustomerService() }
-    single { ExpenseService() }
-    single { PaymentService() }
+    single { ExpenseService(get()) }
+    single { PaymentService(get()) }
     single { BusinessSettingsService() }
     single { SystemSettingsService() }
     single { MpesaService(get(), config, get(), get()) }
     single { UserManagementService(get(), get()) }
-    single { AuditLogService() }
     single { SuperAdminService() }
     single { BusinessProfileService() }
     single { DashboardService(get(), get(), get()) }
     single { StorefrontService(get(), get(), get()) }
-    single { AccessControlService() }
+    single { AccessControlService(get()) }
     single { HospitalityService(get()) }
     single { AdvancedHospitalityService() }
     single { ServiceManagementService(get()) }

@@ -4,7 +4,7 @@ import { useAuth } from '../../App'
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
   CreditCard, BarChart3, Settings, LogOut, Bell, Search,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Download, ChefHat, CalendarClock
+  ChevronLeft, ChevronRight, ChevronDown, Menu, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Download, ChefHat, CalendarClock, ScrollText
 } from 'lucide-react'
 import styles from './AppShell.module.css'
 import PortalOrdersInbox from '../orders/PortalOrdersInbox'
@@ -26,6 +26,7 @@ const navItems = [
   { key:'PAYMENTS', to: '/payments',      icon: CreditCard,      label: 'Payments' },
   { key:'SOCIAL', to: '/social',        icon: MessageSquare,    label: 'Social Inbox' },
   { key:'USERS', to: '/users',         icon: UserPlus,         label: 'Users & Access' },
+  { key:'AUDIT_LOG', to: '/audit-logs',    icon: ScrollText,       label: 'Audit Log' },
   { key:'REPORTS', to: '/reports',       icon: BarChart3,        label: 'Reports' },
   { key:'DOWNLOADS', to: '/downloads',     icon: Download,         label: 'Download Apps' },
   { key:'SETTINGS', to: '/settings',     icon: Settings,         label: 'Settings' },
@@ -35,7 +36,7 @@ const navSectionDefinitions = [
   { key: 'OPERATIONS', label: 'OPERATIONS', itemKeys: ['HOSPITALITY', 'HOSPITALITY_OPS', 'OPEN_TABS', 'SERVICES', 'INVENTORY', 'PURCHASES', 'ORDERS', 'CUSTOMERS'] },
   { key: 'FINANCE', label: 'FINANCE', itemKeys: ['EXPENSES', 'PAYMENTS'] },
   { key: 'ENGAGEMENT', label: 'ENGAGEMENT', itemKeys: ['SOCIAL', 'REPORTS', 'DOWNLOADS'] },
-  { key: 'ADMINISTRATION', label: 'ADMINISTRATION', itemKeys: ['USERS', 'SETTINGS'] },
+  { key: 'ADMINISTRATION', label: 'ADMINISTRATION', itemKeys: ['USERS', 'AUDIT_LOG', 'SETTINGS'] },
 ]
 
 export default function AppShell() {
@@ -85,7 +86,9 @@ export default function AppShell() {
     const isHospitalityNav = item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS' || item.to === '/kitchen-display'
     if (isHospitalityNav && hospitalityEnabled !== true) return false
     if (!isStaff) return true
-    return item.to !== '/users' && item.to !== '/settings' && item.to !== '/business' && item.to !== '/cybersource-settings'
+    if (item.key === 'AUDIT_LOG') return allowedMenus?.has('AUDIT_LOG') ?? false
+    if (item.key === 'USERS') return allowedMenus?.has('USERS') ?? false
+    return item.to !== '/users' && item.to !== '/settings' && item.to !== '/business' && item.to !== '/cybersource-settings' && item.to !== '/audit-logs'
   })
 
   const visibleTopNavItems = visibleNavItems.filter(item => item.key === 'DASHBOARD' || item.key === 'POS')

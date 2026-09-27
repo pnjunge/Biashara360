@@ -643,8 +643,12 @@ fun Route.userRoutes() {
                 return@get
             }
             val businessId = call.resolveUserManagementBusinessId(role) ?: return@get
-            val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 100
-            call.respond(ApiResponse(true, data = auditLogService.listAuditLogs(businessId, limit)))
+            val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 200
+            val action = call.request.queryParameters["action"]
+            val search = call.request.queryParameters["search"]
+            val startDate = call.request.queryParameters["startDate"]
+            val endDate = call.request.queryParameters["endDate"]
+            call.respond(ApiResponse(true, data = auditLogService.listAuditLogs(businessId, limit, action, search, startDate, endDate)))
         }
 
         post {
@@ -733,6 +737,36 @@ fun Route.userRoutes() {
                 val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject
                 val ipAddress = call.request.local.remoteHost
                 val result = userService.updateUserGroups(userId, businessId, req.groupIds, callerUserId, ipAddress)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+
+            put("/roles") {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN") {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                    return@put
+                }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@put
+                val userId = call.parameters["id"]!!
+                val req = call.receive<UpdateUserRolesRequest>()
+                val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject
+                val ipAddress = call.request.local.remoteHost
+                val result = userService.updateUserRoles(userId, businessId, req.roleIds, callerUserId, ipAddress)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+
+            put("/reassign") {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN") {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                    return@put
+                }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@put
+                val userId = call.parameters["id"]!!
+                val req = call.receive<ReassignUserRequest>()
+                val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject ?: ""
+                val ipAddress = call.request.local.remoteHost
+                val result = userService.reassignUser(userId, businessId, callerUserId, role, req, ipAddress)
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
             }
         }
@@ -971,3 +1005,35 @@ fun Route.publicBusinessRoutes() {
         }
     }
 }
+
+// ─── Audit Log Routes ─────────────────────────────────────────────────────────
+
+fun Route.auditLogRoutes() {
+    val auditLogService: AuditLogService by inject()
+    val accessControlService: AccessControlService by inject()
+
+    route("/audit-logs") {
+        get {
+            val role = call.userRole()
+            val userId = call.principal<JWTPrincipal>()?.payload?.subject
+            val businessId = if (role == "SUPERADMIN") {
+                call.request.queryParameters["businessId"] ?: call.businessId()
+            } else {
+                call.businessId()
+            }
+            val hasAccess = role == "ADMIN" || role == "SUPERADMIN" || (userId != null && accessControlService.hasMenuAccess(userId, businessId, "AUDIT_LOG"))
+            if (!hasAccess) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Access denied: Audit log permission required"))
+                return@get
+            }
+            val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 200
+            val action = call.request.queryParameters["action"]
+            val search = call.request.queryParameters["search"]
+            val startDate = call.request.queryParameters["startDate"]
+            val endDate = call.request.queryParameters["endDate"]
+            val logs = auditLogService.listAuditLogs(businessId, limit, action, search, startDate, endDate)
+            call.respond(ApiResponse(true, data = logs))
+        }
+    }
+}
+
