@@ -6,6 +6,14 @@ import java.util.prefs.Preferences
 
 class DesktopPreferencesTokenStorage : TokenStorage {
     private val prefs: Preferences = Preferences.userRoot().node("com/app/biashara/auth")
+    @Volatile private var inMemoryLastActivity: Long = 0L
+    @Volatile private var lastSavedActivity: Long = 0L
+    @Volatile private var lastTouchThrottle: Long = 0L
+
+    init {
+        inMemoryLastActivity = prefs.get(KEY_LAST_ACTIVITY, "0").toLongOrNull() ?: 0L
+        lastSavedActivity = inMemoryLastActivity
+    }
 
     override suspend fun getAccessToken(): String? {
         return activeToken(KEY_ACCESS_TOKEN)
@@ -16,13 +24,22 @@ class DesktopPreferencesTokenStorage : TokenStorage {
     }
 
     override suspend fun saveTokens(accessToken: String, refreshToken: String) {
+        val now = System.currentTimeMillis()
+        inMemoryLastActivity = now
+        lastSavedActivity = now
         prefs.put(KEY_ACCESS_TOKEN, accessToken)
         prefs.put(KEY_REFRESH_TOKEN, refreshToken)
-        prefs.put(KEY_LAST_ACTIVITY, System.currentTimeMillis().toString())
+        prefs.put(KEY_LAST_ACTIVITY, now.toString())
         prefs.flush()
     }
 
     override suspend fun clearTokens() {
+        clearTokensSync()
+    }
+
+    private fun clearTokensSync() {
+        inMemoryLastActivity = 0L
+        lastSavedActivity = 0L
         prefs.remove(KEY_ACCESS_TOKEN)
         prefs.remove(KEY_REFRESH_TOKEN)
         prefs.remove(KEY_LAST_ACTIVITY)
@@ -36,27 +53,43 @@ class DesktopPreferencesTokenStorage : TokenStorage {
 
     override suspend fun getSessionRemainingMillis(): Long? {
         if (prefs.get(KEY_ACCESS_TOKEN, null) == null) return null
-        val lastActivity = prefs.get(KEY_LAST_ACTIVITY, "0").toLongOrNull() ?: 0L
-        return (effectiveTimeoutMillis() - (System.currentTimeMillis() - lastActivity)).coerceAtLeast(0L)
+        val lastActivity = if (inMemoryLastActivity > 0L) inMemoryLastActivity else (prefs.get(KEY_LAST_ACTIVITY, "0").toLongOrNull() ?: 0L)
+        if (lastActivity == 0L) return effectiveTimeoutMillis()
+        val elapsed = System.currentTimeMillis() - lastActivity
+        val remaining = effectiveTimeoutMillis() - elapsed
+        return remaining.coerceAtLeast(0L)
     }
 
-    override suspend fun touchSession() {
-        if (prefs.get(KEY_ACCESS_TOKEN, null) != null) {
-            prefs.put(KEY_LAST_ACTIVITY, System.currentTimeMillis().toString())
+    fun touchSessionSync() {
+        if (prefs.get(KEY_ACCESS_TOKEN, null) == null) return
+        val now = System.currentTimeMillis()
+        if (now - lastTouchThrottle < 1000L) return
+        lastTouchThrottle = now
+        inMemoryLastActivity = now
+        if (now - lastSavedActivity >= 5000L) {
+            lastSavedActivity = now
+            prefs.put(KEY_LAST_ACTIVITY, now.toString())
             prefs.flush()
         }
     }
 
+    override suspend fun touchSession() {
+        touchSessionSync()
+    }
+
     private fun activeToken(key: String): String? {
         val access = prefs.get(KEY_ACCESS_TOKEN, null)
-        val last = prefs.get(KEY_LAST_ACTIVITY, "0").toLongOrNull() ?: 0L
+        val last = if (inMemoryLastActivity > 0L) inMemoryLastActivity else (prefs.get(KEY_LAST_ACTIVITY, "0").toLongOrNull() ?: 0L)
         if (access != null && last == 0L) {
-            prefs.put(KEY_LAST_ACTIVITY, System.currentTimeMillis().toString()); prefs.flush()
+            val now = System.currentTimeMillis()
+            inMemoryLastActivity = now
+            lastSavedActivity = now
+            prefs.put(KEY_LAST_ACTIVITY, now.toString())
+            prefs.flush()
         } else if (access != null && System.currentTimeMillis() - last >= effectiveTimeoutMillis()) {
-            prefs.remove(KEY_ACCESS_TOKEN); prefs.remove(KEY_REFRESH_TOKEN); prefs.remove(KEY_LAST_ACTIVITY); prefs.flush()
+            clearTokensSync()
             return null
         }
-        if (access != null) { prefs.put(KEY_LAST_ACTIVITY, System.currentTimeMillis().toString()); prefs.flush() }
         return prefs.get(key, null)
     }
 
@@ -66,7 +99,6 @@ class DesktopPreferencesTokenStorage : TokenStorage {
         private const val KEY_LAST_ACTIVITY = "last_activity"
         private const val KEY_SESSION_TIMEOUT_SECONDS = "session_timeout_seconds"
     }
-
 
     private fun effectiveTimeoutMillis() =
         prefs.getLong(KEY_SESSION_TIMEOUT_SECONDS, SESSION_IDLE_TIMEOUT_MILLIS / 1000L)

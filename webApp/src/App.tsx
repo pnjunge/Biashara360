@@ -122,11 +122,34 @@ export default function App() {
         }
       })
       .catch(() => { /* retain the build-time fallback while offline */ })
-    const touch = () => localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
+    return () => { active = false }
+  }, [isAuthenticated])
+
+  useEffect(() => {
     const updateTimeout = (event: Event) => {
       const seconds = (event as CustomEvent<number>).detail
       if (Number.isFinite(seconds)) setSessionIdleTimeoutSeconds(Math.min(86_400, Math.max(60, seconds)))
     }
+    window.addEventListener('session-timeout-updated', updateTimeout)
+    return () => window.removeEventListener('session-timeout-updated', updateTimeout)
+  }, [])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    let lastTouch = Date.now()
+    if (!localStorage.getItem(LAST_ACTIVITY_KEY)) {
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
+    }
+
+    const touch = () => {
+      const now = Date.now()
+      if (now - lastTouch > 2000) {
+        lastTouch = now
+        localStorage.setItem(LAST_ACTIVITY_KEY, String(now))
+      }
+    }
+
     const check = () => {
       if (!localStorage.getItem('accessToken') || !localStorage.getItem('refreshToken')) {
         logout()
@@ -135,15 +158,14 @@ export default function App() {
       const last = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || Date.now())
       if (Date.now() - last >= sessionIdleTimeoutSeconds * 1000) logout()
     }
-    const events = ['mousedown', 'keydown', 'touchstart', 'scroll', 'click']
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click']
     events.forEach((event) => window.addEventListener(event, touch, { passive: true }))
-    window.addEventListener('session-timeout-updated', updateTimeout)
-    const timer = window.setInterval(check, 15_000)
+    const timer = window.setInterval(check, 5_000)
     check()
+
     return () => {
-      active = false
       events.forEach((event) => window.removeEventListener(event, touch))
-      window.removeEventListener('session-timeout-updated', updateTimeout)
       window.clearInterval(timer)
     }
   }, [isAuthenticated, sessionIdleTimeoutSeconds])

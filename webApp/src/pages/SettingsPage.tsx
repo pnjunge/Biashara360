@@ -422,6 +422,9 @@ export function SettingsPage() {
     setSecMsg(null)
     try {
       const res = await settingsApi.updateSessionTimeouts(sessionTimeouts)
+      if (res.success && res.data) {
+        window.dispatchEvent(new CustomEvent('session-timeout-updated', { detail: res.data.webTimeoutSeconds }))
+      }
       setSecMsg({ ok: res.success, text: res.message || (res.success ? 'Security policy saved' : 'Failed to save security policy') })
     } catch (e: any) {
       setSecMsg({ ok: false, text: e.response?.data?.message || 'Network error' })

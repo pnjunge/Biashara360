@@ -32,6 +32,13 @@ import com.app.biashara.domain.model.User
 import com.app.biashara.domain.model.UserRole
 import kotlinx.datetime.Clock
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import com.app.biashara.data.local.DesktopPreferencesTokenStorage
+import com.app.biashara.data.remote.TokenStorage
+import com.app.biashara.data.remote.refreshSessionIdleTimeout
+import com.app.biashara.domain.repository.AuthRepository
 import com.app.biashara.presentation.viewmodel.AuthViewModel
 import com.app.biashara.presentation.viewmodel.AuthStep
 import com.app.biashara.ui.screens.*
@@ -202,7 +209,12 @@ private fun DesktopSidebarItem(
 @Composable
 fun Biashara360DesktopApp() {
     val authViewModel: AuthViewModel = remember { inject() }
+    val authRepository: AuthRepository = remember { inject() }
+    val tokenStorage: TokenStorage = remember { inject() }
+    val client: HttpClient = remember { inject() }
     val userSessionState by UserSession.currentUser.collectAsState()
+    var sessionWarningSeconds by remember { mutableStateOf<Int?>(null) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         if (!UserSession.isLoggedIn()) {
@@ -210,13 +222,94 @@ fun Biashara360DesktopApp() {
             // authenticated screens and tenant-scoped data to display.
             authViewModel.loginWithBiometric()
         }
+        runCatching {
+            refreshSessionIdleTimeout(client)?.let { tokenStorage.saveSessionIdleTimeoutSeconds(it) }
+        }
+    }
+
+    // Inactivity monitor
+    LaunchedEffect(userSessionState?.id) {
+        if (userSessionState == null) {
+            sessionWarningSeconds = null
+            return@LaunchedEffect
+        }
+        while (isActive) {
+            val remaining = tokenStorage.getSessionRemainingMillis()
+            sessionWarningSeconds = remaining
+                ?.takeIf { it in 1..60_000L }
+                ?.let { ((it + 999) / 1000).toInt() }
+            if (remaining == 0L) {
+                sessionWarningSeconds = null
+                authRepository.logout()
+                UserSession.clearUser()
+                break
+            }
+            delay(1_000)
+        }
+    }
+
+    // Capture all user interactions across the desktop window
+    DisposableEffect(userSessionState?.id) {
+        if (userSessionState == null) return@DisposableEffect onDispose {}
+        val listener = java.awt.event.AWTEventListener {
+            (tokenStorage as? DesktopPreferencesTokenStorage)?.touchSessionSync()
+                ?: scope.launch { tokenStorage.touchSession() }
+        }
+        val mask = java.awt.AWTEvent.MOUSE_EVENT_MASK or
+                   java.awt.AWTEvent.MOUSE_MOTION_EVENT_MASK or
+                   java.awt.AWTEvent.KEY_EVENT_MASK or
+                   java.awt.AWTEvent.MOUSE_WHEEL_EVENT_MASK
+        java.awt.Toolkit.getDefaultToolkit().addAWTEventListener(listener, mask)
+        onDispose {
+            java.awt.Toolkit.getDefaultToolkit().removeAWTEventListener(listener)
+        }
     }
 
     Biashara360DesktopTheme {
         if (userSessionState == null) {
             DesktopAuthFlow(authViewModel)
         } else {
-            Biashara360DesktopAppContent()
+            Biashara360DesktopAppContent(
+                onSignOut = {
+                    scope.launch {
+                        authRepository.logout()
+                        UserSession.clearUser()
+                    }
+                }
+            )
+        }
+
+        sessionWarningSeconds?.let { seconds ->
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text("Session Expiring", fontWeight = FontWeight.Bold) },
+                text = { Text("You will be signed out in $seconds seconds due to inactivity.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            sessionWarningSeconds = null
+                            (tokenStorage as? DesktopPreferencesTokenStorage)?.touchSessionSync()
+                                ?: scope.launch { tokenStorage.touchSession() }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = B360Green)
+                    ) {
+                        Text("Stay Signed In", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            sessionWarningSeconds = null
+                            scope.launch {
+                                authRepository.logout()
+                                UserSession.clearUser()
+                            }
+                        }
+                    ) {
+                        Text("Sign Out")
+                    }
+                }
+            )
         }
     }
 }
@@ -224,10 +317,12 @@ fun Biashara360DesktopApp() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Biashara360DesktopAppContent(
+    onSignOut: () -> Unit = {},
     navigationViewModel: DesktopNavigationViewModel = remember { inject() },
     dashboardViewModel: com.app.biashara.presentation.viewmodel.DashboardViewModel = remember { inject() },
     client: HttpClient = remember { inject() }
 ) {
+    val tokenStorage: TokenStorage = remember { inject() }
     val currentScreen by navigationViewModel.currentScreen.collectAsState()
     val dashboardState by dashboardViewModel.state.collectAsState()
     var hospitalityEnabled by remember { mutableStateOf(false) }
@@ -238,6 +333,9 @@ fun Biashara360DesktopAppContent(
             .onSuccess { hospitalityEnabled = it.success && it.data?.enabled == true }
         runCatching { client.get("$BASE_URL/access/me").body<ApiResponse<MenuAccess>>() }
             .onSuccess { if (it.success) enabledMenus = it.data?.enabledMenus?.toSet() }
+        runCatching {
+            refreshSessionIdleTimeout(client)?.let { tokenStorage.saveSessionIdleTimeoutSeconds(it) }
+        }
     }
     val visibleScreens = appScreens.filter { screen ->
         val menu = when (screen) {
@@ -408,7 +506,7 @@ fun Biashara360DesktopAppContent(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { UserSession.clearUser() }
+                                .clickable { onSignOut() }
                                 .padding(horizontal = if (isExpanded) 12.dp else 6.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
@@ -624,7 +722,7 @@ fun Biashara360DesktopAppContent(
                                 text = { Text("Sign Out") },
                                 onClick = {
                                     showMenu = false
-                                    UserSession.clearUser()
+                                    onSignOut()
                                 },
                                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, null) }
                             )

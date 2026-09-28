@@ -97,7 +97,6 @@ class SharedPreferencesTokenStorage(context: Context) : TokenStorage {
             clearTokensSync()
             return null
         }
-        if (access != null) prefs.edit().putLong(KEY_LAST_ACTIVITY, System.currentTimeMillis()).apply()
         return prefs.getString(key, null)
     }
 

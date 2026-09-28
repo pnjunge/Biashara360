@@ -16,7 +16,6 @@ export const client: AxiosInstance = axios.create({
 
 // Add token and active branch to requests if they exist
 client.interceptors.request.use((config) => {
-  if (localStorage.getItem('accessToken')) localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
   const token = localStorage.getItem('accessToken')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
