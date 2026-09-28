@@ -107,12 +107,8 @@ fun Application.configureCors() {
             )
         
         allowedDomains.forEach { domain ->
-            allowHost(domain)
+            allowHost(domain, schemes = listOf("http", "https"))
         }
-        
-        // In production, use:
-        // allowHost("app.biashara360.com")
-        // allowHost("admin.biashara360.com")
         
         allowMethod(HttpMethod.Options)
         allowMethod(HttpMethod.Get)
@@ -120,10 +116,20 @@ fun Application.configureCors() {
         allowMethod(HttpMethod.Put)
         allowMethod(HttpMethod.Patch)
         allowMethod(HttpMethod.Delete)
+        allowMethod(HttpMethod.Head)
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)
+        allowHeader(HttpHeaders.Accept)
         allowHeader("X-Client-Platform")
         allowHeader("X-Tenant-ID")
+        allowHeader("X-Branch-ID")
+        allowHeader("x-branch-id")
+        allowHeader("X-Requested-With")
+        allowHeader("X-Client-Version")
+        allowHeader("X-Client-Type")
+        allowHeader("X-Correlation-ID")
+        allowHeadersPrefixed("X-")
+        allowHeadersPrefixed("x-")
         allowCredentials = true
         maxAgeInSeconds = 86400 // 24 hours
     }
