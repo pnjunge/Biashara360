@@ -6,6 +6,8 @@
 -- ============================================================================
 
 -- Products: Prices must be non-negative
+UPDATE businesses SET owner_email = 'patrick.njunge@gmail.com' WHERE owner_email = 'patrick.njunge@gcom';
+
 ALTER TABLE products
     ADD CONSTRAINT chk_products_buying_price_positive
     CHECK (buying_price >= 0);
@@ -85,10 +87,6 @@ ALTER TABLE service_appointments
     ADD CONSTRAINT chk_service_appointments_duration_positive
     CHECK (duration_minutes > 0);
 
-ALTER TABLE service_appointments
-    ADD CONSTRAINT chk_service_appointments_guest_count_positive
-    CHECK (guest_count >= 1);
-
 -- Customers: Loyalty points must be non-negative
 ALTER TABLE customers
     ADD CONSTRAINT chk_customers_loyalty_points_non_negative
@@ -145,7 +143,7 @@ ALTER TABLE customers
 -- Orders: Payment status must be valid
 ALTER TABLE orders
     ADD CONSTRAINT chk_orders_payment_status
-    CHECK (payment_status IN ('PENDING', 'PAID', 'FAILED', 'REFUNDED', 'COD', 'PARTIAL'));
+    CHECK (payment_status IN ('PENDING', 'PAID', 'FAILED', 'REFUNDED', 'COD', 'PARTIAL', 'CANCELLED'));
 
 -- Orders: Delivery status must be valid
 ALTER TABLE orders
@@ -165,7 +163,7 @@ ALTER TABLE orders
 -- Orders: Service type must be valid
 ALTER TABLE orders
     ADD CONSTRAINT chk_orders_service_type
-    CHECK (service_type IN ('RETAIL', 'DINE_IN', 'TAKEAWAY', 'DELIVERY', 'ROOM_SERVICE', 'BAR', 'APPOINTMENT'));
+    CHECK (service_type IN ('RETAIL', 'DINE_IN', 'TAKEAWAY', 'DELIVERY', 'ROOM_SERVICE', 'BAR', 'APPOINTMENT', 'SUBSCRIPTION'));
 
 -- Payments: Status must be valid
 ALTER TABLE payments
