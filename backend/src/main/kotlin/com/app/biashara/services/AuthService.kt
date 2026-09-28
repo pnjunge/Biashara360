@@ -37,6 +37,12 @@ class AuthService(
                 .select { BusinessesTable.id eq bizId }
                 .firstOrNull()?.get(BusinessesTable.name)
         }
+        val branchId = userRow[UsersTable.branchId]
+        val branchName = branchId?.let { bId ->
+            BranchesTable.slice(BranchesTable.name)
+                .select { BranchesTable.id eq bId }
+                .firstOrNull()?.get(BranchesTable.name)
+        }
         val userResp = UserResponse(
             userRow[UsersTable.id],
             userRow[UsersTable.name],
@@ -45,7 +51,9 @@ class AuthService(
             userRow[UsersTable.role],
             userRow[UsersTable.businessId],
             userRow[UsersTable.preferredLanguage],
-            businessName
+            businessName,
+            branchId = branchId,
+            branchName = branchName
         )
         ApiResponse(success = true, data = userResp, message = "OTP ${if (req.enable) "enabled" else "disabled"}")
     }
@@ -124,9 +132,26 @@ class AuthService(
             it[updatedAt] = now
         }
 
+        val branchId = generateId()
+        val branchName = "${req.businessName} - Head Office"
+
+        BranchesTable.insert {
+            it[id] = branchId
+            it[BranchesTable.businessId] = businessId
+            it[name] = branchName
+            it[code] = "MAIN"
+            it[phone] = req.phone
+            it[email] = req.email
+            it[isHeadOffice] = true
+            it[isActive] = true
+            it[createdAt] = now
+            it[updatedAt] = now
+        }
+
         UsersTable.insert {
             it[id] = userId
             it[UsersTable.businessId] = businessId
+            it[UsersTable.branchId] = branchId
             it[name] = req.name
             it[email] = req.email
             it[phone] = req.phone
@@ -137,7 +162,18 @@ class AuthService(
             it[updatedAt] = now
         }
 
-        val userResp = UserResponse(userId, req.name, req.email, req.phone, "ADMIN", businessId, "ENGLISH")
+        val userResp = UserResponse(
+            id = userId,
+            name = req.name,
+            email = req.email,
+            phone = req.phone,
+            role = "ADMIN",
+            businessId = businessId,
+            preferredLanguage = "ENGLISH",
+            businessName = req.businessName,
+            branchId = branchId,
+            branchName = branchName
+        )
         ApiResponse(success = true, data = userResp, message = "Registration successful")
     }
 
@@ -527,6 +563,13 @@ class AuthService(
                     .firstOrNull()?.get(BusinessesTable.name)
             }
         }
+        val branchId = userRow[UsersTable.branchId]
+        val branchName = branchId?.let { bId ->
+            transaction {
+                BranchesTable.slice(BranchesTable.name).select { BranchesTable.id eq bId }
+                    .firstOrNull()?.get(BranchesTable.name)
+            }
+        }
         return AuthResponse(
             accessToken = accessToken,
             refreshToken = refreshToken,
@@ -538,7 +581,9 @@ class AuthService(
                 userRow[UsersTable.role],
                 userRow[UsersTable.businessId],
                 userRow[UsersTable.preferredLanguage],
-                businessName
+                businessName,
+                branchId = branchId,
+                branchName = branchName
             )
         )
     }

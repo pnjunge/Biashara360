@@ -4,16 +4,16 @@ import {
   Building2, Shield, Wifi, CreditCard, Lock, Bell, CheckCircle, AlertTriangle,
   Receipt, Save, ExternalLink, Zap, Key, RefreshCw, Layers, ImagePlus, Trash2,
   Settings as SettingsIcon, Users, MessageSquare, FileText, Clock, ChevronDown,
-  ChevronRight, ShieldCheck, Mail, Send
+  ChevronRight, ShieldCheck, Mail, Send, GitBranch, MapPin, Plus, Edit2, Check, Store
 } from 'lucide-react'
-import { Card, Btn, Input, Select } from '../components/ui'
+import { Card, Btn, Input, Select, Modal, DataTable, StatusBadge, KpiCard } from '../components/ui'
 import {
-  settingsApi, businessApi, kraApi, authApi, hospitalityApi, servicesApi, adminApi, BusinessProfileRequest,
-  MpesaConfigResponse, SessionTimeoutConfig
+  settingsApi, businessApi, kraApi, authApi, hospitalityApi, servicesApi, adminApi, branchApi,
+  BusinessProfileRequest, MpesaConfigResponse, SessionTimeoutConfig, BranchRequest, BranchResponse
 } from '../services/api'
 import { useAuth } from '../App'
 
-type SettingsTab = 'general' | 'storefront' | 'cybersource' | 'kra' | 'mpesa' | 'security' | 'notifications'
+type SettingsTab = 'general' | 'storefront' | 'cybersource' | 'kra' | 'mpesa' | 'security' | 'notifications' | 'branches'
 type SecuritySection = 'authentication' | 'session' | 'access'
 type SettingsNavItem = { label: string; tab?: SettingsTab; path?: string; security?: SecuritySection }
 type SettingsNavGroup = { label: string; icon: React.ReactNode; items: SettingsNavItem[] }
@@ -476,10 +476,160 @@ export function SettingsPage() {
     }
   }
 
+  // ── 8. Branches & Outlets State ──────────────────────────────────────────
+  const [branches, setBranches] = useState<BranchResponse[]>([])
+  const [branchesLoading, setBranchesLoading] = useState(false)
+  const [branchModalOpen, setBranchModalOpen] = useState(false)
+  const [editingBranch, setEditingBranch] = useState<BranchResponse | null>(null)
+  const [branchForm, setBranchForm] = useState<BranchRequest>({
+    name: '',
+    code: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
+    county: '',
+    isHeadOffice: false,
+    receiptHeader: '',
+    receiptFooter: ''
+  })
+  const [branchSaving, setBranchSaving] = useState(false)
+  const [branchMsg, setBranchMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const loadBranches = async () => {
+    setBranchesLoading(true)
+    try {
+      const res = await branchApi.getAll(true)
+      if (res.success && res.data) {
+        setBranches(res.data)
+      }
+    } catch (err: any) {
+      console.error('Failed to load branches', err)
+    } finally {
+      setBranchesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'branches') {
+      loadBranches()
+    }
+  }, [activeTab])
+
+  const openCreateBranch = () => {
+    setEditingBranch(null)
+    setBranchForm({
+      name: '',
+      code: '',
+      phone: '',
+      email: '',
+      address: '',
+      city: '',
+      county: '',
+      isHeadOffice: branches.length === 0,
+      receiptHeader: '',
+      receiptFooter: ''
+    })
+    setBranchMsg(null)
+    setBranchModalOpen(true)
+  }
+
+  const openEditBranch = (b: BranchResponse) => {
+    setEditingBranch(b)
+    setBranchForm({
+      name: b.name,
+      code: b.code || '',
+      phone: b.phone || '',
+      email: b.email || '',
+      address: b.address || '',
+      city: b.city || '',
+      county: b.county || '',
+      isHeadOffice: b.isHeadOffice,
+      receiptHeader: b.receiptHeader || '',
+      receiptFooter: b.receiptFooter || ''
+    })
+    setBranchMsg(null)
+    setBranchModalOpen(true)
+  }
+
+  const handleSaveBranch = async () => {
+    if (!branchForm.name.trim()) {
+      setBranchMsg({ ok: false, text: 'Branch name is required' })
+      return
+    }
+    setBranchSaving(true)
+    setBranchMsg(null)
+    try {
+      if (editingBranch) {
+        const res = await branchApi.update(editingBranch.id, branchForm)
+        if (res.success && res.data) {
+          setBranchMsg({ ok: true, text: 'Branch updated successfully' })
+          setBranchModalOpen(false)
+          loadBranches()
+          window.dispatchEvent(new CustomEvent('branch-changed', { detail: { branchId: res.data.id } }))
+        } else {
+          setBranchMsg({ ok: false, text: res.message || 'Failed to update branch' })
+        }
+      } else {
+        const res = await branchApi.create(branchForm)
+        if (res.success && res.data) {
+          setBranchMsg({ ok: true, text: 'Branch created successfully' })
+          setBranchModalOpen(false)
+          loadBranches()
+          window.dispatchEvent(new CustomEvent('branch-changed', { detail: { branchId: res.data.id } }))
+        } else {
+          setBranchMsg({ ok: false, text: res.message || 'Failed to create branch' })
+        }
+      }
+    } catch (err: any) {
+      setBranchMsg({ ok: false, text: err?.response?.data?.message || err?.message || 'Error saving branch' })
+    } finally {
+      setBranchSaving(false)
+    }
+  }
+
+  const handleSetHeadOffice = async (b: BranchResponse) => {
+    if (b.isHeadOffice) return
+    if (!window.confirm(`Set "${b.name}" as the primary Head Office branch?`)) return
+    try {
+      const res = await branchApi.setHeadOffice(b.id)
+      if (res.success) {
+        setBranchMsg({ ok: true, text: `"${b.name}" is now the Head Office.` })
+        loadBranches()
+        window.dispatchEvent(new CustomEvent('branch-changed', { detail: { branchId: b.id } }))
+      } else {
+        setBranchMsg({ ok: false, text: res.message || 'Failed to update head office' })
+      }
+    } catch (err: any) {
+      setBranchMsg({ ok: false, text: err?.response?.data?.message || 'Error setting head office' })
+    }
+  }
+
+  const handleDeleteBranch = async (b: BranchResponse) => {
+    if (b.isHeadOffice) {
+      alert('The Head Office branch cannot be deactivated. Designate another branch as Head Office first.')
+      return
+    }
+    if (!window.confirm(`Are you sure you want to deactivate branch "${b.name}"?`)) return
+    try {
+      const res = await branchApi.delete(b.id)
+      if (res.success) {
+        setBranchMsg({ ok: true, text: `Branch "${b.name}" deactivated.` })
+        loadBranches()
+        window.dispatchEvent(new CustomEvent('branch-changed', { detail: {} }))
+      } else {
+        setBranchMsg({ ok: false, text: res.message || 'Failed to deactivate branch' })
+      }
+    } catch (err: any) {
+      setBranchMsg({ ok: false, text: err?.response?.data?.message || 'Error deactivating branch' })
+    }
+  }
+
   const settingsGroups: SettingsNavGroup[] = [
     {
       label: 'Business', icon: <Building2 size={19} />, items: [
         { label: 'Store Profile', tab: 'general' as SettingsTab },
+        { label: 'Branches & Outlets', tab: 'branches' as SettingsTab },
       ]
     },
     {
@@ -526,10 +676,14 @@ export function SettingsPage() {
 
   const activeLabel = activeTab === 'security'
     ? 'Security & Access'
+    : activeTab === 'branches'
+    ? 'Branches & Outlets'
     : settingsGroups.flatMap(group => group.items).find(item => item.tab === activeTab)?.label || 'Store Profile'
 
   const contentDescription = activeTab === 'security'
     ? 'Manage authentication, session settings and access policies'
+    : activeTab === 'branches'
+    ? 'Manage your physical branches, stores, regional outlets, and eTIMS branch codes'
     : 'Manage your system configuration'
 
   return (
@@ -1337,6 +1491,307 @@ export function SettingsPage() {
               </Btn>
             </div>
           </Section>
+        </div>
+      )}
+
+      {/* ── TAB 8: BRANCHES & OUTLETS ── */}
+      {activeTab === 'branches' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {branchMsg && (
+            <div style={{
+              padding: 14,
+              background: branchMsg.ok ? 'var(--b360-green-bg)' : 'var(--b360-red-bg)',
+              color: branchMsg.ok ? 'var(--b360-green)' : 'var(--b360-red)',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              {branchMsg.ok ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
+              <span>{branchMsg.text}</span>
+            </div>
+          )}
+
+          {/* Quick Metrics */}
+          <div className="responsive-grid responsive-grid-4" style={{ gap: 12 }}>
+            <KpiCard
+              title="Total Outlets"
+              value={String(branches.length)}
+              change="Configured branches"
+              icon={<Store size={18} />}
+              color="var(--b360-blue)"
+            />
+            <KpiCard
+              title="Active Locations"
+              value={String(branches.filter(b => b.isActive).length)}
+              change="Accepting transactions"
+              icon={<MapPin size={18} />}
+              color="var(--b360-green)"
+            />
+            <KpiCard
+              title="Head Office"
+              value={branches.find(b => b.isHeadOffice)?.code || 'MAIN'}
+              change={branches.find(b => b.isHeadOffice)?.name || 'Primary HQ'}
+              icon={<Building2 size={18} />}
+              color="var(--b360-amber)"
+            />
+            <KpiCard
+              title="eTIMS Branches"
+              value={String(branches.filter(b => !!b.code).length)}
+              change="Ready with bhfId"
+              icon={<GitBranch size={18} />}
+              color="#8B5CF6"
+            />
+          </div>
+
+          <Card style={{ padding: 22 }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 12,
+              marginBottom: 16
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Store size={18} color="var(--b360-green)" />
+                  Merchant Outlets & Branches
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--b360-text-secondary)' }}>
+                  Manage multiple physical outlets, cash registers, and regional stores. Orders, expenses, and staff are organized by branch.
+                </p>
+              </div>
+              <Btn icon={<Plus size={15} />} onClick={openCreateBranch}>
+                Add New Branch
+              </Btn>
+            </div>
+
+            {branchesLoading ? (
+              <div style={{ padding: 36, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>
+                Loading branches…
+              </div>
+            ) : branches.length === 0 ? (
+              <div style={{ padding: 36, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>
+                No branches configured. Click "Add New Branch" to create your first outlet.
+              </div>
+            ) : (
+              <div className="ui-table-wrap" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--b360-border)' }}>
+                <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--b360-surface)', borderBottom: '2px solid var(--b360-border)' }}>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Branch Name</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Code (eTIMS)</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Location</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Contact</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Receipts</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Status</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {branches.map(b => (
+                      <tr key={b.id} style={{ borderBottom: '1px solid var(--b360-border)', transition: 'background 0.1s' }}>
+                        <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--b360-text)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: 700 }}>{b.name}</span>
+                            {b.isHeadOffice && (
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 800,
+                                background: 'rgba(16, 185, 129, 0.15)',
+                                color: 'var(--b360-green)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                borderRadius: 12,
+                                padding: '2px 8px',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em'
+                              }}>
+                                HQ
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ padding: '14px 16px', fontSize: 13 }}>
+                          <span style={{
+                            fontFamily: 'monospace',
+                            fontWeight: 700,
+                            padding: '3px 7px',
+                            borderRadius: 6,
+                            background: 'rgba(100, 116, 139, 0.1)',
+                            color: '#334155'
+                          }}>
+                            {b.code}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--b360-text-secondary)' }}>
+                          {[b.address, b.city, b.county].filter(Boolean).join(', ') || '—'}
+                        </td>
+                        <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--b360-text-secondary)' }}>
+                          {b.phone && <div>{b.phone}</div>}
+                          {b.email && <div style={{ fontSize: 11, color: '#94a3b8' }}>{b.email}</div>}
+                          {!b.phone && !b.email && '—'}
+                        </td>
+                        <td style={{ padding: '14px 16px', fontSize: 12 }}>
+                          {b.receiptHeader || b.receiptFooter ? (
+                            <span style={{
+                              fontSize: 11,
+                              color: '#0284c7',
+                              background: 'rgba(14, 165, 233, 0.1)',
+                              padding: '2px 8px',
+                              borderRadius: 6,
+                              fontWeight: 600
+                            }}>
+                              Customized
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Default</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <StatusBadge status={b.isActive ? 'ACTIVE' : 'INACTIVE'} />
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                            <Btn small variant="secondary" onClick={() => openEditBranch(b)} icon={<Edit2 size={12} />}>
+                              Edit
+                            </Btn>
+                            {!b.isHeadOffice && b.isActive && (
+                              <Btn small variant="secondary" onClick={() => handleSetHeadOffice(b)} icon={<Check size={12} />}>
+                                Make HQ
+                              </Btn>
+                            )}
+                            {!b.isHeadOffice && (
+                              <Btn small variant="danger" onClick={() => handleDeleteBranch(b)} icon={<Trash2 size={12} />}>
+                                Deactivate
+                              </Btn>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          {/* Add / Edit Branch Modal */}
+          {branchModalOpen && (
+            <Modal
+              title={editingBranch ? `Edit Branch · ${editingBranch.name}` : 'Add New Branch'}
+              onClose={() => setBranchModalOpen(false)}
+              footer={
+                <>
+                  <Btn variant="secondary" onClick={() => setBranchModalOpen(false)}>
+                    Cancel
+                  </Btn>
+                  <Btn onClick={handleSaveBranch} disabled={branchSaving} icon={<Save size={14} />}>
+                    {branchSaving ? 'Saving…' : editingBranch ? 'Update Branch' : 'Create Branch'}
+                  </Btn>
+                </>
+              }
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <Input
+                  label="Branch Name *"
+                  placeholder="e.g. Westlands Branch, Mombasa Road Depot"
+                  value={branchForm.name}
+                  onChange={v => setBranchForm(prev => ({ ...prev, name: v }))}
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <Input
+                    label="Branch Code (eTIMS bhfId)"
+                    placeholder="e.g. MAIN, 01, WTL"
+                    value={branchForm.code || ''}
+                    onChange={v => setBranchForm(prev => ({ ...prev, code: v.toUpperCase() }))}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>
+                    Unique identifier for receipts and KRA eTIMS branch registration (00 = HQ, 01, 02, etc.).
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <Input
+                    label="Phone Number"
+                    placeholder="+254 7XX XXX XXX"
+                    value={branchForm.phone || ''}
+                    onChange={v => setBranchForm(prev => ({ ...prev, phone: v }))}
+                  />
+                  <Input
+                    label="Email Address"
+                    placeholder="branch@business.co.ke"
+                    value={branchForm.email || ''}
+                    onChange={v => setBranchForm(prev => ({ ...prev, email: v }))}
+                  />
+                </div>
+                <Input
+                  label="Physical Address"
+                  placeholder="e.g. Sarit Centre, 2nd Floor"
+                  value={branchForm.address || ''}
+                  onChange={v => setBranchForm(prev => ({ ...prev, address: v }))}
+                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <Input
+                    label="City / Town"
+                    placeholder="e.g. Nairobi, Mombasa, Kisumu"
+                    value={branchForm.city || ''}
+                    onChange={v => setBranchForm(prev => ({ ...prev, city: v }))}
+                  />
+                  <Input
+                    label="County"
+                    placeholder="e.g. Nairobi, Kiambu, Nakuru"
+                    value={branchForm.county || ''}
+                    onChange={v => setBranchForm(prev => ({ ...prev, county: v }))}
+                  />
+                </div>
+
+                <div style={{
+                  padding: 12,
+                  background: 'var(--b360-surface)',
+                  borderRadius: 8,
+                  border: '1px solid var(--b360-border)',
+                  marginTop: 4
+                }}>
+                  <Toggle
+                    label="Primary Head Office (HQ)"
+                    checked={branchForm.isHeadOffice || false}
+                    onChange={v => setBranchForm(prev => ({ ...prev, isHeadOffice: v }))}
+                    disabled={editingBranch?.isHeadOffice}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)', marginTop: 4 }}>
+                    {editingBranch?.isHeadOffice
+                      ? 'This branch is currently the primary Head Office.'
+                      : 'Setting this branch as Head Office will make it the default location for corporate reporting and main eTIMS registration.'}
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 12, marginTop: 4 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: 'var(--b360-text)' }}>
+                    Branch Receipt Overrides (Optional)
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--b360-text-secondary)', marginBottom: 12 }}>
+                    Leave blank to use default business receipt headers and footers.
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <Input
+                      label="Receipt Header"
+                      placeholder="e.g. Welcome to Biashara360 - Westlands Branch"
+                      value={branchForm.receiptHeader || ''}
+                      onChange={v => setBranchForm(prev => ({ ...prev, receiptHeader: v }))}
+                    />
+                    <Input
+                      label="Receipt Footer"
+                      placeholder="e.g. Westlands Branch: Return window is 7 days."
+                      value={branchForm.receiptFooter || ''}
+                      onChange={v => setBranchForm(prev => ({ ...prev, receiptFooter: v }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            </Modal>
+          )}
         </div>
       )}
         </main>

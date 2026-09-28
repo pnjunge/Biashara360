@@ -14,12 +14,16 @@ export const client: AxiosInstance = axios.create({
   }
 })
 
-// Add token to requests if it exists
+// Add token and active branch to requests if they exist
 client.interceptors.request.use((config) => {
   if (localStorage.getItem('accessToken')) localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
   const token = localStorage.getItem('accessToken')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  const branchId = localStorage.getItem('selectedBranchId')
+  if (branchId) {
+    config.headers['X-Branch-ID'] = branchId
   }
   return config
 })
@@ -188,6 +192,7 @@ export interface OrderResponse {
   salesChannel: string
   serviceType?: string; hospitalityTableId?: string | null; serverUserId?: string | null
   guestCount?: number; tabStatus?: string
+  branchId?: string | null; branchName?: string | null
   notes: string; createdAt: string; updatedAt: string
 }
 
@@ -217,7 +222,9 @@ export interface CustomerResponse {
 
 export interface ExpenseResponse {
   id: string; businessId: string; category: string; amount: number; description: string
-  expenseDate: string; receiptUrl: string | null; recordedAt: string
+  expenseDate: string; receiptUrl: string | null
+  branchId?: string | null; branchName?: string | null
+  recordedAt: string
 }
 
 export interface PaymentResponse {
@@ -501,6 +508,8 @@ export interface UserResponse {
   assignedGroupIds?: string[]
   assignedRoles?: string[]
   assignedRoleIds?: string[]
+  branchId?: string | null
+  branchName?: string | null
 }
 
 export interface InviteUserRequest {
@@ -512,6 +521,7 @@ export interface InviteUserRequest {
   groupId?: string
   groupIds?: string[]
   roleIds?: string[]
+  branchId?: string | null
 }
 
 export interface ReassignUserRequest {
@@ -519,6 +529,7 @@ export interface ReassignUserRequest {
   groupIds?: string[]
   roleIds?: string[]
   businessId?: string
+  branchId?: string | null
 }
 
 export interface MenuDefinition { key: string; label: string }
@@ -614,11 +625,12 @@ export const purchaseApi = {
 }
 
 export const orderApi = {
-  list: async (status?: string, page?: number, pageSize?: number) => {
+  list: async (status?: string, page?: number, pageSize?: number, branchId?: string) => {
     const params = new URLSearchParams()
     if (status) params.set('status', status)
     if (page !== undefined) params.set('page', String(page))
     if (pageSize !== undefined) params.set('pageSize', String(pageSize))
+    if (branchId) params.set('branchId', branchId)
     const res = await client.get<ApiResponse<PagedResponse<OrderResponse>>>(`/orders?${params}`)
     return res.data
   },
@@ -674,11 +686,12 @@ export const customerApi = {
 }
 
 export const expenseApi = {
-  list: async (category?: string, startDate?: string, endDate?: string) => {
+  list: async (category?: string, startDate?: string, endDate?: string, branchId?: string) => {
     const params = new URLSearchParams()
     if (category) params.set('category', category)
     if (startDate) params.set('startDate', startDate)
     if (endDate) params.set('endDate', endDate)
+    if (branchId) params.set('branchId', branchId)
     const res = await client.get<ApiResponse<ExpenseResponse[]>>(`/expenses?${params}`)
     return res.data
   },
@@ -1302,6 +1315,64 @@ export const businessApi = {
     const res = await client.put<ApiResponse<BusinessProfileResponse>>('/business/profile', data)
     return res.data
   },
+}
+
+export interface BranchRequest {
+  name: string
+  code?: string
+  phone?: string
+  email?: string
+  address?: string
+  city?: string
+  county?: string
+  isHeadOffice?: boolean
+  receiptHeader?: string
+  receiptFooter?: string
+}
+
+export interface BranchResponse {
+  id: string
+  businessId: string
+  name: string
+  code: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  city?: string | null
+  county?: string | null
+  isHeadOffice: boolean
+  isActive: boolean
+  receiptHeader?: string | null
+  receiptFooter?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export const branchApi = {
+  getAll: async (includeInactive = false) => {
+    const res = await client.get<ApiResponse<BranchResponse[]>>(`/branches?includeInactive=${includeInactive}`)
+    return res.data
+  },
+  getById: async (id: string) => {
+    const res = await client.get<ApiResponse<BranchResponse>>(`/branches/${id}`)
+    return res.data
+  },
+  create: async (data: BranchRequest) => {
+    const res = await client.post<ApiResponse<BranchResponse>>('/branches', data)
+    return res.data
+  },
+  update: async (id: string, data: BranchRequest) => {
+    const res = await client.put<ApiResponse<BranchResponse>>(`/branches/${id}`, data)
+    return res.data
+  },
+  delete: async (id: string) => {
+    const res = await client.delete<ApiResponse<void>>(`/branches/${id}`)
+    return res.data
+  },
+  setHeadOffice: async (id: string) => {
+    const res = await client.post<ApiResponse<BranchResponse>>(`/branches/${id}/set-head-office`)
+    return res.data
+  }
 }
 
 export const settingsApi = {

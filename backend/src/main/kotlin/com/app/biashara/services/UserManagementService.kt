@@ -9,6 +9,7 @@ import com.app.biashara.db.UserAccessRolesTable
 import com.app.biashara.db.UsersTable
 import com.app.biashara.db.RefreshTokensTable
 import com.app.biashara.db.BusinessesTable
+import com.app.biashara.db.BranchesTable
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
@@ -119,12 +120,19 @@ class UserManagementService(
             return@transaction ApiResponse(false, message = "Password must be at least 6 characters")
         }
 
+        val branchId = req.branchId?.trim()?.takeIf { it.isNotBlank() }
+        if (branchId != null) {
+            val branchExists = BranchesTable.select { (BranchesTable.id eq branchId) and (BranchesTable.businessId eq businessId) }.any()
+            if (!branchExists) return@transaction ApiResponse(false, message = "Selected branch not found")
+        }
+
         val now = Clock.System.now()
         val userId = generateId()
 
         UsersTable.insert {
             it[id] = userId
             it[UsersTable.businessId] = businessId
+            it[UsersTable.branchId] = branchId
             it[name] = req.name.trim()
             it[UsersTable.email] = email
             it[UsersTable.phone] = phone
@@ -400,15 +408,27 @@ class UserManagementService(
             }
         }
 
-        // 5. Update user row if role or business changed
-        if (roleChanged || newBusinessId != businessId) {
+        // 5. Update user row if role, business, or branch changed
+        val branchUpdated = req.branchId != null
+        val targetBranchId = req.branchId?.trim()?.takeIf { it.isNotBlank() }
+        if (branchUpdated && targetBranchId != null) {
+            val branchExists = BranchesTable.select { (BranchesTable.id eq targetBranchId) and (BranchesTable.businessId eq newBusinessId) }.any()
+            if (!branchExists) return@transaction ApiResponse(false, message = "Selected branch not found")
+        }
+
+        if (roleChanged || newBusinessId != businessId || branchUpdated) {
             UsersTable.update({ UsersTable.id eq userId }) {
                 it[role] = targetRole
                 it[UsersTable.businessId] = newBusinessId
+                if (branchUpdated) {
+                    it[UsersTable.branchId] = targetBranchId
+                }
                 it[tokenValidAfter] = now
                 it[updatedAt] = now
             }
-            RefreshTokensTable.deleteWhere { RefreshTokensTable.userId eq userId }
+            if (roleChanged || newBusinessId != businessId) {
+                RefreshTokensTable.deleteWhere { RefreshTokensTable.userId eq userId }
+            }
         }
 
         val logDetails = buildString {
@@ -512,6 +532,12 @@ class UserManagementService(
                     (AccessRolesTable.businessId eq businessId) and
                     (AccessRolesTable.isActive eq true)
             }
+        val branchId = this[UsersTable.branchId]
+        val branchName = branchId?.let { bId ->
+            BranchesTable.slice(BranchesTable.name)
+                .select { (BranchesTable.id eq bId) and (BranchesTable.businessId eq businessId) }
+                .firstOrNull()?.get(BranchesTable.name)
+        }
         return UserResponse(
             id = userId,
             name = this[UsersTable.name],
@@ -525,7 +551,9 @@ class UserManagementService(
             assignedGroups = groups.map { it[AccessGroupsTable.name] },
             assignedGroupIds = groups.map { it[AccessGroupsTable.id] },
             assignedRoles = roles.map { it[AccessRolesTable.name] },
-            assignedRoleIds = roles.map { it[AccessRolesTable.id] }
+            assignedRoleIds = roles.map { it[AccessRolesTable.id] },
+            branchId = branchId,
+            branchName = branchName
         )
     }
 

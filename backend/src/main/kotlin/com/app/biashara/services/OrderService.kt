@@ -89,10 +89,13 @@ class OrderService(
         }
     }
 
-    fun getAll(businessId: String, paymentStatus: String? = null, page: Int = 1, pageSize: Int = 20): PagedResponse<OrderResponse> = transaction {
+    fun getAll(businessId: String, paymentStatus: String? = null, page: Int = 1, pageSize: Int = 20, branchId: String? = null): PagedResponse<OrderResponse> = transaction {
         var query = OrdersTable.select { OrdersTable.businessId eq businessId }
         if (!paymentStatus.isNullOrBlank()) {
             query = query.andWhere { OrdersTable.paymentStatus eq paymentStatus }
+        }
+        if (!branchId.isNullOrBlank()) {
+            query = query.andWhere { OrdersTable.branchId eq branchId }
         }
         val total = query.count().toInt()
         val orderRows = query
@@ -229,11 +232,16 @@ class OrderService(
             req.deliveryLocation
         )
         val salesChannel = resolveSalesChannel(clientPlatform)
+        val branchId = req.branchId?.trim()?.takeIf { it.isNotBlank() }
+            ?: BranchesTable.slice(BranchesTable.id)
+                .select { (BranchesTable.businessId eq businessId) and (BranchesTable.isHeadOffice eq true) }
+                .firstOrNull()?.get(BranchesTable.id)
 
         OrdersTable.insert {
             it[id] = orderId
             it[OrdersTable.orderNumber] = orderNumber
             it[OrdersTable.businessId] = businessId
+            it[OrdersTable.branchId] = branchId
             it[OrdersTable.clientReference] = clientReference
             it[customerId] = req.customerId
             it[customerName] = req.customerName
@@ -535,6 +543,12 @@ class OrderService(
             taxAmount = this[OrdersTable.taxAmount],
             subtotal = this[OrdersTable.subtotal],
             notes = this[OrdersTable.notes],
+            branchId = this[OrdersTable.branchId],
+            branchName = this[OrdersTable.branchId]?.let { bId ->
+                BranchesTable.slice(BranchesTable.name)
+                    .select { (BranchesTable.id eq bId) and (BranchesTable.businessId eq this@toResponse[OrdersTable.businessId]) }
+                    .firstOrNull()?.get(BranchesTable.name)
+            },
             createdAt = this[OrdersTable.createdAt].toString(),
             updatedAt = this[OrdersTable.updatedAt].toString()
         )

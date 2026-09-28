@@ -80,7 +80,9 @@ data class UserResponse(
     val assignedGroups: List<String> = emptyList(),
     val assignedGroupIds: List<String> = emptyList(),
     val assignedRoles: List<String> = emptyList(),
-    val assignedRoleIds: List<String> = emptyList()
+    val assignedRoleIds: List<String> = emptyList(),
+    val branchId: String? = null,
+    val branchName: String? = null
 )
 
 @Serializable
@@ -241,7 +243,8 @@ data class CreateOrderRequest(
     val guestCount: Int = 1,
     val tabStatus: String = "CLOSED",
     val includeTax: Boolean = false,
-    val taxRate: Double = 0.16
+    val taxRate: Double = 0.16,
+    val branchId: String? = null
 )
 
 @Serializable
@@ -281,6 +284,8 @@ data class OrderResponse(
     val taxAmount: Double = 0.0,
     val subtotal: Double,
     val notes: String,
+    val branchId: String? = null,
+    val branchName: String? = null,
     val createdAt: String,
     val updatedAt: String
 )
@@ -346,7 +351,8 @@ data class ExpenseRequest(
     val amount: Double,
     val description: String,
     val expenseDate: String,    // ISO date: "2025-03-01"
-    val receiptUrl: String? = null
+    val receiptUrl: String? = null,
+    val branchId: String? = null
 )
 
 @Serializable
@@ -358,6 +364,8 @@ data class ExpenseResponse(
     val description: String,
     val expenseDate: String,
     val receiptUrl: String?,
+    val branchId: String? = null,
+    val branchName: String? = null,
     val recordedAt: String
 )
 
@@ -479,7 +487,8 @@ data class InviteUserRequest(
     val password: String? = null,
     val groupId: String? = null,
     val groupIds: List<String> = emptyList(),
-    val roleIds: List<String> = emptyList()
+    val roleIds: List<String> = emptyList(),
+    val branchId: String? = null
 )
 
 @Serializable
@@ -499,7 +508,8 @@ data class ReassignUserRequest(
     val role: String? = null,
     val groupIds: List<String>? = null,
     val roleIds: List<String>? = null,
-    val businessId: String? = null
+    val businessId: String? = null,
+    val branchId: String? = null
 )
 
 // ─── Common ───────────────────────────────────────────────────────────────────

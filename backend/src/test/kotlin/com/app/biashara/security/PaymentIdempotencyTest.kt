@@ -2,10 +2,10 @@ package com.app.biashara.security
 
 import com.app.biashara.db.*
 import kotlinx.datetime.Clock
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.junit.jupiter.api.Test
 import kotlin.test.*
 import kotlin.time.Duration.Companion.minutes
 

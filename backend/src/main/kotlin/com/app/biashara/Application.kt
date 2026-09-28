@@ -136,6 +136,7 @@ fun Application.module() {
                 superAdminRoutes()
                 businessSettingsRoutes()
                 businessProfileRoutes()
+                branchRoutes()
             }
         }
     }

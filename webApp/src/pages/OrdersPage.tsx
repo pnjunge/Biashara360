@@ -25,6 +25,10 @@ export function OrdersPage() {
     businessApi.getProfile().then(response => {
       if (response.success && response.data) setReceiptProfile(response.data)
     }).catch(() => undefined)
+
+    const onBranchChanged = () => loadOrders()
+    window.addEventListener('branch-changed', onBranchChanged)
+    return () => window.removeEventListener('branch-changed', onBranchChanged)
   }, [])
 
   const retryMpesa = async (order: OrderResponse) => {
@@ -50,6 +54,7 @@ export function OrdersPage() {
             <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Customer</span><div style={{ fontWeight:600 }}>{viewOrder.customerName}</div></div>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Phone</span><div style={{ fontWeight:600 }}>{viewOrder.customerPhone}</div></div>
+              <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Branch</span><div style={{ fontWeight:600 }}>{viewOrder.branchName || 'Head Office'}</div></div>
               {viewOrder.serviceType === 'RETAIL' ? (
                 <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Delivery</span><div style={{ fontWeight:600 }}>{viewOrder.deliveryLocation || '—'}</div></div>
               ) : (
@@ -175,9 +180,21 @@ export function OrdersPage() {
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No orders placed yet. Orders are recorded via Point of Sale (POS).</div>
         ) : (
           <DataTable
-            headers={['Order #', 'Customer', 'Items', 'Total', 'Method / Channel', 'Payment', 'Fulfilment / Tab', 'Date', 'Actions']}
+            headers={['Order #', 'Branch', 'Customer', 'Items', 'Total', 'Method / Channel', 'Payment', 'Fulfilment / Tab', 'Date', 'Actions']}
             rows={orders.map(o => [
               <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{o.orderNumber}</span>,
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '2px 7px',
+                borderRadius: 6,
+                background: 'rgba(100, 116, 139, 0.1)',
+                color: '#475569'
+              }}>
+                {o.branchName || 'Main'}
+              </span>,
               <span style={{ fontWeight: 600 }}>{o.customerName}</span>,
               o.items.length,
               <span style={{ fontWeight: 700 }}>KES {o.subtotal.toLocaleString()}</span>,

@@ -176,7 +176,8 @@ fun Route.orderRoutes() {
             val status = call.request.queryParameters["status"]
             val page = call.request.queryParameters["page"]?.toIntOrNull() ?: 1
             val pageSize = call.request.queryParameters["pageSize"]?.toIntOrNull() ?: 20
-            val result = orderService.getAll(businessId, status, page, pageSize)
+            val branchId = call.branchId()
+            val result = orderService.getAll(businessId, status, page, pageSize, branchId)
             call.respond(ApiResponse(true, data = result))
         }
 
@@ -188,7 +189,8 @@ fun Route.orderRoutes() {
                 return@post
             }
             val platform = call.request.headers["X-Client-Platform"]
-            val result = orderService.create(businessId, req, platform)
+            val effectiveReq = if (req.branchId.isNullOrBlank() && call.branchId() != null) req.copy(branchId = call.branchId()) else req
+            val result = orderService.create(businessId, effectiveReq, platform)
             call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
         }
 
@@ -293,13 +295,15 @@ fun Route.expenseRoutes() {
             val category = call.request.queryParameters["category"]
             val startDate = call.request.queryParameters["startDate"]
             val endDate = call.request.queryParameters["endDate"]
-            call.respond(ApiResponse(true, data = expenseService.getAll(businessId, category, startDate, endDate)))
+            val branchId = call.branchId()
+            call.respond(ApiResponse(true, data = expenseService.getAll(businessId, category, startDate, endDate, branchId)))
         }
 
         post {
             val businessId = call.businessId()
             val req = call.receive<ExpenseRequest>()
-            val result = expenseService.create(businessId, req)
+            val effectiveReq = if (req.branchId.isNullOrBlank() && call.branchId() != null) req.copy(branchId = call.branchId()) else req
+            val result = expenseService.create(businessId, effectiveReq)
             call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
         }
 
@@ -840,6 +844,13 @@ fun ApplicationCall.businessId(): String {
         "No businessId associated with this token. SUPERADMIN users must supply businessId as a query param or X-Tenant-ID header."
     )
 }
+
+fun ApplicationCall.callerUserId(): String =
+    principal<JWTPrincipal>()?.payload?.subject ?: ""
+
+fun ApplicationCall.branchId(): String? =
+    request.headers["X-Branch-ID"]?.takeIf { it.isNotBlank() }
+        ?: request.queryParameters["branchId"]?.takeIf { it.isNotBlank() }
 
 fun ApplicationCall.userRole(): String =
     principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() ?: ""

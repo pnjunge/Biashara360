@@ -4,11 +4,11 @@ import { useAuth } from '../../App'
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
   CreditCard, BarChart3, Settings, LogOut, Bell, Search,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Download, ChefHat, CalendarClock, ScrollText
+  ChevronLeft, ChevronRight, ChevronDown, Menu, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Download, ChefHat, CalendarClock, ScrollText, Check, Plus
 } from 'lucide-react'
 import styles from './AppShell.module.css'
 import PortalOrdersInbox from '../orders/PortalOrdersInbox'
-import { accessApi, hospitalityApi, servicesApi } from '../../services/api'
+import { accessApi, hospitalityApi, servicesApi, branchApi, BranchResponse } from '../../services/api'
 
 const navItems = [
   { key:'DASHBOARD', to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
@@ -56,6 +56,9 @@ export default function AppShell() {
     ENGAGEMENT: true,
     ADMINISTRATION: true,
   })
+  const [branches, setBranches] = useState<BranchResponse[]>([])
+  const [selectedBranch, setSelectedBranch] = useState<BranchResponse | null>(null)
+  const [showBranchMenu, setShowBranchMenu] = useState(false)
   useEffect(() => {
     accessApi.me().then(result => {
       if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
@@ -78,6 +81,36 @@ export default function AppShell() {
     window.addEventListener('hospitality-mode-changed', handleModeChange)
     return () => { window.removeEventListener('hospitality-mode-changed', handleModeChange); window.removeEventListener('services-mode-changed', handleServicesChange) }
   }, [user?.id])
+
+  useEffect(() => {
+    if (!user?.businessId) return
+    const loadBranches = () => {
+      branchApi.getAll().then(res => {
+        if (res.success && res.data && res.data.length > 0) {
+          setBranches(res.data)
+          const savedBranchId = localStorage.getItem('selectedBranchId')
+          const found = res.data.find(b => b.id === savedBranchId) || res.data.find(b => b.isHeadOffice) || res.data[0]
+          if (found) {
+            setSelectedBranch(found)
+            localStorage.setItem('selectedBranchId', found.id)
+            localStorage.setItem('selectedBranchName', found.name)
+          }
+        }
+      }).catch(() => {})
+    }
+    loadBranches()
+    const handleBranchRefresh = () => loadBranches()
+    window.addEventListener('branch-updated', handleBranchRefresh)
+    return () => window.removeEventListener('branch-updated', handleBranchRefresh)
+  }, [user?.businessId])
+
+  const handleBranchSelect = (branch: BranchResponse) => {
+    setSelectedBranch(branch)
+    localStorage.setItem('selectedBranchId', branch.id)
+    localStorage.setItem('selectedBranchName', branch.name)
+    setShowBranchMenu(false)
+    window.dispatchEvent(new CustomEvent('branch-changed', { detail: branch }))
+  }
   const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
   const visibleNavItems = navItems.filter(item => {
     if (item.key === 'SERVICES' && !servicesEnabled) return false
@@ -181,6 +214,80 @@ export default function AppShell() {
           </div>
 
           <div className={styles.topbarRight}>
+            {user?.businessId && branches.length > 0 && (
+              <div style={{ position: 'relative' }}>
+                <div
+                  className={styles.branchSelector}
+                  onClick={() => setShowBranchMenu(!showBranchMenu)}
+                  title="Switch Branch Location"
+                >
+                  <Building2 size={15} style={{ color: 'var(--b360-green)' }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedBranch?.name || 'Main Branch'}
+                  </span>
+                  {selectedBranch?.isHeadOffice && (
+                    <span className={styles.branchBadgeHq}>HQ</span>
+                  )}
+                  <ChevronDown size={13} style={{ color: '#64748B' }} />
+                </div>
+
+                {showBranchMenu && (
+                  <>
+                    <div className={styles.dropdownOverlay} onClick={() => setShowBranchMenu(false)} />
+                    <div className={styles.branchDropdown}>
+                      <div style={{ padding: '8px 12px 6px', borderBottom: '1px solid var(--b360-border)', marginBottom: 4 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          Locations & Branches ({branches.length})
+                        </div>
+                      </div>
+                      <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                        {branches.map(b => {
+                          const isCurrent = selectedBranch?.id === b.id
+                          return (
+                            <button
+                              key={b.id}
+                              type="button"
+                              className={`${styles.branchItem} ${isCurrent ? styles.branchItemActive : ''}`}
+                              onClick={() => handleBranchSelect(b)}
+                            >
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ fontSize: 13, fontWeight: isCurrent ? 700 : 500, color: isCurrent ? 'var(--b360-green)' : 'var(--b360-text)' }}>
+                                    {b.name}
+                                  </span>
+                                  {b.isHeadOffice && <span className={styles.branchBadgeHq}>HQ</span>}
+                                </div>
+                                <span style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>
+                                  Code: {b.code}{b.city ? ` • ${b.city}` : (b.county ? ` • ${b.county}` : '')}
+                                </span>
+                              </div>
+                              {isCurrent && <Check size={15} style={{ color: 'var(--b360-green)', flexShrink: 0 }} />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {!isStaff && (
+                        <div style={{ borderTop: '1px solid var(--b360-border)', marginTop: 4, paddingTop: 4 }}>
+                          <button
+                            type="button"
+                            className={styles.dropdownItem}
+                            style={{ fontSize: 12, fontWeight: 600, color: 'var(--b360-green)' }}
+                            onClick={() => {
+                              setShowBranchMenu(false)
+                              navigate('/settings?tab=branches')
+                            }}
+                          >
+                            <Plus size={14} />
+                            <span>Manage Branches</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {user?.businessId && <PortalOrdersInbox key={`${user.businessId}:${user.id}`} />}
             <button className={styles.iconBtn} title="Notifications">
               <Bell size={18} />

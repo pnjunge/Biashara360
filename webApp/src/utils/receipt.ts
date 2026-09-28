@@ -47,7 +47,7 @@ export function printOrderReceipt(order: OrderResponse, profile: BusinessProfile
       .total { font-size: 14px; font-weight: 800; margin-top: 4px; } .message { margin-top: 8px; white-space: pre-wrap; }
       @media print { .no-print { display: none; } body { width: auto; } }
     </style></head><body>
-      <div class="center">${logo}<h1>${escapeHtml(profile?.name || 'Biashara360 POS')}</h1><div>${escapeHtml(profile?.address)}</div><div>${escapeHtml(profile?.county)}${profile?.county ? ', Kenya' : ''}</div><div>${escapeHtml(profile?.phone)}</div>${profile?.kraPin ? `<div>PIN: ${escapeHtml(profile.kraPin)}</div>` : ''}</div>
+      <div class="center">${logo}<h1>${escapeHtml(profile?.name || 'Biashara360 POS')}</h1>${order.branchName ? `<div><strong>BRANCH: ${escapeHtml(order.branchName)}</strong></div>` : ''}<div>${escapeHtml(profile?.address)}</div><div>${escapeHtml(profile?.county)}${profile?.county ? ', Kenya' : ''}</div><div>${escapeHtml(profile?.phone)}</div>${profile?.kraPin ? `<div>PIN: ${escapeHtml(profile.kraPin)}</div>` : ''}</div>
       <div class="rule"></div><div class="line"><span>REF / ORDER</span><strong>${escapeHtml(order.orderNumber)}</strong></div><div class="line"><span>DATE</span><span>${escapeHtml(new Date(order.createdAt).toLocaleString('en-KE'))}</span></div><div class="line"><span>STATUS</span>${statusText}</div>
       ${customer}<div class="rule"></div>
       ${order.items.map(item => `<div class="item"><div class="item-name">${escapeHtml(item.productName)}</div><div class="line"><span>${item.quantity} × ${money(item.unitPrice)}</span><span>${money(item.lineTotal)}</span></div></div>`).join('')}

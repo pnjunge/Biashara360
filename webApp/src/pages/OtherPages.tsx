@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer, ArrowRightLeft, Shield } from 'lucide-react'
+import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer, ArrowRightLeft, Shield, MapPin } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
-import { expenseApi, paymentApi, orderApi, reportApi, customerApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, CustomerResponse, userApi, superAdminApi, businessApi, accessApi, AccessConfig, AuditLogResponse, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest } from '../services/api'
+import { expenseApi, paymentApi, orderApi, reportApi, customerApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, CustomerResponse, userApi, superAdminApi, businessApi, accessApi, branchApi, AccessConfig, AuditLogResponse, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest, BranchResponse } from '../services/api'
 import { useAuth } from '../App'
 import { ShareableReport, downloadReportCsv, emailReport, printReport, whatsappReport } from '../utils/reportShare'
 
@@ -47,7 +47,12 @@ export function ExpensesPage() {
     }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { loadExpenses() }, [])
+  useEffect(() => {
+    loadExpenses()
+    const onBranchChanged = () => loadExpenses()
+    window.addEventListener('branch-changed', onBranchChanged)
+    return () => window.removeEventListener('branch-changed', onBranchChanged)
+  }, [])
 
   async function handleDelete(id: string) {
     if (!window.confirm('Delete this expense? This cannot be undone.')) return
@@ -675,11 +680,13 @@ export function UserCreationPage() {
   // Reassign Modal State
   const [reassignModalUser, setReassignModalUser] = useState<UserResponse | null>(null)
   const [reassignRole, setReassignRole] = useState('STAFF')
+  const [reassignBranchId, setReassignBranchId] = useState('')
   const [reassignGroupIds, setReassignGroupIds] = useState<string[]>([])
   const [reassignRoleIds, setReassignRoleIds] = useState<string[]>([])
   const [reassignBizId, setReassignBizId] = useState('')
   const [reassignSaving, setReassignSaving] = useState(false)
   const [reassignError, setReassignError] = useState('')
+  const [branches, setBranches] = useState<BranchResponse[]>([])
 
   const ROLES = [
     { value: 'STAFF', label: 'Staff' },
@@ -698,6 +705,16 @@ export function UserCreationPage() {
     userApi.list(isSuperAdmin ? selectedBusinessId : undefined).then(res => {
       if (res.success && res.data) setUsers(res.data)
     }).catch(() => {}).finally(() => setUsersLoading(false))
+  }
+
+  const loadBranches = () => {
+    if (isSuperAdmin && !selectedBusinessId) {
+      setBranches([])
+      return
+    }
+    branchApi.getAll(false).then(res => {
+      if (res.success && res.data) setBranches(res.data)
+    }).catch(() => {})
   }
 
   const loadAccess = () => {
@@ -742,6 +759,7 @@ export function UserCreationPage() {
 
   useEffect(() => {
     loadUsers()
+    loadBranches()
     loadAccess()
     loadAuditLogs()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -885,6 +903,7 @@ export function UserCreationPage() {
   const openReassignUser = (u: UserResponse) => {
     setReassignModalUser(u)
     setReassignRole(u.role)
+    setReassignBranchId(u.branchId || '')
     const currentGroupIds = u.assignedGroupIds && u.assignedGroupIds.length > 0
       ? u.assignedGroupIds
       : accessConfig?.groups.filter(g => g.userIds.includes(u.id) || u.assignedGroups?.includes(g.name)).map(g => g.id) || []
@@ -903,6 +922,7 @@ export function UserCreationPage() {
         reassignModalUser.id,
         {
           role: reassignRole,
+          branchId: reassignBranchId ? reassignBranchId : null,
           groupIds: reassignGroupIds,
           roleIds: reassignRoleIds,
           businessId: isSuperAdmin && reassignBizId !== reassignModalUser.businessId ? reassignBizId : undefined,
@@ -960,6 +980,7 @@ export function UserCreationPage() {
       const selectedGroup = inviteGroupId || activeGroups.find(g => g.name.toLowerCase() === 'front')?.id || activeGroups[0]?.id
       const payload: InviteUserRequest = {
         ...form,
+        branchId: form.branchId || undefined,
         groupId: selectedGroup || undefined,
         groupIds: selectedGroup ? [selectedGroup] : [],
         roleIds: inviteRoleIds,
@@ -1083,6 +1104,18 @@ export function UserCreationPage() {
             <Input label="Phone *" value={form.phone} onChange={f('phone')} placeholder="+254 7XX XXX XXX" />
             <Input label="Password *" type="password" value={form.password || ''} onChange={f('password')} placeholder="Min 6 characters" />
             <Select label="Role *" value={form.role ?? 'STAFF'} onChange={f('role')} options={ROLES} />
+            <Select
+              label="Assigned Branch"
+              value={form.branchId || ''}
+              onChange={f('branchId')}
+              options={[
+                { value: '', label: 'All Branches (Floating / Head Office)' },
+                ...branches.map(b => ({
+                  value: b.id,
+                  label: `${b.name} (${b.code || 'No Code'})${b.isHeadOffice ? ' · HQ' : ''}`
+                }))
+              ]}
+            />
             <Select
               label="Access Group *"
               value={inviteGroupId || activeGroups.find(g => g.name.toLowerCase() === 'front')?.id || activeGroups[0]?.id || ''}
@@ -1226,6 +1259,25 @@ export function UserCreationPage() {
               />
               <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)', marginTop: 4 }}>
                 STAFF: Standard operational team. MANAGER: Store supervisor. ADMIN: Business administrator.
+              </div>
+            </div>
+
+            {/* Branch Assignment */}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>Assigned Branch / Location</label>
+              <Select
+                value={reassignBranchId}
+                onChange={setReassignBranchId}
+                options={[
+                  { value: '', label: 'All Branches (Floating / Head Office)' },
+                  ...branches.map(b => ({
+                    value: b.id,
+                    label: `${b.name} (${b.code || 'No Code'})${b.isHeadOffice ? ' · HQ' : ''}`
+                  }))
+                ]}
+              />
+              <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)', marginTop: 4 }}>
+                Cashiers and staff tied to a specific branch will have their orders and sales tracked under that branch.
               </div>
             </div>
 
@@ -1432,7 +1484,7 @@ export function UserCreationPage() {
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading users…</div>
         ) : (
           <DataTable
-            headers={['Name', 'Email', 'Phone', 'Account Role', 'Assigned Groups & Roles', 'Status', 'Actions']}
+            headers={['Name', 'Email', 'Phone', 'Branch', 'Account Role', 'Assigned Groups & Roles', 'Status', 'Actions']}
             rows={users.map(u => {
               const userGroups = u.assignedGroups && u.assignedGroups.length > 0
                 ? u.assignedGroups
@@ -1450,6 +1502,23 @@ export function UserCreationPage() {
                 </div>,
                 u.email,
                 u.phone || '—',
+                <div key="branch">
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    background: u.branchId ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+                    color: u.branchId ? '#059669' : '#64748b',
+                    border: `1px solid ${u.branchId ? 'rgba(16, 185, 129, 0.25)' : 'rgba(100, 116, 139, 0.25)'}`
+                  }}>
+                    <MapPin size={10} />
+                    {u.branchName || (u.branchId ? 'Branch Assigned' : 'All Branches')}
+                  </span>
+                </div>,
                 <div key="role">
                   <span style={{
                     display: 'inline-flex',

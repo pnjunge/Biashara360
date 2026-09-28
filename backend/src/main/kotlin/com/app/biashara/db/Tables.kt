@@ -51,6 +51,26 @@ object BusinessesTable : Table("businesses") {
     override val primaryKey = PrimaryKey(id)
 }
 
+object BranchesTable : Table("branches") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
+    val name = varchar("name", 255)
+    val code = varchar("code", 50)
+    val phone = varchar("phone", 20).nullable()
+    val email = varchar("email", 255).nullable()
+    val address = varchar("address", 500).nullable()
+    val city = varchar("city", 100).nullable()
+    val county = varchar("county", 100).nullable()
+    val isHeadOffice = bool("is_head_office").default(false)
+    val isActive = bool("is_active").default(true)
+    val receiptHeader = varchar("receipt_header", 255).nullable()
+    val receiptFooter = varchar("receipt_footer", 255).nullable()
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+    val businessCodeIdx = uniqueIndex("idx_branches_business_code", businessId, code)
+}
+
 object AccessRolesTable : Table("access_roles") {
     val id = varchar("id", 36)
     val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
@@ -99,6 +119,7 @@ object UserAccessRolesTable : Table("user_access_roles") {
 object UsersTable : Table("users") {
     val id = varchar("id", 36)
     val businessId = varchar("business_id", 36).references(BusinessesTable.id, CASCADE, SET_NULL).nullable()
+    val branchId = varchar("branch_id", 36).references(BranchesTable.id, onDelete = SET_NULL).nullable()
     val name = varchar("name", 255)
     val email = varchar("email", 255).uniqueIndex()
     val phone = varchar("phone", 20).uniqueIndex()
@@ -190,6 +211,7 @@ object StockMovementsTable : Table("stock_movements") {
     val id = varchar("id", 36)
     val productId = varchar("product_id", 36).references(ProductsTable.id)
     val businessId = varchar("business_id", 36).references(BusinessesTable.id)
+    val branchId = varchar("branch_id", 36).references(BranchesTable.id, onDelete = SET_NULL).nullable()
     val type = varchar("type", 20)   // STOCK_IN, STOCK_OUT, ADJUSTMENT
     val quantity = integer("quantity")
     val note = text("note").default("")
@@ -271,6 +293,7 @@ object OrdersTable : Table("orders") {
     val id = varchar("id", 36)
     val orderNumber = varchar("order_number", 20).uniqueIndex()
     val businessId = varchar("business_id", 36).references(BusinessesTable.id)
+    val branchId = varchar("branch_id", 36).references(BranchesTable.id, onDelete = SET_NULL).nullable()
     val billingOwnerUserId = varchar("billing_owner_user_id", 36).references(UsersTable.id, onDelete = SET_NULL).nullable()
     val clientReference = varchar("client_reference", 64).nullable()
     val customerId = varchar("customer_id", 36).nullable()
@@ -363,6 +386,7 @@ object KitchenTicketsTable : Table("kitchen_tickets") {
 object ExpensesTable : Table("expenses") {
     val id = varchar("id", 36)
     val businessId = varchar("business_id", 36).references(BusinessesTable.id)
+    val branchId = varchar("branch_id", 36).references(BranchesTable.id, onDelete = SET_NULL).nullable()
     val category = varchar("category", 50)
     val amount = double("amount")
     val description = text("description")

@@ -9,8 +9,7 @@ import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.config.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 

@@ -65,6 +65,7 @@ fun appModule(config: ApplicationConfig) = module {
     single { MpesaService(get(), config, get(), get()) }
     single { UserManagementService(get(), get()) }
     single { SuperAdminService() }
+    single { BranchService(get()) }
     single { BusinessProfileService() }
     single { DashboardService(get(), get(), get()) }
     single { StorefrontService(get(), get(), get()) }

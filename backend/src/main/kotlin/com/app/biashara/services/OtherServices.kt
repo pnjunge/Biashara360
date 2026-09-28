@@ -185,11 +185,12 @@ class ExpenseService(
         }
     }
 
-    fun getAll(businessId: String, category: String? = null, startDate: String? = null, endDate: String? = null): List<ExpenseResponse> = transaction {
+    fun getAll(businessId: String, category: String? = null, startDate: String? = null, endDate: String? = null, branchId: String? = null): List<ExpenseResponse> = transaction {
         syncMissingPurchaseInvoices(businessId)
 
         var stmt = ExpensesTable.select { ExpensesTable.businessId eq businessId }
         if (!category.isNullOrBlank()) stmt = stmt.andWhere { ExpensesTable.category eq category }
+        if (!branchId.isNullOrBlank()) stmt = stmt.andWhere { ExpensesTable.branchId eq branchId }
         if (!startDate.isNullOrBlank()) {
             val start = try {
                 kotlinx.datetime.LocalDate.parse(startDate)
@@ -212,9 +213,11 @@ class ExpenseService(
     fun create(businessId: String, req: ExpenseRequest): ApiResponse<ExpenseResponse> = transaction {
         val id = generateId()
         val now = Clock.System.now()
+        val branchId = req.branchId?.trim()?.takeIf { it.isNotBlank() }
         ExpensesTable.insert {
             it[ExpensesTable.id] = id
             it[ExpensesTable.businessId] = businessId
+            it[ExpensesTable.branchId] = branchId
             it[category] = req.category
             it[amount] = req.amount
             it[description] = req.description
@@ -301,16 +304,26 @@ class ExpenseService(
         )
     }
 
-    private fun ResultRow.toResponse() = ExpenseResponse(
-        id = this[ExpensesTable.id],
-        businessId = this[ExpensesTable.businessId],
-        category = this[ExpensesTable.category],
-        amount = this[ExpensesTable.amount],
-        description = this[ExpensesTable.description],
-        expenseDate = this[ExpensesTable.expenseDate].toString(),
-        receiptUrl = this[ExpensesTable.receiptUrl],
-        recordedAt = this[ExpensesTable.recordedAt].toString()
-    )
+    private fun ResultRow.toResponse(): ExpenseResponse {
+        val branchId = this[ExpensesTable.branchId]
+        val branchName = branchId?.let { bId ->
+            BranchesTable.slice(BranchesTable.name)
+                .select { (BranchesTable.id eq bId) and (BranchesTable.businessId eq this@toResponse[ExpensesTable.businessId]) }
+                .firstOrNull()?.get(BranchesTable.name)
+        }
+        return ExpenseResponse(
+            id = this[ExpensesTable.id],
+            businessId = this[ExpensesTable.businessId],
+            category = this[ExpensesTable.category],
+            amount = this[ExpensesTable.amount],
+            description = this[ExpensesTable.description],
+            expenseDate = this[ExpensesTable.expenseDate].toString(),
+            receiptUrl = this[ExpensesTable.receiptUrl],
+            branchId = branchId,
+            branchName = branchName,
+            recordedAt = this[ExpensesTable.recordedAt].toString()
+        )
+    }
 }
 
 // ─── Payment Service ──────────────────────────────────────────────────────────
