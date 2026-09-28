@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, KpiCard, Modal } from '../components/ui'
-import { ShoppingCart, Eye, Printer, RefreshCw, Store } from 'lucide-react'
+import { ShoppingCart, Eye, Printer, RefreshCw, Store, Receipt, ExternalLink } from 'lucide-react'
 import { businessApi, orderApi, paymentApi, BusinessProfileResponse, OrderResponse } from '../services/api'
 import { printOrderReceipt } from '../utils/receipt'
 
@@ -49,7 +49,11 @@ export function OrdersPage() {
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {viewOrder && (
         <Modal title={`Order ${viewOrder.orderNumber}`} onClose={() => setViewOrder(null)} wide
-          footer={<><Btn icon={<Printer size={14} />} onClick={() => printOrderReceipt(viewOrder, receiptProfile)}>Print Receipt</Btn><Btn variant="secondary" onClick={() => setViewOrder(null)}>Close</Btn></>}>
+          footer={<>
+            <Btn icon={<ExternalLink size={14} />} onClick={() => window.open(`/receipt/${viewOrder.id}`, '_blank')}>e-Receipt</Btn>
+            <Btn variant="secondary" icon={<Printer size={14} />} onClick={() => printOrderReceipt(viewOrder, receiptProfile)}>Print Slip</Btn>
+            <Btn variant="secondary" onClick={() => setViewOrder(null)}>Close</Btn>
+          </>}>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
               <div><span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Customer</span><div style={{ fontWeight:600 }}>{viewOrder.customerName}</div></div>
@@ -229,6 +233,7 @@ export function OrdersPage() {
               <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>{new Date(o.createdAt).toLocaleDateString('en-KE')}</span>,
               <div style={{ display:'flex', gap:6 }}>
                 <Btn small icon={<Eye size={12}/>} onClick={() => setViewOrder(o)}>View</Btn>
+                <Btn small variant="secondary" icon={<Receipt size={12}/>} onClick={() => window.open(`/receipt/${o.id}`, '_blank')}>e-Receipt</Btn>
                 {o.paymentMethod === 'CARD' && o.paymentStatus === 'PENDING' && (
                   <Btn small variant="secondary" onClick={() => {
                     const url = `${window.location.origin}/pay/card?orderId=${o.id}&businessId=${o.businessId}`

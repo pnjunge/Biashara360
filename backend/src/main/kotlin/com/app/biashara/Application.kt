@@ -110,6 +110,7 @@ fun Application.module() {
             storefrontRoutes()
             cyberSourcePublicRoutes()
             socialWebhookRoutes()
+            publicReceiptRoutes()
 
             // Protected routes (JWT required)
             authenticate("jwt-auth") {
@@ -120,6 +121,7 @@ fun Application.module() {
                 supplierRoutes()
                 orderRoutes()
                 portalOrderRoutes()
+                receiptRoutes()
                 customerRoutes()
                 expenseRoutes()
                 paymentRoutes()

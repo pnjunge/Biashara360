@@ -92,4 +92,5 @@ fun appModule(config: ApplicationConfig) = module {
     single { KraService() }
     single { EtimsService(get()) }
     single { SocialService(get(), get(), get(), get(), config) }
+    single { ReceiptService(get(), get(), config) }
 }

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Btn, Input, Select } from '../components/ui'
-import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, CheckCircle, Store, Smartphone, Printer, UtensilsCrossed, ChevronRight, Clock3, Grid2X2, List, MoreVertical, Utensils, WalletCards } from 'lucide-react'
+import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, CheckCircle, Store, Smartphone, Printer, UtensilsCrossed, ChevronRight, Clock3, Grid2X2, List, MoreVertical, Utensils, WalletCards, QrCode, Receipt, ExternalLink, Share2 } from 'lucide-react'
 import { orderApi, productApi, customerApi, paymentApi, settingsApi, businessApi, hospitalityApi, hospitalityOpsApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse, BusinessProfileResponse, HospitalityTable } from '../services/api'
 import { printOrderReceipt } from '../utils/receipt'
+import QRCode from 'qrcode'
+import EReceiptModal from '../components/pos/EReceiptModal'
 
 interface CartItem {
   product: ProductResponse
@@ -46,6 +48,23 @@ export function PosPage() {
   const [createdOrderNumber, setCreatedOrderNumber] = useState('')
   const [completedOrder, setCompletedOrder] = useState<OrderResponse | null>(null)
   const [receiptProfile, setReceiptProfile] = useState<BusinessProfileResponse | null>(null)
+  const [posReceiptQr, setPosReceiptQr] = useState('')
+  const [showEReceiptModal, setShowEReceiptModal] = useState(false)
+
+  useEffect(() => {
+    if (completedOrder) {
+      const url = `${window.location.origin}/receipt/${completedOrder.id}`
+      QRCode.toDataURL(url, {
+        width: 320,
+        margin: 2,
+        color: { dark: '#0f172a', light: '#ffffff' }
+      })
+        .then(setPosReceiptQr)
+        .catch(() => setPosReceiptQr(''))
+    } else {
+      setPosReceiptQr('')
+    }
+  }, [completedOrder])
 
   // M-Pesa STK push states
   const [stkStep, setStkStep] = useState<'idle' | 'confirm_phone' | 'pushing' | 'pushed' | 'error'>('idle')
@@ -549,25 +568,110 @@ export function PosPage() {
       )}
 
       {checkoutSuccess ? (
-        <Card style={{ maxWidth: 500, margin: '40px auto', textAlign: 'center', padding: 40 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, borderRadius: '50%', backgroundColor: 'var(--b360-green-light)', color: 'var(--b360-green)', marginBottom: 20 }}>
-            <CheckCircle size={36} />
+        <Card style={{ maxWidth: 520, margin: '30px auto', textAlign: 'center', padding: '36px 30px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 60, height: 60, borderRadius: '50%', backgroundColor: 'var(--b360-green-light)', color: 'var(--b360-green)', marginBottom: 16 }}>
+            <CheckCircle size={32} />
           </div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--b360-sidebar-bg)', marginBottom: 12 }}>Checkout Successful!</h2>
-          <p style={{ color: 'var(--b360-text-secondary)', marginBottom: 8 }}>Transaction has been successfully created and recorded.</p>
-          <div style={{ padding: 12, backgroundColor: 'var(--b360-surface)', borderRadius: 8, fontFamily: 'monospace', fontWeight: 700, fontSize: 16, display: 'inline-block', marginBottom: 24 }}>
-            Order: {createdOrderNumber}
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--b360-sidebar-bg)', marginBottom: 8 }}>Checkout Successful!</h2>
+          <p style={{ color: 'var(--b360-text-secondary)', fontSize: 13, marginBottom: 14 }}>Transaction recorded successfully.</p>
+          
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 18 }}>
+            <span style={{ padding: '6px 14px', backgroundColor: 'var(--b360-surface)', borderRadius: 8, fontFamily: 'monospace', fontWeight: 700, fontSize: 15, border: '1px solid var(--b360-border)' }}>
+              Order #{createdOrderNumber}
+            </span>
+            {completedOrder && (
+              <span style={{ padding: '6px 14px', backgroundColor: '#f0fdf4', color: '#15803d', borderRadius: 8, fontFamily: 'monospace', fontWeight: 800, fontSize: 15, border: '1px solid #bbf7d0' }}>
+                KES {Number(completedOrder.subtotal).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+              </span>
+            )}
           </div>
+
+          {/* On-Screen Customer e-Receipt QR Code */}
+          <div style={{
+            background: 'linear-gradient(to bottom, #ffffff, #f8fafc)',
+            borderRadius: 20,
+            padding: '20px 16px',
+            margin: '0 auto 24px',
+            maxWidth: 290,
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+          }}>
+            {posReceiptQr ? (
+              <img
+                src={posReceiptQr}
+                alt="Scan for e-Receipt"
+                style={{ width: 160, height: 160, margin: '0 auto 10px', borderRadius: 12, border: '1px solid #e2e8f0', padding: 4, background: '#fff' }}
+              />
+            ) : (
+              <div style={{ width: 160, height: 160, margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', borderRadius: 12 }}>
+                <QrCode size={40} color="#94a3b8" />
+              </div>
+            )}
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>Instant Customer e-Receipt</p>
+            <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 10px' }}>Customer scans with phone camera to keep receipt</p>
+            
+            {completedOrder && (
+              <a
+                href={`/receipt/${completedOrder.id}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--b360-green)',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+              >
+                Open Digital Receipt <ExternalLink size={12} />
+              </a>
+            )}
+          </div>
+
           <div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <Btn variant="secondary" icon={<Printer size={14} />} disabled={!completedOrder || !receiptProfile}
-                onClick={() => completedOrder && receiptProfile && printOrderReceipt(completedOrder, receiptProfile)}>Print Receipt</Btn>
+              <Btn
+                variant="primary"
+                onClick={() => setShowEReceiptModal(true)}
+                icon={<Smartphone size={14} />}
+              >
+                Send e-Receipt (SMS / WhatsApp)
+              </Btn>
+
+              <Btn
+                variant="secondary"
+                icon={<Printer size={14} />}
+                disabled={!completedOrder || !receiptProfile}
+                onClick={() => completedOrder && receiptProfile && printOrderReceipt(completedOrder, receiptProfile)}
+              >
+                Print Slip
+              </Btn>
+
               {hospitalityEnabled && (
-                <Btn variant="secondary" icon={<UtensilsCrossed size={14} />} onClick={() => navigate('/hospitality')}>Return to Floor Plan</Btn>
+                <Btn variant="secondary" icon={<UtensilsCrossed size={14} />} onClick={() => navigate('/hospitality')}>
+                  Return to Floor Plan
+                </Btn>
               )}
-              <Btn onClick={() => { setCheckoutSuccess(false); setCompletedOrder(null) }} icon={<Store size={14} />}>Open New Session</Btn>
+
+              <Btn
+                variant="secondary"
+                onClick={() => { setCheckoutSuccess(false); setCompletedOrder(null) }}
+                icon={<Store size={14} />}
+              >
+                New Session
+              </Btn>
             </div>
           </div>
+
+          {/* e-Receipt Distribution Modal */}
+          <EReceiptModal
+            isOpen={showEReceiptModal}
+            onClose={() => setShowEReceiptModal(false)}
+            order={completedOrder}
+            businessName={receiptProfile?.name || 'Biashara360'}
+          />
         </Card>
       ) : (
         <div className="split-layout pos-workspace" style={{ flex: 1, minHeight: 0 }}>

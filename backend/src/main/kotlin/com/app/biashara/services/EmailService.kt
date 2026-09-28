@@ -261,4 +261,61 @@ class EmailService(
         </html>
         """.trimIndent()
     }
+
+    fun sendReceiptEmail(
+        to: String,
+        businessName: String,
+        orderNumber: String,
+        receiptUrl: String,
+        totalFormatted: String,
+        items: List<Pair<String, Double>> = emptyList()
+    ): Result<Unit> {
+        val subject = "Your receipt for Order #$orderNumber from $businessName"
+        val itemsHtml = if (items.isNotEmpty()) {
+            val rows = items.joinToString("") { (name, total) ->
+                "<tr><td style=\"padding:8px 0;border-bottom:1px solid #f1f5f9;\">${name}</td><td style=\"padding:8px 0;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600;\">KES ${String.format("%,.2f", total)}</td></tr>"
+            }
+            """
+            <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">
+              <thead>
+                <tr style="border-bottom:2px solid #e2e8f0;color:#64748b;text-align:left;">
+                  <th style="padding:6px 0;">Item</th>
+                  <th style="padding:6px 0;text-align:right;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>$rows</tbody>
+            </table>
+            """.trimIndent()
+        } else ""
+
+        val html = """
+            <!DOCTYPE html>
+            <html>
+            <head><meta charset="utf-8"></head>
+            <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:24px;background:#f8fafc;color:#1e293b;">
+              <div style="max-width:540px;margin:0 auto;background:#ffffff;border-radius:14px;padding:32px;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                <div style="text-align:center;border-bottom:2px dashed #e2e8f0;padding-bottom:20px;margin-bottom:24px;">
+                  <div style="display:inline-block;background:#059669;color:#ffffff;font-weight:900;font-size:18px;border-radius:10px;padding:8px 16px;margin-bottom:12px;">B360</div>
+                  <h2 style="margin:0 0 4px;font-size:22px;color:#0f172a;">$businessName</h2>
+                  <p style="margin:0;color:#64748b;font-size:14px;">Electronic Receipt · Order #$orderNumber</p>
+                </div>
+                <p style="font-size:15px;line-height:1.5;">Thank you for your purchase from <strong>$businessName</strong>. Your digital e-receipt is ready.</p>
+                <div style="background:#f0fdf4;border-radius:10px;padding:16px;margin:20px 0;display:flex;justify-content:space-between;align-items:center;">
+                  <span style="color:#166534;font-weight:600;font-size:15px;">Total Paid:</span>
+                  <span style="color:#15803d;font-weight:800;font-size:22px;">$totalFormatted</span>
+                </div>
+                $itemsHtml
+                <div style="text-align:center;margin:32px 0 20px;">
+                  <a href="$receiptUrl" style="display:inline-block;padding:14px 28px;background:#059669;color:#ffffff !important;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;" target="_blank">View & Download e-Receipt</a>
+                </div>
+                <p style="font-size:12px;color:#94a3b8;text-align:center;margin:16px 0 0;">Link: <a href="$receiptUrl" style="color:#059669;word-break:break-all;">$receiptUrl</a></p>
+                <div style="border-top:1px solid #f1f5f9;margin-top:28px;padding-top:16px;text-align:center;font-size:12px;color:#94a3b8;">
+                  Powered by Biashara360 Electronic Receipts
+                </div>
+              </div>
+            </body>
+            </html>
+        """.trimIndent()
+        return sendHtmlEmail(to, subject, html)
+    }
 }

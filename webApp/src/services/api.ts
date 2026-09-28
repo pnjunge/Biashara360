@@ -195,6 +195,62 @@ export interface OrderResponse {
   notes: string; createdAt: string; updatedAt: string
 }
 
+export interface PublicBusinessProfile {
+  id: string
+  name: string
+  phone: string
+  email: string
+  address: string
+  county: string
+  kraPin: string
+  receiptHeader: string
+  receiptFooter: string
+  receiptLogo?: string | null
+  receiptLogoWidthMm: number
+  receiptLogoHeightMm: number
+  receiptShowTax: boolean
+  receiptShowCustomer: boolean
+}
+
+export interface PublicBranchInfo {
+  id: string
+  name: string
+  code?: string | null
+  phone?: string | null
+  address?: string | null
+  receiptHeader?: string | null
+  receiptFooter?: string | null
+}
+
+export interface PublicKraFiscal {
+  invoiceNumber?: string | null
+  qrCodeContent?: string | null
+  qrCodeBase64?: string | null
+  sdcId?: string | null
+  rcptSign?: string | null
+}
+
+export interface PublicReceiptResponse {
+  order: OrderResponse
+  business: PublicBusinessProfile
+  branch?: PublicBranchInfo | null
+  receiptUrl: string
+  kraFiscal?: PublicKraFiscal | null
+}
+
+export interface SendEReceiptRequest {
+  channel: 'SMS' | 'EMAIL' | 'WHATSAPP' | string
+  recipient?: string
+}
+
+export interface SendEReceiptResponse {
+  channel: string
+  recipient: string
+  status: string
+  whatsappUrl?: string | null
+  messageText?: string | null
+}
+
 export interface HospitalityTable { id:string; name:string; area:string; capacity:number; status:string; openOrderId:string|null; openAmount:number; openOrderCount:number; waiterUserId?:string|null; mergedIntoTableId?:string|null; positionX?:number; positionY?:number; shape?:string }
 export interface KitchenTicket { id:string; orderId:string; orderNumber:string; tableName:string|null; station:string; status:string; notes:string; items:OrderItemResponse[]; createdAt:string }
 export interface MenuOption { name:string; priceDelta:number }
@@ -655,6 +711,21 @@ export const orderApi = {
   },
   cancel: async (id: string) => {
     const res = await client.post<ApiResponse<OrderResponse>>(`/orders/${id}/cancel`)
+    return res.data
+  },
+  sendEReceipt: async (id: string, data: SendEReceiptRequest) => {
+    const res = await client.post<ApiResponse<SendEReceiptResponse>>(`/orders/${id}/send-ereceipt`, data)
+    return res.data
+  },
+}
+
+export const receiptApi = {
+  getPublicReceipt: async (orderId: string) => {
+    const res = await client.get<ApiResponse<PublicReceiptResponse>>(`/public/receipts/${encodeURIComponent(orderId)}`)
+    return res.data
+  },
+  sendEReceipt: async (orderId: string, data: SendEReceiptRequest) => {
+    const res = await client.post<ApiResponse<SendEReceiptResponse>>(`/orders/${encodeURIComponent(orderId)}/send-ereceipt`, data)
     return res.data
   },
 }
