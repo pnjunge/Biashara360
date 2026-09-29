@@ -15,6 +15,14 @@ class BusinessProfileService {
             .select { BusinessesTable.id eq businessId }
             .firstOrNull()
             ?.let {
+                val now = Clock.System.now()
+                val validUntil = it[BusinessesTable.subscriptionValidUntil]
+                val diffSeconds = validUntil?.let { v -> v.epochSeconds - now.epochSeconds }
+                val daysRemaining = if (diffSeconds != null) {
+                    if (diffSeconds <= 0) 0L else (diffSeconds + 86399) / 86400
+                } else null
+                val isExpired = validUntil != null && now > validUntil
+
                 BusinessProfileResponse(
                     id              = it[BusinessesTable.id],
                     storefrontSlug  = it[BusinessesTable.storefrontSlug],
@@ -30,6 +38,10 @@ class BusinessProfileService {
                     accountNumber   = it[BusinessesTable.accountNumber] ?: "",
                     subscriptionTier = it[BusinessesTable.subscriptionTier],
                     subscriptionEnabled = it[BusinessesTable.subscriptionEnabled],
+                    isTrial         = it[BusinessesTable.isTrial],
+                    subscriptionValidUntil = validUntil?.toString(),
+                    daysRemaining   = daysRemaining,
+                    isExpired       = isExpired,
                     servicesEnabled = it[BusinessesTable.servicesEnabled],
                     hospitalityEnabled = it[BusinessesTable.hospitalityEnabled],
                     receiptHeader   = it[BusinessesTable.receiptHeader],

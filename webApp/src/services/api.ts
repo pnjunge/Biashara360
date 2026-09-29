@@ -1356,6 +1356,10 @@ export interface BusinessResponse {
   hospitalityEnabled: boolean
   isActive: boolean
   createdAt: string
+  isTrial?: boolean
+  subscriptionValidUntil?: string | null
+  daysRemaining?: number | null
+  isExpired?: boolean
 }
 
 export interface UpdateBusinessStatusRequest {
@@ -1364,7 +1368,19 @@ export interface UpdateBusinessStatusRequest {
 
 export interface UpdateSubscriptionRequest {
   enabled: boolean
-  tier?: 'FREEMIUM' | 'PREMIUM'
+  tier?: 'FREEMIUM' | 'TRIAL' | 'PREMIUM'
+  isTrial?: boolean
+  extendDays?: number
+  validUntil?: string
+  maxUsers?: number
+  note?: string
+}
+
+export interface ExtendSubscriptionRequest {
+  extendDays: number
+  isTrial?: boolean
+  tier?: 'FREEMIUM' | 'TRIAL' | 'PREMIUM'
+  note?: string
 }
 
 export interface CreateBusinessWithAdminRequest {
@@ -1428,6 +1444,10 @@ export interface BusinessProfileResponse {
   accountNumber: string
   subscriptionTier: string
   subscriptionEnabled: boolean
+  isTrial?: boolean
+  subscriptionValidUntil?: string | null
+  daysRemaining?: number | null
+  isExpired?: boolean
   servicesEnabled?: boolean
   hospitalityEnabled: boolean
   receiptHeader?: string
@@ -1607,6 +1627,10 @@ export const superAdminApi = {
   },
   updateSubscription: async (businessId: string, data: UpdateSubscriptionRequest) => {
     const res = await client.patch<ApiResponse<BusinessResponse>>(`/admin/businesses/${businessId}/subscription`, data)
+    return res.data
+  },
+  extendSubscription: async (businessId: string, data: ExtendSubscriptionRequest) => {
+    const res = await client.post<ApiResponse<BusinessResponse>>(`/admin/businesses/${businessId}/subscription/extend`, data)
     return res.data
   },
   getMpesaCallbackUrl: async () => {

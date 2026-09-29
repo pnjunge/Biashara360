@@ -236,8 +236,12 @@ export default function RegisterPage() {
                   options={BUSINESS_TYPES}
                 />
 
-                <Input label="Number of users *" type="number" value={String(userCount)} onChange={value => setUserCount(Math.min(10, Math.max(1, Number(value) || 1)))} />
                 {bands.length > 0 && <div style={{fontSize:12,padding:10,background:'var(--b360-bg)',borderRadius:8}}>{bands.map(b => <div key={b.id} style={{fontWeight:userCount >= b.minUsers && userCount <= b.maxUsers ? 800 : 400}}>{b.minUsers}–{b.maxUsers} users · KES {b.monthlyPrice.toLocaleString()}/month</div>)}</div>}
+
+                <div style={{ fontSize: 12, padding: '10px 12px', background: 'rgba(15, 118, 110, 0.08)', borderRadius: 8, color: '#0F766E', border: '1px solid rgba(15, 118, 110, 0.2)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>🎁</span>
+                  <span><strong>14-Day Free Trial Included!</strong> Enjoy full access to all features immediately after registration.</span>
+                </div>
 
                 {!socialCredential && <Input
                   label="Password / Nenosiri *"

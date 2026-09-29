@@ -211,6 +211,7 @@ enum class BusinessType(val value: String) {
 
 enum class SubscriptionTier(val value: String) {
     FREEMIUM("FREEMIUM"),
+    TRIAL("TRIAL"),
     PREMIUM("PREMIUM");
     
     companion object {
@@ -222,7 +223,7 @@ enum class SubscriptionTier(val value: String) {
         // Feature flag logic can be expanded
         return when (this) {
             FREEMIUM -> feature in listOf("basic_pos", "basic_inventory")
-            PREMIUM -> true
+            TRIAL, PREMIUM -> true
         }
     }
 }

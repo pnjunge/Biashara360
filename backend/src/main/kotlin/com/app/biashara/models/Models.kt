@@ -577,6 +577,10 @@ data class BusinessProfileResponse(
     val accountNumber: String,
     val subscriptionTier: String,
     val subscriptionEnabled: Boolean,
+    val isTrial: Boolean = false,
+    val subscriptionValidUntil: String? = null,
+    val daysRemaining: Long? = null,
+    val isExpired: Boolean = false,
     val hospitalityEnabled: Boolean = false,
     val servicesEnabled: Boolean = false,
     val receiptHeader: String = "Welcome to our store!",
@@ -601,7 +605,9 @@ data class BusinessProfileResponse(
 @Serializable
 data class CreateBusinessOnlyRequest(
     val businessName: String,
-    val businessType: String
+    val businessType: String,
+    val isTrial: Boolean = true,
+    val trialDays: Int = 14
 )
 
 @Serializable
@@ -611,7 +617,9 @@ data class CreateBusinessWithAdminRequest(
     val adminName: String,
     val adminEmail: String,
     val adminPhone: String,
-    val adminPassword: String
+    val adminPassword: String,
+    val isTrial: Boolean = true,
+    val trialDays: Int = 14
 )
 
 @Serializable
@@ -624,7 +632,11 @@ data class BusinessResponse(
     val subscriptionTier: String,
     val subscriptionEnabled: Boolean,
     val isActive: Boolean,
-    val createdAt: String
+    val createdAt: String,
+    val isTrial: Boolean = false,
+    val subscriptionValidUntil: String? = null,
+    val daysRemaining: Long? = null,
+    val isExpired: Boolean = false
 )
 
 @Serializable
@@ -644,8 +656,21 @@ data class UpdateBusinessStatusRequest(val isActive: Boolean)
 
 @Serializable
 data class UpdateSubscriptionRequest(
-    val enabled: Boolean,
-    val tier: String? = null
+    val enabled: Boolean = true,
+    val tier: String? = null,
+    val isTrial: Boolean? = null,
+    val extendDays: Int? = null,
+    val validUntil: String? = null,
+    val maxUsers: Int? = null,
+    val note: String? = null
+)
+
+@Serializable
+data class ExtendSubscriptionRequest(
+    val extendDays: Int,
+    val isTrial: Boolean? = null,
+    val tier: String? = null,
+    val note: String? = null
 )
 
 // ─── System Settings ─────────────────────────────────────────────────────────

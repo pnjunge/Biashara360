@@ -32,6 +32,7 @@ object BusinessesTable : Table("businesses") {
     val subscriptionEnabled = bool("subscription_enabled").default(true)
     val maxUsers = integer("max_users").default(2)
     val subscriptionValidUntil = timestamp("subscription_valid_until").nullable()
+    val isTrial = bool("is_trial").default(false)
     val enabledModules = text("enabled_modules").default("INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS")
     val enabledMenus = text("enabled_menus").default("DASHBOARD,POS,HOSPITALITY,HOSPITALITY_OPS,SERVICES,OPEN_TABS,INVENTORY,ORDERS,CUSTOMERS,EXPENSES,PAYMENTS,CARD_PAYMENTS,TAX,KRA,SOCIAL,SOCIAL_SETUP,USERS,REPORTS,DOWNLOADS,SETTINGS")
     val servicesEnabled = bool("services_enabled").default(false)

@@ -12,6 +12,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.datetime.Clock
+import kotlin.time.Duration.Companion.days
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.koin.ktor.ext.inject
@@ -514,8 +515,19 @@ fun Route.mpesaCallbackRoute() {
                         }
                         if (orderRow[OrdersTable.serviceType] == "SUBSCRIPTION") {
                             val seats = orderRow[OrdersTable.clientReference]?.substringAfterLast(':')?.toIntOrNull()
-                            if (seats != null) BusinessesTable.update({ BusinessesTable.id eq orderRow[OrdersTable.businessId] }) {
-                                it[maxUsers] = seats; it[subscriptionTier] = "PREMIUM"; it[subscriptionEnabled] = true; it[updatedAt] = now
+                            if (seats != null) {
+                                val currentBiz = BusinessesTable.select { BusinessesTable.id eq orderRow[OrdersTable.businessId] }.firstOrNull()
+                                val currentUntil = currentBiz?.get(BusinessesTable.subscriptionValidUntil)
+                                val base = currentUntil?.takeIf { it > now } ?: now
+                                val newUntil = base + 30.days
+                                BusinessesTable.update({ BusinessesTable.id eq orderRow[OrdersTable.businessId] }) {
+                                    it[maxUsers] = seats
+                                    it[subscriptionTier] = "PREMIUM"
+                                    it[subscriptionEnabled] = true
+                                    it[BusinessesTable.isTrial] = false
+                                    it[subscriptionValidUntil] = newUntil
+                                    it[updatedAt] = now
+                                }
                             }
                         }
                         orderRow[OrdersTable.hospitalityTableId]?.let { tableId ->

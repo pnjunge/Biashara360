@@ -7,10 +7,44 @@ import com.app.biashara.db.UsersTable
 import com.app.biashara.models.*
 import com.app.biashara.utils.ValidationUtils
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlin.time.Duration.Companion.days
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 
-class SuperAdminService {
+class SuperAdminService(private val auditLogService: AuditLogService? = null) {
+
+    private fun parseInstantOrDate(value: String): Instant? {
+        val trimmed = value.trim()
+        if (trimmed.isBlank()) return null
+        return runCatching { Instant.parse(trimmed) }.getOrNull()
+            ?: runCatching { Instant.parse("${trimmed.take(10)}T23:59:59Z") }.getOrNull()
+    }
+
+    private fun rowToBusinessResponse(row: ResultRow, now: Instant = Clock.System.now()): BusinessResponse {
+        val validUntil = row[BusinessesTable.subscriptionValidUntil]
+        val diffSeconds = validUntil?.let { v -> v.epochSeconds - now.epochSeconds }
+        val daysRemaining = if (diffSeconds != null) {
+            if (diffSeconds <= 0) 0L else (diffSeconds + 86399) / 86400
+        } else null
+        val isExpired = validUntil != null && now > validUntil
+
+        return BusinessResponse(
+            id               = row[BusinessesTable.id],
+            name             = row[BusinessesTable.name],
+            type             = row[BusinessesTable.type],
+            ownerPhone       = row[BusinessesTable.ownerPhone],
+            ownerEmail       = row[BusinessesTable.ownerEmail],
+            subscriptionTier = row[BusinessesTable.subscriptionTier],
+            subscriptionEnabled = row[BusinessesTable.subscriptionEnabled],
+            isActive         = row[BusinessesTable.isActive],
+            createdAt        = row[BusinessesTable.createdAt].toString(),
+            isTrial          = row[BusinessesTable.isTrial],
+            subscriptionValidUntil = validUntil?.toString(),
+            daysRemaining    = daysRemaining,
+            isExpired        = isExpired
+        )
+    }
 
     fun createBusinessWithAdmin(req: CreateBusinessWithAdminRequest): ApiResponse<BusinessWithAdminResponse> = transaction {
         // 🔒 SECURITY FIX: Enhanced input validation
@@ -61,6 +95,11 @@ class SuperAdminService {
         val businessId = generateId()
         val adminId = generateId()
 
+        val isTrial = req.isTrial
+        val trialDays = req.trialDays.coerceIn(1, 365)
+        val validUntil = if (isTrial) now + trialDays.days else null
+        val tier = if (isTrial) "TRIAL" else "FREEMIUM"
+
         BusinessesTable.insert {
             it[id]               = businessId
             it[name]             = req.businessName
@@ -69,7 +108,10 @@ class SuperAdminService {
             it[ownerPhone]       = ValidationUtils.normalizePhoneKE(req.adminPhone)
             it[ownerEmail]       = req.adminEmail
             it[currency]         = "KES"
-            it[subscriptionTier] = "FREEMIUM"
+            it[subscriptionTier] = tier
+            it[subscriptionEnabled] = true
+            it[BusinessesTable.isTrial] = isTrial
+            it[subscriptionValidUntil] = validUntil
             it[enabledModules]   = "INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS"
             it[createdAt]        = now
             it[updatedAt]        = now
@@ -90,17 +132,8 @@ class SuperAdminService {
             it[updatedAt]        = now
         }
 
-        val businessResp = BusinessResponse(
-            id               = businessId,
-            name             = req.businessName,
-            type             = req.businessType,
-            ownerPhone       = ValidationUtils.normalizePhoneKE(req.adminPhone),
-            ownerEmail       = req.adminEmail,
-            subscriptionTier = "FREEMIUM",
-            subscriptionEnabled = true,
-            isActive         = true,
-            createdAt        = now.toString()
-        )
+        val inserted = BusinessesTable.select { BusinessesTable.id eq businessId }.first()
+        val businessResp = rowToBusinessResponse(inserted, now)
         val adminResp = UserResponse(
             id               = adminId,
             name             = req.adminName,
@@ -124,6 +157,11 @@ class SuperAdminService {
         val now = Clock.System.now()
         val businessId = generateId()
 
+        val isTrial = req.isTrial
+        val trialDays = req.trialDays.coerceIn(1, 365)
+        val validUntil = if (isTrial) now + trialDays.days else null
+        val tier = if (isTrial) "TRIAL" else "FREEMIUM"
+
         BusinessesTable.insert {
             it[id]               = businessId
             it[name]             = req.businessName
@@ -132,46 +170,29 @@ class SuperAdminService {
             it[ownerPhone]       = ""
             it[ownerEmail]       = ""
             it[currency]         = "KES"
-            it[subscriptionTier] = "FREEMIUM"
+            it[subscriptionTier] = tier
+            it[subscriptionEnabled] = true
+            it[BusinessesTable.isTrial] = isTrial
+            it[subscriptionValidUntil] = validUntil
             it[enabledModules]   = "INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS"
             it[createdAt]        = now
             it[updatedAt]        = now
         }
 
+        val inserted = BusinessesTable.select { BusinessesTable.id eq businessId }.first()
         ApiResponse(
             success = true,
-            data = BusinessResponse(
-                id               = businessId,
-                name             = req.businessName,
-                type             = req.businessType.uppercase(),
-                ownerPhone       = "",
-                ownerEmail       = "",
-                subscriptionTier = "FREEMIUM",
-                subscriptionEnabled = true,
-                isActive         = true,
-                createdAt        = now.toString()
-            ),
+            data = rowToBusinessResponse(inserted, now),
             message = "Business created successfully"
         )
     }
 
     fun listBusinesses(): List<BusinessResponse> = transaction {
+        val now = Clock.System.now()
         BusinessesTable
             .select { BusinessesTable.type neq "SYSTEM" }
             .orderBy(BusinessesTable.createdAt, SortOrder.DESC)
-            .map {
-                BusinessResponse(
-                    id               = it[BusinessesTable.id],
-                    name             = it[BusinessesTable.name],
-                    type             = it[BusinessesTable.type],
-                    ownerPhone       = it[BusinessesTable.ownerPhone],
-                    ownerEmail       = it[BusinessesTable.ownerEmail],
-                    subscriptionTier = it[BusinessesTable.subscriptionTier],
-                    subscriptionEnabled = it[BusinessesTable.subscriptionEnabled],
-                    isActive         = it[BusinessesTable.isActive],
-                    createdAt        = it[BusinessesTable.createdAt].toString()
-                )
-            }
+            .map { rowToBusinessResponse(it, now) }
     }
 
     fun setBusinessActiveStatus(businessId: String, req: UpdateBusinessStatusRequest): ApiResponse<BusinessResponse> = transaction {
@@ -192,56 +213,123 @@ class SuperAdminService {
         val updated = BusinessesTable.select { BusinessesTable.id eq businessId }.first()
         ApiResponse(
             success = true,
-            data = BusinessResponse(
-                id = updated[BusinessesTable.id],
-                name = updated[BusinessesTable.name],
-                type = updated[BusinessesTable.type],
-                ownerPhone = updated[BusinessesTable.ownerPhone],
-                ownerEmail = updated[BusinessesTable.ownerEmail],
-                subscriptionTier = updated[BusinessesTable.subscriptionTier],
-                subscriptionEnabled = updated[BusinessesTable.subscriptionEnabled],
-                isActive = updated[BusinessesTable.isActive],
-                createdAt = updated[BusinessesTable.createdAt].toString()
-            ),
+            data = rowToBusinessResponse(updated),
             message = if (req.isActive) "Business activated" else "Business deactivated"
         )
     }
 
     fun updateSubscription(
         businessId: String,
-        req: UpdateSubscriptionRequest
+        req: UpdateSubscriptionRequest,
+        actorUserId: String? = null
     ): ApiResponse<BusinessResponse> = transaction {
         if (!ValidationUtils.isValidUUID(businessId)) {
             return@transaction ApiResponse(false, message = "Invalid business ID format")
         }
         val normalizedTier = req.tier?.trim()?.uppercase()
-        if (normalizedTier != null && normalizedTier !in setOf("FREEMIUM", "PREMIUM")) {
-            return@transaction ApiResponse(false, message = "Subscription tier must be FREEMIUM or PREMIUM")
+        if (normalizedTier != null && normalizedTier !in setOf("FREEMIUM", "TRIAL", "PREMIUM")) {
+            return@transaction ApiResponse(false, message = "Subscription tier must be FREEMIUM, TRIAL, or PREMIUM")
         }
-        BusinessesTable.select {
+        val current = BusinessesTable.select {
             (BusinessesTable.id eq businessId) and (BusinessesTable.type neq "SYSTEM")
         }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Business not found")
+
+        val now = Clock.System.now()
+        val currentUntil = current[BusinessesTable.subscriptionValidUntil]
+        var targetUntil = currentUntil
+
+        if (req.extendDays != null && req.extendDays > 0) {
+            val base = currentUntil?.takeIf { it > now } ?: now
+            targetUntil = base + req.extendDays.days
+        } else if (req.validUntil != null) {
+            targetUntil = parseInstantOrDate(req.validUntil)
+        } else if ((normalizedTier == "TRIAL" || req.isTrial == true) && currentUntil == null) {
+            targetUntil = now + 14.days
+        }
+
+        val targetIsTrial = when {
+            req.isTrial != null -> req.isTrial
+            normalizedTier == "TRIAL" -> true
+            normalizedTier in setOf("FREEMIUM", "PREMIUM") -> false
+            else -> current[BusinessesTable.isTrial]
+        }
 
         BusinessesTable.update({ BusinessesTable.id eq businessId }) {
             it[subscriptionEnabled] = req.enabled
             if (normalizedTier != null) it[subscriptionTier] = normalizedTier
-            it[updatedAt] = Clock.System.now()
+            it[BusinessesTable.isTrial] = targetIsTrial
+            it[subscriptionValidUntil] = targetUntil
+            if (req.maxUsers != null && req.maxUsers > 0) it[maxUsers] = req.maxUsers
+            it[updatedAt] = now
         }
+
         val updated = BusinessesTable.select { BusinessesTable.id eq businessId }.first()
+        val resp = rowToBusinessResponse(updated, now)
+
+        auditLogService?.logEvent(
+            businessId = businessId,
+            actorUserId = actorUserId,
+            action = "SUBSCRIPTION_UPDATED",
+            details = "Tier: ${resp.subscriptionTier}, Enabled: ${resp.subscriptionEnabled}, Trial: ${resp.isTrial}, ValidUntil: ${resp.subscriptionValidUntil ?: "None"}, DaysRemaining: ${resp.daysRemaining ?: "N/A"}. Note: ${req.note ?: ""}"
+        )
+
         ApiResponse(
             success = true,
-            data = BusinessResponse(
-                id = updated[BusinessesTable.id],
-                name = updated[BusinessesTable.name],
-                type = updated[BusinessesTable.type],
-                ownerPhone = updated[BusinessesTable.ownerPhone],
-                ownerEmail = updated[BusinessesTable.ownerEmail],
-                subscriptionTier = updated[BusinessesTable.subscriptionTier],
-                subscriptionEnabled = updated[BusinessesTable.subscriptionEnabled],
-                isActive = updated[BusinessesTable.isActive],
-                createdAt = updated[BusinessesTable.createdAt].toString()
-            ),
-            message = if (req.enabled) "Subscription enabled" else "Subscription disabled"
+            data = resp,
+            message = if (req.extendDays != null) "Subscription extended by ${req.extendDays} days" else "Subscription updated"
+        )
+    }
+
+    fun extendSubscription(
+        businessId: String,
+        req: ExtendSubscriptionRequest,
+        actorUserId: String? = null
+    ): ApiResponse<BusinessResponse> = transaction {
+        if (!ValidationUtils.isValidUUID(businessId)) {
+            return@transaction ApiResponse(false, message = "Invalid business ID format")
+        }
+        if (req.extendDays <= 0 || req.extendDays > 3650) {
+            return@transaction ApiResponse(false, message = "Extension period must be between 1 and 3650 days")
+        }
+        val normalizedTier = req.tier?.trim()?.uppercase()
+        if (normalizedTier != null && normalizedTier !in setOf("FREEMIUM", "TRIAL", "PREMIUM")) {
+            return@transaction ApiResponse(false, message = "Subscription tier must be FREEMIUM, TRIAL, or PREMIUM")
+        }
+
+        val current = BusinessesTable.select {
+            (BusinessesTable.id eq businessId) and (BusinessesTable.type neq "SYSTEM")
+        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Business not found")
+
+        val now = Clock.System.now()
+        val currentUntil = current[BusinessesTable.subscriptionValidUntil]
+        val base = currentUntil?.takeIf { it > now } ?: now
+        val newValidUntil = base + req.extendDays.days
+
+        val targetIsTrial = req.isTrial ?: (if (normalizedTier == "TRIAL") true else current[BusinessesTable.isTrial])
+
+        BusinessesTable.update({ BusinessesTable.id eq businessId }) {
+            it[subscriptionEnabled] = true
+            it[subscriptionValidUntil] = newValidUntil
+            it[BusinessesTable.isTrial] = targetIsTrial
+            if (normalizedTier != null) it[subscriptionTier] = normalizedTier
+            it[updatedAt] = now
+        }
+
+        val updated = BusinessesTable.select { BusinessesTable.id eq businessId }.first()
+        val resp = rowToBusinessResponse(updated, now)
+
+        auditLogService?.logEvent(
+            businessId = businessId,
+            actorUserId = actorUserId,
+            action = "SUBSCRIPTION_EXTENDED",
+            details = "Extended by ${req.extendDays} days. Valid until: $newValidUntil. Trial: $targetIsTrial. Note: ${req.note ?: ""}"
+        )
+
+        val periodType = if (targetIsTrial) "Trial period" else "Subscription"
+        ApiResponse(
+            success = true,
+            data = resp,
+            message = "$periodType extended by ${req.extendDays} days until ${newValidUntil.toString().substringBefore('T')}"
         )
     }
 

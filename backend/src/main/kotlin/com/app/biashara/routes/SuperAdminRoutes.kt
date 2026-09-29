@@ -93,7 +93,26 @@ fun Route.superAdminRoutes() {
                 }
                 val result = superAdminService.updateSubscription(
                     businessId,
-                    call.receive<UpdateSubscriptionRequest>()
+                    call.receive<UpdateSubscriptionRequest>(),
+                    call.callerUserId()
+                )
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+
+            post("/{id}/subscription/extend") {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@post
+                }
+                val businessId = call.parameters["id"]
+                if (businessId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Business id is required"))
+                    return@post
+                }
+                val result = superAdminService.extendSubscription(
+                    businessId,
+                    call.receive<ExtendSubscriptionRequest>(),
+                    call.callerUserId()
                 )
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
             }

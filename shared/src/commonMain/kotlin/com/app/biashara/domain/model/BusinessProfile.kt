@@ -17,6 +17,8 @@ data class BusinessProfile(
     val accountNumber: String,
     val subscriptionTier: String,
     val subscriptionEnabled: Boolean = true,
+    val isTrial: Boolean = false,
+    val subscriptionValidUntil: String? = null,
     val hospitalityEnabled: Boolean = false,
     val storefrontSlug: String = "",
     val storefrontThemeColor: String = "#0F766E",

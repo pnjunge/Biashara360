@@ -8,6 +8,7 @@ import com.app.biashara.db.BusinessesTable
 import com.app.biashara.db.OrdersTable
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
+import kotlin.time.Duration.Companion.days
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -395,8 +396,20 @@ class CyberSourcePaymentService(
             val subscription = OrdersTable.select { OrdersTable.id eq orderId }.singleOrNull()
             if (subscription?.get(OrdersTable.serviceType) == "SUBSCRIPTION") {
                 val seats = subscription[OrdersTable.clientReference]?.substringAfterLast(':')?.toIntOrNull()
-                if (seats != null) BusinessesTable.update({ BusinessesTable.id eq businessId }) {
-                    it[maxUsers] = seats; it[subscriptionTier] = "PREMIUM"; it[subscriptionEnabled] = true; it[updatedAt] = Clock.System.now()
+                if (seats != null) {
+                    val now = Clock.System.now()
+                    val currentBiz = BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull()
+                    val currentUntil = currentBiz?.get(BusinessesTable.subscriptionValidUntil)
+                    val base = currentUntil?.takeIf { it > now } ?: now
+                    val newUntil = base + 30.days
+                    BusinessesTable.update({ BusinessesTable.id eq businessId }) {
+                        it[maxUsers] = seats
+                        it[subscriptionTier] = "PREMIUM"
+                        it[subscriptionEnabled] = true
+                        it[BusinessesTable.isTrial] = false
+                        it[subscriptionValidUntil] = newUntil
+                        it[updatedAt] = now
+                    }
                 }
             }
         }

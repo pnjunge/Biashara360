@@ -64,7 +64,7 @@ enum class BusinessType {
 
 @Serializable
 enum class SubscriptionTier {
-    FREEMIUM, PREMIUM
+    FREEMIUM, TRIAL, PREMIUM
 }
 
 @Serializable

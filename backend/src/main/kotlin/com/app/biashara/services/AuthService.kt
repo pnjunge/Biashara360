@@ -127,7 +127,11 @@ class AuthService(
             it[type] = req.businessType
             it[ownerPhone] = req.phone
             it[ownerEmail] = req.email
-            it[maxUsers] = 1
+            it[maxUsers] = req.userCount.coerceAtLeast(1)
+            it[subscriptionTier] = "TRIAL"
+            it[subscriptionEnabled] = true
+            it[BusinessesTable.isTrial] = true
+            it[subscriptionValidUntil] = now + 14.days
             it[createdAt] = now
             it[updatedAt] = now
         }
@@ -536,9 +540,15 @@ class AuthService(
         if (businessId == null) return null
         val business = BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull()
             ?: return "Business account was not found"
+        val isSubscriptionEnabled = business[BusinessesTable.subscriptionEnabled]
+        val validUntil = business[BusinessesTable.subscriptionValidUntil]
+        val isTrial = business[BusinessesTable.isTrial]
+        val isExpired = validUntil != null && Clock.System.now() > validUntil
         return when {
             !business[BusinessesTable.isActive] -> "Business account is disabled"
-            !business[BusinessesTable.subscriptionEnabled] -> "Subscription is disabled. Contact Biashara360 support."
+            !isSubscriptionEnabled -> "Subscription is disabled. Contact Biashara360 support."
+            isExpired -> if (isTrial) "Trial period has expired. Contact Biashara360 support or upgrade your plan."
+                         else "Subscription period has expired. Contact Biashara360 support to renew."
             else -> null
         }
     }

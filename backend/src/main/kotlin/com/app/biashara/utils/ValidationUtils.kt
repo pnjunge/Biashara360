@@ -123,7 +123,7 @@ object ValidationUtils {
      * @return true if valid format
      */
     fun isValidUUID(uuid: String): Boolean {
-        return uuid.matches(Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"))
+        return uuid.matches(Regex("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"))
     }
 
     /**

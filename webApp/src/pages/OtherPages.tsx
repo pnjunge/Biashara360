@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer, ArrowRightLeft, Shield, MapPin, Clock } from 'lucide-react'
+import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer, ArrowRightLeft, Shield, MapPin, Clock, Calendar } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
 import { expenseApi, paymentApi, orderApi, reportApi, customerApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, CustomerResponse, userApi, superAdminApi, businessApi, accessApi, branchApi, AccessConfig, AuditLogResponse, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest, BranchResponse } from '../services/api'
 import { useAuth } from '../App'
 import { ShareableReport, downloadReportCsv, emailReport, printReport, whatsappReport } from '../utils/reportShare'
 import { ReportSchedulerModal } from '../components/reports/ReportSchedulerModal'
+import { ExtendSubscriptionModal } from '../components/subscription/ExtendSubscriptionModal'
 
 function getCurrentMonthRange() {
   const now = new Date()
@@ -1044,11 +1045,14 @@ export function UserCreationPage() {
     }
   }
 
+  const [extendingBiz, setExtendingBiz] = useState<BusinessResponse | null>(null)
+
   const handleSubscriptionChange = async (business: BusinessResponse, enabled: boolean, tier = business.subscriptionTier) => {
     if (!enabled && !window.confirm(`Disable ${business.name}'s subscription? Existing sessions will stop working immediately.`)) return
     const res = await superAdminApi.updateSubscription(business.id, {
       enabled,
-      tier: tier === 'PREMIUM' ? 'PREMIUM' : 'FREEMIUM',
+      tier: tier === 'PREMIUM' ? 'PREMIUM' : (tier === 'TRIAL' ? 'TRIAL' : 'FREEMIUM'),
+      isTrial: tier === 'TRIAL',
     })
     if (res.success && res.data) {
       setBusinesses(prev => prev.map(b => (b.id === business.id ? res.data! : b)))
@@ -1418,34 +1422,75 @@ export function UserCreationPage() {
               <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Create one above.</div>
             ) : (
               <DataTable
-                headers={['Business Name', 'Type', 'Tier', 'Subscription', 'Business', 'Created', 'Actions']}
+                headers={['Business Name', 'Type', 'Plan & Trial', 'Expiry / Validity', 'Subscription', 'Business', 'Created', 'Actions']}
                 rows={businesses.map(b => [
                   b.name,
                   b.type,
-                  <select
-                    key="tier"
-                    value={b.subscriptionTier}
-                    onChange={event => handleSubscriptionChange(b, b.subscriptionEnabled, event.target.value)}
-                    style={{ padding: '6px 8px', borderRadius: 7, fontSize: 12 }}
-                  >
-                    <option value="FREEMIUM">Freemium</option>
-                    <option value="PREMIUM">Premium</option>
-                  </select>,
+                  <div key="tier" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <select
+                      value={b.subscriptionTier}
+                      onChange={event => handleSubscriptionChange(b, b.subscriptionEnabled, event.target.value)}
+                      style={{ padding: '6px 8px', borderRadius: 7, fontSize: 12 }}
+                    >
+                      <option value="FREEMIUM">Freemium</option>
+                      <option value="TRIAL">Trial</option>
+                      <option value="PREMIUM">Premium</option>
+                    </select>
+                    {b.isTrial && (
+                      <span style={{
+                        background: '#fef3c7',
+                        color: '#b45309',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        fontSize: 10,
+                        fontWeight: 800
+                      }}>
+                        TRIAL
+                      </span>
+                    )}
+                  </div>,
+                  <div key="validity">
+                    {b.isExpired ? (
+                      <div>
+                        <span style={{ color: 'var(--b360-red)', fontWeight: 700, fontSize: 12 }}>Expired</span>
+                        <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{b.subscriptionValidUntil ? new Date(b.subscriptionValidUntil).toLocaleDateString() : ''}</div>
+                      </div>
+                    ) : b.subscriptionValidUntil ? (
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 12, color: (b.daysRemaining != null && b.daysRemaining <= 3) ? 'var(--b360-red)' : 'var(--b360-green)' }}>
+                          {b.daysRemaining != null ? `${b.daysRemaining}d left` : 'Active'}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Until {new Date(b.subscriptionValidUntil).toLocaleDateString()}</div>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>Unlimited</span>
+                    )}
+                  </div>,
                   <StatusBadge key="subscription" status={b.subscriptionEnabled ? 'ACTIVE' : 'INACTIVE'} />,
                   <StatusBadge key="status" status={b.isActive ? 'ACTIVE' : 'INACTIVE'} />,
                   new Date(b.createdAt).toLocaleDateString(),
                   <div key="actions" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <Btn variant="primary" small icon={<Calendar size={13} />} onClick={() => setExtendingBiz(b)}>
+                      Extend Period
+                    </Btn>
                     <Btn variant={b.subscriptionEnabled ? 'danger' : 'secondary'} small onClick={() => handleSubscriptionChange(b, !b.subscriptionEnabled)}>
-                      {b.subscriptionEnabled ? 'Disable subscription' : 'Enable subscription'}
+                      {b.subscriptionEnabled ? 'Disable' : 'Enable'}
                     </Btn>
                     <Btn variant={b.isActive ? 'danger' : 'secondary'} small onClick={() => handleToggleBusinessStatus(b.id, !b.isActive)}>
-                      {b.isActive ? 'Disable business' : 'Enable business'}
+                      {b.isActive ? 'Deactivate' : 'Activate'}
                     </Btn>
                   </div>,
                 ])}
               />
             )}
           </Card>
+          {extendingBiz && (
+            <ExtendSubscriptionModal
+              business={extendingBiz}
+              onClose={() => setExtendingBiz(null)}
+              onSuccess={updated => setBusinesses(prev => prev.map(b => b.id === updated.id ? updated : b))}
+            />
+          )}
         </>
       )}
 
@@ -1917,6 +1962,9 @@ export function BusinessPage() {
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [storeLinkCopied, setStoreLinkCopied] = useState(false)
 
+  const [extendingBiz, setExtendingBiz] = useState<BusinessResponse | null>(null)
+  const [bizFormTrial, setBizFormTrial] = useState(true)
+
   const handleToggleBusinessStatus = async (id: string, isActive: boolean) => {
     if (!isActive && !window.confirm('Disable this business account? All merchant access will stop immediately.')) return
     const res = await superAdminApi.setBusinessStatus(id, { isActive })
@@ -1929,7 +1977,8 @@ export function BusinessPage() {
     if (!enabled && !window.confirm(`Disable ${business.name}'s subscription? Existing sessions will stop working immediately.`)) return
     const res = await superAdminApi.updateSubscription(business.id, {
       enabled,
-      tier: tier === 'PREMIUM' ? 'PREMIUM' : 'FREEMIUM',
+      tier: tier === 'PREMIUM' ? 'PREMIUM' : (tier === 'TRIAL' ? 'TRIAL' : 'FREEMIUM'),
+      isTrial: tier === 'TRIAL',
     })
     if (res.success && res.data) {
       setBusinesses(prev => prev.map(b => (b.id === business.id ? res.data! : b)))
@@ -1943,10 +1992,15 @@ export function BusinessPage() {
     }
     setBizFormSaving(true); setBizFormError('')
     try {
-      const res = await superAdminApi.createBusiness(bizForm)
+      const res = await superAdminApi.createBusiness({
+        ...bizForm,
+        isTrial: bizFormTrial,
+        trialDays: 14
+      } as any)
       if (res.success) {
         setShowCreateBiz(false)
         setBizForm({ businessName: '', businessType: 'RETAIL' })
+        setBizFormTrial(true)
         superAdminApi.listBusinesses().then(r => { if (r.success && r.data) setBusinesses(r.data) })
       } else {
         setBizFormError(res.message || 'Failed to create business.')
@@ -2057,6 +2111,17 @@ export function BusinessPage() {
                 onChange={v => setBizForm(p => ({ ...p, businessType: v }))}
                 options={BIZ_TYPES}
               />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <input
+                  type="checkbox"
+                  id="createBizTrial"
+                  checked={bizFormTrial}
+                  onChange={e => setBizFormTrial(e.target.checked)}
+                />
+                <label htmlFor="createBizTrial" style={{ fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  Start with 14-day Free Trial
+                </label>
+              </div>
               <p style={{ fontSize: 12, color: 'var(--b360-text-secondary)', margin: 0 }}>
                 💡 You can add admin users to this business from the <strong>Users</strong> menu after creation.
               </p>
@@ -2077,34 +2142,75 @@ export function BusinessPage() {
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Click "Add Business" to create one.</div>
           ) : (
             <DataTable
-              headers={['Business Name', 'Type', 'Tier', 'Subscription', 'Business', 'Created', 'Actions']}
+              headers={['Business Name', 'Type', 'Plan & Trial', 'Expiry / Validity', 'Subscription', 'Business', 'Created', 'Actions']}
               rows={businesses.map(b => [
                 b.name,
                 b.type,
-                <select
-                  key="tier"
-                  value={b.subscriptionTier}
-                  onChange={event => handleSubscriptionChange(b, b.subscriptionEnabled, event.target.value)}
-                  style={{ padding: '6px 8px', borderRadius: 7, fontSize: 12 }}
-                >
-                  <option value="FREEMIUM">Freemium</option>
-                  <option value="PREMIUM">Premium</option>
-                </select>,
+                <div key="tier" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <select
+                    value={b.subscriptionTier}
+                    onChange={event => handleSubscriptionChange(b, b.subscriptionEnabled, event.target.value)}
+                    style={{ padding: '6px 8px', borderRadius: 7, fontSize: 12 }}
+                  >
+                    <option value="FREEMIUM">Freemium</option>
+                    <option value="TRIAL">Trial</option>
+                    <option value="PREMIUM">Premium</option>
+                  </select>
+                  {b.isTrial && (
+                    <span style={{
+                      background: '#fef3c7',
+                      color: '#b45309',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontSize: 10,
+                      fontWeight: 800
+                    }}>
+                      TRIAL
+                    </span>
+                  )}
+                </div>,
+                <div key="validity">
+                  {b.isExpired ? (
+                    <div>
+                      <span style={{ color: 'var(--b360-red)', fontWeight: 700, fontSize: 12 }}>Expired</span>
+                      <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{b.subscriptionValidUntil ? new Date(b.subscriptionValidUntil).toLocaleDateString() : ''}</div>
+                    </div>
+                  ) : b.subscriptionValidUntil ? (
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 12, color: (b.daysRemaining != null && b.daysRemaining <= 3) ? 'var(--b360-red)' : 'var(--b360-green)' }}>
+                        {b.daysRemaining != null ? `${b.daysRemaining}d left` : 'Active'}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Until {new Date(b.subscriptionValidUntil).toLocaleDateString()}</div>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>Unlimited</span>
+                  )}
+                </div>,
                 <StatusBadge key="subscription" status={b.subscriptionEnabled ? 'ACTIVE' : 'INACTIVE'} />,
                 <StatusBadge key="status" status={b.isActive ? 'ACTIVE' : 'INACTIVE'} />,
                 new Date(b.createdAt).toLocaleDateString(),
                 <div key="actions" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <Btn variant="primary" small icon={<Calendar size={13} />} onClick={() => setExtendingBiz(b)}>
+                    Extend Period
+                  </Btn>
                   <Btn variant={b.subscriptionEnabled ? 'danger' : 'secondary'} small onClick={() => handleSubscriptionChange(b, !b.subscriptionEnabled)}>
-                    {b.subscriptionEnabled ? 'Disable subscription' : 'Enable subscription'}
+                    {b.subscriptionEnabled ? 'Disable' : 'Enable'}
                   </Btn>
                   <Btn variant={b.isActive ? 'danger' : 'secondary'} small onClick={() => handleToggleBusinessStatus(b.id, !b.isActive)}>
-                    {b.isActive ? 'Disable business' : 'Enable business'}
+                    {b.isActive ? 'Deactivate' : 'Activate'}
                   </Btn>
                 </div>,
               ])}
             />
           )}
         </Card>
+        {extendingBiz && (
+          <ExtendSubscriptionModal
+            business={extendingBiz}
+            onClose={() => setExtendingBiz(null)}
+            onSuccess={updated => setBusinesses(prev => prev.map(b => b.id === updated.id ? updated : b))}
+          />
+        )}
       </div>
     )
   }

@@ -50,17 +50,16 @@ class CreateOrderUseCase(
     private val customerRepo: CustomerRepository
 ) {
     suspend operator fun invoke(order: Order): Result<Order> {
-        // Validate items have enough stock
+        // Validate items have enough stock if present in local inventory cache
         for (item in order.items) {
             val product = productRepo.getProduct(item.productId)
-                ?: return Result.failure(IllegalStateException("Product ${item.productName} not found"))
-            if (product.currentStock < item.quantity) {
+            if (product != null && product.currentStock > 0 && product.currentStock < item.quantity) {
                 return Result.failure(IllegalStateException("Insufficient stock for ${item.productName}"))
             }
         }
         val result = orderRepo.createOrder(order)
         if (result.isSuccess) {
-            // Deduct stock for each item
+            // Deduct stock for each item safely
             result.getOrNull()?.items?.forEach { item ->
                 val movement = StockMovement(
                     id = generateId(),
@@ -72,12 +71,12 @@ class CreateOrderUseCase(
                     note = "Order ${order.orderNumber}",
                     recordedAt = Clock.System.now()
                 )
-                productRepo.updateStock(item.productId, movement)
+                runCatching { productRepo.updateStock(item.productId, movement) }
             }
             // Award loyalty points (1 point per 100 KES)
             order.customerId?.let { cid ->
                 val points = (order.subtotal / 100).toInt()
-                if (points > 0) customerRepo.addLoyaltyPoints(cid, points)
+                if (points > 0) runCatching { customerRepo.addLoyaltyPoints(cid, points) }
             }
         }
         return result

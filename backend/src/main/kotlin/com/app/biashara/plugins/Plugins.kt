@@ -65,10 +65,16 @@ fun Application.configureSecurity() {
                     if (role == "SUPERADMIN") return@transaction true
                     if (businessId.isNullOrBlank() || user[UsersTable.businessId] != businessId) return@transaction false
                     BusinessesTable
-                        .slice(BusinessesTable.isActive, BusinessesTable.subscriptionEnabled)
+                        .slice(BusinessesTable.isActive, BusinessesTable.subscriptionEnabled, BusinessesTable.subscriptionValidUntil)
                         .select { BusinessesTable.id eq businessId }
                         .firstOrNull()
-                        ?.let { it[BusinessesTable.isActive] && it[BusinessesTable.subscriptionEnabled] } == true
+                        ?.let {
+                            val isActive = it[BusinessesTable.isActive]
+                            val isEnabled = it[BusinessesTable.subscriptionEnabled]
+                            val validUntil = it[BusinessesTable.subscriptionValidUntil]
+                            val isExpired = validUntil != null && kotlinx.datetime.Clock.System.now() > validUntil
+                            isActive && isEnabled && !isExpired
+                        } == true
                 }
                 if (type == "access" && accountCanAccess) {
                     JWTPrincipal(credential.payload)

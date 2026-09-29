@@ -271,17 +271,23 @@ fun PosScreen(
         taxError = null
         try {
             val response: ApiResponse<List<PosTaxRate>> = client.get("$BASE_URL/tax/rates").body()
-            check(response.success) { response.message.ifBlank { "Could not load tax rates" } }
-            taxRates = requireNotNull(response.data) { "Tax rates unavailable" }.filter {
-                it.isActive && it.taxType == "VAT" && !it.isInclusive &&
-                    it.appliesTo in listOf("ALL", "PRODUCTS") && it.rate.isFinite() && it.rate in 0.0..1.0
+            val taxData = response.data
+            if (response.success && taxData != null) {
+                taxRates = taxData.filter {
+                    it.isActive && it.taxType == "VAT" && !it.isInclusive &&
+                        it.appliesTo in listOf("ALL", "PRODUCTS") && it.rate.isFinite() && it.rate in 0.0..1.0
+                }
+            } else {
+                taxRates = emptyList()
             }
             if (taxRates.none { it.id == selectedTaxId }) selectedTaxId = null
             taxesLoaded = true
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
+            taxRates = emptyList()
             taxError = e.message ?: "Could not load tax rates"
+            taxesLoaded = true
         }
     }
     val selectedTax = taxRates.find { it.id == selectedTaxId }
@@ -843,6 +849,23 @@ fun PosScreen(
                         Text("KES ${"%,.2f".format(grandTotal)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = B360Green)
                     }
 
+                    errorMessage?.let { msg ->
+                        Surface(
+                            color = Color(0xFFFEE2E2),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = B360Red, modifier = Modifier.size(18.dp))
+                                Text(msg, color = B360Red, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+
                     Button(
                         onClick = {
                             if (!networkAvailable) {
@@ -857,12 +880,17 @@ fun PosScreen(
                                 errorMessage = "Enter a guest count from 1 to 100."
                                 return@Button
                             }
+                            val phone = (selectedCustomer?.phone ?: walkInPhone).trim()
+                            if (paymentMethod == PaymentMethod.MPESA && phone.isBlank()) {
+                                errorMessage = "Enter the customer's M-Pesa phone number to send payment prompt."
+                                return@Button
+                            }
                             isCheckingOut = true; errorMessage = null
                             coroutineScope.launch {
                                 val order = Order(
                                     id = generateId(), orderNumber = "B360-POS-${System.currentTimeMillis() % 10000}",
                                     businessId = businessId, customerId = selectedCustomer?.id,
-                                    customerName = walkInName, customerPhone = walkInPhone,
+                                    customerName = walkInName.ifBlank { "Walk-In Customer" }, customerPhone = phone,
                                     deliveryLocation = if (hospitalityEnabled && serviceType == "DINE_IN") selectedTable!!.name else "In-Store POS",
                                     hospitalityTableId = if (hospitalityEnabled && serviceType == "DINE_IN") selectedTableId else null,
                                     serviceType = if (hospitalityEnabled) serviceType else "RETAIL",
@@ -875,7 +903,6 @@ fun PosScreen(
                                 )
                                 createOrderUseCase(order)
                                     .onSuccess { saved ->
-                                        val phone = selectedCustomer?.phone ?: walkInPhone
                                         val result = if (paymentMethod == PaymentMethod.MPESA) {
                                             initiatePaymentUseCase(saved.id, phone, mpesaAccountType).fold(
                                                 onSuccess = {
@@ -920,14 +947,23 @@ fun PosScreen(
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                         shape = RoundedCornerShape(24.dp),
-                        enabled = !isCheckingOut && cart.isNotEmpty() && networkAvailable && taxesLoaded
+                        enabled = !isCheckingOut && cart.isNotEmpty() && networkAvailable
                     ) {
-                        if (isCheckingOut) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                        else Text(
-                            if (networkAvailable) "Complete POS Checkout" else "Reconnect to Checkout",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
+                        if (isCheckingOut) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Text("Processing Checkout...", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            Text(
+                                if (networkAvailable) "Complete POS Checkout" else "Reconnect to Checkout",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }

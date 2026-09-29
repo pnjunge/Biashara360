@@ -129,6 +129,10 @@ export function SettingsPage() {
   const [emailAlerts, setEmailAlerts] = useState(false)
   const [subscriptionTier, setSubscriptionTier] = useState('FREEMIUM')
   const [subscriptionEnabled, setSubscriptionEnabled] = useState(true)
+  const [isTrial, setIsTrial] = useState(false)
+  const [subscriptionValidUntil, setSubscriptionValidUntil] = useState<string | null>(null)
+  const [daysRemaining, setDaysRemaining] = useState<number | null>(null)
+  const [isExpired, setIsExpired] = useState(false)
 
   // ── 7. Outlook 365 / SMTP Email State ─────────────────────────────────────
   const [emailStatus, setEmailStatus] = useState<{
@@ -214,6 +218,10 @@ export function SettingsPage() {
           setStorefrontSlug(d.storefrontSlug)
           setSubscriptionTier(d.subscriptionTier || 'FREEMIUM')
           setSubscriptionEnabled(d.subscriptionEnabled !== false)
+          setIsTrial(d.isTrial === true)
+          setSubscriptionValidUntil(d.subscriptionValidUntil || null)
+          setDaysRemaining(d.daysRemaining ?? null)
+          setIsExpired(d.isExpired === true)
           setHospitalityEnabled(d.hospitalityEnabled === true)
           setServicesEnabled(d.servicesEnabled === true)
           setProfile({
@@ -1465,32 +1473,54 @@ export function SettingsPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>
-                    {subscriptionTier === 'PREMIUM' ? 'Premium Plan' : 'Freemium Plan'}
+                    {subscriptionTier === 'PREMIUM'
+                      ? 'Premium Plan'
+                      : (isTrial || subscriptionTier === 'TRIAL' ? 'Free Trial' : 'Freemium Plan')}
                   </div>
                   <span style={{
                     padding: '3px 8px',
                     borderRadius: 999,
                     fontSize: 11,
                     fontWeight: 700,
-                    color: subscriptionEnabled ? '#047857' : '#b91c1c',
-                    background: subscriptionEnabled ? '#d1fae5' : '#fee2e2',
+                    color: isExpired ? '#b91c1c' : (subscriptionEnabled ? '#047857' : '#b91c1c'),
+                    background: isExpired ? '#fee2e2' : (subscriptionEnabled ? '#d1fae5' : '#fee2e2'),
                   }}>
-                    {subscriptionEnabled ? 'Active' : 'Disabled'}
+                    {isExpired ? 'Expired' : (subscriptionEnabled ? 'Active' : 'Disabled')}
                   </span>
+                  {(isTrial || subscriptionTier === 'TRIAL') && (
+                    <span style={{
+                      padding: '3px 8px',
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#b45309',
+                      background: '#fef3c7',
+                    }}>
+                      Trial Mode
+                    </span>
+                  )}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--b360-text-secondary)', marginTop: 2 }}>
-                  {subscriptionEnabled
-                    ? (subscriptionTier === 'PREMIUM'
-                      ? 'Premium features are enabled for this business.'
-                      : 'Up to 100 products & 50 orders per month.')
-                    : 'Access is disabled. Contact Biashara360 support to reactivate this subscription.'}
+                <div style={{ fontSize: 12, color: 'var(--b360-text-secondary)', marginTop: 4 }}>
+                  {isExpired ? (
+                    <span style={{ color: 'var(--b360-red)', fontWeight: 600 }}>
+                      Your {isTrial ? 'trial period' : 'subscription'} expired on {subscriptionValidUntil ? new Date(subscriptionValidUntil).toLocaleDateString() : 'earlier'}. Please upgrade or contact Biashara360 support to extend.
+                    </span>
+                  ) : !subscriptionEnabled ? (
+                    'Access is disabled. Contact Biashara360 support to reactivate this subscription.'
+                  ) : isTrial || subscriptionTier === 'TRIAL' ? (
+                    `You are currently enjoying a Free Trial with full features. ${daysRemaining != null ? `${daysRemaining} days remaining` : ''}${subscriptionValidUntil ? ` (Valid until ${new Date(subscriptionValidUntil).toLocaleDateString()})` : ''}.`
+                  ) : subscriptionTier === 'PREMIUM' ? (
+                    `Premium features are enabled for this business.${subscriptionValidUntil ? ` Valid until ${new Date(subscriptionValidUntil).toLocaleDateString()}${daysRemaining != null ? ` (${daysRemaining} days remaining)` : ''}.` : ''}`
+                  ) : (
+                    'Up to 100 products & 50 orders per month.'
+                  )}
                 </div>
               </div>
               <Btn
-                disabled={!subscriptionEnabled || subscriptionTier === 'PREMIUM'}
+                disabled={!subscriptionEnabled || (subscriptionTier === 'PREMIUM' && !isExpired && !isTrial)}
                 onClick={() => window.open('mailto:sales@biashara360.co.ke?subject=Upgrade Biashara360 Plan', '_blank')}
               >
-                Upgrade to Premium →
+                {isTrial ? 'Upgrade to Full Plan →' : 'Upgrade to Premium →'}
               </Btn>
             </div>
           </Section>
