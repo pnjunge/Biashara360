@@ -9,13 +9,13 @@ import {
   Copy,
   Check,
   ExternalLink,
-  Printer,
   Receipt,
   CheckCircle2,
   AlertCircle,
   Loader2
 } from 'lucide-react'
 import { orderApi, OrderResponse } from '../../services/api'
+import './EReceiptModal.css'
 
 interface EReceiptModalProps {
   isOpen: boolean
@@ -150,86 +150,69 @@ export default function EReceiptModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="ereceipt-modal-backdrop">
+      <div className="ereceipt-modal-dialog">
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-              <Receipt className="w-5 h-5" />
+        <div className="ereceipt-modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="ereceipt-modal-icon">
+              <Receipt size={22} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900 leading-tight">Digital e-Receipt</h2>
-              <p className="text-xs text-slate-500 font-mono">Order #{order.orderNumber}</p>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>Digital e-Receipt</div>
+              <div style={{ fontSize: 12, color: '#64748b', fontFamily: 'monospace' }}>Order #{order.orderNumber}</div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full hover:bg-slate-200/80 flex items-center justify-center text-slate-400 hover:text-slate-600 transition"
-          >
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} className="ereceipt-modal-close">
+            <X size={18} />
           </button>
         </div>
 
         {/* Channels Navigation Tabs */}
-        <div className="grid grid-cols-4 p-1.5 mx-5 mt-4 bg-slate-100 rounded-xl text-xs font-semibold text-slate-600">
+        <div className="ereceipt-tabs">
           <button
             type="button"
             onClick={() => { setActiveTab('qr'); setStatusMessage(null) }}
-            className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition ${
-              activeTab === 'qr' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
-            }`}
+            className={`ereceipt-tab-btn ${activeTab === 'qr' ? 'is-active' : ''}`}
           >
-            <QrCode className="w-3.5 h-3.5" />
+            <QrCode size={14} />
             QR Code
           </button>
           <button
             type="button"
             onClick={() => { setActiveTab('whatsapp'); setStatusMessage(null) }}
-            className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition ${
-              activeTab === 'whatsapp' ? 'bg-white text-emerald-700 shadow-sm' : 'hover:text-slate-900'
-            }`}
+            className={`ereceipt-tab-btn ${activeTab === 'whatsapp' ? 'is-active is-whatsapp' : ''}`}
           >
-            <Share2 className="w-3.5 h-3.5" />
+            <Share2 size={14} />
             WhatsApp
           </button>
           <button
             type="button"
             onClick={() => { setActiveTab('sms'); setStatusMessage(null) }}
-            className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition ${
-              activeTab === 'sms' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
-            }`}
+            className={`ereceipt-tab-btn ${activeTab === 'sms' ? 'is-active' : ''}`}
           >
-            <Smartphone className="w-3.5 h-3.5" />
+            <Smartphone size={14} />
             SMS
           </button>
           <button
             type="button"
             onClick={() => { setActiveTab('email'); setStatusMessage(null) }}
-            className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition ${
-              activeTab === 'email' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
-            }`}
+            className={`ereceipt-tab-btn ${activeTab === 'email' ? 'is-active' : ''}`}
           >
-            <Mail className="w-3.5 h-3.5" />
+            <Mail size={14} />
             Email
           </button>
         </div>
 
         {/* Tab Body */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="ereceipt-modal-body">
           {/* Status Message */}
           {statusMessage && (
-            <div
-              className={`mb-4 p-3 rounded-xl text-xs font-medium flex items-center gap-2 ${
-                statusMessage.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                  : 'bg-rose-50 text-rose-800 border border-rose-200'
-              }`}
-            >
+            <div className={`ereceipt-modal-alert ${statusMessage.type === 'success' ? 'is-success' : 'is-error'}`}>
               {statusMessage.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <CheckCircle2 size={16} />
               ) : (
-                <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                <AlertCircle size={16} />
               )}
               <span>{statusMessage.text}</span>
             </div>
@@ -237,38 +220,71 @@ export default function EReceiptModal({
 
           {/* QR Tab */}
           {activeTab === 'qr' && (
-            <div className="text-center">
-              <div className="inline-block p-3 bg-white rounded-2xl border-2 border-dashed border-emerald-200 shadow-sm mb-3">
+            <div style={{ textAlign: 'center' }}>
+              <div style={{
+                display: 'inline-block',
+                padding: 12,
+                background: '#ffffff',
+                borderRadius: 16,
+                border: '2px dashed #bbf7d0',
+                marginBottom: 12
+              }}>
                 {qrCodeUrl ? (
-                  <img src={qrCodeUrl} alt="e-Receipt QR" className="w-48 h-48 mx-auto" />
+                  <img src={qrCodeUrl} alt="e-Receipt QR" style={{ width: 180, height: 180, display: 'block' }} />
                 ) : (
-                  <div className="w-48 h-48 flex items-center justify-center text-slate-400">
-                    <Loader2 className="w-6 h-6 animate-spin" />
+                  <div style={{ width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Loader2 size={24} className="animate-spin" color="#10b981" />
                   </div>
                 )}
               </div>
-              <p className="text-xs font-bold text-slate-800 mb-0.5">Show this to the customer</p>
-              <p className="text-[11px] text-slate-400 mb-4">
-                Customer scans with any phone camera to view & save receipt
-              </p>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>
+                Show this QR Code to customer
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16 }}>
+                Customer scans with any phone camera to view & keep receipt
+              </div>
 
-              <div className="flex items-center justify-center gap-2">
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    background: '#f1f5f9',
+                    color: '#334155',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    border: '1px solid #cbd5e1',
+                    cursor: 'pointer'
+                  }}
                 >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? <Check size={14} color="#059669" /> : <Copy size={14} />}
                   {copied ? 'Link Copied!' : 'Copy Link'}
                 </button>
                 <a
                   href={receiptUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-xl transition"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    background: '#ecfdf5',
+                    color: '#065f46',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    border: '1px solid #a7f3d0',
+                    textDecoration: 'none'
+                  }}
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Open Digital Page
+                  <ExternalLink size={14} />
+                  Open Receipt Page
                 </a>
               </div>
             </div>
@@ -276,26 +292,25 @@ export default function EReceiptModal({
 
           {/* WhatsApp Tab */}
           {activeTab === 'whatsapp' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Customer WhatsApp Number
-                </label>
+            <div>
+              <div className="ereceipt-input-group">
+                <label className="ereceipt-input-label">Customer WhatsApp Number</label>
                 <input
                   type="tel"
                   placeholder="e.g. 0712345678"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                  className="ereceipt-input-field"
+                  style={{ fontFamily: 'monospace' }}
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Leave blank to choose contact manually inside WhatsApp.
-                </p>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                  Leave blank to choose customer contact inside WhatsApp.
+                </div>
               </div>
 
-              <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100 text-xs text-emerald-900 space-y-1">
-                <p className="font-semibold">Message Preview:</p>
-                <p className="text-slate-600 font-sans italic text-[11px]">
+              <div style={{ padding: 12, background: '#f0fdf4', borderRadius: 12, border: '1px solid #bbf7d0', fontSize: 12, color: '#166534', marginBottom: 16 }}>
+                <strong>Message:</strong>
+                <p style={{ margin: '4px 0 0', fontStyle: 'italic', fontSize: 11, color: '#475569' }}>
                   "🧾 Official Electronic Receipt from {businessName} for Order #{order.orderNumber} (KES {Number(order.subtotal).toLocaleString('en-KE')})..."
                 </p>
               </div>
@@ -303,9 +318,9 @@ export default function EReceiptModal({
               <button
                 type="button"
                 onClick={handleOpenWhatsApp}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.98]"
+                className="ereceipt-submit-btn btn-whatsapp-theme"
               >
-                <Share2 className="w-4 h-4" />
+                <Share2 size={16} />
                 Open WhatsApp & Send
               </button>
             </div>
@@ -313,30 +328,29 @@ export default function EReceiptModal({
 
           {/* SMS Tab */}
           {activeTab === 'sms' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Recipient Phone Number
-                </label>
+            <div>
+              <div className="ereceipt-input-group">
+                <label className="ereceipt-input-label">Recipient Phone Number</label>
                 <input
                   type="tel"
                   placeholder="e.g. 0712345678 or +254..."
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                  className="ereceipt-input-field"
+                  style={{ fontFamily: 'monospace' }}
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
                   Delivered instantly via SMS with the e-receipt link.
-                </p>
+                </div>
               </div>
 
               <button
                 type="button"
                 disabled={sending || !phone.trim()}
                 onClick={handleSendSms}
-                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.98]"
+                className="ereceipt-submit-btn btn-dark"
               >
-                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}
+                {sending ? <Loader2 size={16} className="animate-spin" /> : <Smartphone size={16} />}
                 {sending ? 'Sending SMS...' : 'Send SMS e-Receipt'}
               </button>
             </div>
@@ -344,45 +358,52 @@ export default function EReceiptModal({
 
           {/* Email Tab */}
           {activeTab === 'email' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Recipient Email Address
-                </label>
+            <div>
+              <div className="ereceipt-input-group">
+                <label className="ereceipt-input-label">Recipient Email Address</label>
                 <input
                   type="email"
                   placeholder="customer@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="ereceipt-input-field"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
                   Customer will receive a branded HTML receipt with item breakdown.
-                </p>
+                </div>
               </div>
 
               <button
                 type="button"
                 disabled={sending || !email.trim()}
                 onClick={handleSendEmail}
-                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.98]"
+                className="ereceipt-submit-btn btn-dark"
               >
-                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                {sending ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
                 {sending ? 'Sending Email...' : 'Send Email e-Receipt'}
               </button>
             </div>
           )}
         </div>
 
-        {/* Modal Footer */}
-        <div className="p-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
-          <span className="text-xs font-medium text-slate-500">
-            Total: <span className="font-bold text-slate-800 font-mono">KES {Number(order.subtotal).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</span>
+        {/* Footer */}
+        <div className="ereceipt-modal-footer">
+          <span style={{ fontSize: 12, color: '#64748b' }}>
+            Total: <strong style={{ color: '#0f172a', fontFamily: 'monospace' }}>KES {Number(order.subtotal).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</strong>
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition"
+            style={{
+              padding: '6px 14px',
+              borderRadius: 8,
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#334155',
+              cursor: 'pointer'
+            }}
           >
             Done
           </button>
