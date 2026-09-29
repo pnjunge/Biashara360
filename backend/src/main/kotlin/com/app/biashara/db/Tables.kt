@@ -496,3 +496,41 @@ object PurchaseInvoicesTable : Table("purchase_invoices") {
     override val primaryKey = PrimaryKey(id)
 }
 
+// ─── Report Schedules ────────────────────────────────────────────────────────
+object ReportSchedulesTable : Table("report_schedules") {
+    val id = varchar("id", 36)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
+    val branchId = varchar("branch_id", 36).references(BranchesTable.id, onDelete = SET_NULL).nullable()
+    val name = varchar("name", 255)
+    val reportType = varchar("report_type", 50)
+    val frequency = varchar("frequency", 20)
+    val timeOfDay = varchar("time_of_day", 5).default("20:00")
+    val dayOfWeek = integer("day_of_week").nullable()
+    val dayOfMonth = integer("day_of_month").nullable()
+    val channels = varchar("channels", 50).default("EMAIL")
+    val emailRecipients = text("email_recipients").nullable()
+    val whatsappRecipients = text("whatsapp_recipients").nullable()
+    val isActive = bool("is_active").default(true)
+    val lastRunAt = timestamp("last_run_at").nullable()
+    val lastStatus = varchar("last_status", 20).nullable()
+    val lastError = text("last_error").nullable()
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
+object ReportScheduleLogsTable : Table("report_schedule_logs") {
+    val id = varchar("id", 36)
+    val scheduleId = varchar("schedule_id", 36).references(ReportSchedulesTable.id, onDelete = CASCADE)
+    val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
+    val reportType = varchar("report_type", 50)
+    val period = varchar("period", 100)
+    val channels = varchar("channels", 50)
+    val status = varchar("status", 20)
+    val summaryText = text("summary_text").nullable()
+    val recipientsCount = integer("recipients_count").default(0)
+    val errorMessage = text("error_message").nullable()
+    val createdAt = timestamp("created_at")
+    override val primaryKey = PrimaryKey(id)
+}
+

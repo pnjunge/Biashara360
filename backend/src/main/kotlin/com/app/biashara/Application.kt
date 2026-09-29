@@ -67,8 +67,11 @@ fun Application.module() {
     // DI
     configureKoin(appConfig)
     val rateLimitStore = get<RateLimitStore>()
+    val reportSchedulerService = get<com.app.biashara.services.ReportSchedulerService>()
+    reportSchedulerService.startScheduler()
     environment.monitor.subscribe(ApplicationStopped) {
         rateLimitStore.close()
+        reportSchedulerService.stopScheduler()
     }
 
     // Plugins
@@ -139,6 +142,7 @@ fun Application.module() {
                 businessSettingsRoutes()
                 businessProfileRoutes()
                 branchRoutes()
+                reportScheduleRoutes()
             }
         }
     }

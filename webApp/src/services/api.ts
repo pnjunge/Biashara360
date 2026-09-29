@@ -814,6 +814,114 @@ export const reportApi = {
   },
 }
 
+export interface CreateReportScheduleRequest {
+  branchId?: string | null
+  name: string
+  reportType: 'SALES_SUMMARY' | 'PAYMENTS' | 'PROFIT_LOSS' | 'LOW_STOCK'
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY'
+  timeOfDay?: string // HH:mm
+  dayOfWeek?: number | null // 1..7
+  dayOfMonth?: number | null // 1..28
+  channels: 'EMAIL' | 'WHATSAPP' | 'EMAIL,WHATSAPP'
+  emailRecipients?: string | null
+  whatsappRecipients?: string | null
+  isActive?: boolean
+}
+
+export interface UpdateReportScheduleRequest {
+  branchId?: string | null
+  name?: string
+  reportType?: 'SALES_SUMMARY' | 'PAYMENTS' | 'PROFIT_LOSS' | 'LOW_STOCK'
+  frequency?: 'DAILY' | 'WEEKLY' | 'MONTHLY'
+  timeOfDay?: string
+  dayOfWeek?: number | null
+  dayOfMonth?: number | null
+  channels?: 'EMAIL' | 'WHATSAPP' | 'EMAIL,WHATSAPP'
+  emailRecipients?: string | null
+  whatsappRecipients?: string | null
+  isActive?: boolean
+}
+
+export interface ReportScheduleResponse {
+  id: string
+  businessId: string
+  branchId?: string | null
+  branchName?: string | null
+  name: string
+  reportType: 'SALES_SUMMARY' | 'PAYMENTS' | 'PROFIT_LOSS' | 'LOW_STOCK'
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY'
+  timeOfDay: string
+  dayOfWeek?: number | null
+  dayOfMonth?: number | null
+  channels: string
+  emailRecipients?: string | null
+  whatsappRecipients?: string | null
+  isActive: boolean
+  lastRunAt?: string | null
+  lastStatus?: 'SUCCESS' | 'PARTIAL' | 'FAILED' | null
+  lastError?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ReportScheduleLogResponse {
+  id: string
+  scheduleId: string
+  businessId: string
+  reportType: string
+  period: string
+  channels: string
+  status: 'SUCCESS' | 'PARTIAL' | 'FAILED'
+  summaryText?: string | null
+  recipientsCount: number
+  errorMessage?: string | null
+  createdAt: string
+}
+
+export interface SendReportNowResult {
+  success: boolean
+  message: string
+  logId?: string | null
+  summaryText?: string | null
+  whatsappUrls?: string[]
+}
+
+export const reportScheduleApi = {
+  list: async () => {
+    const res = await client.get<ApiResponse<ReportScheduleResponse[]>>('/report-schedules')
+    return res.data
+  },
+  get: async (id: string) => {
+    const res = await client.get<ApiResponse<ReportScheduleResponse>>(`/report-schedules/${id}`)
+    return res.data
+  },
+  create: async (data: CreateReportScheduleRequest) => {
+    const res = await client.post<ApiResponse<ReportScheduleResponse>>('/report-schedules', data)
+    return res.data
+  },
+  update: async (id: string, data: UpdateReportScheduleRequest) => {
+    const res = await client.put<ApiResponse<ReportScheduleResponse>>(`/report-schedules/${id}`, data)
+    return res.data
+  },
+  delete: async (id: string) => {
+    const res = await client.delete<ApiResponse<void>>(`/report-schedules/${id}`)
+    return res.data
+  },
+  toggleActive: async (id: string, isActive: boolean) => {
+    const res = await client.post<ApiResponse<ReportScheduleResponse>>(`/report-schedules/${id}/toggle-active`, { isActive })
+    return res.data
+  },
+  sendNow: async (id: string) => {
+    const res = await client.post<ApiResponse<SendReportNowResult>>(`/report-schedules/${id}/send-now`)
+    return res.data
+  },
+  getLogs: async (id?: string) => {
+    const endpoint = id ? `/report-schedules/${id}/logs` : '/report-schedules/logs/all'
+    const res = await client.get<ApiResponse<ReportScheduleLogResponse[]>>(endpoint)
+    return res.data
+  },
+}
+
 export const taxApi = {
   getRates: async () => {
     const res = await client.get<ApiResponse<TaxRateResponse[]>>('/tax/rates')

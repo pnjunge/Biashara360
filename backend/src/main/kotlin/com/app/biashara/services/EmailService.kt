@@ -148,7 +148,7 @@ class EmailService(
         )
     }
 
-    private fun sendHtmlEmail(to: String, emailSubject: String, html: String): Result<Unit> {
+    fun sendHtmlEmail(to: String, emailSubject: String, html: String): Result<Unit> {
         val currentUsername = getUsername()
         val currentPassword = getPassword()
         val currentHost = getHost()

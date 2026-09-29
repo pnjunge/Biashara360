@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer, ArrowRightLeft, Shield, MapPin } from 'lucide-react'
+import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer, ArrowRightLeft, Shield, MapPin, Clock } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
 import { expenseApi, paymentApi, orderApi, reportApi, customerApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, CustomerResponse, userApi, superAdminApi, businessApi, accessApi, branchApi, AccessConfig, AuditLogResponse, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest, BranchResponse } from '../services/api'
 import { useAuth } from '../App'
 import { ShareableReport, downloadReportCsv, emailReport, printReport, whatsappReport } from '../utils/reportShare'
+import { ReportSchedulerModal } from '../components/reports/ReportSchedulerModal'
 
 function getCurrentMonthRange() {
   const now = new Date()
@@ -384,6 +385,7 @@ export function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<string>('This Month')
   const [reportType, setReportType] = useState('SALES')
+  const [showScheduler, setShowScheduler] = useState(false)
 
   const loadReport = (selectedPeriod: string) => {
     setLoading(true)
@@ -471,6 +473,7 @@ export function ReportsPage() {
             <Btn variant="secondary" icon={<Table size={14}/>} disabled={!selectedReport||loading} onClick={()=>selectedReport&&downloadReportCsv(selectedReport)}>CSV</Btn>
             <Btn variant="secondary" icon={<Mail size={14}/>} disabled={!selectedReport||loading} onClick={()=>selectedReport&&emailReport(selectedReport)}>Email</Btn>
             <Btn variant="secondary" icon={<Share2 size={14}/>} disabled={!selectedReport||loading} onClick={()=>selectedReport&&whatsappReport(selectedReport)}>WhatsApp</Btn>
+            <Btn variant="primary" icon={<Clock size={14}/>} onClick={()=>setShowScheduler(true)}>Report Scheduler</Btn>
           </div>
         }
       />
@@ -626,6 +629,13 @@ export function ReportsPage() {
             new Date(order.createdAt).toLocaleString('en-KE'),
           ])} /> : <div style={{ color:'var(--b360-text-secondary)', fontSize:13 }}>No orders in this period.</div>}
         </Card>
+      )}
+
+      {showScheduler && (
+        <ReportSchedulerModal
+          onClose={() => setShowScheduler(false)}
+          businessName={businessName}
+        />
       )}
     </div>
   )
