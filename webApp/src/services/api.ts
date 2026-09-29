@@ -589,7 +589,7 @@ export interface ReassignUserRequest {
 
 export interface MenuDefinition { key: string; label: string }
 export interface AccessRole { id: string; name: string; description: string; allowedMenus: string[]; isActive: boolean }
-export interface AccessGroup { id: string; name: string; description: string; roleIds: string[]; userIds: string[]; isActive: boolean }
+export interface AccessGroup { id: string; name: string; description: string; allowedMenus: string[]; roleIds?: string[]; userIds: string[]; isActive: boolean }
 export interface AccessConfig { menus: MenuDefinition[]; enabledMenus: string[]; roles: AccessRole[]; groups: AccessGroup[] }
 export interface InventoryCategory { id: string; name: string; isActive: boolean; productCount: number; imageUrl?: string | null }
 
@@ -1188,8 +1188,8 @@ export const accessApi = {
   createRole: async (data: { name: string; description: string; allowedMenus: string[] }, businessId?: string) => (await client.post<ApiResponse<AccessRole>>('/access/config/roles', data, { params: businessId ? { businessId } : undefined })).data,
   updateRole: async (id: string, data: { name: string; description: string; allowedMenus: string[]; isActive: boolean }, businessId?: string) => (await client.put<ApiResponse<AccessRole>>(`/access/config/roles/${id}`, data, { params: businessId ? { businessId } : undefined })).data,
   deleteRole: async (id: string, businessId?: string) => (await client.delete<ApiResponse<boolean>>(`/access/config/roles/${id}`, { params: businessId ? { businessId } : undefined })).data,
-  createGroup: async (data: { name: string; description: string; roleIds: string[] }, businessId?: string) => (await client.post<ApiResponse<AccessGroup>>('/access/config/groups', data, { params: businessId ? { businessId } : undefined })).data,
-  updateGroup: async (id: string, data: { name: string; description: string; roleIds: string[]; isActive: boolean }, businessId?: string) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${id}`, data, { params: businessId ? { businessId } : undefined })).data,
+  createGroup: async (data: { name: string; description: string; allowedMenus?: string[]; roleIds?: string[] }, businessId?: string) => (await client.post<ApiResponse<AccessGroup>>('/access/config/groups', data, { params: businessId ? { businessId } : undefined })).data,
+  updateGroup: async (id: string, data: { name: string; description: string; allowedMenus?: string[]; roleIds?: string[]; isActive: boolean }, businessId?: string) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${id}`, data, { params: businessId ? { businessId } : undefined })).data,
   deleteGroup: async (id: string, businessId?: string) => (await client.delete<ApiResponse<boolean>>(`/access/config/groups/${id}`, { params: businessId ? { businessId } : undefined })).data,
   assignUsers: async (groupId: string, userIds: string[], businessId?: string) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${groupId}/users`, { userIds }, { params: businessId ? { businessId } : undefined })).data,
 }

@@ -676,7 +676,7 @@ export function UserCreationPage() {
   const [accessConfig, setAccessConfig] = useState<AccessConfig | null>(null)
   const [accessMessage, setAccessMessage] = useState('')
   const [roleDraft, setRoleDraft] = useState({ name:'', description:'', allowedMenus:[] as string[] })
-  const [groupDraft, setGroupDraft] = useState({ name:'', description:'', roleIds:[] as string[] })
+  const [groupDraft, setGroupDraft] = useState({ name:'', description:'', allowedMenus:[] as string[] })
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [inviteGroupId, setInviteGroupId] = useState('')
@@ -806,20 +806,20 @@ export function UserCreationPage() {
   }
   const createAccessGroup = async () => {
     if (!groupDraft.name.trim()) return setAccessMessage('Enter a group name.')
-    if (!groupDraft.roleIds.length) return setAccessMessage('Select at least one role for this group.')
+    if (!groupDraft.allowedMenus.length) return setAccessMessage('Select at least one right or menu for this group.')
     setAccessSaving('GROUP'); setAccessMessage('')
     try {
       const current = editingGroupId ? accessConfig?.groups.find(group => group.id === editingGroupId) : undefined
       const res = editingGroupId
-        ? await accessApi.updateGroup(editingGroupId, { ...groupDraft, isActive: current?.isActive ?? true }, accessBusinessId)
-        : await accessApi.createGroup(groupDraft, accessBusinessId)
+        ? await accessApi.updateGroup(editingGroupId, { ...groupDraft, roleIds: current?.roleIds ?? [], isActive: current?.isActive ?? true }, accessBusinessId)
+        : await accessApi.createGroup({ ...groupDraft, roleIds: [] }, accessBusinessId)
       if (res.success) {
-        setGroupDraft({name:'',description:'',roleIds:[]})
+        setGroupDraft({ name: '', description: '', allowedMenus: [] })
         setEditingGroupId(null)
         await loadAccess()
         setAccessMessage(editingGroupId ? 'Group updated.' : 'Group created.')
       } else setAccessMessage(res.message || (editingGroupId ? 'Could not update group.' : 'Could not create group.'))
-    } catch (e:any) { setAccessMessage(e.response?.data?.message || (editingGroupId ? 'Could not update group.' : 'Could not create group.')) }
+    } catch (e: any) { setAccessMessage(e.response?.data?.message || (editingGroupId ? 'Could not update group.' : 'Could not create group.')) }
     finally { setAccessSaving(null) }
   }
   const toggleGroupUser = async (groupId: string, current: string[], userId: string) => {
@@ -869,7 +869,7 @@ export function UserCreationPage() {
       if (res.success) {
         if (editingGroupId === group.id) {
           setEditingGroupId(null)
-          setGroupDraft({ name: '', description: '', roleIds: [] })
+          setGroupDraft({ name: '', description: '', allowedMenus: [] })
         }
         await loadAccess()
         loadUsers()
@@ -987,7 +987,7 @@ export function UserCreationPage() {
     if (isSuperAdmin && !selectedBusinessId) { setError('Please select a business.'); return }
     setSaving(true); setError('')
     try {
-      const selectedGroup = inviteGroupId || activeGroups.find(g => g.name.toLowerCase() === 'front')?.id || activeGroups[0]?.id
+      const selectedGroup = inviteGroupId || activeGroups.find(g => g.name.toLowerCase().includes('cashier'))?.id || activeGroups[0]?.id
       const payload: InviteUserRequest = {
         ...form,
         branchId: form.branchId || undefined,
@@ -1128,12 +1128,15 @@ export function UserCreationPage() {
             />
             <Select
               label="Access Group *"
-              value={inviteGroupId || activeGroups.find(g => g.name.toLowerCase() === 'front')?.id || activeGroups[0]?.id || ''}
+              value={inviteGroupId || activeGroups.find(g => g.name.toLowerCase().includes('cashier'))?.id || activeGroups[0]?.id || ''}
               onChange={setInviteGroupId}
               options={
                 activeGroups.length > 0
-                  ? activeGroups.map(g => ({ value: g.id, label: `${g.name}${g.description ? ` (${g.description})` : ''}` }))
-                  : [{ value: '', label: 'Front (Default)' }]
+                  ? activeGroups.map(g => ({
+                      value: g.id,
+                      label: `${g.name}${g.description ? ` (${g.description})` : ''} · ${g.allowedMenus?.length || 0} rights`
+                    }))
+                  : [{ value: '', label: 'Default Group' }]
               }
             />
             {activeRoles.length > 0 && (
@@ -1202,7 +1205,7 @@ export function UserCreationPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
                 {activeGroups.map(group => {
                   const isChecked = selectedUserGroupIds.includes(group.id)
-                  const roleNames = accessConfig?.roles.filter(r => group.roleIds.includes(r.id)).map(r => r.name).join(', ')
+                  const rightsText = group.allowedMenus?.map(k => accessConfig?.menus.find(m => m.key === k)?.label || k).join(', ')
                   return (
                     <label
                       key={group.id}
@@ -1224,8 +1227,11 @@ export function UserCreationPage() {
                       />
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{group.name}</div>
-                        <div style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>
-                          {group.description || 'No description'} {roleNames ? `· Roles: ${roleNames}` : ''}
+                        <div style={{ fontSize: 12, color: 'var(--b360-text-secondary)', marginTop: 2 }}>
+                          {group.description ? `${group.description} · ` : ''}
+                          <span style={{ color: 'var(--b360-blue)', fontWeight: 500 }}>
+                            {rightsText ? `Rights: ${rightsText}` : 'No rights assigned'}
+                          </span>
                         </div>
                       </div>
                     </label>
@@ -1334,6 +1340,9 @@ export function UserCreationPage() {
                       <div style={{ flex: 1 }}>
                         <span style={{ fontWeight: 600 }}>{group.name}</span>
                         {group.description && <span style={{ color: 'var(--b360-text-secondary)', marginLeft: 6 }}>· {group.description}</span>}
+                        <div style={{ fontSize: 11, color: 'var(--b360-blue)', marginTop: 2 }}>
+                          Rights: {group.allowedMenus?.map(k => accessConfig?.menus.find(m => m.key === k)?.label || k).join(', ') || 'No rights assigned'}
+                        </div>
                       </div>
                     </label>
                   )
@@ -1443,34 +1452,277 @@ export function UserCreationPage() {
       {accessConfig && (
         <>
           {isSuperAdmin && <Card style={{ padding: 16 }}><Select label="Business to manage" value={selectedBusinessId} onChange={setSelectedBusinessId} options={businesses.map(b => ({ value: b.id, label: `${b.name} · ${b.type}` }))} placeholder={bizLoading ? 'Loading businesses…' : 'Select business'} /></Card>}
-          <PageHeader title={`Menus, Roles & Groups${isSuperAdmin ? ` · ${businesses.find(b => b.id === selectedBusinessId)?.name || 'Selected business'}` : ''}`} />
+          <PageHeader title={`Access Groups & Rights${isSuperAdmin ? ` · ${businesses.find(b => b.id === selectedBusinessId)?.name || 'Selected business'}` : ''}`} />
           {accessMessage && <div style={{fontSize:13,color:'var(--b360-blue)'}}>{accessMessage}</div>}
-          <div style={{fontSize:12,color:'var(--b360-text-secondary)',background:'var(--b360-surface)',border:'1px solid var(--b360-border)',borderRadius:8,padding:'10px 12px'}}>Account roles control authentication and administrative authority. Custom access roles are bundled into groups, then assigned to users to control menu access.</div>
+          <div style={{fontSize:12,color:'var(--b360-text-secondary)',background:'var(--b360-surface)',border:'1px solid var(--b360-border)',borderRadius:8,padding:'10px 12px'}}>
+            Rights and menus are assigned directly to <strong>Access Groups</strong>. Users are assigned to groups to inherit operational permissions.
+          </div>
+
           <div className="responsive-grid responsive-grid-2" style={{gap:16}}>
             <Card style={{padding:20}}>
-              <h3 style={{margin:'0 0 6px'}}>Business menus</h3>
-              <p style={{fontSize:12,color:'var(--b360-text-secondary)'}}>Disabled menus are hidden for everyone in this business.</p>
+              <h3 style={{margin:'0 0 6px'}}>Business Enabled Menus</h3>
+              <p style={{fontSize:12,color:'var(--b360-text-secondary)'}}>Disabled menus are hidden globally across the entire business.</p>
               <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8,margin:'14px 0'}}>
-                {accessConfig.menus.map(menu => <label key={menu.key} style={{fontSize:12,display:'flex',gap:7,alignItems:'center'}}><input type="checkbox" checked={accessConfig.enabledMenus.includes(menu.key)} onChange={() => setAccessConfig({...accessConfig,enabledMenus:toggleValue(accessConfig.enabledMenus,menu.key)})}/>{menu.label}</label>)}
+                {accessConfig.menus.map(menu => (
+                  <label key={menu.key} style={{fontSize:12,display:'flex',gap:7,alignItems:'center'}}>
+                    <input
+                      type="checkbox"
+                      checked={accessConfig.enabledMenus.includes(menu.key)}
+                      onChange={() => setAccessConfig({...accessConfig,enabledMenus:toggleValue(accessConfig.enabledMenus,menu.key)})}
+                    />
+                    {menu.label}
+                  </label>
+                ))}
               </div>
-              <Btn small disabled={accessSaving!==null} onClick={saveMenus}>{accessSaving==='MENUS'?'Saving…':'Save menu availability'}</Btn>
+              <Btn small disabled={accessSaving!==null} onClick={saveMenus}>
+                {accessSaving==='MENUS'?'Saving…':'Save Menu Availability'}
+              </Btn>
             </Card>
+
             <Card style={{padding:20}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}><h3 style={{margin:'0 0 12px'}}>{editingRoleId ? 'Edit role' : 'Create role'}</h3>{editingRoleId && <Btn small variant="secondary" onClick={()=>{setEditingRoleId(null);setRoleDraft({name:'',description:'',allowedMenus:[]})}}>Cancel</Btn>}</div>
-              <Input label="Role name" value={roleDraft.name} onChange={v=>setRoleDraft({...roleDraft,name:v})} placeholder="e.g. Cashier" />
-              <Input label="Description" value={roleDraft.description} onChange={v=>setRoleDraft({...roleDraft,description:v})} placeholder="What this role is for" />
-              <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:7,margin:'12px 0'}}>{accessConfig.menus.map(menu=><label key={menu.key} style={{fontSize:12}}><input type="checkbox" checked={roleDraft.allowedMenus.includes(menu.key)} onChange={()=>setRoleDraft({...roleDraft,allowedMenus:toggleValue(roleDraft.allowedMenus,menu.key)})}/> {menu.label}</label>)}</div>
-              <Btn small disabled={accessSaving!==null} onClick={createAccessRole}>{accessSaving==='ROLE'?(editingRoleId?'Saving…':'Creating…'):(editingRoleId?'Save role':'Create role')}</Btn>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
+                <h3 style={{margin:'0 0 6px'}}>{editingGroupId ? 'Edit Access Group' : 'Create Access Group'}</h3>
+                {editingGroupId && (
+                  <Btn small variant="secondary" onClick={()=>{setEditingGroupId(null);setGroupDraft({name:'',description:'',allowedMenus:[]})}}>
+                    Cancel
+                  </Btn>
+                )}
+              </div>
+              <p style={{fontSize:12,color:'var(--b360-text-secondary)',marginBottom:12}}>
+                Configure group details and assign direct menu and operational rights.
+              </p>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                <Input label="Group Name *" value={groupDraft.name} onChange={v=>setGroupDraft({...groupDraft,name:v})} placeholder="e.g. Cashier, Supervisor, Storekeeper" />
+                <Input label="Description" value={groupDraft.description} onChange={v=>setGroupDraft({...groupDraft,description:v})} placeholder="e.g. Front desk sales and order handling" />
+              </div>
+
+              <div style={{marginTop:14}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,flexWrap:'wrap',gap:6}}>
+                  <label style={{fontSize:12,fontWeight:700}}>Allowed Rights & Menus ({groupDraft.allowedMenus.length} selected) *</label>
+                  <div style={{display:'flex',gap:6}}>
+                    <button
+                      type="button"
+                      style={{fontSize:11,background:'transparent',border:'1px solid var(--b360-border)',borderRadius:4,padding:'2px 6px',cursor:'pointer'}}
+                      onClick={() => setGroupDraft({...groupDraft, allowedMenus: accessConfig.menus.map(m => m.key)})}
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      style={{fontSize:11,background:'transparent',border:'1px solid var(--b360-border)',borderRadius:4,padding:'2px 6px',cursor:'pointer'}}
+                      onClick={() => setGroupDraft({...groupDraft, allowedMenus: []})}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+                  <span style={{fontSize:11,color:'var(--b360-text-secondary)',alignSelf:'center'}}>Presets:</span>
+                  <button
+                    type="button"
+                    style={{fontSize:11,background:'rgba(59,130,246,0.08)',color:'var(--b360-blue)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:4,padding:'2px 8px',cursor:'pointer'}}
+                    onClick={() => setGroupDraft(prev => ({
+                      ...prev,
+                      name: prev.name || 'Cashier',
+                      description: prev.description || 'POS sales, open tabs, card & cash payments',
+                      allowedMenus: ['POS', 'OPEN_TABS', 'PAYMENTS', 'CARD_PAYMENTS', 'ORDERS', 'CUSTOMERS']
+                    }))}
+                  >
+                    Cashier
+                  </button>
+                  <button
+                    type="button"
+                    style={{fontSize:11,background:'rgba(16,185,129,0.08)',color:'#059669',border:'1px solid rgba(16,185,129,0.25)',borderRadius:4,padding:'2px 8px',cursor:'pointer'}}
+                    onClick={() => setGroupDraft(prev => ({
+                      ...prev,
+                      name: prev.name || 'Storekeeper',
+                      description: prev.description || 'Inventory stock control and suppliers',
+                      allowedMenus: ['INVENTORY', 'SUPPLIERS', 'EXPENSES']
+                    }))}
+                  >
+                    Storekeeper
+                  </button>
+                  <button
+                    type="button"
+                    style={{fontSize:11,background:'rgba(147,51,234,0.08)',color:'#7e22ce',border:'1px solid rgba(147,51,234,0.25)',borderRadius:4,padding:'2px 8px',cursor:'pointer'}}
+                    onClick={() => setGroupDraft(prev => ({
+                      ...prev,
+                      name: prev.name || 'Supervisor',
+                      description: prev.description || 'Store operations, reports, void and expenses',
+                      allowedMenus: ['POS', 'OPEN_TABS', 'PAYMENTS', 'CARD_PAYMENTS', 'ORDERS', 'CUSTOMERS', 'REPORTS', 'EXPENSES']
+                    }))}
+                  >
+                    Supervisor
+                  </button>
+                  <button
+                    type="button"
+                    style={{fontSize:11,background:'rgba(245,158,11,0.08)',color:'#b45309',border:'1px solid rgba(245,158,11,0.25)',borderRadius:4,padding:'2px 8px',cursor:'pointer'}}
+                    onClick={() => setGroupDraft(prev => ({
+                      ...prev,
+                      name: prev.name || 'Manager',
+                      description: prev.description || 'Full store access including analytics and inventory',
+                      allowedMenus: accessConfig.menus.map(m => m.key)
+                    }))}
+                  >
+                    Manager
+                  </button>
+                </div>
+
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8,padding:10,background:'var(--b360-surface)',borderRadius:8,border:'1px solid var(--b360-border)',maxHeight:190,overflowY:'auto'}}>
+                  {accessConfig.menus.map(menu => {
+                    const isChecked = groupDraft.allowedMenus.includes(menu.key)
+                    const isGloballyEnabled = accessConfig.enabledMenus.includes(menu.key)
+                    return (
+                      <label key={menu.key} style={{fontSize:12,display:'flex',gap:6,alignItems:'center',opacity:isGloballyEnabled?1:0.5,cursor:'pointer'}}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => setGroupDraft({...groupDraft, allowedMenus: toggleValue(groupDraft.allowedMenus, menu.key)})}
+                        />
+                        <span>{menu.label} {!isGloballyEnabled && <span style={{fontSize:10,color:'var(--b360-text-secondary)'}}>(disabled)</span>}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div style={{marginTop:14}}>
+                <Btn small disabled={accessSaving!==null} onClick={createAccessGroup}>
+                  {accessSaving==='GROUP' ? (editingGroupId ? 'Saving…' : 'Creating…') : (editingGroupId ? 'Save Group' : 'Create Group')}
+                </Btn>
+              </div>
             </Card>
           </div>
-          <Card style={{padding:20}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}><h3 style={{margin:'0 0 12px'}}>{editingGroupId ? 'Edit group' : 'Create group'}</h3>{editingGroupId && <Btn small variant="secondary" onClick={()=>{setEditingGroupId(null);setGroupDraft({name:'',description:'',roleIds:[]})}}>Cancel</Btn>}</div>
-            <div className="responsive-grid responsive-grid-2" style={{gap:12}}><Input label="Group name" value={groupDraft.name} onChange={v=>setGroupDraft({...groupDraft,name:v})} placeholder="e.g. Front Desk"/><Input label="Description" value={groupDraft.description} onChange={v=>setGroupDraft({...groupDraft,description:v})} placeholder="Team description"/></div>
-            <div style={{display:'flex',gap:14,flexWrap:'wrap',margin:'12px 0'}}>{accessConfig.roles.map(role=><label key={role.id} style={{fontSize:12}}><input type="checkbox" checked={groupDraft.roleIds.includes(role.id)} onChange={()=>setGroupDraft({...groupDraft,roleIds:toggleValue(groupDraft.roleIds,role.id)})}/> {role.name}</label>)}</div>
-            <Btn small disabled={accessSaving!==null} onClick={createAccessGroup}>{accessSaving==='GROUP'?(editingGroupId?'Saving…':'Creating…'):(editingGroupId?'Save group':'Create group')}</Btn>
-          </Card>
-          <Card style={{padding:20}}><h3 style={{margin:'0 0 12px'}}>Existing roles</h3>{accessConfig.roles.map(role=><div key={role.id} style={{display:'flex',justifyContent:'space-between',gap:12,padding:'10px 0',borderTop:'1px solid var(--b360-border)'}}><div><b>{role.name}</b><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{role.allowedMenus.length} menus · {role.isActive?'Active':'Disabled'}</div></div><div style={{display:'flex',gap:6}}><Btn small variant="secondary" onClick={()=>{setEditingRoleId(role.id);setRoleDraft({name:role.name,description:role.description,allowedMenus:role.allowedMenus});window.scrollTo({top:0,behavior:'smooth'})}}>Edit</Btn><Btn small variant="secondary" onClick={()=>updateAccessRole(role,!role.isActive)}>{role.isActive?'Disable':'Enable'}</Btn><Btn small variant="danger" onClick={()=>deleteAccessRole(role)}>Delete</Btn></div></div>)}</Card>
-          {accessConfig.groups.map(group => <Card key={group.id} style={{padding:16,opacity:group.isActive?1:.65}}><div style={{display:'flex',justifyContent:'space-between',gap:12}}><div><div style={{fontWeight:700}}>{group.name}</div><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>{group.description || 'No description'} · Roles: {accessConfig.roles.filter(r=>group.roleIds.includes(r.id)).map(r=>r.name).join(', ') || 'None'}</div></div><div style={{display:'flex',gap:6}}><Btn small variant="secondary" onClick={()=>{setEditingGroupId(group.id);setGroupDraft({name:group.name,description:group.description,roleIds:group.roleIds});window.scrollTo({top:0,behavior:'smooth'})}}>Edit</Btn><Btn small variant="secondary" onClick={()=>updateAccessGroup(group,!group.isActive)}>{group.isActive?'Disable':'Enable'}</Btn><Btn small variant="danger" onClick={()=>deleteAccessGroup(group)}>Delete</Btn></div></div><div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:10}}>{users.map(member=><label key={member.id} style={{fontSize:12}}><input type="checkbox" disabled={!group.isActive} checked={group.userIds.includes(member.id)} onChange={()=>toggleGroupUser(group.id,group.userIds,member.id)}/> {member.name}</label>)}</div></Card>)}
+
+          <div style={{marginTop:16}}>
+            <h3 style={{margin:'0 0 12px'}}>Existing Access Groups ({accessConfig.groups.length})</h3>
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              {accessConfig.groups.map(group => {
+                return (
+                  <Card key={group.id} style={{padding:16,opacity:group.isActive?1:0.65}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
+                      <div>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          <span style={{fontWeight:700,fontSize:14}}>{group.name}</span>
+                          <span style={{
+                            fontSize:10,
+                            padding:'1px 6px',
+                            borderRadius:10,
+                            fontWeight:700,
+                            background:group.isActive ? 'rgba(16,185,129,0.1)' : 'rgba(100,116,139,0.1)',
+                            color:group.isActive ? '#059669' : '#64748b',
+                            border:`1px solid ${group.isActive ? 'rgba(16,185,129,0.25)' : 'rgba(100,116,139,0.25)'}`
+                          }}>
+                            {group.isActive ? 'ACTIVE' : 'DISABLED'}
+                          </span>
+                        </div>
+                        {group.description && (
+                          <div style={{fontSize:12,color:'var(--b360-text-secondary)',marginTop:3}}>
+                            {group.description}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{display:'flex',gap:6}}>
+                        <Btn small variant="secondary" onClick={()=>{
+                          setEditingGroupId(group.id)
+                          setGroupDraft({name:group.name,description:group.description,allowedMenus:group.allowedMenus || []})
+                          window.scrollTo({top:0,behavior:'smooth'})
+                        }}>
+                          Edit
+                        </Btn>
+                        <Btn small variant="secondary" onClick={()=>updateAccessGroup(group,!group.isActive)}>
+                          {group.isActive?'Disable':'Enable'}
+                        </Btn>
+                        <Btn small variant="danger" onClick={()=>deleteAccessGroup(group)}>
+                          Delete
+                        </Btn>
+                      </div>
+                    </div>
+
+                    {/* Rights Badges */}
+                    <div style={{marginTop:12}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'var(--b360-text-secondary)',textTransform:'uppercase',letterSpacing:'0.04em',marginBottom:6}}>
+                        Assigned Rights ({group.allowedMenus?.length || 0}):
+                      </div>
+                      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                        {(group.allowedMenus && group.allowedMenus.length > 0) ? (
+                          group.allowedMenus.map(k => {
+                            const label = accessConfig.menus.find(m => m.key === k)?.label || k
+                            return (
+                              <span
+                                key={k}
+                                style={{
+                                  display:'inline-flex',
+                                  alignItems:'center',
+                                  padding:'2px 8px',
+                                  borderRadius:6,
+                                  fontSize:11,
+                                  fontWeight:600,
+                                  background:'rgba(59,130,246,0.08)',
+                                  color:'#1d4ed8',
+                                  border:'1px solid rgba(59,130,246,0.2)'
+                                }}
+                              >
+                                {label}
+                              </span>
+                            )
+                          })
+                        ) : (
+                          <span style={{fontSize:12,color:'var(--b360-text-secondary)',fontStyle:'italic'}}>
+                            No rights assigned. Click Edit to add rights.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Member Assignment */}
+                    <div style={{marginTop:12,paddingTop:10,borderTop:'1px solid var(--b360-border)'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                        <span style={{fontSize:11,fontWeight:700,color:'var(--b360-text-secondary)',textTransform:'uppercase',letterSpacing:'0.04em'}}>
+                          Group Members ({group.userIds.length}):
+                        </span>
+                        <span style={{fontSize:11,color:'var(--b360-text-secondary)'}}>
+                          Click user to add or remove
+                        </span>
+                      </div>
+                      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                        {users.map(member => {
+                          const isMember = group.userIds.includes(member.id)
+                          return (
+                            <label
+                              key={member.id}
+                              style={{
+                                display:'inline-flex',
+                                alignItems:'center',
+                                gap:6,
+                                padding:'3px 8px',
+                                borderRadius:6,
+                                fontSize:12,
+                                cursor:group.isActive ? 'pointer' : 'not-allowed',
+                                background:isMember ? 'rgba(16,185,129,0.1)' : 'var(--b360-surface)',
+                                border:`1px solid ${isMember ? 'rgba(16,185,129,0.3)' : 'var(--b360-border)'}`,
+                                color:isMember ? '#065f46' : 'inherit'
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                disabled={!group.isActive}
+                                checked={isMember}
+                                onChange={()=>toggleGroupUser(group.id,group.userIds,member.id)}
+                              />
+                              <span>{member.name}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+          </div>
         </>
       )}
 
@@ -1494,12 +1746,11 @@ export function UserCreationPage() {
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading users…</div>
         ) : (
           <DataTable
-            headers={['Name', 'Email', 'Phone', 'Branch', 'Account Role', 'Assigned Groups & Roles', 'Status', 'Actions']}
+            headers={['Name', 'Email', 'Phone', 'Branch', 'Account Role', 'Assigned Groups', 'Status', 'Actions']}
             rows={users.map(u => {
               const userGroups = u.assignedGroups && u.assignedGroups.length > 0
                 ? u.assignedGroups
                 : accessConfig?.groups.filter(g => g.userIds.includes(u.id)).map(g => g.name) || []
-              const userDirectRoles = u.assignedRoles || []
 
               return [
                 <div key="name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1545,28 +1796,37 @@ export function UserCreationPage() {
                   </span>
                 </div>,
                 <div key="assignments" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 160, maxWidth: 280 }}>
-                  {userGroups.length > 0 && (
+                  {userGroups.length > 0 ? (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-                      <span style={{ fontSize: 10, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Groups:</span>
-                      {userGroups.map(name => (
-                        <span key={name} style={{ display: 'inline-flex', alignItems: 'center', background: 'rgba(59, 130, 246, 0.1)', color: '#1d4ed8', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: 12, padding: '1px 8px', fontSize: 11, fontWeight: 500 }}>
-                          {name}
-                        </span>
-                      ))}
+                      {userGroups.map(name => {
+                        const grp = accessConfig?.groups.find(g => g.name === name)
+                        const rightsSummary = grp?.allowedMenus && grp.allowedMenus.length > 0
+                          ? grp.allowedMenus.map(k => accessConfig?.menus.find(m => m.key === k)?.label || k).join(', ')
+                          : ''
+                        return (
+                          <span
+                            key={name}
+                            title={rightsSummary ? `Rights: ${rightsSummary}` : undefined}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              background: 'rgba(59, 130, 246, 0.1)',
+                              color: '#1d4ed8',
+                              border: '1px solid rgba(59, 130, 246, 0.25)',
+                              borderRadius: 12,
+                              padding: '2px 8px',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: rightsSummary ? 'help' : 'default'
+                            }}
+                          >
+                            {name}
+                          </span>
+                        )
+                      })}
                     </div>
-                  )}
-                  {userDirectRoles.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-                      <span style={{ fontSize: 10, color: 'var(--b360-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Roles:</span>
-                      {userDirectRoles.map(name => (
-                        <span key={name} style={{ display: 'inline-flex', alignItems: 'center', background: 'rgba(147, 51, 234, 0.1)', color: '#7e22ce', border: '1px solid rgba(147, 51, 234, 0.25)', borderRadius: 12, padding: '1px 8px', fontSize: 11, fontWeight: 500 }}>
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {userGroups.length === 0 && userDirectRoles.length === 0 && (
-                    <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)', fontStyle: 'italic' }}>Front (Default)</span>
+                  ) : (
+                    <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)', fontStyle: 'italic' }}>No group assigned</span>
                   )}
                 </div>,
                 <StatusBadge key="status" status={u.isActive === false ? 'INACTIVE' : 'ACTIVE'} />,

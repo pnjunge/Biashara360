@@ -89,6 +89,7 @@ object AccessGroupsTable : Table("access_groups") {
     val businessId = varchar("business_id", 36).references(BusinessesTable.id, onDelete = CASCADE)
     val name = varchar("name", 80)
     val description = varchar("description", 255).default("")
+    val allowedMenus = text("allowed_menus").default("")
     val isActive = bool("is_active").default(true)
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")

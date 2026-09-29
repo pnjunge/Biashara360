@@ -911,6 +911,20 @@ fun ApplicationCall.hasModule(module: String): Boolean {
         if (businessMenus.intersect(moduleMenus).isEmpty()) return@transaction false
         if (userRole() == "ADMIN") return@transaction true
 
+        val directGroupMenus = (UserAccessGroupsTable innerJoin AccessGroupsTable)
+            .slice(AccessGroupsTable.allowedMenus)
+            .select {
+                (UserAccessGroupsTable.userId eq userId) and
+                    (AccessGroupsTable.businessId eq bId) and
+                    (AccessGroupsTable.isActive eq true)
+            }.flatMap { it[AccessGroupsTable.allowedMenus].split(',') }
+            .map { it.trim().uppercase() }
+            .filter { it.isNotEmpty() }
+
+        if (directGroupMenus.isNotEmpty()) {
+            return@transaction directGroupMenus.any { it in moduleMenus }
+        }
+
         val assignedRoles = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)
             .slice(AccessGroupRolesTable.roleId)
             .select {
@@ -943,21 +957,36 @@ fun ApplicationCall.hasAnyMenu(vararg requestedMenus: String): Boolean {
         if (business[BusinessesTable.servicesEnabled]) enabled += "SERVICES" else enabled -= "SERVICES"
         if (enabled.intersect(requested).isEmpty()) return@transaction false
         if (userRole() == "ADMIN") return@transaction true
-        val roleIds = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)
-            .slice(AccessGroupRolesTable.roleId)
+
+        val directGroupMenus = (UserAccessGroupsTable innerJoin AccessGroupsTable)
+            .slice(AccessGroupsTable.allowedMenus)
             .select {
                 (UserAccessGroupsTable.userId eq userId) and
                     (AccessGroupsTable.businessId eq businessId) and
                     (AccessGroupsTable.isActive eq true)
-            }.map { it[AccessGroupRolesTable.roleId] }
-        val allowed = if (roleIds.isEmpty()) {
-            BUSINESS_MENUS.map { it.key }.toSet() - setOf("USERS", "SETTINGS")
+            }.flatMap { it[AccessGroupsTable.allowedMenus].split(',') }
+            .map { it.trim().uppercase() }
+            .filter { it.isNotEmpty() }
+
+        val allowed = if (directGroupMenus.isNotEmpty()) {
+            directGroupMenus.toSet()
         } else {
-            AccessRolesTable.select {
-                (AccessRolesTable.businessId eq businessId) and
-                    (AccessRolesTable.id inList roleIds) and
-                    (AccessRolesTable.isActive eq true)
-            }.flatMap { it[AccessRolesTable.allowedMenus].split(',') }.map { it.trim().uppercase() }.toSet()
+            val roleIds = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)
+                .slice(AccessGroupRolesTable.roleId)
+                .select {
+                    (UserAccessGroupsTable.userId eq userId) and
+                        (AccessGroupsTable.businessId eq businessId) and
+                        (AccessGroupsTable.isActive eq true)
+                }.map { it[AccessGroupRolesTable.roleId] }
+            if (roleIds.isEmpty()) {
+                BUSINESS_MENUS.map { it.key }.toSet() - setOf("USERS", "SETTINGS")
+            } else {
+                AccessRolesTable.select {
+                    (AccessRolesTable.businessId eq businessId) and
+                        (AccessRolesTable.id inList roleIds) and
+                        (AccessRolesTable.isActive eq true)
+                }.flatMap { it[AccessRolesTable.allowedMenus].split(',') }.map { it.trim().uppercase() }.toSet()
+            }
         }
         enabled.intersect(allowed).intersect(requested).isNotEmpty()
     }

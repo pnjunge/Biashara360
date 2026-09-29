@@ -38,52 +38,54 @@ class AccessControlService(
 
     private fun ensureDefaults(businessId: String) {
         val now = Clock.System.now()
-        val existingRoles = AccessRolesTable.select { AccessRolesTable.businessId eq businessId }.count()
-        val defaultRoleId = if (existingRoles == 0L) {
-            val roleId = generateId()
-            AccessRolesTable.insert {
-                it[id] = roleId
-                it[AccessRolesTable.businessId] = businessId
-                it[name] = "Staff Access"
-                it[description] = "Standard operational menus for staff"
-                it[allowedMenus] = DEFAULT_STAFF_MENUS.joinToString(",")
-                it[isActive] = true
-                it[createdAt] = now
-                it[updatedAt] = now
-            }
-            roleId
-        } else {
-            AccessRolesTable.select { AccessRolesTable.businessId eq businessId }.first()[AccessRolesTable.id]
-        }
-
         val existingGroups = AccessGroupsTable.select { AccessGroupsTable.businessId eq businessId }.count()
         if (existingGroups == 0L) {
-            val groupId = generateId()
-            AccessGroupsTable.insert {
-                it[id] = groupId
-                it[AccessGroupsTable.businessId] = businessId
-                it[name] = "Front"
-                it[description] = "Front operations team"
-                it[isActive] = true
-                it[createdAt] = now
-                it[updatedAt] = now
-            }
-            AccessGroupRolesTable.insert {
-                it[AccessGroupRolesTable.groupId] = groupId
-                it[AccessGroupRolesTable.roleId] = defaultRoleId
+            val defaults = listOf(
+                Triple("Cashier", "Point of sale, open tabs, collections and customer sales", listOf("POS", "OPEN_TABS", "PAYMENTS", "CARD_PAYMENTS", "ORDERS", "CUSTOMERS")),
+                Triple("Supervisor", "Floor operations, bar/restaurant supervision, orders and reports", listOf("HOSPITALITY", "OPEN_TABS", "HOSPITALITY_OPS", "ORDERS", "REPORTS")),
+                Triple("Storekeeper", "Inventory stock tracking, purchases, and operating expenses", listOf("INVENTORY", "PURCHASES", "EXPENSES")),
+                Triple("Manager", "Full business operations, reports, accounting and store settings", listOf("DASHBOARD", "POS", "HOSPITALITY", "HOSPITALITY_OPS", "SERVICES", "OPEN_TABS", "INVENTORY", "PURCHASES", "ORDERS", "CUSTOMERS", "EXPENSES", "PAYMENTS", "CARD_PAYMENTS", "TAX", "KRA", "REPORTS", "DOWNLOADS", "SETTINGS"))
+            )
+            for ((gName, gDesc, gMenus) in defaults) {
+                val groupId = generateId()
+                AccessGroupsTable.insert {
+                    it[id] = groupId
+                    it[AccessGroupsTable.businessId] = businessId
+                    it[name] = gName
+                    it[description] = gDesc
+                    it[allowedMenus] = gMenus.joinToString(",")
+                    it[isActive] = true
+                    it[createdAt] = now
+                    it[updatedAt] = now
+                }
             }
         } else {
-            val frontGroup = AccessGroupsTable.select {
-                (AccessGroupsTable.businessId eq businessId) and (AccessGroupsTable.name.lowerCase() eq "front")
-            }.firstOrNull()
-            if (frontGroup != null) {
-                val fId = frontGroup[AccessGroupsTable.id]
-                val hasRoles = AccessGroupRolesTable.select { AccessGroupRolesTable.groupId eq fId }.any()
-                if (!hasRoles) {
-                    AccessGroupRolesTable.insert {
-                        it[AccessGroupRolesTable.groupId] = fId
-                        it[AccessGroupRolesTable.roleId] = defaultRoleId
-                    }
+            // Populate allowedMenus for any existing group where it is empty
+            val emptyGroups = AccessGroupsTable.select {
+                (AccessGroupsTable.businessId eq businessId) and (AccessGroupsTable.allowedMenus eq "")
+            }.toList()
+            for (g in emptyGroups) {
+                val gId = g[AccessGroupsTable.id]
+                val gName = g[AccessGroupsTable.name]
+                val legacyRoleMenus = (AccessGroupRolesTable innerJoin AccessRolesTable)
+                    .select { AccessGroupRolesTable.groupId eq gId }
+                    .flatMap { csv(it[AccessRolesTable.allowedMenus]) }
+                    .distinct()
+                val fallbackMenus = when {
+                    legacyRoleMenus.isNotEmpty() -> legacyRoleMenus
+                    gName.contains("cashier", ignoreCase = true) || gName.contains("front", ignoreCase = true) ->
+                        listOf("POS", "OPEN_TABS", "PAYMENTS", "CARD_PAYMENTS", "ORDERS", "CUSTOMERS")
+                    gName.contains("supervisor", ignoreCase = true) ->
+                        listOf("HOSPITALITY", "OPEN_TABS", "HOSPITALITY_OPS", "ORDERS", "REPORTS")
+                    gName.contains("inventory", ignoreCase = true) || gName.contains("store", ignoreCase = true) ->
+                        listOf("INVENTORY", "PURCHASES", "EXPENSES")
+                    gName.contains("manager", ignoreCase = true) ->
+                        listOf("DASHBOARD", "POS", "HOSPITALITY", "HOSPITALITY_OPS", "SERVICES", "OPEN_TABS", "INVENTORY", "PURCHASES", "ORDERS", "CUSTOMERS", "EXPENSES", "PAYMENTS", "CARD_PAYMENTS", "TAX", "KRA", "REPORTS", "DOWNLOADS", "SETTINGS")
+                    else -> listOf("POS", "OPEN_TABS", "PAYMENTS", "ORDERS", "CUSTOMERS")
+                }
+                AccessGroupsTable.update({ AccessGroupsTable.id eq gId }) {
+                    it[allowedMenus] = fallbackMenus.joinToString(",")
+                    it[updatedAt] = now
                 }
             }
         }
@@ -91,30 +93,28 @@ class AccessControlService(
 
     fun myMenus(businessId: String, userId: String, builtInRole: String): MyMenuAccessResponse = transaction {
         val enabled = businessMenus(businessId).toSet()
-        if (builtInRole == "ADMIN") return@transaction MyMenuAccessResponse(enabled.toList())
-        val groupRoleIds = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)
-            .slice(AccessGroupRolesTable.roleId)
+        if (builtInRole == "ADMIN" || builtInRole == "SUPERADMIN") return@transaction MyMenuAccessResponse(enabled.toList())
+
+        // 1. Direct rights assigned to the user's groups
+        val directGroupMenus = (UserAccessGroupsTable innerJoin AccessGroupsTable)
+            .slice(AccessGroupsTable.allowedMenus)
             .select {
                 (UserAccessGroupsTable.userId eq userId) and
                     (AccessGroupsTable.businessId eq businessId) and
                     (AccessGroupsTable.isActive eq true)
-            }.map { it[AccessGroupRolesTable.roleId] }
+            }.flatMap { csv(it[AccessGroupsTable.allowedMenus]) }
 
-        val directRoleIds = (UserAccessRolesTable innerJoin AccessRolesTable)
-            .slice(UserAccessRolesTable.roleId)
+        // 2. Legacy direct roles / role-to-group fallback
+        val legacyRoleMenus = (UserAccessRolesTable innerJoin AccessRolesTable)
+            .slice(AccessRolesTable.allowedMenus)
             .select {
                 (UserAccessRolesTable.userId eq userId) and
                     (AccessRolesTable.businessId eq businessId) and
                     (AccessRolesTable.isActive eq true)
-            }.map { it[UserAccessRolesTable.roleId] }
+            }.flatMap { csv(it[AccessRolesTable.allowedMenus]) }
 
-        val assignedRoleIds = (groupRoleIds + directRoleIds).distinct()
-        val allowed = if (assignedRoleIds.isEmpty()) DEFAULT_STAFF_MENUS else AccessRolesTable
-            .select {
-                (AccessRolesTable.id inList assignedRoleIds) and
-                    (AccessRolesTable.businessId eq businessId) and
-                    (AccessRolesTable.isActive eq true)
-            }.flatMap { csv(it[AccessRolesTable.allowedMenus]) }.toSet()
+        val allAssigned = (directGroupMenus + legacyRoleMenus).distinct()
+        val allowed = if (allAssigned.isEmpty()) DEFAULT_STAFF_MENUS else allAssigned.toSet()
         MyMenuAccessResponse((enabled intersect allowed).sorted())
     }
 
@@ -157,12 +157,33 @@ class AccessControlService(
     fun createGroup(businessId: String, request: SaveAccessGroupRequest): AccessGroupResponse = transaction {
         require(request.name.trim().length in 2..80) { "Group name must be between 2 and 80 characters" }
         require(AccessGroupsTable.select { AccessGroupsTable.businessId eq businessId }.none { it[AccessGroupsTable.name].equals(request.name.trim(), ignoreCase = true) }) { "A group with this name already exists" }
+        
+        // Allowed menus can be passed directly or inherited from legacy roles
+        val legacyRoleMenus = if (request.roleIds.isNotEmpty()) {
+            AccessRolesTable.select {
+                (AccessRolesTable.businessId eq businessId) and (AccessRolesTable.id inList request.roleIds)
+            }.flatMap { csv(it[AccessRolesTable.allowedMenus]) }
+        } else emptyList()
+
+        val allMenus = (request.allowedMenus + legacyRoleMenus).distinct()
+        val menus = validateMenus(if (allMenus.isNotEmpty()) allMenus else DEFAULT_STAFF_MENUS.toList())
+
+        val id = generateId()
+        val now = Clock.System.now()
+        AccessGroupsTable.insert { row ->
+            row[AccessGroupsTable.id] = id
+            row[AccessGroupsTable.businessId] = businessId
+            row[name] = request.name.trim()
+            row[description] = request.description.trim().take(255)
+            row[allowedMenus] = menus.joinToString(",")
+            row[isActive] = request.isActive
+            row[createdAt] = now
+            row[updatedAt] = now
+        }
         val roleIds = request.roleIds.distinct()
-        require(roleIds.isEmpty() || AccessRolesTable.select { (AccessRolesTable.businessId eq businessId) and (AccessRolesTable.id inList roleIds) }.count().toInt() == roleIds.size) { "One or more roles are invalid" }
-        val id=generateId(); val now=Clock.System.now()
-        AccessGroupsTable.insert { row -> row[AccessGroupsTable.id]=id; row[AccessGroupsTable.businessId]=businessId; row[name]=request.name.trim(); row[description]=request.description.trim().take(255); row[isActive]=request.isActive; row[createdAt]=now; row[updatedAt]=now }
-        roleIds.forEach { roleId -> AccessGroupRolesTable.insert { it[groupId]=id; it[AccessGroupRolesTable.roleId]=roleId } }
-        AccessGroupResponse(id, request.name.trim(), request.description.trim().take(255), roleIds, emptyList(), request.isActive)
+        roleIds.forEach { roleId -> AccessGroupRolesTable.insert { it[groupId] = id; it[AccessGroupRolesTable.roleId] = roleId } }
+        auditLogService?.logEvent(businessId, null, null, "CREATE_ACCESS_GROUP", null, "Created access group ${request.name.trim()} with ${menus.size} rights")
+        AccessGroupResponse(id, request.name.trim(), request.description.trim().take(255), menus, roleIds, emptyList(), request.isActive)
     }
 
     fun updateGroup(businessId: String, groupId: String, request: SaveAccessGroupRequest): AccessGroupResponse = transaction {
@@ -172,27 +193,37 @@ class AccessControlService(
         require(AccessGroupsTable.select { AccessGroupsTable.businessId eq businessId }.none {
             it[AccessGroupsTable.id] != groupId && it[AccessGroupsTable.name].equals(name, ignoreCase = true)
         }) { "A group with this name already exists" }
-        val roleIds = request.roleIds.distinct()
-        require(roleIds.isEmpty() || AccessRolesTable.select {
-            (AccessRolesTable.businessId eq businessId) and (AccessRolesTable.id inList roleIds)
-        }.count().toInt() == roleIds.size) { "One or more roles are invalid" }
+
+        val legacyRoleMenus = if (request.roleIds.isNotEmpty()) {
+            AccessRolesTable.select {
+                (AccessRolesTable.businessId eq businessId) and (AccessRolesTable.id inList request.roleIds)
+            }.flatMap { csv(it[AccessRolesTable.allowedMenus]) }
+        } else emptyList()
+
+        val allMenus = (request.allowedMenus + legacyRoleMenus).distinct()
+        val menus = validateMenus(if (allMenus.isNotEmpty()) allMenus else DEFAULT_STAFF_MENUS.toList())
+
         AccessGroupsTable.update({ AccessGroupsTable.id eq groupId }) {
             it[AccessGroupsTable.name] = name
             it[description] = request.description.trim().take(255)
+            it[allowedMenus] = menus.joinToString(",")
             it[isActive] = request.isActive
             it[updatedAt] = Clock.System.now()
         }
+        val roleIds = request.roleIds.distinct()
         AccessGroupRolesTable.deleteWhere { AccessGroupRolesTable.groupId eq groupId }
         roleIds.forEach { roleId -> AccessGroupRolesTable.insert { it[AccessGroupRolesTable.groupId] = groupId; it[AccessGroupRolesTable.roleId] = roleId } }
+        auditLogService?.logEvent(businessId, null, null, "UPDATE_ACCESS_GROUP", null, "Updated access group $name with ${menus.size} rights")
         groups(businessId).first { it.id == groupId }
     }
 
     fun assignUsers(businessId: String, groupId: String, request: AssignGroupUsersRequest): AccessGroupResponse = transaction {
         require(AccessGroupsTable.select { (AccessGroupsTable.id eq groupId) and (AccessGroupsTable.businessId eq businessId) }.any()) { "Group not found" }
-        val userIds=request.userIds.distinct()
+        val userIds = request.userIds.distinct()
         require(userIds.isEmpty() || UsersTable.select { (UsersTable.businessId eq businessId) and (UsersTable.id inList userIds) }.count().toInt() == userIds.size) { "One or more users are invalid" }
         UserAccessGroupsTable.deleteWhere { UserAccessGroupsTable.groupId eq groupId }
-        userIds.forEach { userId -> UserAccessGroupsTable.insert { it[UserAccessGroupsTable.userId]=userId; it[UserAccessGroupsTable.groupId]=groupId } }
+        userIds.forEach { userId -> UserAccessGroupsTable.insert { it[UserAccessGroupsTable.userId] = userId; it[UserAccessGroupsTable.groupId] = groupId } }
+        auditLogService?.logEvent(businessId, null, null, "ASSIGN_GROUP_USERS", null, "Assigned ${userIds.size} users to group $groupId")
         groups(businessId).first { it.id == groupId }
     }
 
@@ -224,7 +255,9 @@ class AccessControlService(
         require(exists) { "Group not found" }
         AccessGroupRolesTable.deleteWhere { AccessGroupRolesTable.groupId eq groupId }
         UserAccessGroupsTable.deleteWhere { UserAccessGroupsTable.groupId eq groupId }
-        AccessGroupsTable.deleteWhere { (AccessGroupsTable.id eq groupId) and (AccessGroupsTable.businessId eq businessId) } > 0
+        val deleted = AccessGroupsTable.deleteWhere { (AccessGroupsTable.id eq groupId) and (AccessGroupsTable.businessId eq businessId) } > 0
+        if (deleted) auditLogService?.logEvent(businessId, null, null, "DELETE_ACCESS_GROUP", null, "Deleted access group $groupId")
+        deleted
     }
 
     fun toggleGroupStatus(businessId: String, groupId: String, isActive: Boolean): AccessGroupResponse = transaction {
@@ -234,6 +267,7 @@ class AccessControlService(
             it[AccessGroupsTable.isActive] = isActive
             it[updatedAt] = Clock.System.now()
         }
+        auditLogService?.logEvent(businessId, null, null, "TOGGLE_GROUP_STATUS", null, "Toggled group $groupId active=$isActive")
         groups(businessId).first { it.id == groupId }
     }
 
@@ -249,12 +283,29 @@ class AccessControlService(
         if (business[BusinessesTable.servicesEnabled]) menus += "SERVICES" else menus -= "SERVICES"
         return menus.toList()
     }
-    private fun roles(businessId: String) = AccessRolesTable.select { AccessRolesTable.businessId eq businessId }.orderBy(AccessRolesTable.name).map { AccessRoleResponse(it[AccessRolesTable.id],it[AccessRolesTable.name],it[AccessRolesTable.description],csv(it[AccessRolesTable.allowedMenus]),it[AccessRolesTable.isActive]) }
+
+    private fun roles(businessId: String) = AccessRolesTable.select { AccessRolesTable.businessId eq businessId }
+        .orderBy(AccessRolesTable.name)
+        .map { AccessRoleResponse(it[AccessRolesTable.id], it[AccessRolesTable.name], it[AccessRolesTable.description], csv(it[AccessRolesTable.allowedMenus]), it[AccessRolesTable.isActive]) }
+
     private fun groups(businessId: String): List<AccessGroupResponse> {
-        val roleMap=AccessGroupRolesTable.selectAll().groupBy({it[AccessGroupRolesTable.groupId]},{it[AccessGroupRolesTable.roleId]})
-        val userMap=UserAccessGroupsTable.selectAll().groupBy({it[UserAccessGroupsTable.groupId]},{it[UserAccessGroupsTable.userId]})
-        return AccessGroupsTable.select { AccessGroupsTable.businessId eq businessId }.orderBy(AccessGroupsTable.name).map { AccessGroupResponse(it[AccessGroupsTable.id],it[AccessGroupsTable.name],it[AccessGroupsTable.description],roleMap[it[AccessGroupsTable.id]].orEmpty(),userMap[it[AccessGroupsTable.id]].orEmpty(),it[AccessGroupsTable.isActive]) }
+        val roleMap = AccessGroupRolesTable.selectAll().groupBy({ it[AccessGroupRolesTable.groupId] }, { it[AccessGroupRolesTable.roleId] })
+        val userMap = UserAccessGroupsTable.selectAll().groupBy({ it[UserAccessGroupsTable.groupId] }, { it[UserAccessGroupsTable.userId] })
+        return AccessGroupsTable.select { AccessGroupsTable.businessId eq businessId }
+            .orderBy(AccessGroupsTable.name)
+            .map {
+                AccessGroupResponse(
+                    id = it[AccessGroupsTable.id],
+                    name = it[AccessGroupsTable.name],
+                    description = it[AccessGroupsTable.description],
+                    allowedMenus = csv(it[AccessGroupsTable.allowedMenus]),
+                    roleIds = roleMap[it[AccessGroupsTable.id]].orEmpty(),
+                    userIds = userMap[it[AccessGroupsTable.id]].orEmpty(),
+                    isActive = it[AccessGroupsTable.isActive]
+                )
+            }
     }
+
     fun hasMenuAccess(userId: String, businessId: String, menuKey: String): Boolean = transaction {
         val user = UsersTable.select { (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }.firstOrNull() ?: return@transaction false
         if (user[UsersTable.role] == "ADMIN" || user[UsersTable.role] == "SUPERADMIN") return@transaction true
@@ -262,7 +313,11 @@ class AccessControlService(
         access.enabledMenus.contains(menuKey.uppercase())
     }
 
-    private fun validateMenus(values: List<String>): List<String> { val normalized=values.map { it.trim().uppercase() }.distinct(); require(normalized.all { it in MENU_KEYS }) { "Unknown menu selection" }; return normalized }
-    private fun csv(value: String)=value.split(',').map { it.trim().uppercase() }.filter { it.isNotEmpty() }
-}
+    private fun validateMenus(values: List<String>): List<String> {
+        val normalized = values.map { it.trim().uppercase() }.distinct()
+        require(normalized.all { it in MENU_KEYS }) { "Unknown menu selection" }
+        return normalized
+    }
 
+    private fun csv(value: String) = value.split(',').map { it.trim().uppercase() }.filter { it.isNotEmpty() }
+}

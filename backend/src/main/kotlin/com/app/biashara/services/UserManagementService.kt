@@ -171,36 +171,37 @@ class UserManagementService(
         }
         
         if (assignedGroupNames.isEmpty()) {
-            // Default to "Front" access group if exists, or create Front
-            val frontGroup = AccessGroupsTable.select {
-                (AccessGroupsTable.businessId eq businessId) and (AccessGroupsTable.name.lowerCase() eq "front")
-            }.firstOrNull()
+            val defaultGroup = AccessGroupsTable.select {
+                (AccessGroupsTable.businessId eq businessId) and (AccessGroupsTable.isActive eq true)
+            }.orderBy(AccessGroupsTable.createdAt, SortOrder.ASC).firstOrNull()
 
-            val frontGroupId = if (frontGroup != null) {
-                frontGroup[AccessGroupsTable.id]
+            val defaultGroupId = if (defaultGroup != null) {
+                assignedGroupNames.add(defaultGroup[AccessGroupsTable.name])
+                defaultGroup[AccessGroupsTable.id]
             } else {
                 val newGroupId = generateId()
                 AccessGroupsTable.insert {
                     it[id] = newGroupId
                     it[AccessGroupsTable.businessId] = businessId
-                    it[name] = "Front"
-                    it[description] = "Front operations"
+                    it[name] = "Cashier"
+                    it[description] = "Point of sale, open tabs, collections and customer sales"
+                    it[allowedMenus] = "POS,OPEN_TABS,PAYMENTS,CARD_PAYMENTS,ORDERS,CUSTOMERS"
                     it[isActive] = true
                     it[createdAt] = now
                     it[updatedAt] = now
                 }
+                assignedGroupNames.add("Cashier")
                 newGroupId
             }
 
             UserAccessGroupsTable.deleteWhere {
-                (UserAccessGroupsTable.userId eq userId) and (UserAccessGroupsTable.groupId eq frontGroupId)
+                (UserAccessGroupsTable.userId eq userId) and (UserAccessGroupsTable.groupId eq defaultGroupId)
             }
             UserAccessGroupsTable.insert {
                 it[UserAccessGroupsTable.userId] = userId
-                it[UserAccessGroupsTable.groupId] = frontGroupId
+                it[UserAccessGroupsTable.groupId] = defaultGroupId
             }
-            assignedGroupNames.add("Front")
-            assignedGroupIdsList.add(frontGroupId)
+            assignedGroupIdsList.add(defaultGroupId)
         }
 
         val assignedRoleNames = mutableListOf<String>()
