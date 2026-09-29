@@ -38,17 +38,81 @@ fun Route.taxRoutes() {
     val taxService: TaxService by inject()
 
     route("/tax") {
-        // Reading rates is required by POS, Orders, Sales, and Hospitality
-        get("/rates") {
-            if (!call.hasAnyMenu("TAX", "POS", "ORDERS", "SALES", "HOSPITALITY")) {
-                return@get call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Tax rate access not enabled for this account"))
+        // ── Rates ─────────────────────────────────────────────────────────────
+        route("/rates") {
+            // Reading rates is required by POS, Orders, Sales, and Hospitality
+            get {
+                if (!call.hasAnyMenu("TAX", "POS", "ORDERS", "SALES", "HOSPITALITY")) {
+                    return@get call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Tax rate access not enabled for this account"))
+                }
+                val businessId = call.businessId()
+                val rates = taxService.getRates(businessId)
+                call.respond(ApiResponse(true, data = rates))
             }
-            val businessId = call.businessId()
-            val rates = taxService.getRates(businessId)
-            call.respond(ApiResponse(true, data = rates))
+
+            post {
+                if (!call.hasAnyMenu("TAX") && !call.hasRole("ADMIN")) {
+                    return@post call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Tax menu access required"))
+                }
+                val businessId = call.businessId()
+                val req = call.receive<TaxRateRequest>()
+                if (req.name.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Tax name required"))
+                    return@post
+                }
+                if (req.rate < 0 || req.rate > 10) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Rate must be 0–1000%"))
+                    return@post
+                }
+                val result = taxService.createRate(businessId, req)
+                call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
+            }
+
+            // Seed Kenya VAT / TOT / WHT / Excise defaults
+            post("/seed-defaults") {
+                if (!call.hasAnyMenu("TAX") && !call.hasRole("ADMIN")) {
+                    return@post call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Tax menu access required"))
+                }
+                val businessId = call.businessId()
+                taxService.seedKenyaDefaults(businessId)
+                call.respond(ApiResponse<Unit>(true, message = "Kenya tax defaults seeded (VAT 16%, TOT 1.5%, WHT 3%, Excise 20%)"))
+            }
+
+            route("/{id}") {
+                put {
+                    if (!call.hasAnyMenu("TAX") && !call.hasRole("ADMIN")) {
+                        return@put call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Tax menu access required"))
+                    }
+                    val businessId = call.businessId()
+                    val id = call.parameters["id"]!!
+                    val req = call.receive<TaxRateRequest>()
+                    val result = taxService.updateRate(id, businessId, req)
+                    call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
+                }
+
+                patch("/toggle") {
+                    if (!call.hasAnyMenu("TAX") && !call.hasRole("ADMIN")) {
+                        return@patch call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Tax menu access required"))
+                    }
+                    val businessId = call.businessId()
+                    val id = call.parameters["id"]!!
+                    val result = taxService.toggleRate(id, businessId)
+                    call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
+                }
+
+                delete {
+                    if (!call.hasAnyMenu("TAX") && !call.hasRole("ADMIN")) {
+                        return@delete call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Tax menu access required"))
+                    }
+                    val businessId = call.businessId()
+                    val id = call.parameters["id"]!!
+                    val result = taxService.deleteRate(id, businessId)
+                    call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
+                }
+            }
         }
 
-        // Tax Calculation utility
+        // ── Tax Calculation utility ───────────────────────────────────────────
         post("/calculate") {
             if (!call.hasAnyMenu("TAX", "POS", "ORDERS", "SALES", "HOSPITALITY")) {
                 return@post call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Tax calculation access not enabled for this account"))
@@ -63,7 +127,7 @@ fun Route.taxRoutes() {
             call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
         }
 
-        // Order Tax Lines
+        // ── Order Tax Lines ───────────────────────────────────────────────────
         get("/orders/{orderId}") {
             if (!call.hasAnyMenu("TAX", "POS", "ORDERS", "SALES", "HOSPITALITY")) {
                 return@get call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Order tax breakdown not enabled for this account"))
@@ -73,98 +137,50 @@ fun Route.taxRoutes() {
             call.respond(ApiResponse(true, data = lines))
         }
 
-        // ── Admin-only tax management endpoints ────────────────────────────────
-        route("") {
+        // ── Remittances ───────────────────────────────────────────────────────
+        route("/remittances") {
             menuGuardAny("TAX")
 
-            route("/rates") {
-                post {
-                    val businessId = call.businessId()
-                    val req = call.receive<TaxRateRequest>()
-                    if (req.name.isBlank()) {
-                        call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Tax name required"))
-                        return@post
-                    }
-                    if (req.rate < 0 || req.rate > 10) {
-                        call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Rate must be 0–1000%"))
-                        return@post
-                    }
-                    val result = taxService.createRate(businessId, req)
-                    call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
-                }
-
-                // Seed Kenya VAT / TOT / WHT / Excise defaults
-                post("/seed-defaults") {
-                    val businessId = call.businessId()
-                    taxService.seedKenyaDefaults(businessId)
-                    call.respond(ApiResponse<Unit>(true, message = "Kenya tax defaults seeded (VAT 16%, TOT 1.5%, WHT 3%, Excise 20%)"))
-                }
-
-                route("/{id}") {
-                    put {
-                        val businessId = call.businessId()
-                        val id = call.parameters["id"]!!
-                        val req = call.receive<TaxRateRequest>()
-                        val result = taxService.updateRate(id, businessId, req)
-                        call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
-                    }
-
-                    patch("/toggle") {
-                        val businessId = call.businessId()
-                        val id = call.parameters["id"]!!
-                        val result = taxService.toggleRate(id, businessId)
-                        call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
-                    }
-
-                    delete {
-                        val businessId = call.businessId()
-                        val id = call.parameters["id"]!!
-                        val result = taxService.deleteRate(id, businessId)
-                        call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
-                    }
-                }
-            }
-
-            // ── Remittances ───────────────────────────────────────────────────────
-            route("/remittances") {
-                get {
-                    val businessId = call.businessId()
-                    val taxType = call.request.queryParameters["taxType"]
-                    val remittances = taxService.getRemittances(businessId, taxType)
-                    call.respond(ApiResponse(true, data = remittances))
-                }
-
-                post {
-                    val businessId = call.businessId()
-                    val req = call.receive<TaxRemittanceRequest>()
-                    val result = taxService.createRemittance(businessId, req)
-                    call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
-                }
-
-                patch("/{id}/status") {
-                    val businessId = call.businessId()
-                    val id = call.parameters["id"]!!
-                    val req = call.receive<UpdateRemittanceStatusRequest>()
-                    val validStatuses = listOf("FILED", "PAID")
-                    if (req.status.uppercase() !in validStatuses) {
-                        call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Status must be FILED or PAID"))
-                        return@patch
-                    }
-                    val result = taxService.updateRemittanceStatus(id, businessId, req)
-                    call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
-                }
-            }
-
-            // ── Tax Summary Report ────────────────────────────────────────────────
-            get("/summary") {
+            get {
                 val businessId = call.businessId()
-                val from = call.request.queryParameters["from"]
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "from date required"))
-                val to = call.request.queryParameters["to"]
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "to date required"))
-                val result = taxService.getTaxSummary(businessId, from, to)
-                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+                val taxType = call.request.queryParameters["taxType"]
+                val remittances = taxService.getRemittances(businessId, taxType)
+                call.respond(ApiResponse(true, data = remittances))
             }
+
+            post {
+                val businessId = call.businessId()
+                val req = call.receive<TaxRemittanceRequest>()
+                val result = taxService.createRemittance(businessId, req)
+                call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
+            }
+
+            patch("/{id}/status") {
+                val businessId = call.businessId()
+                val id = call.parameters["id"]!!
+                val req = call.receive<UpdateRemittanceStatusRequest>()
+                val validStatuses = listOf("FILED", "PAID")
+                if (req.status.uppercase() !in validStatuses) {
+                    call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "Status must be FILED or PAID"))
+                    return@patch
+                }
+                val result = taxService.updateRemittanceStatus(id, businessId, req)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.NotFound, result)
+            }
+        }
+
+        // ── Tax Summary Report ────────────────────────────────────────────────
+        get("/summary") {
+            if (!call.hasAnyMenu("TAX") && !call.hasRole("ADMIN")) {
+                return@get call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Tax menu access required"))
+            }
+            val businessId = call.businessId()
+            val from = call.request.queryParameters["from"]
+                ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "from date required"))
+            val to = call.request.queryParameters["to"]
+                ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(false, message = "to date required"))
+            val result = taxService.getTaxSummary(businessId, from, to)
+            call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
         }
     }
 }

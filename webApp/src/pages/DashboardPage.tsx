@@ -62,8 +62,15 @@ export default function DashboardPage() {
     }
   }
 
+  const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
+
   useEffect(() => {
     let active = true
+    if (isStaff) {
+      setRevenueLoading(false)
+      setProfitSummary(null)
+      return
+    }
     setRevenueLoading(true)
     setRevenueError('')
     setProfitSummary(null)
@@ -83,7 +90,7 @@ export default function DashboardPage() {
       if (active) setRevenueError(error.response?.data?.message || error.message || 'Unable to load revenue.')
     }).finally(() => { if (active) setRevenueLoading(false) })
     return () => { active = false }
-  }, [dashboardPeriod, revenueRetry])
+  }, [dashboardPeriod, revenueRetry, isStaff])
 
   useEffect(() => {
     Promise.all([
@@ -194,22 +201,45 @@ export default function DashboardPage() {
 
           {/* KPI Cards */}
           <div className="responsive-grid responsive-grid-4">
-            <KpiCard
-              title={`${dashboardPeriod} Revenue`}
-              value={profitSummary ? fmt(profitSummary.totalRevenue) : '—'}
-              change="Current reporting period"
-              icon={<TrendingUp size={22}/>}
-              color="var(--b360-green)"
-              bgColor="var(--b360-green-bg)"
-            />
-            <KpiCard
-              title="Net Profit"
-              value={profitSummary ? fmt(profitSummary.netProfit) : '—'}
-              change="Current net profit"
-              icon={<Building size={22}/>}
-              color="var(--b360-blue)"
-              bgColor="var(--b360-blue-bg)"
-            />
+            {isStaff ? (
+              <>
+                <KpiCard
+                  title="Total Customers"
+                  value={String(customerCount)}
+                  change="Registered in system"
+                  icon={<Users size={22}/>}
+                  color="var(--b360-green)"
+                  bgColor="var(--b360-green-bg)"
+                />
+                <KpiCard
+                  title="Low Stock Items"
+                  value={String(lowStockProducts.length)}
+                  change="Need re-stocking"
+                  icon={<Package size={22}/>}
+                  color="var(--b360-blue)"
+                  bgColor="var(--b360-blue-bg)"
+                />
+              </>
+            ) : (
+              <>
+                <KpiCard
+                  title={`${dashboardPeriod} Revenue`}
+                  value={profitSummary ? fmt(profitSummary.totalRevenue) : '—'}
+                  change="Current reporting period"
+                  icon={<TrendingUp size={22}/>}
+                  color="var(--b360-green)"
+                  bgColor="var(--b360-green-bg)"
+                />
+                <KpiCard
+                  title="Net Profit"
+                  value={profitSummary ? fmt(profitSummary.netProfit) : '—'}
+                  change="Current net profit"
+                  icon={<Building size={22}/>}
+                  color="var(--b360-blue)"
+                  bgColor="var(--b360-blue-bg)"
+                />
+              </>
+            )}
             <KpiCard
               title="Orders Today"
               value={String(recentOrders.length)}
@@ -237,32 +267,40 @@ export default function DashboardPage() {
                   <h3 style={{ fontWeight:700, fontSize:15, color:'var(--b360-text)' }}>Revenue Trend</h3>
                   <span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Period: {dashboardPeriod}</span>
                 </div>
-                <select
-                  aria-label="Revenue period"
-                  value={dashboardPeriod}
-                  onChange={e => setDashboardPeriod(e.target.value)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    border: '1px solid var(--b360-border)',
-                    borderRadius: 20,
-                    padding: '6px 12px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: 'var(--b360-green)',
-                    background: 'white',
-                    cursor: 'pointer',
-                    outline: 'none'
-                  }}
-                >
-                  <option value="Today">Today</option>
-                  <option value="7 Days">7 Days</option>
-                  <option value="This Month">This Month</option>
-                </select>
+                {!isStaff && (
+                  <select
+                    aria-label="Revenue period"
+                    value={dashboardPeriod}
+                    onChange={e => setDashboardPeriod(e.target.value)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      border: '1px solid var(--b360-border)',
+                      borderRadius: 20,
+                      padding: '6px 12px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'var(--b360-green)',
+                      background: 'white',
+                      cursor: 'pointer',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="Today">Today</option>
+                    <option value="7 Days">7 Days</option>
+                    <option value="This Month">This Month</option>
+                  </select>
+                )}
               </div>
 
               <div style={{ width:'100%', height:240, minWidth:0 }} aria-label="Daily revenue chart">
-                {revenueLoading ? <Skeleton height={220} /> : revenueError ? <div role="alert" style={{ padding:20, color:'var(--b360-red)' }}>{revenueError}<div style={{ marginTop:12 }}><Btn small variant="secondary" onClick={() => setRevenueRetry(value => value + 1)}>Retry</Btn></div></div> : !profitSummary?.dailyRevenue?.some(point => point.revenue !== 0) ? <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No paid sales in this period.</div> : (
+                {isStaff ? (
+                  <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%' }}>
+                    <TrendingUp size={36} style={{ opacity:0.4, marginBottom:10 }} />
+                    <div style={{ fontWeight:600, fontSize:14, color:'var(--b360-text)' }}>Sales & Financial Analytics</div>
+                    <div style={{ fontSize:12, marginTop:4 }}>Detailed revenue & profit reporting is reserved for management accounts.</div>
+                  </div>
+                ) : revenueLoading ? <Skeleton height={220} /> : revenueError ? <div role="alert" style={{ padding:20, color:'var(--b360-red)' }}>{revenueError}<div style={{ marginTop:12 }}><Btn small variant="secondary" onClick={() => setRevenueRetry(value => value + 1)}>Retry</Btn></div></div> : !profitSummary?.dailyRevenue?.some(point => point.revenue !== 0) ? <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No paid sales in this period.</div> : (
                   <ResponsiveContainer width="100%" height={240} minWidth={0}>
                     <BarChart data={profitSummary.dailyRevenue} margin={{ top:10, right:12, bottom:8, left:0 }} accessibilityLayer>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5ebe8" />
@@ -274,7 +312,9 @@ export default function DashboardPage() {
                   </ResponsiveContainer>
                 )}
               </div>
-              <p style={{ marginTop:8, fontSize:11, color:'var(--b360-text-secondary)' }}>Paid orders by order date · KES · Nairobi time</p>
+              <p style={{ marginTop:8, fontSize:11, color:'var(--b360-text-secondary)' }}>
+                {isStaff ? 'Operations activity · Nairobi time' : 'Paid orders by order date · KES · Nairobi time'}
+              </p>
             </Card>
 
             {/* Quick Alerts Card */}

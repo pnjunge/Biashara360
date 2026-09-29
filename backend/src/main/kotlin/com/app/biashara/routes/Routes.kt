@@ -796,10 +796,6 @@ fun Route.businessProfileRoutes() {
 
     route("/business/profile") {
         get {
-            if (!call.hasRole("ADMIN", "SUPERADMIN")) {
-                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
-                return@get
-            }
             val businessId = call.businessId()
             val profile = businessProfileService.getProfile(businessId)
             if (profile == null) {

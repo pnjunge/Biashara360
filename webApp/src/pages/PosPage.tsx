@@ -96,10 +96,10 @@ export function PosPage() {
   useEffect(() => {
     setLoading(true)
     Promise.all([
-      productApi.list(),
-      customerApi.list(),
-      settingsApi.getMpesaChannels(),
-      businessApi.getProfile(),
+      productApi.list().catch(() => ({ success: false, data: [] as ProductResponse[] })),
+      customerApi.list().catch(() => ({ success: false, data: [] as CustomerResponse[] })),
+      settingsApi.getMpesaChannels().catch(() => ({ success: false, data: [] as MpesaConfigResponse[] })),
+      businessApi.getProfile().catch(() => ({ success: false, data: null })),
       hospitalityApi.status().catch(() => ({ success: false, data: { enabled: false } })),
       hospitalityOpsApi.dashboard().catch(() => ({ success: false, data: null }))
     ]).then(([prodRes, custRes, mpesaRes, profileRes, hospRes, opsRes]) => {
