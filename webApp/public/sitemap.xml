@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <!-- Homepage / Marketing Landing Page -->
+  <url>
+    <loc>https://biashara360.co.ke/</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://biashara360.co.ke/images/app_screenshot.png</image:loc>
+      <image:title>Biashara360 All-in-One POS, KRA eTIMS &amp; M-Pesa Dashboard</image:title>
+      <image:caption>Modern business operating system for Kenyan retail, supermarkets, and restaurants</image:caption>
+      <image:geo_location>Nairobi, Kenya</image:geo_location>
+    </image:image>
+    <image:image>
+      <image:loc>https://biashara360.co.ke/images/screen_pos.png</image:loc>
+      <image:title>Biashara360 High Speed POS Cashier Checkout Interface</image:title>
+      <image:caption>Barcode scanning, split tenders, offline sync and instant receipt printing</image:caption>
+      <image:geo_location>Nairobi, Kenya</image:geo_location>
+    </image:image>
+    <image:image>
+      <image:loc>https://biashara360.co.ke/images/screen_stock.png</image:loc>
+      <image:title>Biashara360 Multi-Branch Inventory and Stock Management</image:title>
+      <image:caption>Real-time low-stock alerts, shrinkage detection and automated supplier reorders</image:caption>
+      <image:geo_location>Nairobi, Kenya</image:geo_location>
+    </image:image>
+    <image:image>
+      <image:loc>https://biashara360.co.ke/images/screen_orders.png</image:loc>
+      <image:title>Biashara360 Order Fulfillment and Restaurant Table Management</image:title>
+      <image:caption>QR self-ordering, kitchen display system KDS and open bar tabs</image:caption>
+      <image:geo_location>Nairobi, Kenya</image:geo_location>
+    </image:image>
+    <image:image>
+      <image:loc>https://biashara360.co.ke/images/screen_customers.png</image:loc>
+      <image:title>Biashara360 Customer CRM and Debtors Credit Ledger</image:title>
+      <image:caption>Track customer credit, send WhatsApp payment reminders and automate debt collections</image:caption>
+      <image:geo_location>Nairobi, Kenya</image:geo_location>
+    </image:image>
+    <image:image>
+      <image:loc>https://biashara360.co.ke/images/screen_dashboard.png</image:loc>
+      <image:title>Biashara360 Executive Analytics and KRA eTIMS Tax Reports</image:title>
+      <image:caption>Gross margin, cashier shift audits, and daily tax summary compliant with KRA</image:caption>
+      <image:geo_location>Nairobi, Kenya</image:geo_location>
+    </image:image>
+  </url>
+
+  <!-- Downloads Page -->
+  <url>
+    <loc>https://biashara360.co.ke/downloads</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Merchant Registration / Free Trial Signup -->
+  <url>
+    <loc>https://biashara360.co.ke/register</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Merchant Sign In / Portal -->
+  <url>
+    <loc>https://biashara360.co.ke/login</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+</urlset>

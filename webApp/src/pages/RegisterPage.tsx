@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../App'
 import { authApi, subscriptionApi, SubscriptionBand } from '../services/api'
 import SocialSignIn, { SocialCredential } from '../components/SocialSignIn'
 import { Btn, Input, Select } from '../components/ui'
+import { usePageSeo } from '../utils/usePageSeo'
 
 const BUSINESS_TYPES = [
   { value: 'RETAIL', label: 'Retail Seller / Mchuuzi' },
@@ -29,6 +30,16 @@ const BUSINESS_TYPES = [
 export default function RegisterPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const planParam = (searchParams.get('plan') || '').toUpperCase()
+  const initialUsers = planParam === 'GROWTH' ? 6 : planParam === 'TEAM' ? 3 : 1
+
+  usePageSeo({
+    title: 'Create Account & 14-Day Free Trial | Biashara360 Kenya',
+    description: 'Sign up for Biashara360 in under 60 seconds. Start your 14-day free trial with full access to POS, KRA eTIMS, M-Pesa STK, and stock management. No credit card required.',
+    canonicalUrl: 'https://biashara360.co.ke/register',
+    keywords: 'Biashara360 register, POS free trial Kenya, KRA eTIMS registration, M-Pesa till software'
+  })
 
   // Form fields
   const [name, setName] = useState('')
@@ -38,7 +49,7 @@ export default function RegisterPage() {
   const [businessType, setBusinessType] = useState('RETAIL')
   const [password, setPassword] = useState('')
   const [socialCredential, setSocialCredential] = useState<SocialCredential>()
-  const [userCount, setUserCount] = useState(1)
+  const [userCount, setUserCount] = useState(initialUsers)
   const [bands, setBands] = useState<SubscriptionBand[]>([])
   const [paymentMethod, setPaymentMethod] = useState<'MPESA'|'CARD'>('MPESA')
 

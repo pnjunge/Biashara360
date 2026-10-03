@@ -1,0 +1,21 @@
+{
+  "name": "Biashara360 — POS, KRA eTIMS & M-Pesa Platform",
+  "short_name": "Biashara360",
+  "description": "All-in-one business management OS for Kenyan traders: smart POS, KRA eTIMS tax fiscalization, Safaricom M-Pesa STK, multi-branch inventory, and restaurant dining.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#059669",
+  "lang": "en-KE",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

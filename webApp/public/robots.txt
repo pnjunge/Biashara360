@@ -1,0 +1,42 @@
+# Robots.txt for Biashara360 (Kenya)
+# https://biashara360.co.ke
+
+User-agent: *
+Allow: /
+Allow: /downloads
+Allow: /register
+Allow: /login
+Allow: /images/
+Allow: /favicon.svg
+Allow: /site.webmanifest
+
+# Disallow internal application dashboards, cashier terminals & API routes
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /inventory
+Disallow: /settings
+Disallow: /audit-logs
+Disallow: /hospitality
+Disallow: /users
+Disallow: /customers
+Disallow: /reports
+
+# Dedicated Search Bot Directives
+User-agent: Googlebot
+Allow: /
+Allow: /downloads
+Allow: /register
+Allow: /login
+Allow: /images/
+
+User-agent: Bingbot
+Allow: /
+Allow: /downloads
+Allow: /register
+Allow: /login
+Allow: /images/
+
+# Host and Sitemap locations
+Host: https://biashara360.co.ke
+Sitemap: https://biashara360.co.ke/sitemap.xml

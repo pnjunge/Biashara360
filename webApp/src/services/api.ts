@@ -1765,4 +1765,81 @@ export const superAdminApi = {
 
 export const adminApi = superAdminApi
 
+// ─── App Releases (Signed Android & Desktop Apps) ────────────────────────────
+export interface AppRelease {
+  id: string
+  platform: 'ANDROID' | 'WINDOWS' | 'LINUX' | 'MACOS' | 'IOS'
+  version: string
+  buildNumber: number
+  fileName: string
+  fileSizeBytes: number
+  sha256?: string
+  downloadUrl: string
+  releaseNotes?: string
+  minOsVersion?: string
+  isSigned: boolean
+  isActive: boolean
+  downloadCount: number
+  uploadedBy?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export const appReleaseApi = {
+  /** Converts backend-relative paths (/v1/downloads/files/..) into absolute API URLs. */
+  resolveUrl: (url: string) => {
+    if (/^https?:\/\//i.test(url)) return url
+    const origin = API_BASE_URL.replace(/\/v1\/?$/, '')
+    return `${origin}${url.startsWith('/') ? '' : '/'}${url}`
+  },
+  // Public
+  getReleases: async () => {
+    const res = await client.get<ApiResponse<Record<string, AppRelease>>>('/downloads/releases')
+    return res.data
+  },
+  getPublicList: async () => {
+    const res = await client.get<ApiResponse<AppRelease[]>>('/downloads/list')
+    return res.data
+  },
+  // Admin / SuperAdmin
+  list: async (platform?: string) => {
+    const res = await client.get<ApiResponse<AppRelease[]>>(`/admin/app-releases${platform ? `?platform=${platform}` : ''}`)
+    return res.data
+  },
+  upload: async (formData: FormData, onProgress?: (percent: number) => void) => {
+    const res = await client.post<ApiResponse<AppRelease>>('/admin/app-releases/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total && onProgress) {
+          onProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total))
+        }
+      }
+    })
+    return res.data
+  },
+  createExternal: async (data: {
+    platform: string
+    version: string
+    buildNumber?: number
+    fileName?: string
+    downloadUrl: string
+    releaseNotes?: string
+    minOsVersion?: string
+    isSigned?: boolean
+    isActive?: boolean
+  }) => {
+    const res = await client.post<ApiResponse<AppRelease>>('/admin/app-releases/external', data)
+    return res.data
+  },
+  toggleStatus: async (id: string, isActive: boolean) => {
+    const res = await client.patch<ApiResponse<AppRelease>>(`/admin/app-releases/${id}/status`, { isActive })
+    return res.data
+  },
+  delete: async (id: string) => {
+    const res = await client.delete<ApiResponse<void>>(`/admin/app-releases/${id}`)
+    return res.data
+  }
+}
+
 export default client
+

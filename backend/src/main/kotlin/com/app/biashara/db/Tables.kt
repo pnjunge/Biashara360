@@ -567,3 +567,25 @@ object ReportScheduleLogsTable : Table("report_schedule_logs") {
     override val primaryKey = PrimaryKey(id)
 }
 
+// ─── Signed App Releases (Android & Desktop) ─────────────────────────────────
+object AppReleasesTable : Table("app_releases") {
+    val id = varchar("id", 36)
+    val platform = varchar("platform", 20)
+    val version = varchar("version", 50)
+    val buildNumber = integer("build_number").default(1)
+    val fileName = varchar("file_name", 255)
+    val fileSizeBytes = long("file_size_bytes").default(0L)
+    val sha256 = varchar("sha256", 64).nullable()
+    val downloadUrl = text("download_url")
+    val releaseNotes = text("release_notes").nullable()
+    val minOsVersion = varchar("min_os_version", 100).nullable()
+    val isSigned = bool("is_signed").default(true)
+    val isActive = bool("is_active").default(true)
+    val downloadCount = long("download_count").default(0L)
+    val uploadedBy = varchar("uploaded_by", 36).references(UsersTable.id, onDelete = SET_NULL).nullable()
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
+

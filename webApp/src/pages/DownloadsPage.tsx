@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from 'react'
 import {
   Apple,
   CheckCircle2,
@@ -7,6 +8,8 @@ import {
   ShieldCheck,
   Smartphone,
 } from 'lucide-react'
+import { usePageSeo } from '../utils/usePageSeo'
+import { appReleaseApi, AppRelease } from '../services/api'
 
 type DownloadCardProps = {
   title: string
@@ -16,11 +19,19 @@ type DownloadCardProps = {
   url?: string
   available: boolean
   note: string
+  release?: AppRelease
 }
 
 const configuredUrl = (value: string | undefined) => {
   const trimmed = value?.trim()
   return trimmed ? trimmed : undefined
+}
+
+export const formatBytes = (bytes: number) => {
+  if (!bytes) return ''
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
 }
 
 function DownloadCard({
@@ -31,6 +42,7 @@ function DownloadCard({
   url,
   available,
   note,
+  release,
 }: DownloadCardProps) {
   return (
     <article
@@ -78,9 +90,34 @@ function DownloadCard({
       <p style={{ marginTop: 4, color: 'var(--b360-text-secondary)', fontSize: 13 }}>
         {subtitle}
       </p>
-      <p style={{ marginTop: 16, color: 'var(--b360-text-secondary)', fontSize: 12, flex: 1 }}>
-        {note}
+      {release && (
+        <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 11, fontWeight: 700 }}>
+          <span style={{ padding: '3px 8px', borderRadius: 999, background: '#ecfdf5', color: '#047857' }}>
+            v{release.version} (build {release.buildNumber})
+          </span>
+          {release.fileSizeBytes > 0 && (
+            <span style={{ padding: '3px 8px', borderRadius: 999, background: '#f1f5f9', color: '#475569' }}>
+              {formatBytes(release.fileSizeBytes)}
+            </span>
+          )}
+          {release.isSigned && (
+            <span style={{ padding: '3px 8px', borderRadius: 999, background: '#eff6ff', color: '#1d4ed8' }}>
+              ✓ Signed
+            </span>
+          )}
+        </div>
+      )}
+      <p style={{ marginTop: 12, color: 'var(--b360-text-secondary)', fontSize: 12, flex: 1 }}>
+        {release?.releaseNotes || note}
       </p>
+      {release?.sha256 && (
+        <p
+          title={release.sha256}
+          style={{ marginTop: 8, fontSize: 10, color: '#94a3b8', fontFamily: 'monospace', wordBreak: 'break-all' }}
+        >
+          SHA-256: {release.sha256}
+        </p>
+      )}
 
       {available && url ? (
         <a
@@ -126,11 +163,39 @@ function DownloadCard({
 }
 
 export default function DownloadsPage() {
-  const androidUrl = configuredUrl(import.meta.env.VITE_ANDROID_DOWNLOAD_URL)
-  const linuxUrl = configuredUrl(import.meta.env.VITE_LINUX_DOWNLOAD_URL)
-  const windowsUrl = configuredUrl(import.meta.env.VITE_WINDOWS_DOWNLOAD_URL)
-  const macUrl = configuredUrl(import.meta.env.VITE_MACOS_DOWNLOAD_URL)
-  const iosUrl = configuredUrl(import.meta.env.VITE_IOS_DOWNLOAD_URL)
+  const [releases, setReleases] = useState<Record<string, AppRelease>>({})
+
+  useEffect(() => {
+    appReleaseApi.getReleases()
+      .then(res => { if (res.success && res.data) setReleases(res.data) })
+      .catch(() => undefined) // fall back to build-time env URLs
+  }, [])
+
+  // Uploaded releases take precedence over build-time env URLs
+  const pick = (platform: string, envUrl?: string) => {
+    const release = releases[platform]
+    return {
+      release,
+      url: release ? appReleaseApi.resolveUrl(release.downloadUrl) : configuredUrl(envUrl),
+    }
+  }
+  const android = pick('ANDROID', import.meta.env.VITE_ANDROID_DOWNLOAD_URL)
+  const linux = pick('LINUX', import.meta.env.VITE_LINUX_DOWNLOAD_URL)
+  const windows = pick('WINDOWS', import.meta.env.VITE_WINDOWS_DOWNLOAD_URL)
+  const mac = pick('MACOS', import.meta.env.VITE_MACOS_DOWNLOAD_URL)
+  const ios = pick('IOS', import.meta.env.VITE_IOS_DOWNLOAD_URL)
+  const androidUrl = android.url
+  const linuxUrl = linux.url
+  const windowsUrl = windows.url
+  const macUrl = mac.url
+  const iosUrl = ios.url
+
+  usePageSeo({
+    title: 'Download Biashara360 Apps | Android APK, Windows & Mac POS',
+    description: 'Download the official Biashara360 merchant point of sale apps for Android phones & tablets, Windows desktops, and macOS. High-speed offline checkout, eTIMS fiscalization, and receipt printing.',
+    canonicalUrl: 'https://biashara360.co.ke/downloads',
+    keywords: 'Download Biashara360, POS APK download, Android POS Kenya, Windows POS software Kenya'
+  })
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -178,6 +243,7 @@ export default function DownloadsPage() {
           icon={Smartphone}
           fileLabel="APK"
           url={androidUrl}
+          release={android.release}
           available={Boolean(androidUrl)}
           note="Signed production APK for Android phones and tablets."
         />
@@ -187,6 +253,7 @@ export default function DownloadsPage() {
           icon={Apple}
           fileLabel="on the App Store"
           url={iosUrl}
+          release={ios.release}
           available={Boolean(iosUrl)}
           note="The App Store link will appear after Apple review and production release."
         />
@@ -196,6 +263,7 @@ export default function DownloadsPage() {
           icon={Monitor}
           fileLabel="installer"
           url={windowsUrl}
+          release={windows.release}
           available={Boolean(windowsUrl)}
           note="The signed Windows installer will be published after Windows code signing."
         />
@@ -205,6 +273,7 @@ export default function DownloadsPage() {
           icon={Laptop}
           fileLabel="DEB"
           url={linuxUrl}
+          release={linux.release}
           available={Boolean(linuxUrl)}
           note="Production package for supported 64-bit Debian-based computers."
         />
@@ -214,6 +283,7 @@ export default function DownloadsPage() {
           icon={CheckCircle2}
           fileLabel="DMG"
           url={macUrl}
+          release={mac.release}
           available={Boolean(macUrl)}
           note="The download will appear after Apple Developer signing and notarization."
         />

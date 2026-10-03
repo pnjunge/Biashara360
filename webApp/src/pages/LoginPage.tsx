@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../App'
 import { authApi } from '../services/api'
+import { usePageSeo } from '../utils/usePageSeo'
 
 function CustomLoginTextField({
   value,
@@ -106,6 +107,13 @@ function CustomLoginTextField({
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
+
+  usePageSeo({
+    title: 'Sign In to Merchant Portal | Biashara360 Kenya',
+    description: 'Secure merchant sign in for Biashara360 point of sale, stock management, and cashier till accounts. Fast access with password or 6-digit cashier PIN.',
+    canonicalUrl: 'https://biashara360.co.ke/login',
+    keywords: 'Biashara360 login, merchant portal, cashier sign in, POS login'
+  })
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [pin, setPin] = useState('')

@@ -114,6 +114,7 @@ fun Application.module() {
             cyberSourcePublicRoutes()
             socialWebhookRoutes()
             publicReceiptRoutes()
+            publicAppReleaseRoutes()
 
             // Protected routes (JWT required)
             authenticate("jwt-auth") {
@@ -139,6 +140,7 @@ fun Application.module() {
                 kraRoutes()
                 socialRoutes()
                 superAdminRoutes()
+                adminAppReleaseRoutes()
                 businessSettingsRoutes()
                 businessProfileRoutes()
                 branchRoutes()

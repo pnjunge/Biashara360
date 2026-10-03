@@ -65,7 +65,7 @@ object DatabaseFactory {
                 .migrate()
             Database.connect(dataSource)
             org.jetbrains.exposed.sql.transactions.transaction {
-                org.jetbrains.exposed.sql.SchemaUtils.createMissingTablesAndColumns(BranchesTable, UsersTable, AuditLogsTable, PurchaseInvoicesTable, UserAccessRolesTable)
+                org.jetbrains.exposed.sql.SchemaUtils.createMissingTablesAndColumns(BranchesTable, UsersTable, AuditLogsTable, PurchaseInvoicesTable, UserAccessRolesTable, AppReleasesTable)
             }
             logger.info("""{"event":"database_ready"}""")
         } catch (exception: Exception) {

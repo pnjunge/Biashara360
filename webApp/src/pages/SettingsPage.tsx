@@ -681,6 +681,7 @@ export function SettingsPage() {
     {
       label: 'System', icon: <SettingsIcon size={19} />, items: [
         { label: 'General Settings', tab: 'general' as SettingsTab },
+        ...(isSuperAdmin ? [{ label: 'App Releases (APK / Desktop)', path: '/app-releases' }] : []),
       ]
     },
   ]

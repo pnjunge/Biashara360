@@ -1,5 +1,5 @@
 import React, { Suspense, createContext, lazy, useContext, useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
 import { hospitalityApi, settingsApi, servicesApi } from './services/api'
 
@@ -27,6 +27,7 @@ const UserCreationPage = lazy(() => import('./pages/UserCreationPage'))
 const AuditLogPage = lazy(() => import('./pages/AuditLogPage'))
 const BusinessPage = lazy(() => import('./pages/BusinessPage'))
 const DownloadsPage = lazy(() => import('./pages/DownloadsPage'))
+const AppReleasesPage = lazy(() => import('./pages/AppReleasesPage'))
 
 const CardCheckoutPage = lazy(() => import('./pages/CardCheckoutPage'))
 const OrderingQrPage = lazy(() => import('./pages/OrderingQrPage'))
@@ -37,6 +38,9 @@ const OpenTabsPage = lazy(() => import('./pages/OpenTabsPage'))
 const KitchenDisplayPage = lazy(() => import('./pages/KitchenDisplayPage'))
 const ServicesPage = lazy(() => import('./pages/ServicesPage'))
 const EReceiptPage = lazy(() => import('./pages/EReceiptPage'))
+const MarketingPage = lazy(() => import('./pages/MarketingPage'))
+const MarketingNav = lazy(() => import('./components/marketing/MarketingNav'))
+const MarketingFooter = lazy(() => import('./components/marketing/MarketingFooter'))
 
 // ── Auth Context ──────────────────────────────────────────────────────────────
 interface AuthUser {
@@ -66,6 +70,11 @@ function RoleProtectedRoute({ children, blockedRoles }: { children: React.ReactN
   return blockedRoles.includes(role) ? <Navigate to="/dashboard" replace /> : <>{children}</>
 }
 
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth()
+  return (user?.role || '').toUpperCase() === 'SUPERADMIN' ? <>{children}</> : <Navigate to="/dashboard" replace />
+}
+
 function HospitalityProtectedRoute({ children }: { children: React.ReactNode }) {
   const [enabled, setEnabled] = useState<boolean | null>(null)
   useEffect(() => {
@@ -87,6 +96,23 @@ function ServicesProtectedRoute({ children }: { children: React.ReactNode }) {
   }, [])
   if (enabled === null) return <div style={{ padding: 32 }}>Checking Appointments & Services…</div>
   return enabled ? <>{children}</> : <Navigate to={user?.role === 'ADMIN' ? '/settings?tab=general' : '/dashboard'} replace />
+}
+
+function PublicDownloadsWrapper() {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f8fafc' }}>
+      <MarketingNav onOpenDemoModal={() => { window.location.href = '/#simulator' }} />
+      <main style={{ flex: 1, maxWidth: 1100, width: '100%', margin: '0 auto', padding: '36px 24px' }}>
+        <DownloadsPage />
+      </main>
+      <MarketingFooter />
+    </div>
+  )
+}
+
+function DownloadsResolver() {
+  const { isAuthenticated } = useAuth()
+  return isAuthenticated ? <PrivateRoute><AppShell /></PrivateRoute> : <PublicDownloadsWrapper />
 }
 
 export default function App() {
@@ -180,6 +206,9 @@ export default function App() {
       >
         <Suspense fallback={<div style={{ padding: 32, textAlign: 'center' }}>Loading…</div>}>
         <Routes>
+          <Route path="/" element={<MarketingPage />} />
+          <Route path="/marketing" element={<MarketingPage />} />
+          <Route path="/about" element={<MarketingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/card-checkout" element={<CardCheckoutPage />} />
@@ -187,38 +216,40 @@ export default function App() {
           <Route path="/shop/:storeSlug/qr" element={<OrderingQrPage />} />
           <Route path="/shop/:storeSlug" element={<StorefrontPage />} />
           <Route path="/receipt/:orderId" element={<EReceiptPage />} />
-          <Route path="/" element={<PrivateRoute><AppShell /></PrivateRoute>}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard"  element={<DashboardPage />} />
-            <Route path="inventory"  element={<InventoryPage />} />
-            <Route path="purchases"  element={<PurchasesPage />} />
-            <Route path="pos"        element={<PosPage />} />
-            <Route path="hospitality" element={<HospitalityProtectedRoute><HospitalityPage /></HospitalityProtectedRoute>} />
-            <Route path="hospitality-operations" element={<HospitalityProtectedRoute><HospitalityOperationsPage /></HospitalityProtectedRoute>} />
-            <Route path="open-tabs" element={<HospitalityProtectedRoute><OpenTabsPage /></HospitalityProtectedRoute>} />
-            <Route path="kitchen-display" element={<HospitalityProtectedRoute><KitchenDisplayPage /></HospitalityProtectedRoute>} />
-            <Route path="services" element={<ServicesProtectedRoute><ServicesPage /></ServicesProtectedRoute>} />
-            <Route path="orders"     element={<OrdersPage />} />
-            <Route path="customers"  element={<CustomersPage />} />
-            <Route path="expenses"   element={<ExpensesPage />} />
-            <Route path="payments"   element={<PaymentsPage />} />
-            <Route path="reports"    element={<ReportsPage />} />
-            <Route path="downloads"  element={<DownloadsPage />} />
-            <Route path="settings"   element={<RoleProtectedRoute blockedRoles={["STAFF"]}><SettingsPage /></RoleProtectedRoute>} />
-            <Route path="card-payments" element={<Navigate to="/payments" replace />} />
-            <Route path="cybersource-settings" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><CyberSourceSettingsPage /></RoleProtectedRoute>} />
-            <Route path="tax"           element={<TaxPage />} />
-            <Route path="kra"           element={<KraPage />} />
-            <Route path="social"        element={<SocialPage />} />
-            <Route path="social-onboarding" element={<SocialOnboardingPage />} />
-            <Route path="users"         element={<RoleProtectedRoute blockedRoles={["STAFF"]}><UserCreationPage /></RoleProtectedRoute>} />
-            <Route path="audit-logs"    element={<RoleProtectedRoute blockedRoles={["STAFF"]}><AuditLogPage /></RoleProtectedRoute>} />
-            <Route path="business"      element={<RoleProtectedRoute blockedRoles={["STAFF"]}><BusinessPage /></RoleProtectedRoute>} />
-            <Route path="mpesa-settings" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><MpesaSettingsPage /></RoleProtectedRoute>} />
-            <Route path="receipt-template" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><ReceiptTemplatePage /></RoleProtectedRoute>} />
-            <Route path="session-timeouts" element={<RoleProtectedRoute blockedRoles={["STAFF", "SUPERADMIN"]}><SessionTimeoutSettingsPage /></RoleProtectedRoute>} />
+          <Route path="/downloads" element={<DownloadsResolver />}>
+            <Route index element={<DownloadsPage />} />
           </Route>
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route element={<PrivateRoute><AppShell /></PrivateRoute>}>
+            <Route path="/dashboard"  element={<DashboardPage />} />
+            <Route path="/inventory"  element={<InventoryPage />} />
+            <Route path="/purchases"  element={<PurchasesPage />} />
+            <Route path="/pos"        element={<PosPage />} />
+            <Route path="/hospitality" element={<HospitalityProtectedRoute><HospitalityPage /></HospitalityProtectedRoute>} />
+            <Route path="/hospitality-operations" element={<HospitalityProtectedRoute><HospitalityOperationsPage /></HospitalityProtectedRoute>} />
+            <Route path="/open-tabs" element={<HospitalityProtectedRoute><OpenTabsPage /></HospitalityProtectedRoute>} />
+            <Route path="/kitchen-display" element={<HospitalityProtectedRoute><KitchenDisplayPage /></HospitalityProtectedRoute>} />
+            <Route path="/services" element={<ServicesProtectedRoute><ServicesPage /></ServicesProtectedRoute>} />
+            <Route path="/orders"     element={<OrdersPage />} />
+            <Route path="/customers"  element={<CustomersPage />} />
+            <Route path="/expenses"   element={<ExpensesPage />} />
+            <Route path="/payments"   element={<PaymentsPage />} />
+            <Route path="/reports"    element={<ReportsPage />} />
+            <Route path="/settings"   element={<RoleProtectedRoute blockedRoles={["STAFF"]}><SettingsPage /></RoleProtectedRoute>} />
+            <Route path="/card-payments" element={<Navigate to="/payments" replace />} />
+            <Route path="/cybersource-settings" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><CyberSourceSettingsPage /></RoleProtectedRoute>} />
+            <Route path="/tax"           element={<TaxPage />} />
+            <Route path="/kra"           element={<KraPage />} />
+            <Route path="/social"        element={<SocialPage />} />
+            <Route path="/social-onboarding" element={<SocialOnboardingPage />} />
+            <Route path="/users"         element={<RoleProtectedRoute blockedRoles={["STAFF"]}><UserCreationPage /></RoleProtectedRoute>} />
+            <Route path="/audit-logs"    element={<RoleProtectedRoute blockedRoles={["STAFF"]}><AuditLogPage /></RoleProtectedRoute>} />
+            <Route path="/business"      element={<RoleProtectedRoute blockedRoles={["STAFF"]}><BusinessPage /></RoleProtectedRoute>} />
+            <Route path="/mpesa-settings" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><MpesaSettingsPage /></RoleProtectedRoute>} />
+            <Route path="/receipt-template" element={<RoleProtectedRoute blockedRoles={["STAFF"]}><ReceiptTemplatePage /></RoleProtectedRoute>} />
+            <Route path="/session-timeouts" element={<RoleProtectedRoute blockedRoles={["STAFF", "SUPERADMIN"]}><SessionTimeoutSettingsPage /></RoleProtectedRoute>} />
+            <Route path="/app-releases" element={<SuperAdminRoute><AppReleasesPage /></SuperAdminRoute>} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
       </BrowserRouter>

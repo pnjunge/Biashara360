@@ -5,7 +5,7 @@ const previewPort = Number(process.env.PORT || 8080)
 
 export default defineConfig({
   plugins: [react()],
-  server: { host: '0.0.0.0', port: 3000 },
+  server: { host: '0.0.0.0', port: 3001 },
   preview: {
     host: '0.0.0.0',
     port: previewPort,
