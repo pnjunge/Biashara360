@@ -1,8 +1,7 @@
 package com.app.biashara.ui
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -584,7 +584,11 @@ fun Biashara360DesktopAppContent(
 
             Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (isWideScreen) {
-                val sidebarWidth = if (isExpanded) 240.dp else 72.dp
+                val sidebarWidth by animateDpAsState(
+                    targetValue = if (isExpanded) 240.dp else 72.dp,
+                    animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow),
+                    label = "sidebarWidth"
+                )
                 val sidebarUser by UserSession.currentUser.collectAsState()
                 Row(modifier = Modifier.width(sidebarWidth).fillMaxHeight()) {
                     Column(
@@ -1060,39 +1064,51 @@ fun Biashara360DesktopAppContent(
                         .padding(padding)
                         .background(MaterialTheme.colorScheme.background)
                 ) {
-                    when (currentScreen) {
-                        AppScreen.Dashboard -> DesktopDashboardScreen()
-                        AppScreen.Pos -> DesktopPosScreen()
-                        AppScreen.Orders -> DesktopOrdersScreen(searchQuery = searchQuery)
-                        AppScreen.Customers -> DesktopCustomersScreen(searchQuery = searchQuery)
-                        AppScreen.Products -> DesktopProductsScreen(
-                            searchQuery = searchQuery,
-                            onNavigateToInventory = { navigationViewModel.navigateTo(AppScreen.Inventory) }
-                        )
-                        AppScreen.Inventory -> DesktopInventoryScreen(
-                            searchQuery = searchQuery,
-                            onNavigateToPurchases = { navigationViewModel.navigateTo(AppScreen.Purchases) }
-                        )
-                        AppScreen.Purchases -> DesktopPurchasesScreen(
-                            searchQuery = searchQuery,
-                            onNavigateToInventory = { navigationViewModel.navigateTo(AppScreen.Inventory) }
-                        )
-                        AppScreen.Suppliers -> DesktopSuppliersScreen(searchQuery = searchQuery)
-                        AppScreen.HotelRooms -> DesktopHotelRoomsScreen()
-                        AppScreen.Hospitality -> DesktopHospitalityScreen()
-                        AppScreen.Appointments -> DesktopAppointmentsScreen()
-                        AppScreen.Bookings -> DesktopBookingsScreen()
-                        AppScreen.Expenses -> DesktopExpensesModernScreen()
-                        AppScreen.Payments -> DesktopPaymentsModernScreen()
-                        AppScreen.Reports -> DesktopReportsLiveScreen()
-                        AppScreen.Settings -> DesktopSettingsScreen()
-                        AppScreen.Tax -> DesktopTaxModernScreen()
-                        AppScreen.KRA -> DesktopKraModernScreen()
-                        AppScreen.Social -> DesktopSocialModernScreen()
-                        AppScreen.OpenTabs -> DesktopOpenTabsScreen()
-                        AppScreen.CyberSource -> DesktopPaymentConfigurationScreen()
-                        AppScreen.Mpesa -> DesktopPaymentConfigurationScreen()
-                        AppScreen.ReceiptTemplate -> DesktopReceiptTemplateScreen()
+                    AnimatedContent(
+                        targetState = currentScreen,
+                        transitionSpec = {
+                            (fadeIn(animationSpec = tween(180, easing = FastOutSlowInEasing)) +
+                             slideInHorizontally(animationSpec = tween(220, easing = FastOutSlowInEasing)) { 16 })
+                                .togetherWith(
+                                    fadeOut(animationSpec = tween(140, easing = FastOutLinearInEasing))
+                                )
+                        },
+                        label = "desktopScreenTransition"
+                    ) { screen ->
+                        when (screen) {
+                            AppScreen.Dashboard -> DesktopDashboardScreen()
+                            AppScreen.Pos -> DesktopPosScreen()
+                            AppScreen.Orders -> DesktopOrdersScreen(searchQuery = searchQuery)
+                            AppScreen.Customers -> DesktopCustomersScreen(searchQuery = searchQuery)
+                            AppScreen.Products -> DesktopProductsScreen(
+                                searchQuery = searchQuery,
+                                onNavigateToInventory = { navigationViewModel.navigateTo(AppScreen.Inventory) }
+                            )
+                            AppScreen.Inventory -> DesktopInventoryScreen(
+                                searchQuery = searchQuery,
+                                onNavigateToPurchases = { navigationViewModel.navigateTo(AppScreen.Purchases) }
+                            )
+                            AppScreen.Purchases -> DesktopPurchasesScreen(
+                                searchQuery = searchQuery,
+                                onNavigateToInventory = { navigationViewModel.navigateTo(AppScreen.Inventory) }
+                            )
+                            AppScreen.Suppliers -> DesktopSuppliersScreen(searchQuery = searchQuery)
+                            AppScreen.HotelRooms -> DesktopHotelRoomsScreen()
+                            AppScreen.Hospitality -> DesktopHospitalityScreen()
+                            AppScreen.Appointments -> DesktopAppointmentsScreen()
+                            AppScreen.Bookings -> DesktopBookingsScreen()
+                            AppScreen.Expenses -> DesktopExpensesModernScreen()
+                            AppScreen.Payments -> DesktopPaymentsModernScreen()
+                            AppScreen.Reports -> DesktopReportsLiveScreen()
+                            AppScreen.Settings -> DesktopSettingsScreen()
+                            AppScreen.Tax -> DesktopTaxModernScreen()
+                            AppScreen.KRA -> DesktopKraModernScreen()
+                            AppScreen.Social -> DesktopSocialModernScreen()
+                            AppScreen.OpenTabs -> DesktopOpenTabsScreen()
+                            AppScreen.CyberSource -> DesktopPaymentConfigurationScreen()
+                            AppScreen.Mpesa -> DesktopPaymentConfigurationScreen()
+                            AppScreen.ReceiptTemplate -> DesktopReceiptTemplateScreen()
+                        }
                     }
                 }
             }
@@ -1628,6 +1644,11 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
             }
 
             // Toggle Tabs (Password vs Staff PIN)
+            val passwordBg by animateColorAsState(if (!isPinLoginMode) Color(0xFF009665) else Color.Transparent, tween(200), label = "pwdBg")
+            val passwordText by animateColorAsState(if (!isPinLoginMode) Color.White else Color(0xFF64748B), tween(200), label = "pwdText")
+            val pinBg by animateColorAsState(if (isPinLoginMode) Color(0xFF009665) else Color.Transparent, tween(200), label = "pinBg")
+            val pinText by animateColorAsState(if (isPinLoginMode) Color.White else Color(0xFF64748B), tween(200), label = "pinText")
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1642,7 +1663,7 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (!isPinLoginMode) Color(0xFF009665) else Color.Transparent)
+                        .background(passwordBg)
                         .clickable { isPinLoginMode = false; viewModel.dismissError() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -1650,13 +1671,13 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         Icon(
                             Icons.Default.Lock,
                             contentDescription = null,
-                            tint = if (!isPinLoginMode) Color.White else Color(0xFF64748B),
+                            tint = passwordText,
                             modifier = Modifier.size(14.dp)
                         )
                         Text(
                             "Password",
                             fontWeight = FontWeight.Bold,
-                            color = if (!isPinLoginMode) Color.White else Color(0xFF64748B),
+                            color = passwordText,
                             fontSize = 13.sp
                         )
                     }
@@ -1666,7 +1687,7 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isPinLoginMode) Color(0xFF009665) else Color.Transparent)
+                        .background(pinBg)
                         .clickable { isPinLoginMode = true; viewModel.dismissError() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -1674,13 +1695,13 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         Icon(
                             Icons.Default.Apps,
                             contentDescription = null,
-                            tint = if (isPinLoginMode) Color.White else Color(0xFF64748B),
+                            tint = pinText,
                             modifier = Modifier.size(14.dp)
                         )
                         Text(
                             "Staff PIN",
                             fontWeight = FontWeight.Bold,
-                            color = if (isPinLoginMode) Color.White else Color(0xFF64748B),
+                            color = pinText,
                             fontSize = 13.sp
                         )
                     }
@@ -1709,97 +1730,110 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                 }
             }
 
-            if (!isPinLoginMode) {
-                CustomLoginTextField(
-                    value = email,
-                    onValueChange = { email = it; viewModel.dismissError() },
-                    placeholder = "Email / Username",
-                    leadingIcon = Icons.Filled.Person,
-                    enabled = !state.isLoading
-                )
-
-                CustomLoginTextField(
-                    value = password,
-                    onValueChange = { password = it; viewModel.dismissError() },
-                    placeholder = "Password",
-                    leadingIcon = Icons.Filled.Lock,
-                    isPassword = true,
-                    passwordVisible = passwordVisible,
-                    onPasswordToggle = { passwordVisible = !passwordVisible },
-                    enabled = !state.isLoading
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = rememberMe,
-                            onCheckedChange = { rememberMe = it },
-                            colors = CheckboxDefaults.colors(checkedColor = Color(0xFF009665))
+            AnimatedContent(
+                targetState = isPinLoginMode,
+                transitionSpec = {
+                    (fadeIn(animationSpec = tween(200)) + slideInHorizontally(animationSpec = tween(220)) { if (targetState) 20 else -20 })
+                        .togetherWith(fadeOut(animationSpec = tween(140)))
+                },
+                label = "loginModeTransition"
+            ) { isPinMode ->
+                if (!isPinMode) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        CustomLoginTextField(
+                            value = email,
+                            onValueChange = { email = it; viewModel.dismissError() },
+                            placeholder = "Email / Username",
+                            leadingIcon = Icons.Filled.Person,
+                            enabled = !state.isLoading
                         )
-                        Text("Remember me", fontSize = 13.sp, color = Color(0xFF475569))
-                    }
-                    Text(
-                        text = "Forgot password?",
-                        fontSize = 13.sp,
-                        color = Color(0xFF00A36C),
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clickable { showForgotPassword = true }
-                    )
-                }
 
-                Button(
-                    onClick = { viewModel.login(email, password) },
-                    modifier = Modifier.fillMaxWidth().height(46.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF009665)),
-                    shape = RoundedCornerShape(10.dp),
-                    enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank()
-                ) {
-                    if (state.isLoading) {
-                        CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
-                    } else {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                            Icon(Icons.AutoMirrored.Filled.ExitToApp, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Sign In", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        CustomLoginTextField(
+                            value = password,
+                            onValueChange = { password = it; viewModel.dismissError() },
+                            placeholder = "Password",
+                            leadingIcon = Icons.Filled.Lock,
+                            isPassword = true,
+                            passwordVisible = passwordVisible,
+                            onPasswordToggle = { passwordVisible = !passwordVisible },
+                            enabled = !state.isLoading
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = rememberMe,
+                                    onCheckedChange = { rememberMe = it },
+                                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF009665))
+                                )
+                                Text("Remember me", fontSize = 13.sp, color = Color(0xFF475569))
+                            }
+                            Text(
+                                text = "Forgot password?",
+                                fontSize = 13.sp,
+                                color = Color(0xFF00A36C),
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clickable { showForgotPassword = true }
+                            )
+                        }
+
+                        Button(
+                            onClick = { viewModel.login(email, password) },
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF009665)),
+                            shape = RoundedCornerShape(10.dp),
+                            enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank()
+                        ) {
+                            if (state.isLoading) {
+                                CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                                    Icon(Icons.AutoMirrored.Filled.ExitToApp, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Sign In", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                }
+                            }
                         }
                     }
-                }
-            } else {
-                CustomLoginTextField(
-                    value = pin,
-                    onValueChange = { pin = it.filter { char -> char.isDigit() }.take(6); viewModel.dismissError() },
-                    placeholder = "Enter 6-Digit Staff PIN",
-                    leadingIcon = Icons.Filled.Pin,
-                    isPassword = true,
-                    passwordVisible = passwordVisible,
-                    onPasswordToggle = { passwordVisible = !passwordVisible },
-                    enabled = !state.isLoading
-                )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        CustomLoginTextField(
+                            value = pin,
+                            onValueChange = { pin = it.filter { char -> char.isDigit() }.take(6); viewModel.dismissError() },
+                            placeholder = "Enter 6-Digit Staff PIN",
+                            leadingIcon = Icons.Filled.Pin,
+                            isPassword = true,
+                            passwordVisible = passwordVisible,
+                            onPasswordToggle = { passwordVisible = !passwordVisible },
+                            enabled = !state.isLoading
+                        )
 
-                Text(
-                    "Enter your assigned 6-digit staff PIN for rapid terminal authorization.",
-                    fontSize = 12.sp,
-                    color = Color(0xFF64748B)
-                )
+                        Text(
+                            "Enter your assigned 6-digit staff PIN for rapid terminal authorization.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B)
+                        )
 
-                Button(
-                    onClick = { viewModel.loginWithPin(pin) },
-                    modifier = Modifier.fillMaxWidth().height(46.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF009665)),
-                    shape = RoundedCornerShape(10.dp),
-                    enabled = !state.isLoading && pin.length == 6
-                ) {
-                    if (state.isLoading) {
-                        CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
-                    } else {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                            Icon(Icons.Filled.Pin, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Sign In with Staff PIN", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Button(
+                            onClick = { viewModel.loginWithPin(pin) },
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF009665)),
+                            shape = RoundedCornerShape(10.dp),
+                            enabled = !state.isLoading && pin.length == 6
+                        ) {
+                            if (state.isLoading) {
+                                CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                                    Icon(Icons.Filled.Pin, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Sign In with Staff PIN", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                }
+                            }
                         }
                     }
                 }
@@ -1820,6 +1854,17 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                 HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
             }
 
+            val fpTransition = rememberInfiniteTransition(label = "fpPulse")
+            val fpScale by fpTransition.animateFloat(
+                initialValue = 0.95f,
+                targetValue = 1.15f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1400, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "fpScale"
+            )
+
             Surface(
                 onClick = {
                     if (isDesktopFingerprintAvailable()) {
@@ -1838,7 +1883,12 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    Icon(Icons.Default.Fingerprint, null, tint = Color(0xFF00A36C), modifier = Modifier.size(20.dp))
+                    Icon(
+                        Icons.Default.Fingerprint,
+                        null,
+                        tint = Color(0xFF00A36C),
+                        modifier = Modifier.size(20.dp).graphicsLayer(scaleX = fpScale, scaleY = fpScale)
+                    )
                     Spacer(Modifier.width(8.dp))
                     Text("Sign in with Fingerprint", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF1E293B))
                 }

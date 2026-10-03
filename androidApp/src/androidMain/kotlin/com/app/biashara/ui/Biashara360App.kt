@@ -30,6 +30,8 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -259,7 +261,11 @@ fun Biashara360App(
                 startDestination = startDestination,
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight()
+                    .fillMaxHeight(),
+                enterTransition = { fadeIn(tween(220, easing = FastOutSlowInEasing)) },
+                exitTransition = { fadeOut(tween(180, easing = FastOutLinearInEasing)) },
+                popEnterTransition = { fadeIn(tween(220, easing = FastOutSlowInEasing)) },
+                popExitTransition = { fadeOut(tween(180, easing = FastOutLinearInEasing)) }
             ) {
             composable(Screen.Login.route) {
                 LoginScreen(

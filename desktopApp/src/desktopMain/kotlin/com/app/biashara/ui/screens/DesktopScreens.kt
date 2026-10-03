@@ -1,6 +1,9 @@
 package com.app.biashara.ui.screens
 
 import androidx.compose.foundation.*
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -863,6 +866,15 @@ fun DesktopDashboardScreen(
                         }
 
                         // Store Health indicator
+                        var healthTrigger by remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) {
+                            healthTrigger = true
+                        }
+                        val animatedHealth by animateFloatAsState(
+                            targetValue = if (healthTrigger) 0.78f else 0f,
+                            animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+                            label = "healthAnim"
+                        )
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -873,7 +885,7 @@ fun DesktopDashboardScreen(
                                 Text("78%", fontSize = 12.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
                             }
                             LinearProgressIndicator(
-                                progress = { 0.78f },
+                                progress = { animatedHealth },
                                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
                                 color = Color(0xFF10B981),
                                 trackColor = Color(0xFFE2E8F0)
@@ -995,6 +1007,39 @@ fun DesktopDashboardScreen(
 }
 
 @Composable
+fun AnimatedRollingNumber(text: String, modifier: Modifier = Modifier) {
+    val numericDigits = text.filter { it.isDigit() }
+    val numericPart = numericDigits.toLongOrNull()
+    if (numericPart != null && numericPart > 0) {
+        var triggered by remember { mutableStateOf(false) }
+        LaunchedEffect(numericPart) {
+            triggered = true
+        }
+        val animatedValue by animateFloatAsState(
+            targetValue = if (triggered) numericPart.toFloat() else 0f,
+            animationSpec = tween(durationMillis = 750, easing = FastOutSlowInEasing),
+            label = "rollingNumber"
+        )
+        val prefix = if (text.contains("KES", ignoreCase = true)) "KES " else ""
+        Text(
+            text = "$prefix${String.format("%,.0f", animatedValue)}",
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            color = Color(0xFF1E293B),
+            modifier = modifier
+        )
+    } else {
+        Text(
+            text = text,
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            color = Color(0xFF1E293B),
+            modifier = modifier
+        )
+    }
+}
+
+@Composable
 fun KpiCard(
     modifier: Modifier,
     title: String,
@@ -1006,11 +1051,19 @@ fun KpiCard(
     changeColor: Color = B360Green,
     period: String? = null
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val elevation by animateDpAsState(if (isHovered) 6.dp else 0.dp, label = "kpiElevation")
+    val scale by animateFloatAsState(if (isHovered) 1.015f else 1f, label = "kpiScale")
+
     Card(
-        modifier = modifier,
+        modifier = modifier
+            .hoverable(interactionSource)
+            .graphicsLayer(scaleX = scale, scaleY = scale),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
+        border = BorderStroke(1.dp, if (isHovered) color.copy(alpha = 0.5f) else Color(0xFFE2E8F0))
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1049,7 +1102,7 @@ fun KpiCard(
                 }
             }
 
-            // Middle: uppercase label + large bold value
+            // Middle: uppercase label + large bold value with rolling counter
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = title.uppercase(),
@@ -1058,12 +1111,7 @@ fun KpiCard(
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 0.5.sp
                 )
-                Text(
-                    text = value,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                    color = Color(0xFF1E293B)
-                )
+                AnimatedRollingNumber(value)
             }
 
             // Bottom: Trend pill with indicator
@@ -1177,8 +1225,21 @@ fun RevenueBarChart(
                             }
                         }
 
-                        // Bar with guaranteed minimum height (so Thu/Fri are never broken 0px hairlines)
+                        // Bar with guaranteed minimum height and smooth staggered rise
                         val heightFraction = (value / max).coerceIn(0f, 1f)
+                        var barAnimTrigger by remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) {
+                            barAnimTrigger = true
+                        }
+                        val animatedFraction by animateFloatAsState(
+                            targetValue = if (barAnimTrigger) heightFraction else 0f,
+                            animationSpec = tween(
+                                durationMillis = 650,
+                                delayMillis = i * 65,
+                                easing = FastOutSlowInEasing
+                            ),
+                            label = "barGrowth"
+                        )
                         val barColor = when {
                             isHovered -> Color(0xFF047857)
                             isZero -> Color(0xFFE2E8F0)
@@ -1193,7 +1254,7 @@ fun RevenueBarChart(
                                     when {
                                         isZero -> 6.dp
                                         isNearZero -> 10.dp
-                                        else -> (heightFraction * 180).dp.coerceAtLeast(14.dp)
+                                        else -> (animatedFraction * 180).dp.coerceAtLeast(14.dp)
                                     }
                                 )
                                 .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
@@ -1404,8 +1465,18 @@ fun TopCustomerRow(
 
         Text(orders, modifier = Modifier.weight(1f), fontSize = 11.sp, color = Color(0xFF64748B))
 
+        var startAnim by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            startAnim = true
+        }
+        val animatedProgress by animateFloatAsState(
+            targetValue = if (startAnim) progress.coerceIn(0.1f, 1f) else 0f,
+            animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+            label = "customerProgress"
+        )
+
         LinearProgressIndicator(
-            progress = { progress.coerceIn(0.1f, 1f) },
+            progress = { animatedProgress },
             modifier = Modifier.weight(1.2f).height(6.dp).clip(RoundedCornerShape(3.dp)),
             color = Color(0xFF10B981),
             trackColor = Color(0xFFF1F5F9)

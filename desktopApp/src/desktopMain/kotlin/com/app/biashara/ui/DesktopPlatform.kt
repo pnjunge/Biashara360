@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
 import com.app.biashara.ui.theme.B360Green
 
 enum class DesktopPlatform {
@@ -284,7 +286,27 @@ fun DesktopStatusBar(
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left: Local • Synced with green indicator
+        val infiniteTransition = rememberInfiniteTransition(label = "syncPulse")
+        val pulseScale by infiniteTransition.animateFloat(
+            initialValue = 0.82f,
+            targetValue = 1.25f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulseScale"
+        )
+        val pulseAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.65f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulseAlpha"
+        )
+
+        // Left: Local • Synced with pulsing green indicator
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -292,6 +314,7 @@ fun DesktopStatusBar(
             Box(
                 modifier = Modifier
                     .size(7.dp)
+                    .graphicsLayer(scaleX = pulseScale, scaleY = pulseScale, alpha = pulseAlpha)
                     .clip(CircleShape)
                     .background(Color(0xFF10B981))
             )

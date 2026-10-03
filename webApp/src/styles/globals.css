@@ -117,21 +117,90 @@ textarea:focus-visible {
 ::-webkit-scrollbar-thumb { background: var(--b360-border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #ccc; }
 
-/* Animations */
+/* Animations & Unified Tier 2 Motion Design */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-.fade-in { animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.fade-in { animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+
+@keyframes b360-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes b360-modal-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes b360-sync-pulse {
+  0% { transform: scale(0.92); opacity: 0.75; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
+  50% { transform: scale(1.12); opacity: 1; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.92); opacity: 0.75; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes b360-badge-bounce {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.18); opacity: 1; }
+  85% { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+
+@keyframes b360-bar-grow {
+  from { transform: scaleY(0); transform-origin: bottom; }
+  to { transform: scaleY(1); transform-origin: bottom; }
+}
+
+.b360-fade-up,
+.ui-page-header,
+.responsive-grid {
+  animation: b360-fade-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ui-modal-backdrop {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ui-modal {
+  animation: b360-modal-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ui-card {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.b360-card-hover,
+.kpi-card,
+.ui-kpi-card {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.kpi-card:hover,
+.ui-kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04) !important;
+  border-color: #cbd5e1 !important;
+}
+
+.b360-sync-pulse,
+.pos-online-pill span {
+  animation: b360-sync-pulse 2.2s infinite ease-in-out;
+}
+
+.b360-badge-bounce,
+.store-header-cart b {
+  animation: b360-badge-bounce 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Subtle table row hover */
+table tbody tr {
+  transition: background-color 0.15s ease;
+}
+table tbody tr:hover {
+  background-color: rgba(241, 245, 249, 0.7);
+}
 
 /* Premium Design Extensions */
-.kpi-card {
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.kpi-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md) !important;
-}
-
 button, .btn {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 button:hover:not(:disabled), .btn:hover:not(:disabled) {
   transform: translateY(-1px);
@@ -139,14 +208,14 @@ button:hover:not(:disabled), .btn:hover:not(:disabled) {
   filter: brightness(1.05);
 }
 button:active:not(:disabled), .btn:active:not(:disabled) {
-  transform: translateY(0);
+  transform: scale(0.97) !important;
   box-shadow: none;
 }
 
 input, select, textarea {
   border: 1px solid var(--b360-border);
   outline: none;
-  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 input:focus, select:focus, textarea:focus {
   border-color: var(--b360-green) !important;
