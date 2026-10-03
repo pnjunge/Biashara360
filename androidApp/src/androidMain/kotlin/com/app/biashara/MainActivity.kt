@@ -6,20 +6,24 @@ import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import com.app.biashara.ui.Biashara360App
 import com.app.biashara.ui.theme.Biashara360Theme
 import com.app.biashara.ui.theme.ThemeState
 import com.app.biashara.ui.darkModeEnabled
 
+@OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ThemeState.setDarkMode(darkModeEnabled())
         enableEdgeToEdge()
         setContent {
+            val windowSizeClass = calculateWindowSizeClass(this)
             val isDarkMode by ThemeState.isDarkMode.collectAsState()
             Biashara360Theme(darkTheme = isDarkMode) {
-                Biashara360App()
+                Biashara360App(windowWidthSizeClass = windowSizeClass.widthSizeClass)
             }
         }
     }

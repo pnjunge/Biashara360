@@ -2,6 +2,7 @@ package com.app.biashara.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -62,14 +63,32 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.serialization.Serializable
 import com.app.biashara.ui.screens.auth.SubscriptionActivationScreen
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import android.content.res.Configuration
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import android.app.Activity
+
+val LocalWindowWidthSizeClass = staticCompositionLocalOf<WindowWidthSizeClass> {
+    WindowWidthSizeClass.Compact
+}
 
 @Serializable
 private data class HospitalityStatus(val enabled: Boolean = false)
 @Serializable
 private data class MenuAccess(val enabledMenus: List<String> = emptyList())
 
+@OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 @Composable
-fun Biashara360App() {
+fun Biashara360App(
+    windowWidthSizeClass: WindowWidthSizeClass = run {
+        val activity = LocalContext.current as? Activity
+        if (activity != null) calculateWindowSizeClass(activity).widthSizeClass
+        else WindowWidthSizeClass.Compact
+    }
+) {
     val startDestination = Screen.Login.route
     val tokenStorage = koinInject<TokenStorage>()
     val authRepository = koinInject<AuthRepository>()
@@ -171,6 +190,11 @@ fun Biashara360App() {
         currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
     }
 
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isTabletOrExpanded = windowWidthSizeClass == WindowWidthSizeClass.Medium || windowWidthSizeClass == WindowWidthSizeClass.Expanded
+    val useNavigationRail = isLandscape || isTabletOrExpanded
+
     if (showMoreSheet) {
         MoreAppsBottomSheet(
             onDismiss = { showMoreSheet = false },
@@ -179,7 +203,10 @@ fun Biashara360App() {
         )
     }
 
-    CompositionLocalProvider(LocalNetworkAvailable provides networkAvailable) {
+    CompositionLocalProvider(
+        LocalNetworkAvailable provides networkAvailable,
+        LocalWindowWidthSizeClass provides windowWidthSizeClass
+    ) {
     Scaffold(
         topBar = {
             if (!networkAvailable) {
@@ -201,7 +228,7 @@ fun Biashara360App() {
             }
         },
         bottomBar = {
-            if (showBottomBar) {
+            if (showBottomBar && !useNavigationRail) {
                 CustomBottomNavigation(
                     navController = navController,
                     currentDestination = currentDestination,
@@ -212,11 +239,28 @@ fun Biashara360App() {
             }
         }
     ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = startDestination,
-            modifier = Modifier.padding(paddingValues)
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
         ) {
+            if (showBottomBar && useNavigationRail) {
+                CustomNavigationRail(
+                    navController = navController,
+                    currentDestination = currentDestination,
+                    primaryItems = visiblePrimaryNavItems,
+                    secondaryItems = visibleSecondaryNavItems,
+                    onOpenMoreSheet = { showMoreSheet = true }
+                )
+                VerticalDivider(color = Color(0xFFE2E8F0), thickness = 1.dp)
+            }
+            NavHost(
+                navController = navController,
+                startDestination = startDestination,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
             composable(Screen.Login.route) {
                 LoginScreen(
                     onLoginSuccess = { userId ->
@@ -287,7 +331,7 @@ fun Biashara360App() {
                 )
             }
             composable(Screen.Pos.route) {
-                PosScreen()
+                PosScreen(windowWidthSizeClass = windowWidthSizeClass)
             }
             composable(Screen.Inventory.route) {
                 InventoryScreen(
@@ -386,6 +430,7 @@ fun Biashara360App() {
                     onBack = { navController.popBackStack() }
                 )
             }
+        }
         }
     }
     }
@@ -565,6 +610,122 @@ fun CustomBottomNavigation(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun CustomNavigationRail(
+    navController: NavController,
+    currentDestination: NavDestination?,
+    primaryItems: List<com.app.biashara.ui.navigation.BottomNavItem>,
+    secondaryItems: List<com.app.biashara.ui.navigation.BottomNavItem>,
+    onOpenMoreSheet: () -> Unit
+) {
+    val isAnySecondarySelected = secondaryItems.any { item ->
+        currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
+    }
+
+    NavigationRail(
+        containerColor = Color.White,
+        contentColor = Color(0xFF0F172A),
+        header = {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = B360Green.copy(alpha = 0.12f),
+                modifier = Modifier.padding(top = 12.dp, bottom = 10.dp)
+            ) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "360",
+                        color = B360Green,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 15.sp
+                    )
+                }
+            }
+        },
+        modifier = Modifier.fillMaxHeight()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            primaryItems.forEach { item ->
+                val isSelected = currentDestination?.hierarchy?.any {
+                    it.route == item.screen.route
+                } == true
+
+                NavigationRailItem(
+                    selected = isSelected,
+                    onClick = {
+                        navController.navigate(item.screen.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = item.label,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = item.label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    colors = NavigationRailItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = B360Green,
+                        indicatorColor = B360Green,
+                        unselectedIconColor = Color(0xFF64748B),
+                        unselectedTextColor = Color(0xFF64748B)
+                    )
+                )
+            }
+
+            NavigationRailItem(
+                selected = isAnySecondarySelected,
+                onClick = onOpenMoreSheet,
+                icon = {
+                    Icon(
+                        imageVector = Icons.Filled.GridView,
+                        contentDescription = "More",
+                        modifier = Modifier.size(20.dp)
+                    )
+                },
+                label = {
+                    Text(
+                        text = "More",
+                        fontSize = 11.sp,
+                        fontWeight = if (isAnySecondarySelected) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                colors = NavigationRailItemDefaults.colors(
+                    selectedIconColor = Color.White,
+                    selectedTextColor = B360Green,
+                    indicatorColor = B360Green,
+                    unselectedIconColor = Color(0xFF64748B),
+                    unselectedTextColor = Color(0xFF64748B)
+                )
+            )
         }
     }
 }
