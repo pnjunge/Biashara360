@@ -785,6 +785,77 @@ fun Route.userRoutes() {
                 val result = userService.reassignUser(userId, businessId, callerUserId, role, req, ipAddress)
                 call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
             }
+
+            put {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN") {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                    return@put
+                }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@put
+                val userId = call.parameters["id"]!!
+                val req = call.receive<EditUserRequest>()
+                val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject ?: ""
+                val ipAddress = call.request.local.remoteHost
+                val result = userService.editUser(userId, businessId, callerUserId, req, ipAddress)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+
+            post("/unlock") {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN" && role != "MANAGER") {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin or Manager access required"))
+                    return@post
+                }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@post
+                val userId = call.parameters["id"]!!
+                val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject ?: ""
+                val ipAddress = call.request.local.remoteHost
+                val result = userService.unlockAccount(userId, businessId, callerUserId, ipAddress)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+
+            post("/reset-password") {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN") {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                    return@post
+                }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@post
+                val userId = call.parameters["id"]!!
+                val req = call.receive<AdminResetPasswordRequest>()
+                val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject ?: ""
+                val ipAddress = call.request.local.remoteHost
+                val result = userService.adminResetPassword(userId, businessId, callerUserId, req, ipAddress)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+
+            put("/branches") {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN") {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+                    return@put
+                }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@put
+                val userId = call.parameters["id"]!!
+                val req = call.receive<AssignUserBranchesRequest>()
+                val callerUserId = call.principal<JWTPrincipal>()?.payload?.subject ?: ""
+                val ipAddress = call.request.local.remoteHost
+                val result = userService.assignUserBranches(userId, businessId, callerUserId, req, ipAddress)
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
+            }
+
+            get("/activity") {
+                val role = call.userRole()
+                if (role != "ADMIN" && role != "SUPERADMIN" && role != "MANAGER") {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin or Manager access required"))
+                    return@get
+                }
+                val businessId = call.resolveUserManagementBusinessId(role) ?: return@get
+                val userId = call.parameters["id"]!!
+                val activity = userService.getUserActivity(userId, businessId)
+                call.respond(ApiResponse(true, data = activity))
+            }
         }
     }
 }

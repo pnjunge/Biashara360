@@ -2,18 +2,12 @@ package com.app.biashara.services
 
 import com.app.biashara.auth.PasswordUtils
 import com.app.biashara.auth.generateId
-import com.app.biashara.db.AccessGroupsTable
-import com.app.biashara.db.AccessRolesTable
-import com.app.biashara.db.UserAccessGroupsTable
-import com.app.biashara.db.UserAccessRolesTable
-import com.app.biashara.db.UsersTable
-import com.app.biashara.db.RefreshTokensTable
-import com.app.biashara.db.BusinessesTable
-import com.app.biashara.db.BranchesTable
+import com.app.biashara.db.*
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
 import org.jetbrains.exposed.sql.transactions.transaction
 
 private val ASSIGNABLE_ROLES = setOf("ADMIN", "MANAGER", "STAFF")
@@ -138,11 +132,22 @@ class UserManagementService(
             it[UsersTable.phone] = phone
             it[passwordHash] = PasswordUtils.hash(rawPassword)
             it[role] = normalizedRole
+            it[status] = "ACTIVE"
+            it[createdByUserId] = callerUserId
             it[twoFactorEnabled] = false
             it[preferredLanguage] = "ENGLISH"
             it[isActive] = true
             it[createdAt] = now
             it[updatedAt] = now
+        }
+
+        val allBranches = (req.branchIds + listOfNotNull(branchId)).distinct()
+        for (bId in allBranches) {
+            UserBranchesTable.insert {
+                it[UserBranchesTable.userId] = userId
+                it[UserBranchesTable.branchId] = bId
+                it[isPrimary] = (bId == branchId)
+            }
         }
 
         // Assign groups: use provided group(s) or default to Front
@@ -503,22 +508,199 @@ class UserManagementService(
         }
 
         val now = Clock.System.now()
+        val newStatus = if (req.isActive) "ACTIVE" else "DISABLED"
         UsersTable.update({ (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }) {
             it[isActive] = req.isActive
+            it[status] = newStatus
             it[tokenValidAfter] = now
             it[updatedAt] = now
         }
         if (!req.isActive) RefreshTokensTable.deleteWhere { RefreshTokensTable.userId eq userId }
 
-        auditLogService.logEvent(businessId, callerUserId, userId, if (req.isActive) "USER_ACTIVATED" else "USER_DEACTIVATED", ipAddress)
+        auditLogService.logEvent(businessId, callerUserId, userId, if (req.isActive) "USER_ACTIVATED" else "USER_DEACTIVATED", ipAddress, null, "USER", userId)
 
         val updated = UsersTable.select { UsersTable.id eq userId }.first()
         ApiResponse(success = true, data = updated.toUserResponse(), message = if (req.isActive) "User activated" else "User deactivated")
     }
 
+    fun editUser(
+        userId: String,
+        businessId: String,
+        callerUserId: String,
+        req: EditUserRequest,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> = transaction {
+        val row = UsersTable.select {
+            (UsersTable.id eq userId) and (UsersTable.businessId eq businessId)
+        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "User not found")
+
+        val name = req.name.trim()
+        val email = req.email.trim().lowercase()
+        val phone = normalizeUserPhone(req.phone)
+
+        if (name.isBlank() || email.isBlank() || phone.isBlank()) {
+            return@transaction ApiResponse(false, message = "Name, email, and phone are required")
+        }
+
+        val emailInUse = UsersTable.select {
+            (UsersTable.email.lowerCase() eq email) and (UsersTable.id neq userId)
+        }.any()
+        if (emailInUse) return@transaction ApiResponse(false, message = "Email already in use by another user")
+
+        val phoneInUse = UsersTable.select {
+            (UsersTable.phone eq phone) and (UsersTable.id neq userId)
+        }.any()
+        if (phoneInUse) return@transaction ApiResponse(false, message = "Phone number already in use by another user")
+
+        val primaryBranchId = req.branchId?.trim()?.takeIf { it.isNotBlank() }
+        if (primaryBranchId != null) {
+            val branchExists = BranchesTable.select { (BranchesTable.id eq primaryBranchId) and (BranchesTable.businessId eq businessId) }.any()
+            if (!branchExists) return@transaction ApiResponse(false, message = "Selected branch not found")
+        }
+
+        val now = Clock.System.now()
+        UsersTable.update({ (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }) {
+            it[UsersTable.name] = name
+            it[UsersTable.email] = email
+            it[UsersTable.phone] = phone
+            it[UsersTable.branchId] = primaryBranchId
+            if (!req.role.isNullOrBlank() && req.role.trim().uppercase() in ASSIGNABLE_ROLES) {
+                it[role] = req.role.trim().uppercase()
+            }
+            it[updatedAt] = now
+        }
+
+        if (req.branchIds.isNotEmpty() || primaryBranchId != null) {
+            val allBranches = (req.branchIds + listOfNotNull(primaryBranchId)).distinct()
+            UserBranchesTable.deleteWhere { UserBranchesTable.userId eq userId }
+            for (bId in allBranches) {
+                UserBranchesTable.insert {
+                    it[UserBranchesTable.userId] = userId
+                    it[branchId] = bId
+                    it[isPrimary] = (bId == primaryBranchId)
+                }
+            }
+        }
+
+        if (req.roleIds.isNotEmpty()) {
+            val validRoles = AccessRolesTable.select {
+                (AccessRolesTable.businessId eq businessId) and (AccessRolesTable.id inList req.roleIds)
+            }.map { it[AccessRolesTable.id] }
+            UserAccessRolesTable.deleteWhere { UserAccessRolesTable.userId eq userId }
+            for (rId in validRoles) {
+                UserAccessRolesTable.insert {
+                    it[UserAccessRolesTable.userId] = userId
+                    it[roleId] = rId
+                }
+            }
+        }
+
+        auditLogService.logEvent(businessId, callerUserId, userId, "USER_UPDATE", ipAddress, "Edited profile for $name", "USER", userId)
+
+        val updated = UsersTable.select { UsersTable.id eq userId }.first()
+        ApiResponse(true, data = updated.toUserResponse(), message = "User updated successfully")
+    }
+
+    fun unlockAccount(
+        userId: String,
+        businessId: String,
+        callerUserId: String,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> = transaction {
+        val row = UsersTable.select {
+            (UsersTable.id eq userId) and (UsersTable.businessId eq businessId)
+        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "User not found")
+
+        val now = Clock.System.now()
+        UsersTable.update({ (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }) {
+            it[pinFailedAttempts] = 0
+            it[pinLockedUntil] = null
+            it[status] = "ACTIVE"
+            it[updatedAt] = now
+        }
+
+        auditLogService.logEvent(businessId, callerUserId, userId, "USER_UNLOCK", ipAddress, "Unlocked user account from locked state", "USER", userId)
+
+        val updated = UsersTable.select { UsersTable.id eq userId }.first()
+        ApiResponse(true, data = updated.toUserResponse(), message = "User account unlocked successfully")
+    }
+
+    fun adminResetPassword(
+        userId: String,
+        businessId: String,
+        callerUserId: String,
+        req: AdminResetPasswordRequest,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> = transaction {
+        val newPassword = req.newPassword.trim()
+        if (newPassword.length < 6) {
+            return@transaction ApiResponse(false, message = "Password must be at least 6 characters")
+        }
+
+        val row = UsersTable.select {
+            (UsersTable.id eq userId) and (UsersTable.businessId eq businessId)
+        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "User not found")
+
+        val now = Clock.System.now()
+        UsersTable.update({ (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }) {
+            it[passwordHash] = PasswordUtils.hash(newPassword)
+            it[tokenValidAfter] = now
+            it[updatedAt] = now
+        }
+        RefreshTokensTable.deleteWhere { RefreshTokensTable.userId eq userId }
+
+        auditLogService.logEvent(businessId, callerUserId, userId, "PASSWORD_RESET", ipAddress, "Administrator reset user password", "USER", userId)
+
+        val updated = UsersTable.select { UsersTable.id eq userId }.first()
+        ApiResponse(true, data = updated.toUserResponse(), message = "Password reset successfully")
+    }
+
+    fun assignUserBranches(
+        userId: String,
+        businessId: String,
+        callerUserId: String,
+        req: AssignUserBranchesRequest,
+        ipAddress: String? = null
+    ): ApiResponse<UserResponse> = transaction {
+        val row = UsersTable.select {
+            (UsersTable.id eq userId) and (UsersTable.businessId eq businessId)
+        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "User not found")
+
+        val validBranches = BranchesTable.select {
+            (BranchesTable.businessId eq businessId) and (BranchesTable.id inList req.branchIds)
+        }.map { it[BranchesTable.id] }
+
+        val primary = req.primaryBranchId?.takeIf { it in validBranches } ?: validBranches.firstOrNull()
+
+        UserBranchesTable.deleteWhere { UserBranchesTable.userId eq userId }
+        for (bId in validBranches) {
+            UserBranchesTable.insert {
+                it[UserBranchesTable.userId] = userId
+                it[branchId] = bId
+                it[isPrimary] = (bId == primary)
+            }
+        }
+
+        val now = Clock.System.now()
+        UsersTable.update({ UsersTable.id eq userId }) {
+            it[branchId] = primary
+            it[updatedAt] = now
+        }
+
+        auditLogService.logEvent(businessId, callerUserId, userId, "ASSIGN_USER_BRANCHES", ipAddress, "Assigned ${validBranches.size} branches", "USER", userId)
+
+        val updated = UsersTable.select { UsersTable.id eq userId }.first()
+        ApiResponse(true, data = updated.toUserResponse(), message = "Branches assigned successfully")
+    }
+
+    fun getUserActivity(userId: String, businessId: String): List<AuditLogResponse> {
+        return auditLogService.getUserActivity(businessId, userId)
+    }
+
     private fun ResultRow.toUserResponse(): UserResponse {
         val userId = this[UsersTable.id]
         val businessId = this[UsersTable.businessId] ?: ""
+        val now = Clock.System.now()
         val groups = (UserAccessGroupsTable innerJoin AccessGroupsTable)
             .slice(AccessGroupsTable.id, AccessGroupsTable.name)
             .select {
@@ -533,12 +715,38 @@ class UserManagementService(
                     (AccessRolesTable.businessId eq businessId) and
                     (AccessRolesTable.isActive eq true)
             }
+        val permissions = (UserAccessRolesTable innerJoin AccessRolesTable innerJoin RolePermissionsTable innerJoin PermissionsTable)
+            .slice(PermissionsTable.code)
+            .select {
+                (UserAccessRolesTable.userId eq userId) and
+                    (AccessRolesTable.businessId eq businessId) and
+                    (AccessRolesTable.isActive eq true)
+            }.map { it[PermissionsTable.code] }.distinct()
+
         val branchId = this[UsersTable.branchId]
         val branchName = branchId?.let { bId ->
             BranchesTable.slice(BranchesTable.name)
                 .select { (BranchesTable.id eq bId) and (BranchesTable.businessId eq businessId) }
                 .firstOrNull()?.get(BranchesTable.name)
         }
+
+        val userBranchRows = (UserBranchesTable innerJoin BranchesTable)
+            .slice(BranchesTable.id, BranchesTable.name)
+            .select { (UserBranchesTable.userId eq userId) and (BranchesTable.businessId eq businessId) }
+            .toList()
+
+        val assignedBranchIds = userBranchRows.map { it[BranchesTable.id] }
+        val assignedBranchNames = userBranchRows.map { it[BranchesTable.name] }
+
+        val pinLockedUntil = this[UsersTable.pinLockedUntil]
+        val isPinLocked = pinLockedUntil != null && pinLockedUntil > now
+        val rawStatus = this[UsersTable.status]
+        val resolvedStatus = when {
+            isPinLocked -> "LOCKED"
+            !this[UsersTable.isActive] || rawStatus.equals("DISABLED", ignoreCase = true) -> "DISABLED"
+            else -> "ACTIVE"
+        }
+
         return UserResponse(
             id = userId,
             name = this[UsersTable.name],
@@ -548,13 +756,22 @@ class UserManagementService(
             businessId = this[UsersTable.businessId],
             preferredLanguage = this[UsersTable.preferredLanguage],
             isActive = this[UsersTable.isActive],
+            status = resolvedStatus,
+            lastLoginAt = this[UsersTable.lastLoginAt]?.toString(),
             hasPinSet = this[UsersTable.loginPinHash] != null,
+            isPinLocked = isPinLocked,
+            pinLockedUntil = pinLockedUntil?.toString(),
             assignedGroups = groups.map { it[AccessGroupsTable.name] },
             assignedGroupIds = groups.map { it[AccessGroupsTable.id] },
             assignedRoles = roles.map { it[AccessRolesTable.name] },
             assignedRoleIds = roles.map { it[AccessRolesTable.id] },
+            permissions = permissions,
             branchId = branchId,
-            branchName = branchName
+            branchName = branchName,
+            assignedBranchIds = assignedBranchIds,
+            assignedBranchNames = assignedBranchNames,
+            createdAt = this[UsersTable.createdAt].toString(),
+            updatedAt = this[UsersTable.updatedAt].toString()
         )
     }
 

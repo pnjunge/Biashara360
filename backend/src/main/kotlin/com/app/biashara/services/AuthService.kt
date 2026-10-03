@@ -19,7 +19,8 @@ data class ChangePasswordRequest(val currentPassword: String, val newPassword: S
 class AuthService(
     private val smsService: SmsService,
     private val emailService: EmailService,
-    private val whatsappOtpService: WhatsAppOtpService
+    private val whatsappOtpService: WhatsAppOtpService,
+    private val auditLogService: AuditLogService? = null
 ) {
     /**
      * Enable or disable OTP (two‑factor) for a user.
@@ -219,15 +220,34 @@ class AuthService(
     }
 
     private fun loginUser(user: ResultRow): ApiResponse<LoginResponse> = transaction {
-        if (!user[UsersTable.isActive])
+        val now = Clock.System.now()
+        val lockedUntil = user[UsersTable.pinLockedUntil]
+        if (lockedUntil != null && lockedUntil > now) {
+            return@transaction ApiResponse(false, message = "Account is temporarily locked due to repeated invalid attempts. Try again later or contact an administrator.")
+        }
+        if (!user[UsersTable.isActive] || user[UsersTable.status].equals("DISABLED", ignoreCase = true))
             return@transaction ApiResponse(false, message = "Account is deactivated")
         businessAccessError(user[UsersTable.businessId])?.let { message ->
             return@transaction ApiResponse(false, message = message)
         }
         val userId = user[UsersTable.id]
+        UsersTable.update({ UsersTable.id eq userId }) {
+            it[lastLoginAt] = now
+            if (user[UsersTable.status] == "LOCKED" && (lockedUntil == null || lockedUntil <= now)) {
+                it[status] = "ACTIVE"
+            }
+        }
+        auditLogService?.logEvent(
+            businessId = user[UsersTable.businessId],
+            actorUserId = userId,
+            targetUserId = userId,
+            action = "AUTH_LOGIN",
+            details = "Successful login",
+            resourceType = "USER",
+            resourceId = userId
+        )
         if (user[UsersTable.twoFactorEnabled]) {
             val otp = OtpUtils.generate()
-            val now = Clock.System.now()
             OtpTable.deleteWhere { OtpTable.userId eq userId }
             OtpTable.insert {
                 it[id] = generateId()
@@ -304,15 +324,44 @@ class AuthService(
             UsersTable.update({ UsersTable.id eq user[UsersTable.id] }) {
                 it[pinFailedAttempts] = if (failures >= 5) 0 else failures
                 it[pinLockedUntil] = if (failures >= 5) now + 900.seconds else null
+                if (failures >= 5) {
+                    it[status] = "LOCKED"
+                }
                 it[updatedAt] = now
+            }
+            if (failures >= 5) {
+                auditLogService?.logEvent(
+                    businessId = user[UsersTable.businessId],
+                    actorUserId = null,
+                    targetUserId = user[UsersTable.id],
+                    action = "USER_LOCKED",
+                    details = "PIN failed attempts limit reached. Account locked for 15 minutes.",
+                    resourceType = "USER",
+                    resourceId = user[UsersTable.id]
+                )
             }
             return@transaction ApiResponse(false, message = "Invalid credentials")
         }
-        if (!user[UsersTable.isActive]) return@transaction ApiResponse(false, message = "Account is deactivated")
+        if (!user[UsersTable.isActive] || user[UsersTable.status].equals("DISABLED", ignoreCase = true)) {
+            return@transaction ApiResponse(false, message = "Account is deactivated")
+        }
         businessAccessError(user[UsersTable.businessId])?.let { return@transaction ApiResponse(false, message = it) }
         UsersTable.update({ UsersTable.id eq user[UsersTable.id] }) {
-            it[pinFailedAttempts] = 0; it[pinLockedUntil] = null; it[updatedAt] = now
+            it[pinFailedAttempts] = 0
+            it[pinLockedUntil] = null
+            it[status] = "ACTIVE"
+            it[lastLoginAt] = now
+            it[updatedAt] = now
         }
+        auditLogService?.logEvent(
+            businessId = user[UsersTable.businessId],
+            actorUserId = user[UsersTable.id],
+            targetUserId = user[UsersTable.id],
+            action = "AUTH_LOGIN_PIN",
+            details = "Successful login via PIN",
+            resourceType = "USER",
+            resourceId = user[UsersTable.id]
+        )
         completeLogin(user)
     }
 

@@ -559,12 +559,32 @@ export interface UserResponse {
   businessId: string
   preferredLanguage: string
   isActive?: boolean
+  status?: string // 'ACTIVE' | 'DISABLED' | 'LOCKED'
+  lastLoginAt?: string | null
+  hasPinSet?: boolean
+  isPinLocked?: boolean
+  pinLockedUntil?: string | null
   assignedGroups?: string[]
   assignedGroupIds?: string[]
   assignedRoles?: string[]
   assignedRoleIds?: string[]
+  permissions?: string[]
   branchId?: string | null
   branchName?: string | null
+  assignedBranchIds?: string[]
+  assignedBranchNames?: string[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface EditUserRequest {
+  name: string
+  email: string
+  phone: string
+  role?: string
+  branchId?: string | null
+  branchIds?: string[]
+  roleIds?: string[]
 }
 
 export interface InviteUserRequest {
@@ -577,6 +597,7 @@ export interface InviteUserRequest {
   groupIds?: string[]
   roleIds?: string[]
   branchId?: string | null
+  branchIds?: string[]
 }
 
 export interface ReassignUserRequest {
@@ -587,10 +608,32 @@ export interface ReassignUserRequest {
   branchId?: string | null
 }
 
+export interface PermissionDefinition {
+  id: string
+  code: string
+  module: string
+  action: string
+  name: string
+  description: string
+}
+
 export interface MenuDefinition { key: string; label: string }
-export interface AccessRole { id: string; name: string; description: string; allowedMenus: string[]; isActive: boolean }
+export interface AccessRole {
+  id: string
+  name: string
+  description: string
+  allowedMenus: string[]
+  permissions?: string[]
+  isActive: boolean
+}
 export interface AccessGroup { id: string; name: string; description: string; allowedMenus: string[]; roleIds?: string[]; userIds: string[]; isActive: boolean }
-export interface AccessConfig { menus: MenuDefinition[]; enabledMenus: string[]; roles: AccessRole[]; groups: AccessGroup[] }
+export interface AccessConfig {
+  menus: MenuDefinition[]
+  enabledMenus: string[]
+  roles: AccessRole[]
+  groups: AccessGroup[]
+  permissions?: PermissionDefinition[]
+}
 export interface InventoryCategory { id: string; name: string; isActive: boolean; productCount: number; imageUrl?: string | null }
 
 export interface Supplier {
@@ -1118,6 +1161,48 @@ export const userApi = {
     })
     return res.data
   },
+  edit: async (id: string, data: EditUserRequest, businessId?: string) => {
+    const res = await client.put<ApiResponse<UserResponse>>(`/users/${id}`, data, {
+      params: businessId ? { businessId } : undefined,
+    })
+    return res.data
+  },
+  unlock: async (id: string, businessId?: string) => {
+    const res = await client.post<ApiResponse<UserResponse>>(`/users/${id}/unlock`, {}, {
+      params: businessId ? { businessId } : undefined,
+    })
+    return res.data
+  },
+  resetPassword: async (id: string, newPassword: string, businessId?: string) => {
+    const res = await client.post<ApiResponse<UserResponse>>(`/users/${id}/reset-password`, { newPassword }, {
+      params: businessId ? { businessId } : undefined,
+    })
+    return res.data
+  },
+  setStaffPin: async (id: string, pin: string, businessId?: string) => {
+    const res = await client.put<ApiResponse<UserResponse>>(`/users/${id}/pin`, { pin }, {
+      params: businessId ? { businessId } : undefined,
+    })
+    return res.data
+  },
+  removeStaffPin: async (id: string, businessId?: string) => {
+    const res = await client.delete<ApiResponse<UserResponse>>(`/users/${id}/pin`, {
+      params: businessId ? { businessId } : undefined,
+    })
+    return res.data
+  },
+  assignBranches: async (id: string, branchIds: string[], primaryBranchId?: string, businessId?: string) => {
+    const res = await client.put<ApiResponse<UserResponse>>(`/users/${id}/branches`, { branchIds, primaryBranchId }, {
+      params: businessId ? { businessId } : undefined,
+    })
+    return res.data
+  },
+  getActivity: async (id: string, businessId?: string) => {
+    const res = await client.get<ApiResponse<AuditLogResponse[]>>(`/users/${id}/activity`, {
+      params: businessId ? { businessId } : undefined,
+    })
+    return res.data
+  },
   updateRole: async (id: string, role: string, businessId?: string) => {
     const res = await client.patch<ApiResponse<UserResponse>>(`/users/${id}/role`, { role }, {
       params: businessId ? { businessId } : undefined,
@@ -1158,6 +1243,8 @@ export interface AuditLogResponse {
   targetUserId: string | null
   targetName?: string | null
   action: string
+  resourceType?: string | null
+  resourceId?: string | null
   ipAddress?: string | null
   details?: string | null
   createdAt: string
@@ -1182,11 +1269,11 @@ export const auditLogApi = {
 }
 
 export const accessApi = {
-  me: async () => (await client.get<ApiResponse<{ enabledMenus: string[] }>>('/access/me')).data,
+  me: async () => (await client.get<ApiResponse<{ enabledMenus: string[]; permissions?: string[] }>>('/access/me')).data,
   config: async (businessId?: string) => (await client.get<ApiResponse<AccessConfig>>('/access/config', { params: businessId ? { businessId } : undefined })).data,
   updateMenus: async (enabledMenus: string[], businessId?: string) => (await client.put<ApiResponse<AccessConfig>>('/access/config/menus', { enabledMenus }, { params: businessId ? { businessId } : undefined })).data,
-  createRole: async (data: { name: string; description: string; allowedMenus: string[] }, businessId?: string) => (await client.post<ApiResponse<AccessRole>>('/access/config/roles', data, { params: businessId ? { businessId } : undefined })).data,
-  updateRole: async (id: string, data: { name: string; description: string; allowedMenus: string[]; isActive: boolean }, businessId?: string) => (await client.put<ApiResponse<AccessRole>>(`/access/config/roles/${id}`, data, { params: businessId ? { businessId } : undefined })).data,
+  createRole: async (data: { name: string; description: string; allowedMenus?: string[]; permissions?: string[]; isActive?: boolean }, businessId?: string) => (await client.post<ApiResponse<AccessRole>>('/access/config/roles', data, { params: businessId ? { businessId } : undefined })).data,
+  updateRole: async (id: string, data: { name: string; description: string; allowedMenus?: string[]; permissions?: string[]; isActive: boolean }, businessId?: string) => (await client.put<ApiResponse<AccessRole>>(`/access/config/roles/${id}`, data, { params: businessId ? { businessId } : undefined })).data,
   deleteRole: async (id: string, businessId?: string) => (await client.delete<ApiResponse<boolean>>(`/access/config/roles/${id}`, { params: businessId ? { businessId } : undefined })).data,
   createGroup: async (data: { name: string; description: string; allowedMenus?: string[]; roleIds?: string[] }, businessId?: string) => (await client.post<ApiResponse<AccessGroup>>('/access/config/groups', data, { params: businessId ? { businessId } : undefined })).data,
   updateGroup: async (id: string, data: { name: string; description: string; allowedMenus?: string[]; roleIds?: string[]; isActive: boolean }, businessId?: string) => (await client.put<ApiResponse<AccessGroup>>(`/access/config/groups/${id}`, data, { params: businessId ? { businessId } : undefined })).data,

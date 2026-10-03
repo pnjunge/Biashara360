@@ -116,6 +116,32 @@ object UserAccessRolesTable : Table("user_access_roles") {
     override val primaryKey = PrimaryKey(userId, roleId)
 }
 
+// ─── Permissions & Roles ───────────────────────────────────────────────────────
+
+object PermissionsTable : Table("permissions") {
+    val id = varchar("id", 36)
+    val code = varchar("code", 80).uniqueIndex()
+    val module = varchar("module", 40)
+    val action = varchar("action", 20)
+    val name = varchar("name", 100)
+    val description = varchar("description", 255).default("")
+    val createdAt = timestamp("created_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
+object RolePermissionsTable : Table("role_permissions") {
+    val roleId = varchar("role_id", 36).references(AccessRolesTable.id, onDelete = CASCADE)
+    val permissionId = varchar("permission_id", 36).references(PermissionsTable.id, onDelete = CASCADE)
+    override val primaryKey = PrimaryKey(roleId, permissionId)
+}
+
+object UserBranchesTable : Table("user_branches") {
+    val userId = varchar("user_id", 36).references(UsersTable.id, onDelete = CASCADE)
+    val branchId = varchar("branch_id", 36).references(BranchesTable.id, onDelete = CASCADE)
+    val isPrimary = bool("is_primary").default(false)
+    override val primaryKey = PrimaryKey(userId, branchId)
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 object UsersTable : Table("users") {
@@ -130,6 +156,9 @@ object UsersTable : Table("users") {
     val pinFailedAttempts = integer("pin_failed_attempts").default(0)
     val pinLockedUntil = timestamp("pin_locked_until").nullable()
     val role = varchar("role", 20).default("STAFF")
+    val status = varchar("status", 20).default("ACTIVE")
+    val lastLoginAt = timestamp("last_login_at").nullable()
+    val createdByUserId = varchar("created_by_user_id", 36).nullable()
     val twoFactorEnabled = bool("two_factor_enabled").default(false)
     val preferredLanguage = varchar("preferred_language", 10).default("ENGLISH")
     val tokenValidAfter = timestamp("token_valid_after").nullable()
@@ -147,6 +176,8 @@ object AuditLogsTable : Table("audit_logs") {
     val actorUserId = varchar("actor_user_id", 36).references(UsersTable.id, CASCADE, SET_NULL).nullable()
     val targetUserId = varchar("target_user_id", 36).references(UsersTable.id, CASCADE, SET_NULL).nullable()
     val action = varchar("action", 80)
+    val resourceType = varchar("resource_type", 50).nullable()
+    val resourceId = varchar("resource_id", 50).nullable()
     val ipAddress = varchar("ip_address", 45).nullable()
     val details = text("details").nullable()
     val createdAt = timestamp("created_at")

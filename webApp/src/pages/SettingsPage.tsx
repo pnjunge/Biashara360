@@ -664,8 +664,8 @@ export function SettingsPage() {
     },
     {
       label: 'Users & Permissions', icon: <Users size={19} />, items: [
-        { label: 'Users', path: '/users' },
-        { label: 'Roles & Permissions', path: '/users' },
+        { label: 'Users', path: '/users?tab=users' },
+        { label: 'Roles & Permissions', path: '/users?tab=roles' },
       ]
     },
     {
@@ -1203,7 +1203,7 @@ export function SettingsPage() {
                 Manage roles, permission groups, and user access to business areas from Users &amp; Permissions.
               </p>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <Btn variant="secondary" onClick={() => navigate('/users')}>Open Roles &amp; Permissions</Btn>
+                <Btn variant="secondary" onClick={() => navigate('/users?tab=roles')}>Open Roles &amp; Permissions Matrix</Btn>
               </div>
             </Section>
           )}

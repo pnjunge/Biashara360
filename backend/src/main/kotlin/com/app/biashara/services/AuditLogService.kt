@@ -10,6 +10,9 @@ import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.andWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.or
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 
 class AuditLogService {
@@ -20,7 +23,9 @@ class AuditLogService {
         targetUserId: String? = null,
         action: String,
         ipAddress: String? = null,
-        details: String? = null
+        details: String? = null,
+        resourceType: String? = null,
+        resourceId: String? = null
     ) {
         runCatching {
             transaction {
@@ -30,6 +35,8 @@ class AuditLogService {
                     row[AuditLogsTable.actorUserId] = actorUserId
                     row[AuditLogsTable.targetUserId] = targetUserId
                     row[AuditLogsTable.action] = action.trim().uppercase()
+                    row[AuditLogsTable.resourceType] = resourceType?.take(50)
+                    row[AuditLogsTable.resourceId] = resourceId?.take(50)
                     row[AuditLogsTable.ipAddress] = ipAddress?.take(45)
                     row[AuditLogsTable.details] = details?.take(1000)
                     row[createdAt] = Clock.System.now()
@@ -100,8 +107,47 @@ class AuditLogService {
                 targetUserId = targetId,
                 targetName = targetName,
                 action = actionText,
+                resourceType = row[AuditLogsTable.resourceType],
+                resourceId = row[AuditLogsTable.resourceId],
                 ipAddress = ipText.ifBlank { null },
                 details = detailsText.ifBlank { null },
+                createdAt = row[AuditLogsTable.createdAt].toString()
+            )
+        }
+    }
+
+    fun getUserActivity(
+        businessId: String,
+        userId: String,
+        limit: Int = 100
+    ): List<AuditLogResponse> = transaction {
+        val userNames = UsersTable.slice(UsersTable.id, UsersTable.name)
+            .select { UsersTable.businessId eq businessId }
+            .associate { it[UsersTable.id] to it[UsersTable.name] }
+
+        val rows = AuditLogsTable.select {
+            (AuditLogsTable.businessId eq businessId) and
+                ((AuditLogsTable.actorUserId eq userId) or (AuditLogsTable.targetUserId eq userId))
+        }
+            .orderBy(AuditLogsTable.createdAt, SortOrder.DESC)
+            .limit(limit.coerceIn(1, 200))
+            .toList()
+
+        rows.map { row ->
+            val actorId = row[AuditLogsTable.actorUserId]
+            val targetId = row[AuditLogsTable.targetUserId]
+            AuditLogResponse(
+                id = row[AuditLogsTable.id],
+                businessId = row[AuditLogsTable.businessId],
+                actorUserId = actorId,
+                actorName = actorId?.let { userNames[it] },
+                targetUserId = targetId,
+                targetName = targetId?.let { userNames[it] },
+                action = row[AuditLogsTable.action],
+                resourceType = row[AuditLogsTable.resourceType],
+                resourceId = row[AuditLogsTable.resourceId],
+                ipAddress = row[AuditLogsTable.ipAddress],
+                details = row[AuditLogsTable.details],
                 createdAt = row[AuditLogsTable.createdAt].toString()
             )
         }

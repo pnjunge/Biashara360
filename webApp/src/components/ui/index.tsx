@@ -80,20 +80,21 @@ export function Skeleton({ height = 14, width = '100%', radius = 8 }: { height?:
 }
 
 // ── Button ────────────────────────────────────────────────────────────────────
-export function Btn({ children, variant='primary', onClick, icon, small, disabled, type='button' }:
-  { children: React.ReactNode; variant?: 'primary'|'secondary'|'danger'; onClick?: () => void; icon?: React.ReactNode; small?: boolean; disabled?: boolean; type?: 'button'|'submit'|'reset' }) {
+export function Btn({ children, variant='primary', onClick, icon, small, disabled, type='button', style, title }:
+  { children?: React.ReactNode; variant?: 'primary'|'secondary'|'danger'; onClick?: () => void; icon?: React.ReactNode; small?: boolean; disabled?: boolean; type?: 'button'|'submit'|'reset'; style?: React.CSSProperties; title?: string }) {
   const styles: Record<string, React.CSSProperties> = {
     primary:   { background:'var(--b360-green)',  color:'white', border:'none' },
     secondary: { background:'white', color:'var(--b360-text)', border:'1px solid var(--b360-border)' },
     danger:    { background:'var(--b360-red-bg)', color:'var(--b360-red)', border:'1px solid var(--b360-red)' },
   }
   return (
-    <button className="btn" type={type} onClick={onClick} disabled={disabled} style={{
+    <button className="btn" type={type} onClick={onClick} disabled={disabled} title={title} style={{
       display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6, padding: small ? '6px 14px' : '10px 18px',
       borderRadius:'var(--radius-sm)', fontSize: small ? 12 : 13, fontWeight:600, cursor: disabled ? 'not-allowed' : 'pointer',
       opacity: disabled ? 0.6 : 1,
       boxShadow: variant === 'primary' ? '0 2px 4px rgba(16, 185, 129, 0.1)' : 'none',
-      ...styles[variant]
+      ...styles[variant],
+      ...style
     }}>
       {icon}{children}
     </button>

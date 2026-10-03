@@ -33,7 +33,13 @@ class AccessControlService(
 ) {
     fun config(businessId: String): AccessConfigResponse = transaction {
         ensureDefaults(businessId)
-        AccessConfigResponse(BUSINESS_MENUS, businessMenus(businessId), roles(businessId), groups(businessId))
+        AccessConfigResponse(
+            menus = BUSINESS_MENUS,
+            enabledMenus = businessMenus(businessId),
+            roles = roles(businessId),
+            groups = groups(businessId),
+            permissions = listPermissions()
+        )
     }
 
     private fun ensureDefaults(businessId: String) {
@@ -93,7 +99,21 @@ class AccessControlService(
 
     fun myMenus(businessId: String, userId: String, builtInRole: String): MyMenuAccessResponse = transaction {
         val enabled = businessMenus(businessId).toSet()
-        if (builtInRole == "ADMIN" || builtInRole == "SUPERADMIN") return@transaction MyMenuAccessResponse(enabled.toList())
+        val userPerms = if (builtInRole == "ADMIN" || builtInRole == "SUPERADMIN") {
+            PermissionsTable.selectAll().map { it[PermissionsTable.code] }
+        } else {
+            (UserAccessRolesTable innerJoin AccessRolesTable innerJoin RolePermissionsTable innerJoin PermissionsTable)
+                .slice(PermissionsTable.code)
+                .select {
+                    (UserAccessRolesTable.userId eq userId) and
+                        (AccessRolesTable.businessId eq businessId) and
+                        (AccessRolesTable.isActive eq true)
+                }.map { it[PermissionsTable.code] }.distinct()
+        }
+
+        if (builtInRole == "ADMIN" || builtInRole == "SUPERADMIN") {
+            return@transaction MyMenuAccessResponse(enabled.toList(), userPerms)
+        }
 
         // 1. Direct rights assigned to the user's groups
         val directGroupMenus = (UserAccessGroupsTable innerJoin AccessGroupsTable)
@@ -115,7 +135,7 @@ class AccessControlService(
 
         val allAssigned = (directGroupMenus + legacyRoleMenus).distinct()
         val allowed = if (allAssigned.isEmpty()) DEFAULT_STAFF_MENUS else allAssigned.toSet()
-        MyMenuAccessResponse((enabled intersect allowed).sorted())
+        MyMenuAccessResponse((enabled intersect allowed).sorted(), userPerms)
     }
 
     fun updateMenus(businessId: String, request: UpdateMenusRequest): AccessConfigResponse = transaction {
@@ -129,9 +149,36 @@ class AccessControlService(
         require(request.name.trim().length in 2..80) { "Role name must be between 2 and 80 characters" }
         require(AccessRolesTable.select { AccessRolesTable.businessId eq businessId }.none { it[AccessRolesTable.name].equals(request.name.trim(), ignoreCase = true) }) { "A role with this name already exists" }
         val id = generateId(); val now = Clock.System.now(); val menus = validateMenus(request.allowedMenus)
-        AccessRolesTable.insert { row -> row[AccessRolesTable.id]=id; row[AccessRolesTable.businessId]=businessId; row[name]=request.name.trim(); row[description]=request.description.trim().take(255); row[allowedMenus]=menus.joinToString(","); row[isActive]=request.isActive; row[createdAt]=now; row[updatedAt]=now }
-        auditLogService?.logEvent(businessId, null, null, "CREATE_ACCESS_ROLE", null, "Created access role ${request.name.trim()} with ${menus.size} menus")
-        AccessRoleResponse(id, request.name.trim(), request.description.trim().take(255), menus, request.isActive)
+        AccessRolesTable.insert { row ->
+            row[AccessRolesTable.id] = id
+            row[AccessRolesTable.businessId] = businessId
+            row[name] = request.name.trim()
+            row[description] = request.description.trim().take(255)
+            row[allowedMenus] = menus.joinToString(",")
+            row[isActive] = request.isActive
+            row[createdAt] = now
+            row[updatedAt] = now
+        }
+        val validPerms = if (request.permissions.isNotEmpty()) {
+            PermissionsTable.select { PermissionsTable.code inList request.permissions }
+                .map { it[PermissionsTable.id] to it[PermissionsTable.code] }
+        } else emptyList()
+
+        for ((pId, _) in validPerms) {
+            RolePermissionsTable.insert {
+                it[roleId] = id
+                it[permissionId] = pId
+            }
+        }
+        auditLogService?.logEvent(businessId, null, null, "CREATE_ACCESS_ROLE", null, "Created access role ${request.name.trim()} with ${validPerms.size} permissions", "ROLE", id)
+        AccessRoleResponse(
+            id = id,
+            name = request.name.trim(),
+            description = request.description.trim().take(255),
+            allowedMenus = menus,
+            permissions = validPerms.map { it.second },
+            isActive = request.isActive
+        )
     }
 
     fun updateRole(businessId: String, roleId: String, request: SaveAccessRoleRequest): AccessRoleResponse = transaction {
@@ -150,8 +197,29 @@ class AccessControlService(
             it[isActive] = request.isActive
             it[updatedAt] = Clock.System.now()
         }
-        auditLogService?.logEvent(businessId, null, null, "UPDATE_ACCESS_ROLE", null, "Updated access role $name (active: ${request.isActive})")
-        AccessRoleResponse(roleId, name, request.description.trim().take(255), menus, request.isActive)
+
+        val validPerms = if (request.permissions.isNotEmpty()) {
+            PermissionsTable.select { PermissionsTable.code inList request.permissions }
+                .map { it[PermissionsTable.id] to it[PermissionsTable.code] }
+        } else emptyList()
+
+        RolePermissionsTable.deleteWhere { RolePermissionsTable.roleId eq roleId }
+        for ((pId, _) in validPerms) {
+            RolePermissionsTable.insert {
+                it[RolePermissionsTable.roleId] = roleId
+                it[permissionId] = pId
+            }
+        }
+
+        auditLogService?.logEvent(businessId, null, null, "UPDATE_ACCESS_ROLE", null, "Updated access role $name (active: ${request.isActive})", "ROLE", roleId)
+        AccessRoleResponse(
+            id = roleId,
+            name = name,
+            description = request.description.trim().take(255),
+            allowedMenus = menus,
+            permissions = validPerms.map { it.second },
+            isActive = request.isActive
+        )
     }
 
     fun createGroup(businessId: String, request: SaveAccessGroupRequest): AccessGroupResponse = transaction {
@@ -284,9 +352,55 @@ class AccessControlService(
         return menus.toList()
     }
 
-    private fun roles(businessId: String) = AccessRolesTable.select { AccessRolesTable.businessId eq businessId }
-        .orderBy(AccessRolesTable.name)
-        .map { AccessRoleResponse(it[AccessRolesTable.id], it[AccessRolesTable.name], it[AccessRolesTable.description], csv(it[AccessRolesTable.allowedMenus]), it[AccessRolesTable.isActive]) }
+    private fun roles(businessId: String): List<AccessRoleResponse> {
+        val permMap = (RolePermissionsTable innerJoin PermissionsTable)
+            .slice(RolePermissionsTable.roleId, PermissionsTable.code)
+            .selectAll()
+            .groupBy({ it[RolePermissionsTable.roleId] }, { it[PermissionsTable.code] })
+
+        return AccessRolesTable.select { AccessRolesTable.businessId eq businessId }
+            .orderBy(AccessRolesTable.name)
+            .map {
+                val rId = it[AccessRolesTable.id]
+                AccessRoleResponse(
+                    id = rId,
+                    name = it[AccessRolesTable.name],
+                    description = it[AccessRolesTable.description],
+                    allowedMenus = csv(it[AccessRolesTable.allowedMenus]),
+                    permissions = permMap[rId].orEmpty(),
+                    isActive = it[AccessRolesTable.isActive]
+                )
+            }
+    }
+
+    fun listPermissions(): List<PermissionDefinition> = transaction {
+        PermissionsTable.selectAll()
+            .orderBy(PermissionsTable.module)
+            .orderBy(PermissionsTable.code)
+            .map {
+                PermissionDefinition(
+                    id = it[PermissionsTable.id],
+                    code = it[PermissionsTable.code],
+                    module = it[PermissionsTable.module],
+                    action = it[PermissionsTable.action],
+                    name = it[PermissionsTable.name],
+                    description = it[PermissionsTable.description]
+                )
+            }
+    }
+
+    fun hasPermission(userId: String, businessId: String, permissionCode: String): Boolean = transaction {
+        val user = UsersTable.select { (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }.firstOrNull() ?: return@transaction false
+        if (user[UsersTable.role] == "SUPERADMIN" || user[UsersTable.role] == "ADMIN") return@transaction true
+
+        (UserAccessRolesTable innerJoin AccessRolesTable innerJoin RolePermissionsTable innerJoin PermissionsTable)
+            .select {
+                (UserAccessRolesTable.userId eq userId) and
+                    (AccessRolesTable.businessId eq businessId) and
+                    (AccessRolesTable.isActive eq true) and
+                    (PermissionsTable.code eq permissionCode)
+            }.count() > 0
+    }
 
     private fun groups(businessId: String): List<AccessGroupResponse> {
         val roleMap = AccessGroupRolesTable.selectAll().groupBy({ it[AccessGroupRolesTable.groupId] }, { it[AccessGroupRolesTable.roleId] })

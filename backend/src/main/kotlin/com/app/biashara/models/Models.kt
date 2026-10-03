@@ -76,13 +76,22 @@ data class UserResponse(
     val preferredLanguage: String,
     val businessName: String? = null,
     val isActive: Boolean = true,
+    val status: String = "ACTIVE", // ACTIVE | DISABLED | LOCKED
+    val lastLoginAt: String? = null,
     val hasPinSet: Boolean = false,
+    val isPinLocked: Boolean = false,
+    val pinLockedUntil: String? = null,
     val assignedGroups: List<String> = emptyList(),
     val assignedGroupIds: List<String> = emptyList(),
     val assignedRoles: List<String> = emptyList(),
     val assignedRoleIds: List<String> = emptyList(),
+    val permissions: List<String> = emptyList(),
     val branchId: String? = null,
-    val branchName: String? = null
+    val branchName: String? = null,
+    val assignedBranchIds: List<String> = emptyList(),
+    val assignedBranchNames: List<String> = emptyList(),
+    val createdAt: String? = null,
+    val updatedAt: String? = null
 )
 
 @Serializable
@@ -97,6 +106,8 @@ data class AuditLogResponse(
     val targetUserId: String?,
     val targetName: String? = null,
     val action: String,
+    val resourceType: String? = null,
+    val resourceId: String? = null,
     val ipAddress: String?,
     val details: String?,
     val createdAt: String
@@ -488,7 +499,28 @@ data class InviteUserRequest(
     val groupId: String? = null,
     val groupIds: List<String> = emptyList(),
     val roleIds: List<String> = emptyList(),
-    val branchId: String? = null
+    val branchId: String? = null,
+    val branchIds: List<String> = emptyList()
+)
+
+@Serializable
+data class EditUserRequest(
+    val name: String,
+    val email: String,
+    val phone: String,
+    val role: String? = null,
+    val branchId: String? = null,
+    val branchIds: List<String> = emptyList(),
+    val roleIds: List<String> = emptyList()
+)
+
+@Serializable
+data class AdminResetPasswordRequest(val newPassword: String)
+
+@Serializable
+data class AssignUserBranchesRequest(
+    val branchIds: List<String>,
+    val primaryBranchId: String? = null
 )
 
 @Serializable
