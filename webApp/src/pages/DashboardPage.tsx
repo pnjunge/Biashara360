@@ -307,7 +307,7 @@ export default function DashboardPage() {
                       <XAxis dataKey="date" tickFormatter={value => new Date(`${value}T12:00:00Z`).toLocaleDateString('en-KE', { day:'numeric', month:'short', timeZone:'Africa/Nairobi' })} tick={{ fontSize:10 }} minTickGap={24} />
                       <YAxis width={65} tick={{ fontSize:10 }} tickFormatter={value => new Intl.NumberFormat('en-KE', { notation:'compact' }).format(value)} />
                       <Tooltip formatter={(value: number) => [fmt(value), 'Revenue']} labelFormatter={value => `Date: ${value}`} />
-                      <Bar dataKey="revenue" name="Revenue" fill="var(--b360-green)" radius={[4,4,0,0]} maxBarSize={40} isAnimationActive={false} />
+                      <Bar dataKey="revenue" name="Revenue" fill="var(--b360-green)" radius={[4,4,0,0]} maxBarSize={40} isAnimationActive={true} animationDuration={750} animationEasing="ease-out" />
                     </BarChart>
                   </ResponsiveContainer>
                 )}

@@ -6,7 +6,7 @@ export function KpiCard({ title, value, change, icon, color, bgColor }: KpiCardP
   const bg = bgColor || `${color}12`
   return (
     <div className="kpi-card ui-kpi-card" style={{ background:'white', borderRadius:'var(--radius-md)', padding:20, boxShadow:'var(--shadow-sm)', border:'1px solid var(--b360-border)', display:'flex', alignItems:'center', gap:16 }}>
-      <div style={{ background:bg, borderRadius:'50%', width:48, height:48, minWidth:48, color, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div className="kpi-icon-wrap" style={{ background:bg, borderRadius:'50%', width:48, height:48, minWidth:48, color, display:'flex', alignItems:'center', justifyContent:'center', transition:'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)' }}>
         {icon}
       </div>
       <div style={{ display:'flex', flexDirection:'column', gap:2 }}>

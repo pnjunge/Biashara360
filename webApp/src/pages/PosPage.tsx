@@ -569,7 +569,7 @@ export function PosPage() {
 
       {checkoutSuccess ? (
         <Card style={{ maxWidth: 520, margin: '30px auto', textAlign: 'center', padding: '36px 30px' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 60, height: 60, borderRadius: '50%', backgroundColor: 'var(--b360-green-light)', color: 'var(--b360-green)', marginBottom: 16 }}>
+          <div className="b360-success-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 60, height: 60, borderRadius: '50%', backgroundColor: 'var(--b360-green-light)', color: 'var(--b360-green)', marginBottom: 16 }}>
             <CheckCircle size={32} />
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--b360-sidebar-bg)', marginBottom: 8 }}>Checkout Successful!</h2>
@@ -587,7 +587,7 @@ export function PosPage() {
           </div>
 
           {/* On-Screen Customer e-Receipt QR Code */}
-          <div style={{
+          <div className="b360-receipt-card" style={{
             background: 'linear-gradient(to bottom, #ffffff, #f8fafc)',
             borderRadius: 20,
             padding: '20px 16px',
@@ -824,7 +824,7 @@ export function PosPage() {
                   </div>
                 ) : (
                   cart.map(item => (
-                    <div key={item.product.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--b360-surface)' }}>
+                    <div key={item.product.id} className="pos-cart-item" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--b360-surface)' }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--b360-sidebar-bg)' }}>{item.product.name}</div>
                         <div style={{ fontSize: 11, color: 'gray' }}>KES {item.product.sellingPrice.toLocaleString()}</div>
