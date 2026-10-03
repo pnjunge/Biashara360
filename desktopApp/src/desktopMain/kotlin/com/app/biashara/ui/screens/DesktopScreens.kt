@@ -33,8 +33,10 @@ import com.app.biashara.presentation.viewmodel.*
 import com.app.biashara.domain.model.*
 import com.app.biashara.domain.usecase.generateId
 import kotlinx.datetime.Clock
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.minus
 import kotlinx.datetime.toLocalDateTime
 import com.app.biashara.ui.AppScreen
 import com.app.biashara.ui.DesktopNavigationViewModel
@@ -447,6 +449,42 @@ fun DesktopDashboardScreen(
     var toastMessage by remember { mutableStateOf<String?>(null) }
 
     var periodMenuExpanded by remember { mutableStateOf(false) }
+    var filterMenuExpanded by remember { mutableStateOf(false) }
+    var dashboardFilter by remember { mutableStateOf("All Activity") }
+
+    val currentHour = remember {
+        try {
+            Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).hour
+        } catch (_: Exception) { 14 }
+    }
+    val greeting = when {
+        currentHour < 12 -> "Good morning,"
+        currentHour < 17 -> "Good afternoon,"
+        else -> "Good evening,"
+    }
+
+    val todayDate = remember {
+        try {
+            Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+        } catch (_: Exception) {
+            LocalDate(2026, 10, 3)
+        }
+    }
+    val dateDisplayString = remember(state.selectedPeriod, todayDate) {
+        val monthShort = todayDate.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
+        when (state.selectedPeriod) {
+            DashboardPeriod.TODAY -> "$monthShort ${todayDate.dayOfMonth}, ${todayDate.year}"
+            DashboardPeriod.LAST_7_DAYS -> {
+                val start = todayDate.minus(6, DateTimeUnit.DAY)
+                val startMonth = start.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
+                "$startMonth ${start.dayOfMonth} - $monthShort ${todayDate.dayOfMonth}, ${todayDate.year}"
+            }
+            DashboardPeriod.MONTH -> {
+                "$monthShort 1, ${todayDate.year} - $monthShort ${todayDate.dayOfMonth}, ${todayDate.year}"
+            }
+        }
+    }
+
     val storefrontUrl = businessState.profile?.storefrontSlug?.takeIf { it.isNotBlank() }
         ?.let { "https://biashara360.co.ke/shop/$it" }
         .orEmpty()
@@ -470,7 +508,7 @@ fun DesktopDashboardScreen(
                 val userName = businessState.profile?.name?.substringBefore(" ")
                     ?: UserSession.getUserName().substringBefore(" ").ifBlank { "kamau" }
                 Text(
-                    text = "Good evening,",
+                    text = greeting,
                     fontSize = 14.sp,
                     color = Color(0xFF64748B),
                     fontWeight = FontWeight.Medium
@@ -489,31 +527,117 @@ fun DesktopDashboardScreen(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.White,
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                // Interactive Date Picker
+                Box {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.clickable { periodMenuExpanded = true }
                     ) {
-                        Icon(Icons.Default.CalendarToday, null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
-                        Text("Mar 1, 2025 - Mar 31, 2025", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF334155))
-                        Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.CalendarToday, null, tint = B360Green, modifier = Modifier.size(16.dp))
+                            Text(dateDisplayString, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
+                            Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = periodMenuExpanded,
+                        onDismissRequest = { periodMenuExpanded = false }
+                    ) {
+                        DashboardPeriod.entries.forEach { period ->
+                            val isSelected = state.selectedPeriod == period
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            period.label,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) B360Green else Color(0xFF1E293B)
+                                        )
+                                        if (isSelected) {
+                                            Icon(Icons.Default.Check, null, tint = B360Green, modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    viewModel.selectPeriod(period)
+                                    periodMenuExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
-                OutlinedButton(
-                    onClick = { /* Filter */ },
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.FilterList, null, modifier = Modifier.size(16.dp), tint = Color(0xFF334155))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Filter", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
+
+                // Interactive Activity Filter
+                Box {
+                    OutlinedButton(
+                        onClick = { filterMenuExpanded = true },
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, if (dashboardFilter != "All Activity") B360Green else Color(0xFFE2E8F0)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (dashboardFilter != "All Activity") Color(0xFFECFDF5) else Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.FilterList,
+                            null,
+                            modifier = Modifier.size(16.dp),
+                            tint = if (dashboardFilter != "All Activity") B360Green else Color(0xFF334155)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (dashboardFilter != "All Activity") dashboardFilter else "Filter",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (dashboardFilter != "All Activity") B360Green else Color(0xFF334155)
+                        )
+                        if (dashboardFilter != "All Activity") {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                Icons.Default.Close,
+                                null,
+                                modifier = Modifier.size(14.dp).clickable { dashboardFilter = "All Activity" },
+                                tint = B360Green
+                            )
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = filterMenuExpanded,
+                        onDismissRequest = { filterMenuExpanded = false }
+                    ) {
+                        listOf("All Activity", "Paid Orders Only", "Pending / Unpaid", "Low Stock Alerts").forEach { opt ->
+                            val isSelected = dashboardFilter == opt
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(
+                                            opt,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) B360Green else Color(0xFF1E293B)
+                                        )
+                                        if (isSelected) {
+                                            Icon(Icons.Default.Check, null, tint = B360Green, modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    dashboardFilter = opt
+                                    filterMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -626,34 +750,42 @@ fun DesktopDashboardScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Surface(
                                     shape = RoundedCornerShape(14.dp),
-                                    color = Color(0xFFE6F9F0)
+                                    color = if (state.selectedPeriod == DashboardPeriod.MONTH) Color(0xFFE6F9F0) else Color.Transparent,
+                                    modifier = Modifier.clickable { viewModel.selectPeriod(DashboardPeriod.MONTH) }
                                 ) {
-                                    Text("This Month", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857))
+                                    Text(
+                                        "This Month",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        fontSize = 11.sp,
+                                        fontWeight = if (state.selectedPeriod == DashboardPeriod.MONTH) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (state.selectedPeriod == DashboardPeriod.MONTH) Color(0xFF047857) else Color(0xFF64748B)
+                                    )
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(14.dp),
-                                    color = Color.Transparent
+                                    color = if (state.selectedPeriod == DashboardPeriod.LAST_7_DAYS) Color(0xFFE6F9F0) else Color.Transparent,
+                                    modifier = Modifier.clickable { viewModel.selectPeriod(DashboardPeriod.LAST_7_DAYS) }
                                 ) {
-                                    Text("Last Month", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 11.sp, color = Color(0xFF64748B))
+                                    Text(
+                                        "Last 7 Days",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        fontSize = 11.sp,
+                                        fontWeight = if (state.selectedPeriod == DashboardPeriod.LAST_7_DAYS) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (state.selectedPeriod == DashboardPeriod.LAST_7_DAYS) Color(0xFF047857) else Color(0xFF64748B)
+                                    )
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(14.dp),
-                                    color = Color.Transparent
+                                    color = if (state.selectedPeriod == DashboardPeriod.TODAY) Color(0xFFE6F9F0) else Color.Transparent,
+                                    modifier = Modifier.clickable { viewModel.selectPeriod(DashboardPeriod.TODAY) }
                                 ) {
-                                    Text("Last 3 Months", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 11.sp, color = Color(0xFF64748B))
-                                }
-                                Surface(
-                                    shape = RoundedCornerShape(14.dp),
-                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                    color = Color.White
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text("Weekly", fontSize = 11.sp, color = Color(0xFF475569))
-                                        Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
-                                    }
+                                    Text(
+                                        "Today",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        fontSize = 11.sp,
+                                        fontWeight = if (state.selectedPeriod == DashboardPeriod.TODAY) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (state.selectedPeriod == DashboardPeriod.TODAY) Color(0xFF047857) else Color(0xFF64748B)
+                                    )
                                 }
                             }
                         }
@@ -710,8 +842,8 @@ fun DesktopDashboardScreen(
 
                         data class DashboardOrderRowData(val orderNo: String, val customer: String, val status: String, val amount: String, val date: String)
 
-                        val ordersToShow = if (state.recentOrders.isNotEmpty()) {
-                            state.recentOrders.take(5).map { order ->
+                        val rawOrders = if (state.recentOrders.isNotEmpty()) {
+                            state.recentOrders.map { order ->
                                 DashboardOrderRowData(
                                     orderNo = order.orderNumber,
                                     customer = order.customerName,
@@ -736,6 +868,14 @@ fun DesktopDashboardScreen(
                                 DashboardOrderRowData("B360-6D2F4E11", "Peter Mwangi", "Pending", "KES 1,200", "2026-10-03, 10:32")
                             )
                         }
+
+                        val ordersToShow = rawOrders.filter { o ->
+                            when (dashboardFilter) {
+                                "Paid Orders Only" -> o.status == "Paid"
+                                "Pending / Unpaid" -> o.status == "Pending" || o.status == "Processing"
+                                else -> true
+                            }
+                        }.take(5)
 
                         ordersToShow.forEach { order ->
                             DesktopOrderRow(

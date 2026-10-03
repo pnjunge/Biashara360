@@ -29,7 +29,10 @@ import com.app.biashara.presentation.viewmodel.OrdersViewModel
 import com.app.biashara.ui.AppScreen
 import com.app.biashara.ui.DesktopNavigationViewModel
 import com.app.biashara.ui.theme.*
+import kotlinx.datetime.Clock
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.minus
 import kotlinx.datetime.toLocalDateTime
 import java.awt.Desktop
 import java.net.URI
@@ -105,6 +108,48 @@ fun DesktopOrdersScreen(
                 order.customerName.contains(activeSearch, ignoreCase = true) ||
                 order.customerPhone.contains(activeSearch, ignoreCase = true)
 
+            // Date filter dropdown
+            val matchesDate = when (selectedDateFilter) {
+                "Today" -> {
+                    try {
+                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        orderDate == today
+                    } catch (_: Exception) { true }
+                }
+                "Yesterday" -> {
+                    try {
+                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        orderDate == today.minus(1, DateTimeUnit.DAY)
+                    } catch (_: Exception) { true }
+                }
+                "Last 7 Days" -> {
+                    try {
+                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        val sevenDaysAgo = today.minus(7, DateTimeUnit.DAY)
+                        orderDate in sevenDaysAgo..today
+                    } catch (_: Exception) { true }
+                }
+                "Last 30 Days" -> {
+                    try {
+                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        val thirtyDaysAgo = today.minus(30, DateTimeUnit.DAY)
+                        orderDate in thirtyDaysAgo..today
+                    } catch (_: Exception) { true }
+                }
+                "This Month" -> {
+                    try {
+                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        orderDate.year == today.year && orderDate.month == today.month
+                    } catch (_: Exception) { true }
+                }
+                else -> true
+            }
+
             // Status filter dropdown
             val matchesStatusDropdown = when (selectedStatusFilter) {
                 "Paid" -> order.paymentStatus == PaymentStatus.PAID
@@ -129,7 +174,7 @@ fun DesktopOrdersScreen(
                 else -> order.paymentStatus == selectedTab
             }
 
-            matchesSearch && matchesStatusDropdown && matchesCustomer && matchesTab
+            matchesSearch && matchesDate && matchesStatusDropdown && matchesCustomer && matchesTab
         }
     }
 
