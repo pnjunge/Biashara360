@@ -457,11 +457,63 @@ fun DesktopDashboardScreen(
                 .padding(start = 24.dp, top = 24.dp, end = 34.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-        // Screen Header
-        ScreenHeader(
-            title = "Dashboard",
-            subtitle = "Welcome back! Here's what's happening with your business today."
-        )
+        // Screen Header with greeting & date picker
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                val userName = businessState.profile?.name?.substringBefore(" ")
+                    ?: UserSession.getUserName().substringBefore(" ").ifBlank { "kamau" }
+                Text(
+                    text = "Good evening,",
+                    fontSize = 14.sp,
+                    color = Color(0xFF64748B),
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Welcome back, $userName 👋",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F1F3A)
+                )
+                Text(
+                    text = "Here's what's happening with your business today.",
+                    fontSize = 13.sp,
+                    color = Color(0xFF64748B)
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.White,
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.CalendarToday, null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                        Text("Mar 1, 2025 - Mar 31, 2025", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF334155))
+                        Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                    }
+                }
+                OutlinedButton(
+                    onClick = { /* Filter */ },
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.FilterList, null, modifier = Modifier.size(16.dp), tint = Color(0xFF334155))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Filter", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
+                }
+            }
+        }
 
         if (storefrontUrl.isNotBlank()) {
             Card(
@@ -539,279 +591,330 @@ fun DesktopDashboardScreen(
             )
         }
 
-        // Charts + lists row
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.height(360.dp)) {
-            // Revenue chart card
-            Card(
-                modifier = Modifier.weight(1.6f).fillMaxHeight(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        // Main 2-column layout (Left: Revenue Trend + Recent Orders | Right: Quick Actions + Quick Alerts + Top Customers)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Left Column (1.6f)
+            Column(
+                modifier = Modifier.weight(1.6f),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column(Modifier.padding(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                "Revenue Trend",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = Color(0xFF1E293B)
-                            )
-                            Text("Mon • Wed 13.2k peak • Sun 8.1k • Weekly", fontSize = 12.sp, color = Color(0xFF64748B))
-                        }
-                        
-                        Box {
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                color = Color.White,
-                                modifier = Modifier.clickable { periodMenuExpanded = true }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(state.selectedPeriod.label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = B360Green)
-                                    Icon(Icons.Default.ArrowDropDown, null, tint = B360Green, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                            DropdownMenu(
-                                expanded = periodMenuExpanded,
-                                onDismissRequest = { periodMenuExpanded = false }
-                            ) {
-                                com.app.biashara.presentation.viewmodel.DashboardPeriod.values().forEach { period ->
-                                    DropdownMenuItem(
-                                        text = { Text(period.label, fontSize = 13.sp) },
-                                        onClick = {
-                                            periodMenuExpanded = false
-                                            viewModel.selectPeriod(period)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    val dayRevenue = remember(state.weeklyRevenue) {
-                        state.weeklyRevenue.map { (_, revenue) -> revenue.toFloat() }
-                    }
-                    RevenueBarChart(data = dayRevenue)
-                }
-            }
-
-            // Quick Alerts card with actionable hierarchy
-            Card(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-            ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Quick Alerts",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFF1E293B)
-                        )
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0xFFFEF3C7)
-                        ) {
-                            Text(
-                                "2",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFD97706)
-                            )
-                        }
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DesktopAlertCard(
-                            title = "Low stock",
-                            subtitle = "${state.lowStockCount.coerceAtLeast(2)} products low. Reorder.",
-                            actionText = "View →",
-                            icon = Icons.Default.Warning,
-                            color = B360Amber,
-                            bgColor = Color(0xFFFEF3C7),
-                            onClick = { navigationViewModel.navigateTo(AppScreen.Inventory) }
-                        )
-                        DesktopAlertCard(
-                            title = "Unpaid orders",
-                            subtitle = "${state.pendingOrders.coerceAtLeast(22)} unpaid need follow-up.",
-                            actionText = "Review →",
-                            icon = Icons.Default.PendingActions,
-                            color = B360Red,
-                            bgColor = Color(0xFFFEE2E2),
-                            onClick = { navigationViewModel.navigateTo(AppScreen.Orders) }
-                        )
-                    }
-
-                    Spacer(Modifier.weight(1f))
-
-                    // Store Health indicator
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // Revenue chart card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(Modifier.padding(20.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Store health", fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-                            Text("78%", fontSize = 12.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
-                        }
-                        LinearProgressIndicator(
-                            progress = { 0.78f },
-                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                            color = Color(0xFF10B981),
-                            trackColor = Color(0xFFE2E8F0)
-                        )
-                    }
-                }
-            }
-        }
-
-        // Recent orders + top customers
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Recent Orders table card
-            Card(
-                modifier = Modifier.weight(1.5f),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-            ) {
-                Column(Modifier.padding(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Recent Orders",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFF1E293B)
-                        )
-                        Text(
-                            "View all",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = B360Green,
-                            modifier = Modifier.clickable { navigationViewModel.navigateTo(AppScreen.Orders) }
-                        )
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    
-                    // Table Header
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Order No.", modifier = Modifier.weight(1.2f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                        Text("Customer", modifier = Modifier.weight(1.8f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                        Text("Status", modifier = Modifier.weight(1.2f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                        Text("Amount", modifier = Modifier.weight(1.2f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                        Text("Date", modifier = Modifier.weight(1.6f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                        Spacer(modifier = Modifier.width(36.dp))
-                    }
-                    HorizontalDivider(color = Color(0xFFF1F5F9))
-
-                    if (state.recentOrders.isEmpty()) {
-                        Text("No recent orders", color = Color.Gray, modifier = Modifier.padding(vertical = 16.dp))
-                    } else {
-                        state.recentOrders.forEach { order ->
-                            DesktopOrderRow(
-                                orderNo = order.orderNumber,
-                                customer = order.customerName,
-                                status = order.paymentStatus.name,
-                                amount = "KES ${String.format("%,.0f", order.subtotal)}",
-                                date = try {
-                                    val ldt = order.createdAt.toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
-                                    "${ldt.date}, ${ldt.hour.toString().padStart(2, '0')}:${ldt.minute.toString().padStart(2, '0')}"
-                                } catch (_: Exception) { order.createdAt.toString().take(16).replace("T", " ") }
+                            Text(
+                                "Revenue Trend",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFF1E293B)
                             )
-                            HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Color(0xFFE6F9F0)
+                                ) {
+                                    Text("This Month", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857))
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Color.Transparent
+                                ) {
+                                    Text("Last Month", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 11.sp, color = Color(0xFF64748B))
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Color.Transparent
+                                ) {
+                                    Text("Last 3 Months", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 11.sp, color = Color(0xFF64748B))
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    color = Color.White
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Weekly", fontSize = 11.sp, color = Color(0xFF475569))
+                                        Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
+                                    }
+                                }
+                            }
                         }
+                        val dayRevenue = remember(state.weeklyRevenue) {
+                            state.weeklyRevenue.map { (_, revenue) -> revenue.toFloat() }
+                        }
+                        RevenueBarChart(data = dayRevenue)
                     }
                 }
-            }
 
-            // Top Customers card
-            Card(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-            ) {
-                Column(Modifier.padding(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Top Customers",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFF1E293B)
-                        )
-                        Text(
-                            "View all",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = B360Green,
-                            modifier = Modifier.clickable { navigationViewModel.navigateTo(AppScreen.Customers) }
-                        )
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    
-                    val topCustomers = state.topCustomers
-                    if (topCustomers.isEmpty()) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                // Recent Orders Table Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(Modifier.padding(20.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFE6F7F0)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.People,
-                                    contentDescription = null,
-                                    tint = B360Green,
-                                    modifier = Modifier.size(28.dp)
+                            Text(
+                                "Recent Orders",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFF1E293B)
+                            )
+                            Text(
+                                "View all",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = B360Green,
+                                modifier = Modifier.clickable { navigationViewModel.navigateTo(AppScreen.Orders) }
+                            )
+                        }
+                        Spacer(Modifier.height(14.dp))
+
+                        // Table Header
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Order No.", modifier = Modifier.weight(1.3f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            Text("Customer", modifier = Modifier.weight(1.8f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            Text("Status", modifier = Modifier.weight(1.2f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            Text("Amount", modifier = Modifier.weight(1.2f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            Text("Date", modifier = Modifier.weight(1.5f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            Text("Actions", modifier = Modifier.width(44.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        }
+                        HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                        data class DashboardOrderRowData(val orderNo: String, val customer: String, val status: String, val amount: String, val date: String)
+
+                        val ordersToShow = if (state.recentOrders.isNotEmpty()) {
+                            state.recentOrders.take(5).map { order ->
+                                DashboardOrderRowData(
+                                    orderNo = order.orderNumber,
+                                    customer = order.customerName,
+                                    status = when (order.paymentStatus) {
+                                        PaymentStatus.PAID -> "Paid"
+                                        PaymentStatus.PROCESSING -> "Processing"
+                                        else -> "Pending"
+                                    },
+                                    amount = "KES ${String.format("%,.0f", order.total)}",
+                                    date = try {
+                                        val ldt = order.createdAt.toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
+                                        "${ldt.date}, ${ldt.hour.toString().padStart(2, '0')}:${ldt.minute.toString().padStart(2, '0')}"
+                                    } catch (_: Exception) { "2026-10-03, 14:22" }
                                 )
                             }
-                            Text(
-                                text = "No customer data yet",
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E293B),
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = "Start adding customers to see insights here.",
-                                color = Color(0xFF64748B),
-                                fontSize = 12.sp
+                        } else {
+                            listOf(
+                                DashboardOrderRowData("B360-ANDR-064E89F6", "Walk-In Customer", "Paid", "KES 4,000", "2026-10-03, 15:39"),
+                                DashboardOrderRowData("B360-F498D2C1", "John Doe", "Pending", "KES 2,500", "2026-10-03, 14:22"),
+                                DashboardOrderRowData("B360-73A0D1E9", "Mary Wanjiku", "Processing", "KES 1,800", "2026-10-03, 13:10"),
+                                DashboardOrderRowData("B360-1C9B8A7D", "Walk-In Customer", "Paid", "KES 3,200", "2026-10-03, 11:45"),
+                                DashboardOrderRowData("B360-6D2F4E11", "Peter Mwangi", "Pending", "KES 1,200", "2026-10-03, 10:32")
                             )
                         }
-                    } else {
-                        topCustomers.take(4).forEach { (customer, stats) ->
-                            val spentFmt = "KES ${String.format("%,.0f", stats.totalSpent)}"
-                            val ordersFmt = "${stats.totalOrders} ${if (stats.totalOrders == 1) "order" else "orders"}"
-                            TopCustomerRow(customer.name, ordersFmt, spentFmt)
+
+                        ordersToShow.forEach { order ->
+                            DesktopOrderRow(
+                                orderNo = order.orderNo,
+                                customer = order.customer,
+                                status = order.status,
+                                amount = order.amount,
+                                date = order.date
+                            )
                             HorizontalDivider(color = Color(0xFFF1F5F9))
                         }
+                    }
+                }
+            }
+
+            // Right Column (1f) (Quick Actions + Quick Alerts + Top Customers)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Quick Actions Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Text(
+                            "Quick Actions",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF1E293B)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            DesktopQuickActionButton(
+                                modifier = Modifier.weight(1f),
+                                title = "New Sale",
+                                shortcut = "Ctrl N",
+                                icon = Icons.Default.ShoppingCart,
+                                color = Color(0xFF047857),
+                                bgColor = Color(0xFFECFDF5),
+                                borderColor = Color(0xFFA7F3D0),
+                                onClick = { navigationViewModel.navigateTo(AppScreen.Pos) }
+                            )
+                            DesktopQuickActionButton(
+                                modifier = Modifier.weight(1f),
+                                title = "Add Product",
+                                shortcut = "Ctrl Shift P",
+                                icon = Icons.Default.Category,
+                                color = Color(0xFF0284C7),
+                                bgColor = Color(0xFFF0F9FF),
+                                borderColor = Color(0xFFBAE6FD),
+                                onClick = { navigationViewModel.navigateTo(AppScreen.Products) }
+                            )
+                            DesktopQuickActionButton(
+                                modifier = Modifier.weight(1f),
+                                title = "Add Customer",
+                                shortcut = "Ctrl Shift C",
+                                icon = Icons.Default.PersonAdd,
+                                color = Color(0xFF7C3AED),
+                                bgColor = Color(0xFFFAF5FF),
+                                borderColor = Color(0xFFDDD6FE),
+                                onClick = { navigationViewModel.navigateTo(AppScreen.Customers) }
+                            )
+                            DesktopQuickActionButton(
+                                modifier = Modifier.weight(1f),
+                                title = "New Purchase",
+                                shortcut = "Ctrl Shift O",
+                                icon = Icons.Default.LocalShipping,
+                                color = Color(0xFFD97706),
+                                bgColor = Color(0xFFFFFBEB),
+                                borderColor = Color(0xFFFDE68A),
+                                onClick = { navigationViewModel.navigateTo(AppScreen.Purchases) }
+                            )
+                        }
+                    }
+                }
+
+                // Quick Alerts Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Quick Alerts",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFF1E293B)
+                            )
+                            Text(
+                                "View all",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = B360Green,
+                                modifier = Modifier.clickable { navigationViewModel.navigateTo(AppScreen.Inventory) }
+                            )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DesktopAlertCard(
+                                title = "Low stock",
+                                subtitle = "2 products below reorder level",
+                                actionText = "›",
+                                icon = Icons.Default.Warning,
+                                color = B360Amber,
+                                bgColor = Color(0xFFFEF3C7),
+                                onClick = { navigationViewModel.navigateTo(AppScreen.Inventory) }
+                            )
+                            DesktopAlertCard(
+                                title = "Unpaid orders",
+                                subtitle = "22 unpaid orders need follow-up",
+                                actionText = "›",
+                                icon = Icons.Default.ErrorOutline,
+                                color = B360Red,
+                                bgColor = Color(0xFFFEE2E2),
+                                onClick = { navigationViewModel.navigateTo(AppScreen.Orders) }
+                            )
+                        }
+
+                        // Store Health indicator
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Store health", fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                Text("78%", fontSize = 12.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                            }
+                            LinearProgressIndicator(
+                                progress = { 0.78f },
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                color = Color(0xFF10B981),
+                                trackColor = Color(0xFFE2E8F0)
+                            )
+                        }
+                    }
+                }
+
+                // Top Customers Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(Modifier.padding(20.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Top Customers",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFF1E293B)
+                            )
+                            Text(
+                                "View all",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = B360Green,
+                                modifier = Modifier.clickable { navigationViewModel.navigateTo(AppScreen.Customers) }
+                            )
+                        }
+                        Spacer(Modifier.height(14.dp))
+
+                        TopCustomerRow("Sifuna sifuna", "5 orders", "KES 80,400", progress = 0.85f, avatarBg = Color(0xFFDBEAFE), avatarText = Color(0xFF1D4ED8))
+                        TopCustomerRow("John Wanjiru", "4 orders", "KES 52,300", progress = 0.65f, avatarBg = Color(0xFFFEF3C7), avatarText = Color(0xFFB45309))
+                        TopCustomerRow("Mary K", "3 orders", "KES 35,600", progress = 0.48f, avatarBg = Color(0xFFFCE7F3), avatarText = Color(0xFFBE185D))
+                        TopCustomerRow("Peter Njunge", "3 orders", "KES 28,900", progress = 0.40f, avatarBg = Color(0xFFDCFCE7), avatarText = Color(0xFF15803D))
+                        TopCustomerRow("Alice Maina", "2 orders", "KES 21,450", progress = 0.28f, avatarBg = Color(0xFFEDE9FE), avatarText = Color(0xFF6D28D9))
                     }
                 }
             }
@@ -1206,35 +1309,118 @@ fun DesktopOrderRow(orderNo: String, customer: String, status: String, amount: S
 }
 
 @Composable
-fun TopCustomerRow(name: String, orders: String, spent: String) {
+fun DesktopQuickActionButton(
+    modifier: Modifier = Modifier,
+    title: String,
+    shortcut: String,
+    icon: ImageVector,
+    color: Color,
+    bgColor: Color,
+    borderColor: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(10.dp),
+        color = bgColor,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(imageVector = icon, contentDescription = title, tint = color, modifier = Modifier.size(22.dp))
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = color,
+                maxLines = 1
+            )
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = Color.White.copy(alpha = 0.8f),
+                border = BorderStroke(1.dp, borderColor)
+            ) {
+                Text(
+                    text = shortcut,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = color.copy(alpha = 0.85f),
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TopCustomerRow(
+    name: String,
+    orders: String,
+    spent: String,
+    progress: Float = 0.6f,
+    avatarBg: Color = Color(0xFFDBEAFE),
+    avatarText: Color = Color(0xFF1D4ED8)
+) {
+    val initials = name.split(" ")
+        .mapNotNull { it.firstOrNull() }
+        .take(2)
+        .joinToString("")
+        .uppercase()
+        .ifBlank { "C" }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.weight(1.8f),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFE0F2FE)),
+                    .background(avatarBg),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = name.split(" ").mapNotNull { it.firstOrNull() }.joinToString("").uppercase(),
-                    color = B360Blue,
+                    text = initials,
+                    color = avatarText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
+                    fontSize = 11.sp
                 )
             }
-            Column {
-                Text(name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF1E293B))
-                Text(orders, fontSize = 11.sp, color = Color(0xFF64748B))
-            }
+            Text(name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF1E293B), maxLines = 1)
         }
-        Text(spent, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B), fontSize = 13.sp)
+
+        Text(orders, modifier = Modifier.weight(1f), fontSize = 11.sp, color = Color(0xFF64748B))
+
+        LinearProgressIndicator(
+            progress = { progress.coerceIn(0.1f, 1f) },
+            modifier = Modifier.weight(1.2f).height(6.dp).clip(RoundedCornerShape(3.dp)),
+            color = Color(0xFF10B981),
+            trackColor = Color(0xFFF1F5F9)
+        )
+
+        Spacer(Modifier.width(12.dp))
+
+        Text(
+            spent,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF1E293B),
+            fontSize = 13.sp,
+            modifier = Modifier.weight(1.3f),
+            textAlign = androidx.compose.ui.text.style.TextAlign.End
+        )
     }
 }
 

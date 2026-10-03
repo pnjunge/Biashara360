@@ -78,24 +78,40 @@ sealed class AppScreen(
     val title: String,
     val icon: ImageVector
 ) {
+    // Top-level / Primary
     object Dashboard : AppScreen("dashboard", "Dashboard", Icons.Default.Dashboard)
-    object Pos : AppScreen("pos", "Point of Sale", Icons.Default.Storefront)
-    object Hospitality : AppScreen("hospitality", "Bar & Restaurant", Icons.Default.TableRestaurant)
-    object OpenTabs : AppScreen("open_tabs", "Open Tabs", Icons.Default.ReceiptLong)
-    object Inventory : AppScreen("inventory", "Inventory", Icons.Default.Inventory)
-    object Purchases : AppScreen("purchases", "Purchases", Icons.Default.ReceiptLong)
-    object Orders : AppScreen("orders", "Orders", Icons.Default.ShoppingCart)
+    object Pos : AppScreen("pos", "Point of Sale", Icons.Default.ShoppingCart)
+
+    // SALES
+    object Orders : AppScreen("orders", "Orders", Icons.Default.ReceiptLong)
     object Customers : AppScreen("customers", "Customers", Icons.Default.People)
+
+    // INVENTORY
+    object Products : AppScreen("products", "Products", Icons.Default.Category)
+    object Inventory : AppScreen("inventory", "Inventory", Icons.Default.Inventory2)
+    object Purchases : AppScreen("purchases", "Purchases", Icons.Default.ShoppingBag)
+    object Suppliers : AppScreen("suppliers", "Suppliers", Icons.Default.LocalShipping)
+
+    // BUSINESS
+    object HotelRooms : AppScreen("hotel_rooms", "Hotel & Rooms", Icons.Default.Hotel)
+    object Hospitality : AppScreen("hospitality", "Restaurant & Bar", Icons.Default.Restaurant)
+    object Appointments : AppScreen("appointments", "Appointments", Icons.Default.CalendarToday)
+    object Bookings : AppScreen("bookings", "Bookings", Icons.Default.ConfirmationNumber)
+
+    // FINANCE
     object Expenses : AppScreen("expenses", "Expenses", Icons.Default.Receipt)
     object Payments : AppScreen("payments", "Payments", Icons.Default.Payments)
+    object Reports : AppScreen("reports", "Reports", Icons.Default.BarChart)
+
+    // ADMINISTRATION
+    object Settings : AppScreen("settings", "Settings", Icons.Default.Settings)
+    object Tax : AppScreen("tax", "Tax & eTIMS", Icons.Default.AccountBalance)
+    object KRA : AppScreen("kra", "KRA", Icons.Default.Gavel)
+    object Social : AppScreen("social", "Social", Icons.Default.Forum)
+    object OpenTabs : AppScreen("open_tabs", "Open Tabs", Icons.Default.ReceiptLong)
     object CyberSource : AppScreen("cybersource", "CyberSource Settings", Icons.Default.CreditCard)
     object Mpesa : AppScreen("mpesa", "M-Pesa Settings", Icons.Default.Phone)
     object ReceiptTemplate : AppScreen("receipt_template", "Receipt Customization", Icons.Default.ReceiptLong)
-    object Reports : AppScreen("reports", "Reports", Icons.Default.BarChart)
-    object Tax : AppScreen("tax", "Tax", Icons.Default.AccountBalance)
-    object KRA : AppScreen("kra", "KRA", Icons.Default.Gavel)
-    object Social : AppScreen("social", "Social", Icons.Default.Forum)
-    object Settings : AppScreen("settings", "Settings", Icons.Default.Settings)
 }
 
 private data class DesktopNavGroup(
@@ -111,19 +127,24 @@ private val topNavScreens = listOf(
 
 private val desktopNavGroups = listOf(
     DesktopNavGroup(
-        key = "OPERATIONS",
-        label = "OPERATIONS",
-        screens = listOf(AppScreen.Hospitality, AppScreen.OpenTabs, AppScreen.Inventory, AppScreen.Purchases, AppScreen.Orders, AppScreen.Customers)
+        key = "SALES",
+        label = "SALES",
+        screens = listOf(AppScreen.Orders, AppScreen.Customers)
+    ),
+    DesktopNavGroup(
+        key = "INVENTORY",
+        label = "INVENTORY",
+        screens = listOf(AppScreen.Products, AppScreen.Inventory, AppScreen.Purchases, AppScreen.Suppliers)
+    ),
+    DesktopNavGroup(
+        key = "BUSINESS",
+        label = "BUSINESS",
+        screens = listOf(AppScreen.HotelRooms, AppScreen.Hospitality, AppScreen.Appointments, AppScreen.Bookings)
     ),
     DesktopNavGroup(
         key = "FINANCE",
         label = "FINANCE",
-        screens = listOf(AppScreen.Expenses, AppScreen.Payments)
-    ),
-    DesktopNavGroup(
-        key = "ENGAGEMENT",
-        label = "ENGAGEMENT",
-        screens = listOf(AppScreen.Social, AppScreen.Reports)
+        screens = listOf(AppScreen.Expenses, AppScreen.Payments, AppScreen.Reports)
     ),
     DesktopNavGroup(
         key = "ADMINISTRATION",
@@ -165,11 +186,17 @@ private fun isDesktopFingerprintAvailable(): Boolean {
 
 private fun screenShortcut(screen: AppScreen): String? = when (screen) {
     AppScreen.Dashboard -> "1"
-    AppScreen.Pos -> "2"
-    AppScreen.Inventory -> "I"
-    AppScreen.Purchases -> "L"
+    AppScreen.Pos -> "P"
     AppScreen.Orders -> "O"
     AppScreen.Customers -> "U"
+    AppScreen.Products -> "Shift+P"
+    AppScreen.Inventory -> "I"
+    AppScreen.Purchases -> "L"
+    AppScreen.Suppliers -> "Shift+S"
+    AppScreen.HotelRooms -> "H"
+    AppScreen.Hospitality -> "B"
+    AppScreen.Appointments -> "A"
+    AppScreen.Bookings -> "K"
     AppScreen.Expenses -> "E"
     AppScreen.Payments -> "Y"
     AppScreen.Reports -> "R"
@@ -470,14 +497,16 @@ fun Biashara360DesktopAppContent(
     }
     val visibleScreens = appScreens.filter { screen ->
         val menu = when (screen) {
-            AppScreen.Dashboard -> "DASHBOARD"; AppScreen.Pos -> "POS"; AppScreen.Hospitality -> "HOSPITALITY"
-            AppScreen.OpenTabs -> "OPEN_TABS"; AppScreen.Inventory -> "INVENTORY"; AppScreen.Purchases -> "INVENTORY"; AppScreen.Orders -> "ORDERS"
-            AppScreen.Customers -> "CUSTOMERS"; AppScreen.Expenses -> "EXPENSES"; AppScreen.Payments -> "PAYMENTS"
+            AppScreen.Dashboard -> "DASHBOARD"; AppScreen.Pos -> "POS"; AppScreen.Orders -> "ORDERS"
+            AppScreen.Customers -> "CUSTOMERS"; AppScreen.Products -> "INVENTORY"; AppScreen.Inventory -> "INVENTORY"
+            AppScreen.Purchases -> "INVENTORY"; AppScreen.Suppliers -> "INVENTORY"
+            AppScreen.HotelRooms -> "HOSPITALITY"; AppScreen.Hospitality -> "HOSPITALITY"
+            AppScreen.Appointments -> "SERVICES"; AppScreen.Bookings -> "HOSPITALITY"
+            AppScreen.Expenses -> "EXPENSES"; AppScreen.Payments -> "PAYMENTS"
             AppScreen.Reports -> "REPORTS"; AppScreen.Tax -> "TAX"; AppScreen.KRA -> "KRA"; AppScreen.Social -> "SOCIAL"
-            AppScreen.Settings -> "SETTINGS"; else -> null
+            AppScreen.Settings -> "SETTINGS"; AppScreen.OpenTabs -> "OPEN_TABS"; else -> null
         }
-        (menu == null || enabledMenus?.contains(menu) != false) &&
-            (screen !in setOf(AppScreen.Hospitality, AppScreen.OpenTabs) || hospitalityEnabled)
+        menu == null || enabledMenus == null || enabledMenus?.contains(menu) == true
     }
     val visibleTopScreens = topNavScreens.filter { it in visibleScreens }
     val visibleNavGroups = desktopNavGroups.map { group ->
@@ -508,7 +537,7 @@ fun Biashara360DesktopAppContent(
                                 true
                             }
                             Key.One -> { navigationViewModel.navigateTo(AppScreen.Dashboard); true }
-                            Key.Two -> { navigationViewModel.navigateTo(AppScreen.Pos); true }
+                            Key.Two, Key.P -> { navigationViewModel.navigateTo(AppScreen.Pos); true }
                             Key.Three, Key.I -> { navigationViewModel.navigateTo(AppScreen.Inventory); true }
                             Key.Four, Key.O -> { navigationViewModel.navigateTo(AppScreen.Orders); true }
                             Key.Five, Key.U -> { navigationViewModel.navigateTo(AppScreen.Customers); true }
@@ -517,6 +546,10 @@ fun Biashara360DesktopAppContent(
                             Key.Eight, Key.S -> { navigationViewModel.navigateTo(AppScreen.Settings); true }
                             Key.L -> { navigationViewModel.navigateTo(AppScreen.Purchases); true }
                             Key.Y -> { navigationViewModel.navigateTo(AppScreen.Payments); true }
+                            Key.H -> { navigationViewModel.navigateTo(AppScreen.HotelRooms); true }
+                            Key.B -> { navigationViewModel.navigateTo(AppScreen.Hospitality); true }
+                            Key.A -> { navigationViewModel.navigateTo(AppScreen.Appointments); true }
+                            Key.N -> { navigationViewModel.navigateTo(AppScreen.Pos); true }
                             else -> false
                         }
                     } else if (keyEvent.key == Key.F1) {
@@ -553,16 +586,16 @@ fun Biashara360DesktopAppContent(
                             .background(Color.White)
                             .padding(horizontal = 12.dp, vertical = 16.dp)
                     ) {
-                        // Header logo / user profile
+                        // Brand logo / title
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(8.dp))
                                     .background(Color(0xFFE6F9F0)),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -570,28 +603,78 @@ fun Biashara360DesktopAppContent(
                                     imageVector = Icons.Default.Storefront,
                                     contentDescription = "Logo",
                                     tint = Color(0xFF059669),
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                             if (isExpanded) {
-                                Spacer(Modifier.width(12.dp))
+                                Spacer(Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        text = sidebarUser?.name?.ifBlank { null } ?: UserSession.getUserName().ifBlank { null } ?: "Biashara360",
+                                        text = "Biashara360",
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF1E293B)
                                     )
                                     Text(
-                                        text = sidebarUser?.role?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Admin",
-                                        fontSize = 12.sp,
+                                        text = "Business Management",
+                                        fontSize = 11.sp,
                                         color = Color(0xFF64748B)
                                     )
                                 }
                             }
                         }
 
-                        Spacer(Modifier.height(14.dp))
+                        // User profile card
+                        if (isExpanded) {
+                            val displayName = sidebarUser?.name?.ifBlank { null } ?: UserSession.getUserName().ifBlank { null } ?: "kamau Admin"
+                            val businessName = "kamau-supplies"
+                            val userInitial = displayName.firstOrNull()?.toString()?.uppercase() ?: "K"
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 10.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF86EFAC)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = userInitial,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF065F46)
+                                        )
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = displayName,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1E293B),
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = "Owner • $businessName",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF64748B),
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            Spacer(Modifier.height(8.dp))
+                        }
 
                         // Menu items
                         Box(modifier = Modifier.weight(1f)) {
@@ -972,8 +1055,12 @@ fun Biashara360DesktopAppContent(
                     when (currentScreen) {
                         AppScreen.Dashboard -> DesktopDashboardScreen()
                         AppScreen.Pos -> DesktopPosScreen()
-                        AppScreen.Hospitality -> DesktopHospitalityScreen()
-                        AppScreen.OpenTabs -> DesktopOpenTabsScreen()
+                        AppScreen.Orders -> DesktopOrdersScreen(searchQuery = searchQuery)
+                        AppScreen.Customers -> DesktopCustomersScreen(searchQuery = searchQuery)
+                        AppScreen.Products -> DesktopProductsScreen(
+                            searchQuery = searchQuery,
+                            onNavigateToInventory = { navigationViewModel.navigateTo(AppScreen.Inventory) }
+                        )
                         AppScreen.Inventory -> DesktopInventoryScreen(
                             searchQuery = searchQuery,
                             onNavigateToPurchases = { navigationViewModel.navigateTo(AppScreen.Purchases) }
@@ -982,18 +1069,22 @@ fun Biashara360DesktopAppContent(
                             searchQuery = searchQuery,
                             onNavigateToInventory = { navigationViewModel.navigateTo(AppScreen.Inventory) }
                         )
-                        AppScreen.Orders -> DesktopOrdersScreen(searchQuery = searchQuery)
-                        AppScreen.Customers -> DesktopCustomersScreen(searchQuery = searchQuery)
+                        AppScreen.Suppliers -> DesktopSuppliersScreen(searchQuery = searchQuery)
+                        AppScreen.HotelRooms -> DesktopHotelRoomsScreen()
+                        AppScreen.Hospitality -> DesktopHospitalityScreen()
+                        AppScreen.Appointments -> DesktopAppointmentsScreen()
+                        AppScreen.Bookings -> DesktopBookingsScreen()
                         AppScreen.Expenses -> DesktopExpensesModernScreen()
                         AppScreen.Payments -> DesktopPaymentsModernScreen()
-                        AppScreen.CyberSource -> DesktopPaymentConfigurationScreen()
-                        AppScreen.Mpesa -> DesktopPaymentConfigurationScreen()
-                        AppScreen.ReceiptTemplate -> DesktopReceiptTemplateScreen()
                         AppScreen.Reports -> DesktopReportsLiveScreen()
+                        AppScreen.Settings -> DesktopSettingsScreen()
                         AppScreen.Tax -> DesktopTaxModernScreen()
                         AppScreen.KRA -> DesktopKraModernScreen()
                         AppScreen.Social -> DesktopSocialModernScreen()
-                        AppScreen.Settings -> DesktopSettingsScreen()
+                        AppScreen.OpenTabs -> DesktopOpenTabsScreen()
+                        AppScreen.CyberSource -> DesktopPaymentConfigurationScreen()
+                        AppScreen.Mpesa -> DesktopPaymentConfigurationScreen()
+                        AppScreen.ReceiptTemplate -> DesktopReceiptTemplateScreen()
                     }
                 }
             }
