@@ -100,18 +100,6 @@ DO $$
 DECLARE
     b RECORD;
     v_role_id VARCHAR(36);
-    v_perm_id VARCHAR(36);
-    
-    PROCEDURE link_perm(p_role_id VARCHAR(36), p_code VARCHAR(80)) IS
-    BEGIN
-        SELECT id INTO v_perm_id FROM permissions WHERE code = p_code LIMIT 1;
-        IF v_perm_id IS NOT NULL THEN
-            INSERT INTO role_permissions (role_id, permission_id)
-            VALUES (p_role_id, v_perm_id)
-            ON CONFLICT DO NOTHING;
-        END IF;
-    END;
-
 BEGIN
     FOR b IN SELECT id FROM businesses LOOP
         -- Business Owner (Full Access)
