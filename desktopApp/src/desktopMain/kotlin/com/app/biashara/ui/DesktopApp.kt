@@ -48,6 +48,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.hoverable
 import androidx.compose.ui.input.key.*
 import com.app.biashara.data.remote.ApiResponse
 import com.app.biashara.data.remote.BASE_URL
@@ -161,53 +163,176 @@ private fun isDesktopFingerprintAvailable(): Boolean {
     }
 }
 
+private fun screenShortcut(screen: AppScreen): String? = when (screen) {
+    AppScreen.Dashboard -> "1"
+    AppScreen.Pos -> "2"
+    AppScreen.Inventory -> "I"
+    AppScreen.Purchases -> "L"
+    AppScreen.Orders -> "O"
+    AppScreen.Customers -> "U"
+    AppScreen.Expenses -> "E"
+    AppScreen.Payments -> "Y"
+    AppScreen.Reports -> "R"
+    AppScreen.Settings -> "S"
+    else -> null
+}
+
+private fun screenBadge(screen: AppScreen): String? = when (screen) {
+    AppScreen.Inventory -> "2"
+    AppScreen.Orders -> "22"
+    else -> null
+}
+
 @Composable
 private fun DesktopSidebarItem(
     screen: AppScreen,
     isExpanded: Boolean,
     isSelected: Boolean,
+    shortcut: String? = null,
+    badge: String? = null,
+    isProminentPos: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val bg = if (isSelected) Color(0xFFE6F9F0) else Color.Transparent
-    val iconColor = if (isSelected) Color(0xFF059669) else Color(0xFF64748B)
-    val textColor = if (isSelected) Color(0xFF059669) else Color(0xFF475569)
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(44.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(bg)
-            .clickable(onClick = onClick)
-    ) {
-        Row(
+    if (isProminentPos) {
+        val bg = if (isSelected) B360Green else Color(0xFFECFDF5)
+        val iconColor = if (isSelected) Color.White else Color(0xFF047857)
+        val textColor = if (isSelected) Color.White else Color(0xFF047857)
+        val border = if (isSelected) null else BorderStroke(1.dp, Color(0xFFA7F3D0))
+
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .then(if (border != null) Modifier.border(border, RoundedCornerShape(10.dp)) else Modifier)
+                .background(bg)
+                .hoverable(interactionSource)
+                .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
         ) {
-            Icon(
-                imageVector = screen.icon,
-                contentDescription = screen.title,
-                tint = iconColor,
-                modifier = Modifier.size(20.dp)
-            )
-            if (isExpanded) {
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = screen.title,
-                    fontSize = 14.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = textColor
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = screen.icon,
+                    contentDescription = screen.title,
+                    tint = iconColor,
+                    modifier = Modifier.size(20.dp)
                 )
+                if (isExpanded) {
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = screen.title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textColor
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = if (isSelected) Color.White.copy(alpha = 0.2f) else Color(0xFFD1FAE5)
+                    ) {
+                        Text(
+                            text = if (isHovered && shortcut != null) "$shortcutModifier+$shortcut" else "F1",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSelected) Color.White else Color(0xFF047857),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        val bg = when {
+            isSelected -> Color(0xFFE6F9F0)
+            isHovered -> Color(0xFFF1F5F9)
+            else -> Color.Transparent
+        }
+        val iconColor = if (isSelected) Color(0xFF059669) else Color(0xFF64748B)
+        val textColor = if (isSelected) Color(0xFF059669) else Color(0xFF334155)
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(bg)
+                .hoverable(interactionSource)
+                .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = if (isExpanded) Arrangement.Start else Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = screen.icon,
+                    contentDescription = screen.title,
+                    tint = iconColor,
+                    modifier = Modifier.size(19.dp)
+                )
+                if (isExpanded) {
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = screen.title,
+                        fontSize = 13.5.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = textColor
+                    )
+                    Spacer(Modifier.weight(1f))
+
+                    // Operational count badge (always visible)
+                    if (badge != null && (!isHovered || shortcut == null)) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) Color(0xFFD1FAE5) else Color(0xFFF1F5F9)
+                        ) {
+                            Text(
+                                text = badge,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) Color(0xFF047857) else Color(0xFF64748B),
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+
+                    // Shortcut badge - ONLY visible on hover to avoid visual noise!
+                    if (isHovered && shortcut != null) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFE2E8F0).copy(alpha = 0.85f)
+                        ) {
+                            Text(
+                                text = "$shortcutModifier+$shortcut",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF475569),
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun Biashara360DesktopApp() {
+fun Biashara360DesktopApp(
+    onMinimize: () -> Unit = {},
+    onMaximize: () -> Unit = {},
+    onClose: () -> Unit = {}
+) {
     val authViewModel: AuthViewModel = remember { inject() }
     val authRepository: AuthRepository = remember { inject() }
     val tokenStorage: TokenStorage = remember { inject() }
@@ -275,7 +400,10 @@ fun Biashara360DesktopApp() {
                         authRepository.logout()
                         UserSession.clearUser()
                     }
-                }
+                },
+                onMinimize = onMinimize,
+                onMaximize = onMaximize,
+                onClose = onClose
             )
         }
 
@@ -318,6 +446,9 @@ fun Biashara360DesktopApp() {
 @Composable
 fun Biashara360DesktopAppContent(
     onSignOut: () -> Unit = {},
+    onMinimize: () -> Unit = {},
+    onMaximize: () -> Unit = {},
+    onClose: () -> Unit = {},
     navigationViewModel: DesktopNavigationViewModel = remember { inject() },
     dashboardViewModel: com.app.biashara.presentation.viewmodel.DashboardViewModel = remember { inject() },
     client: HttpClient = remember { inject() }
@@ -369,7 +500,8 @@ fun Biashara360DesktopAppContent(
             .focusable()
             .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyDown) {
-                    if (keyEvent.isCtrlPressed) {
+                    val isMod = if (currentDesktopPlatform == DesktopPlatform.MACOS) keyEvent.isMetaPressed else keyEvent.isCtrlPressed
+                    if (isMod) {
                         when (keyEvent.key) {
                             Key.K -> {
                                 focusRequester.requestFocus()
@@ -377,14 +509,19 @@ fun Biashara360DesktopAppContent(
                             }
                             Key.One -> { navigationViewModel.navigateTo(AppScreen.Dashboard); true }
                             Key.Two -> { navigationViewModel.navigateTo(AppScreen.Pos); true }
-                            Key.Three -> { navigationViewModel.navigateTo(AppScreen.Inventory); true }
-                            Key.Four -> { navigationViewModel.navigateTo(AppScreen.Orders); true }
-                            Key.Five -> { navigationViewModel.navigateTo(AppScreen.Customers); true }
-                            Key.Six -> { navigationViewModel.navigateTo(AppScreen.Expenses); true }
-                            Key.Seven -> { navigationViewModel.navigateTo(AppScreen.Reports); true }
-                            Key.Eight -> { navigationViewModel.navigateTo(AppScreen.Settings); true }
+                            Key.Three, Key.I -> { navigationViewModel.navigateTo(AppScreen.Inventory); true }
+                            Key.Four, Key.O -> { navigationViewModel.navigateTo(AppScreen.Orders); true }
+                            Key.Five, Key.U -> { navigationViewModel.navigateTo(AppScreen.Customers); true }
+                            Key.Six, Key.E -> { navigationViewModel.navigateTo(AppScreen.Expenses); true }
+                            Key.Seven, Key.R -> { navigationViewModel.navigateTo(AppScreen.Reports); true }
+                            Key.Eight, Key.S -> { navigationViewModel.navigateTo(AppScreen.Settings); true }
+                            Key.L -> { navigationViewModel.navigateTo(AppScreen.Purchases); true }
+                            Key.Y -> { navigationViewModel.navigateTo(AppScreen.Payments); true }
                             else -> false
                         }
+                    } else if (keyEvent.key == Key.F1) {
+                        navigationViewModel.navigateTo(AppScreen.Pos)
+                        true
                     } else {
                         false
                     }
@@ -395,7 +532,16 @@ fun Biashara360DesktopAppContent(
     ) {
         val isWideScreen = maxWidth >= 1024.dp
 
-        Row(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            DesktopTitleBar(
+                title = "Biashara360 — Business Management",
+                platform = currentDesktopPlatform,
+                onMinimize = onMinimize,
+                onMaximize = onMaximize,
+                onClose = onClose
+            )
+
+            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (isWideScreen) {
                 val sidebarWidth = if (isExpanded) 240.dp else 72.dp
                 val sidebarUser by UserSession.currentUser.collectAsState()
@@ -455,10 +601,14 @@ fun Biashara360DesktopAppContent(
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 visibleTopScreens.forEach { screen ->
+                                    val isPos = screen == AppScreen.Pos
                                     DesktopSidebarItem(
                                         screen = screen,
                                         isExpanded = isExpanded,
                                         isSelected = currentScreen == screen,
+                                        shortcut = screenShortcut(screen),
+                                        badge = screenBadge(screen),
+                                        isProminentPos = isPos,
                                         onClick = { navigationViewModel.navigateTo(screen) }
                                     )
                                 }
@@ -493,12 +643,81 @@ fun Biashara360DesktopAppContent(
                                                 screen = screen,
                                                 isExpanded = isExpanded,
                                                 isSelected = currentScreen == screen,
+                                                shortcut = screenShortcut(screen),
+                                                badge = screenBadge(screen),
                                                 onClick = { navigationViewModel.navigateTo(screen) }
                                             )
                                         }
                                     }
                                 }
                             }
+                        }
+
+                        // Sync status card at bottom of sidebar
+                        if (isExpanded) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFECFDF5)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Bolt,
+                                            contentDescription = null,
+                                            tint = Color(0xFF10B981),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                    Column {
+                                        Text(
+                                            text = "Sync status",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1E293B)
+                                        )
+                                        Text(
+                                            text = "• All changes saved",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF059669)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "v2.4.1 • ${System.getProperty("os.arch", "x64")}",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                                Text(
+                                    text = "Desktop",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
                         }
 
                         // Bottom Sign Out button
@@ -606,7 +825,7 @@ fun Biashara360DesktopAppContent(
                                                 horizontalArrangement = Arrangement.spacedBy(3.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text("Ctrl", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
+                                                Text(shortcutModifier, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
                                                 Text("K", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
                                             }
                                         }
@@ -779,7 +998,16 @@ fun Biashara360DesktopAppContent(
                 }
             }
         }
+
+        // Bottom status bar tailored for desktop operations (no duplicate time/battery!)
+        DesktopStatusBar(
+            syncState = "Local • Synced",
+            syncSubtitle = "All changes saved",
+            terminalInfo = "Counter 01 • Main Store • eTIMS: Online",
+            onOpenCommandPalette = { focusRequester.requestFocus() }
+        )
     }
+}
 }
 
 @Composable

@@ -49,7 +49,17 @@ fun main() {
             androidx.compose.runtime.LaunchedEffect(Unit) {
                 window.minimumSize = java.awt.Dimension(1024, 680)
             }
-            Biashara360DesktopApp()
+            Biashara360DesktopApp(
+                onMinimize = { windowState.isMinimized = true },
+                onMaximize = {
+                    windowState.placement = if (windowState.placement == WindowPlacement.Maximized) {
+                        WindowPlacement.Floating
+                    } else {
+                        WindowPlacement.Maximized
+                    }
+                },
+                onClose = ::exitApplication
+            )
         }
     }
 }
