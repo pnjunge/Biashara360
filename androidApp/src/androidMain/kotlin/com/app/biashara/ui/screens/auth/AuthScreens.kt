@@ -1,5 +1,9 @@
 package com.app.biashara.ui.screens.auth
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -497,6 +501,27 @@ fun LoginScreen(
                         Text("Please sign in to continue", fontSize = 13.sp, color = Color(0xFF64748B))
 
                         // Auth Mode Toggle Tabs (Password vs Staff PIN)
+                        val passwordTabBg by animateColorAsState(
+                            targetValue = if (!isPinLoginMode) B360Green else Color.Transparent,
+                            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                            label = "pwdTabBg"
+                        )
+                        val pinTabBg by animateColorAsState(
+                            targetValue = if (isPinLoginMode) B360Green else Color.Transparent,
+                            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                            label = "pinTabBg"
+                        )
+                        val passwordTabTextColor by animateColorAsState(
+                            targetValue = if (!isPinLoginMode) Color.White else Color(0xFF64748B),
+                            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                            label = "pwdTabTextColor"
+                        )
+                        val pinTabTextColor by animateColorAsState(
+                            targetValue = if (isPinLoginMode) Color.White else Color(0xFF64748B),
+                            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                            label = "pinTabTextColor"
+                        )
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -511,14 +536,14 @@ fun LoginScreen(
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (!isPinLoginMode) B360Green else Color.Transparent)
+                                    .background(passwordTabBg)
                                     .clickable { isPinLoginMode = false; viewModel.dismissError() },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     "Password",
                                     fontWeight = if (!isPinLoginMode) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (!isPinLoginMode) Color.White else Color(0xFF64748B),
+                                    color = passwordTabTextColor,
                                     fontSize = 13.sp
                                 )
                             }
@@ -527,7 +552,7 @@ fun LoginScreen(
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isPinLoginMode) B360Green else Color.Transparent)
+                                    .background(pinTabBg)
                                     .clickable { isPinLoginMode = true; viewModel.dismissError() },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -535,13 +560,13 @@ fun LoginScreen(
                                     Icon(
                                         Icons.Default.Pin,
                                         contentDescription = null,
-                                        tint = if (isPinLoginMode) Color.White else Color(0xFF64748B),
+                                        tint = pinTabTextColor,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
                                         "Staff PIN",
                                         fontWeight = if (isPinLoginMode) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isPinLoginMode) Color.White else Color(0xFF64748B),
+                                        color = pinTabTextColor,
                                         fontSize = 13.sp
                                     )
                                 }
@@ -564,88 +589,102 @@ fun LoginScreen(
                             }
                         }
 
-                        if (!isPinLoginMode) {
-                            AndroidCustomLoginTextField(
-                                value = email,
-                                onValueChange = { email = it; viewModel.dismissError() },
-                                placeholder = "Email / Phone",
-                                leadingIcon = Icons.Filled.Person,
-                                enabled = !state.isLoading,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
-                            )
+                        AnimatedContent(
+                            targetState = isPinLoginMode,
+                            transitionSpec = {
+                                (fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)) +
+                                    slideInHorizontally(initialOffsetX = { if (targetState) 30 else -30 }, animationSpec = tween(200)))
+                                    .togetherWith(
+                                        fadeOut(animationSpec = tween(150, easing = FastOutLinearInEasing))
+                                    )
+                            },
+                            label = "loginModeAnim"
+                        ) { isPin ->
+                            Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+                                if (!isPin) {
+                                    AndroidCustomLoginTextField(
+                                        value = email,
+                                        onValueChange = { email = it; viewModel.dismissError() },
+                                        placeholder = "Email / Phone",
+                                        leadingIcon = Icons.Filled.Person,
+                                        enabled = !state.isLoading,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
+                                    )
 
-                            TextButton(
-                                onClick = {
-                                    resetEmail = email
-                                    viewModel.dismissError()
-                                    showPasswordReset = true
-                                },
-                                enabled = !state.isLoading,
-                                modifier = Modifier.align(Alignment.End)
-                            ) {
-                                Text("Forgot password?", color = B360Green, fontWeight = FontWeight.SemiBold)
-                            }
-
-                            AndroidCustomLoginTextField(
-                                value = password,
-                                onValueChange = { password = it; viewModel.dismissError() },
-                                placeholder = "Password",
-                                leadingIcon = Icons.Filled.Lock,
-                                isPassword = true,
-                                passwordVisible = passwordVisible,
-                                onPasswordToggle = { passwordVisible = !passwordVisible },
-                                enabled = !state.isLoading,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-                                keyboardActions = KeyboardActions(onDone = { if (email.isNotBlank() && password.isNotBlank()) viewModel.login(email, password) })
-                            )
-
-                            Button(
-                                onClick = { viewModel.login(email, password) },
-                                modifier = Modifier.fillMaxWidth().height(54.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                                shape = RoundedCornerShape(14.dp),
-                                enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank()
-                            ) {
-                                if (state.isLoading) {
-                                    CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
-                                } else {
-                                    Box(modifier = Modifier.fillMaxWidth()) {
-                                        Text("Login / Ingia", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                    TextButton(
+                                        onClick = {
+                                            resetEmail = email
+                                            viewModel.dismissError()
+                                            showPasswordReset = true
+                                        },
+                                        enabled = !state.isLoading,
+                                        modifier = Modifier.align(Alignment.End)
+                                    ) {
+                                        Text("Forgot password?", color = B360Green, fontWeight = FontWeight.SemiBold)
                                     }
-                                }
-                            }
-                        } else {
-                            AndroidCustomLoginTextField(
-                                value = pin,
-                                onValueChange = { pin = it.filter { c -> c.isDigit() }.take(6); viewModel.dismissError() },
-                                placeholder = "Enter 6-Digit Staff PIN",
-                                leadingIcon = Icons.Filled.Pin,
-                                isPassword = true,
-                                passwordVisible = passwordVisible,
-                                onPasswordToggle = { passwordVisible = !passwordVisible },
-                                enabled = !state.isLoading
-                            )
 
-                            Text(
-                                "Enter your assigned 6-digit staff PIN for rapid terminal authorization.",
-                                fontSize = 12.sp,
-                                color = Color(0xFF64748B)
-                            )
+                                    AndroidCustomLoginTextField(
+                                        value = password,
+                                        onValueChange = { password = it; viewModel.dismissError() },
+                                        placeholder = "Password",
+                                        leadingIcon = Icons.Filled.Lock,
+                                        isPassword = true,
+                                        passwordVisible = passwordVisible,
+                                        onPasswordToggle = { passwordVisible = !passwordVisible },
+                                        enabled = !state.isLoading,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                                        keyboardActions = KeyboardActions(onDone = { if (email.isNotBlank() && password.isNotBlank()) viewModel.login(email, password) })
+                                    )
 
-                            Button(
-                                onClick = { viewModel.loginWithPin(pin) },
-                                modifier = Modifier.fillMaxWidth().height(54.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                                shape = RoundedCornerShape(14.dp),
-                                enabled = !state.isLoading && pin.length == 6
-                            ) {
-                                if (state.isLoading) {
-                                    CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                                    Button(
+                                        onClick = { viewModel.login(email, password) },
+                                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                                        shape = RoundedCornerShape(14.dp),
+                                        enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank()
+                                    ) {
+                                        if (state.isLoading) {
+                                            CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                                        } else {
+                                            Box(modifier = Modifier.fillMaxWidth()) {
+                                                Text("Login / Ingia", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
+                                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                            }
+                                        }
+                                    }
                                 } else {
-                                    Box(modifier = Modifier.fillMaxWidth()) {
-                                        Text("Login with PIN / Ingia na PIN", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                    AndroidCustomLoginTextField(
+                                        value = pin,
+                                        onValueChange = { pin = it.filter { c -> c.isDigit() }.take(6); viewModel.dismissError() },
+                                        placeholder = "Enter 6-Digit Staff PIN",
+                                        leadingIcon = Icons.Filled.Pin,
+                                        isPassword = true,
+                                        passwordVisible = passwordVisible,
+                                        onPasswordToggle = { passwordVisible = !passwordVisible },
+                                        enabled = !state.isLoading
+                                    )
+
+                                    Text(
+                                        "Enter your assigned 6-digit staff PIN for rapid terminal authorization.",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+
+                                    Button(
+                                        onClick = { viewModel.loginWithPin(pin) },
+                                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = B360Green),
+                                        shape = RoundedCornerShape(14.dp),
+                                        enabled = !state.isLoading && pin.length == 6
+                                    ) {
+                                        if (state.isLoading) {
+                                            CircularProgressIndicator(Modifier.size(20.dp), color = Color.White)
+                                        } else {
+                                            Box(modifier = Modifier.fillMaxWidth()) {
+                                                Text("Login with PIN / Ingia na PIN", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center), color = Color.White, fontSize = 16.sp)
+                                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).size(18.dp))
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -724,11 +763,45 @@ fun LoginScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
+                                val bioPulseTransition = rememberInfiniteTransition(label = "bioPulse")
+                                val bioPulseScale by bioPulseTransition.animateFloat(
+                                    initialValue = 0.95f,
+                                    targetValue = 1.25f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(1400, easing = FastOutSlowInEasing),
+                                        repeatMode = RepeatMode.Reverse
+                                    ),
+                                    label = "bioScale"
+                                )
+                                val bioPulseAlpha by bioPulseTransition.animateFloat(
+                                    initialValue = 0.4f,
+                                    targetValue = 0.05f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(1400, easing = FastOutSlowInEasing),
+                                        repeatMode = RepeatMode.Reverse
+                                    ),
+                                    label = "bioAlpha"
+                                )
                                 Box(
-                                    modifier = Modifier.size(40.dp).background(Color(0xFFE6F4EA), CircleShape),
+                                    modifier = Modifier.size(40.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Fingerprint, contentDescription = null, tint = B360Green, modifier = Modifier.size(22.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .graphicsLayer {
+                                                scaleX = bioPulseScale
+                                                scaleY = bioPulseScale
+                                                alpha = bioPulseAlpha
+                                            }
+                                            .background(B360Green, CircleShape)
+                                    )
+                                    Box(
+                                        modifier = Modifier.size(36.dp).background(Color(0xFFE6F4EA), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.Fingerprint, contentDescription = null, tint = B360Green, modifier = Modifier.size(22.dp))
+                                    }
                                 }
                                 Text("Login with fingerprint", modifier = Modifier.weight(1f), color = Color(0xFF0F172A), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Color(0xFF64748B))

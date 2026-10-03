@@ -1,5 +1,9 @@
 package com.app.biashara.ui.screens.pos
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
+
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -689,17 +693,32 @@ private fun PosProductGridCard(
     val isOutOfStock = product.isOutOfStock
     val stockColor = if (isOutOfStock) B360Red else if (product.isLowStock) B360Amber else Color(0xFF10B981)
 
+    val cardScale by animateFloatAsState(
+        targetValue = if (inCartQty > 0) 1.01f else 1f,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
+        label = "cardScale"
+    )
+    val cardBorderColor by animateColorAsState(
+        targetValue = if (inCartQty > 0) B360Green else Color(0xFFF1F5F9),
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "cardBorderColor"
+    )
+
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+            }
             .clickable(enabled = !isOutOfStock, onClick = onAddToCart),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(
-            1.dp,
-            if (inCartQty > 0) B360Green.copy(alpha = 0.5f) else Color(0xFFF1F5F9)
+            if (inCartQty > 0) 1.5.dp else 1.dp,
+            cardBorderColor
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (inCartQty > 0) 3.dp else 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (inCartQty > 0) 4.dp else 1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -1030,12 +1049,24 @@ private fun PosCartSummaryPane(
                                     },
                                     modifier = Modifier.size(28.dp)
                                 ) { Icon(Icons.Filled.Remove, null, modifier = Modifier.size(16.dp)) }
-                                Text(
-                                    item.qty.toString(),
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 4.dp),
-                                    fontSize = 13.sp
-                                )
+                                AnimatedContent(
+                                    targetState = item.qty,
+                                    transitionSpec = {
+                                        if (targetState > initialState) {
+                                            (slideInVertically { -it } + fadeIn()).togetherWith(slideOutVertically { it } + fadeOut())
+                                        } else {
+                                            (slideInVertically { it } + fadeIn()).togetherWith(slideOutVertically { -it } + fadeOut())
+                                        }
+                                    },
+                                    label = "cartQtyTicker"
+                                ) { targetQty ->
+                                    Text(
+                                        targetQty.toString(),
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 4.dp),
+                                        fontSize = 13.sp
+                                    )
+                                }
                                 IconButton(
                                     onClick = {
                                         if (item.qty < item.product.currentStock) {
@@ -1969,12 +2000,22 @@ fun PosScreen(
                 )
             },
             text = {
+                val checkScale by animateFloatAsState(
+                    targetValue = 1f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                    label = "checkScale"
+                )
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                     Icon(
                         if (result.paymentPromptAccepted || result.paymentMethod == PaymentMethod.CASH) Icons.Filled.CheckCircle else Icons.Filled.Pending,
                         null,
                         tint = if (result.paymentPromptAccepted || result.paymentMethod == PaymentMethod.CASH) B360Green else Color(0xFFF59E0B),
-                        modifier = Modifier.size(64.dp)
+                        modifier = Modifier
+                            .size(64.dp)
+                            .graphicsLayer {
+                                scaleX = checkScale
+                                scaleY = checkScale
+                            }
                     )
                     Spacer(Modifier.height(8.dp))
                     Text("Order Number: ${result.orderNumber}", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))

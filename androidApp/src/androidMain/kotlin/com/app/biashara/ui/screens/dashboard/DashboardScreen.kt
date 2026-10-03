@@ -1,5 +1,7 @@
 package com.app.biashara.ui.screens.dashboard
 
+import androidx.compose.animation.core.*
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -519,7 +521,7 @@ fun KpiCard(
                 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(title, fontSize = 13.sp, color = Color(0xFF475569), fontWeight = FontWeight.SemiBold)
-                    Text(value, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                    AnimatedRollingNumber(value)
                     
                     if (change.isNotBlank()) Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -554,6 +556,39 @@ fun KpiCard(
 }
 
 @Composable
+fun AnimatedRollingNumber(text: String, modifier: Modifier = Modifier) {
+    val numericDigits = text.filter { it.isDigit() }
+    val numericPart = numericDigits.toLongOrNull()
+    if (numericPart != null && numericPart > 0) {
+        var triggered by remember { mutableStateOf(false) }
+        LaunchedEffect(numericPart) {
+            triggered = true
+        }
+        val animatedValue by animateFloatAsState(
+            targetValue = if (triggered) numericPart.toFloat() else 0f,
+            animationSpec = tween(durationMillis = 750, easing = FastOutSlowInEasing),
+            label = "rollingNumber"
+        )
+        val prefix = if (text.contains("KES", ignoreCase = true)) "KES " else ""
+        Text(
+            text = "$prefix${String.format("%,.0f", animatedValue)}",
+            fontSize = 23.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF0F172A),
+            modifier = modifier
+        )
+    } else {
+        Text(
+            text = text,
+            fontSize = 23.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF0F172A),
+            modifier = modifier
+        )
+    }
+}
+
+@Composable
 fun RevenueBarChart(
     modifier: Modifier = Modifier,
     weeklyRevenue: List<Pair<String, Double>> = emptyList()
@@ -561,7 +596,16 @@ fun RevenueBarChart(
     val series = weeklyRevenue.takeLast(7)
     val labels = series.map { it.first }
     val maximum = (series.maxOfOrNull { it.second } ?: 0.0).coerceAtLeast(1.0)
-    val points = series.map { (it.second / maximum).toFloat() }
+    var chartTriggered by remember { mutableStateOf(false) }
+    LaunchedEffect(series) {
+        chartTriggered = true
+    }
+    val chartProgress by animateFloatAsState(
+        targetValue = if (chartTriggered) 1f else 0f,
+        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+        label = "chartProgress"
+    )
+    val points = series.map { ((it.second / maximum) * chartProgress).toFloat() }
 
     Card(
         modifier = modifier.fillMaxWidth(),

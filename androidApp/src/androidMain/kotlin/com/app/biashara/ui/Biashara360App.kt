@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
@@ -262,10 +263,22 @@ fun Biashara360App(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(),
-                enterTransition = { fadeIn(tween(220, easing = FastOutSlowInEasing)) },
-                exitTransition = { fadeOut(tween(180, easing = FastOutLinearInEasing)) },
-                popEnterTransition = { fadeIn(tween(220, easing = FastOutSlowInEasing)) },
-                popExitTransition = { fadeOut(tween(180, easing = FastOutLinearInEasing)) }
+                enterTransition = {
+                    fadeIn(animationSpec = tween(220, easing = FastOutSlowInEasing)) +
+                    slideInHorizontally(initialOffsetX = { (it * 0.08f).toInt() }, animationSpec = tween(220, easing = FastOutSlowInEasing))
+                },
+                exitTransition = {
+                    fadeOut(animationSpec = tween(180, easing = FastOutLinearInEasing)) +
+                    slideOutHorizontally(targetOffsetX = { -(it * 0.05f).toInt() }, animationSpec = tween(180, easing = FastOutLinearInEasing))
+                },
+                popEnterTransition = {
+                    fadeIn(animationSpec = tween(220, easing = FastOutSlowInEasing)) +
+                    slideInHorizontally(initialOffsetX = { -(it * 0.08f).toInt() }, animationSpec = tween(220, easing = FastOutSlowInEasing))
+                },
+                popExitTransition = {
+                    fadeOut(animationSpec = tween(180, easing = FastOutLinearInEasing)) +
+                    slideOutHorizontally(targetOffsetX = { (it * 0.05f).toInt() }, animationSpec = tween(180, easing = FastOutLinearInEasing))
+                }
             ) {
             composable(Screen.Login.route) {
                 LoginScreen(
@@ -473,6 +486,27 @@ fun CustomBottomNavigation(
                     it.route == item.screen.route
                 } == true
 
+                val pillColor by animateColorAsState(
+                    targetValue = if (isSelected) B360Green else Color.Transparent,
+                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                    label = "tabPillColor"
+                )
+                val iconColor by animateColorAsState(
+                    targetValue = if (isSelected) Color.White else Color(0xFF64748B),
+                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                    label = "tabIconColor"
+                )
+                val textColor by animateColorAsState(
+                    targetValue = if (isSelected) B360Green else Color(0xFF64748B),
+                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                    label = "tabTextColor"
+                )
+                val pillScale by animateFloatAsState(
+                    targetValue = if (isSelected) 1f else 0.94f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                    label = "tabPillScale"
+                )
+
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
@@ -497,57 +531,60 @@ fun CustomBottomNavigation(
                         }
                         .padding(vertical = 4.dp)
                 ) {
-                    if (isSelected) {
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = B360Green,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = item.label,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = pillColor,
+                        modifier = Modifier
+                            .padding(bottom = 4.dp)
+                            .graphicsLayer {
+                                scaleX = pillScale
+                                scaleY = pillScale
                             }
-                        }
-                        Text(
-                            text = item.label,
-                            color = B360Green,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    } else {
+                    ) {
                         Box(
-                            modifier = Modifier.padding(vertical = 5.dp, horizontal = 14.dp),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = item.icon,
                                 contentDescription = item.label,
-                                tint = Color(0xFF64748B),
+                                tint = iconColor,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
-                        Text(
-                            text = item.label,
-                            color = Color(0xFF64748B),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis
-                        )
                     }
+                    Text(
+                        text = item.label,
+                        color = textColor,
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
+
+            val morePillColor by animateColorAsState(
+                targetValue = if (isAnySecondarySelected) B360Green else Color.Transparent,
+                animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                label = "morePillColor"
+            )
+            val moreIconColor by animateColorAsState(
+                targetValue = if (isAnySecondarySelected) Color.White else Color(0xFF64748B),
+                animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                label = "moreIconColor"
+            )
+            val moreTextColor by animateColorAsState(
+                targetValue = if (isAnySecondarySelected) B360Green else Color(0xFF64748B),
+                animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                label = "moreTextColor"
+            )
+            val morePillScale by animateFloatAsState(
+                targetValue = if (isAnySecondarySelected) 1f else 0.94f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                label = "morePillScale"
+            )
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -566,55 +603,37 @@ fun CustomBottomNavigation(
                     )
                     .padding(vertical = 4.dp)
             ) {
-                if (isAnySecondarySelected) {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = B360Green,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.GridView,
-                                contentDescription = "More",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = morePillColor,
+                    modifier = Modifier
+                        .padding(bottom = 4.dp)
+                        .graphicsLayer {
+                            scaleX = morePillScale
+                            scaleY = morePillScale
                         }
-                    }
-                    Text(
-                        text = "More",
-                        color = B360Green,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                } else {
+                ) {
                     Box(
-                        modifier = Modifier.padding(vertical = 5.dp, horizontal = 14.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Filled.GridView,
                             contentDescription = "More",
-                            tint = Color(0xFF64748B),
+                            tint = moreIconColor,
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    Text(
-                        text = "More",
-                        color = Color(0xFF64748B),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
-                    )
                 }
+                Text(
+                    text = "More",
+                    color = moreTextColor,
+                    fontSize = 11.sp,
+                    fontWeight = if (isAnySecondarySelected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
