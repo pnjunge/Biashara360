@@ -22,6 +22,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -419,7 +422,12 @@ fun Biashara360DesktopApp(
 
     Biashara360DesktopTheme {
         if (userSessionState == null) {
-            DesktopAuthFlow(authViewModel)
+            DesktopAuthFlow(
+                viewModel = authViewModel,
+                onMinimize = onMinimize,
+                onMaximize = onMaximize,
+                onClose = onClose
+            )
         } else {
             Biashara360DesktopAppContent(
                 onSignOut = {
@@ -1193,57 +1201,29 @@ fun CustomLoginTextField(
     enabled: Boolean = true
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val borderColor = if (isFocused) B360Green else Color(0xFFE2E8F0)
+    val borderColor = if (isFocused) Color(0xFF00A36C) else Color(0xFFE2E8F0)
     val focusRequester = remember { FocusRequester() }
-    val interactionSource = remember { MutableInteractionSource() }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp)
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
+            .height(46.dp)
+            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(Color.White)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null
-            ) {
-                if (enabled) {
-                    focusRequester.requestFocus()
-                }
-            },
+            .clickable(enabled = enabled) { focusRequester.requestFocus() }
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Icon Box
-        Box(
-            modifier = Modifier
-                .width(56.dp)
-                .fillMaxHeight()
-                .background(Color(0xFFF0FDF4)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = leadingIcon,
-                contentDescription = null,
-                tint = B360Green,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-
-        // Vertical Divider
-        Box(
-            modifier = Modifier
-                .width(1.dp)
-                .fillMaxHeight()
-                .background(Color(0xFFE2E8F0))
+        Icon(
+            imageVector = leadingIcon,
+            contentDescription = null,
+            tint = Color(0xFF00A36C),
+            modifier = Modifier.size(18.dp)
         )
-
-        // Text Input
+        Spacer(Modifier.width(12.dp))
         Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.weight(1f),
             contentAlignment = Alignment.CenterStart
         ) {
             BasicTextField(
@@ -1256,26 +1236,25 @@ fun CustomLoginTextField(
                 singleLine = true,
                 enabled = enabled,
                 visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
-                textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 15.sp),
-                decorationBox = { innerTextField: @Composable () -> Unit ->
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 14.sp),
+                decorationBox = { innerTextField ->
                     if (value.isEmpty()) {
-                        Text(placeholder, color = Color(0xFF94A3B8), fontSize = 15.sp)
+                        Text(placeholder, color = Color(0xFF94A3B8), fontSize = 14.sp)
                     }
                     innerTextField()
                 }
             )
         }
-
         if (isPassword && onPasswordToggle != null) {
             IconButton(
                 onClick = onPasswordToggle,
-                modifier = Modifier.padding(end = 8.dp)
+                modifier = Modifier.size(24.dp)
             ) {
                 Icon(
                     imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
                     contentDescription = null,
-                    tint = Color(0xFF64748B),
-                    modifier = Modifier.size(20.dp)
+                    tint = Color(0xFF94A3B8),
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -1283,17 +1262,273 @@ fun CustomLoginTextField(
 }
 
 @Composable
-fun DesktopAuthFlow(viewModel: AuthViewModel) {
+fun DesktopAuthFlow(
+    viewModel: AuthViewModel,
+    onMinimize: () -> Unit = {},
+    onMaximize: () -> Unit = {},
+    onClose: () -> Unit = {}
+) {
     val state by viewModel.state.collectAsState()
 
-    DesktopAuthBackground {
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF8FAF9))) {
+        DesktopTitleBar(
+            title = "Biashara360 — Business Management",
+            platform = currentDesktopPlatform,
+            onMinimize = onMinimize,
+            onMaximize = onMaximize,
+            onClose = onClose
+        )
+
         when (val step = state.step) {
             is AuthStep.Login -> {
-                DesktopLoginCard(viewModel, state)
+                DesktopLoginScreen(viewModel, state)
             }
             is AuthStep.Otp -> {
-                DesktopOtpCard(viewModel, state, step.userId)
+                DesktopAuthBackground {
+                    DesktopOtpCard(viewModel, state, step.userId)
+                }
             }
+        }
+    }
+}
+
+@Composable
+fun DesktopLoginScreen(
+    viewModel: AuthViewModel,
+    state: com.app.biashara.presentation.viewmodel.AuthState
+) {
+    val bgBitmap = remember {
+        try {
+            val stream = Thread.currentThread().contextClassLoader.getResourceAsStream("pos_counter_bg.jpg")
+                ?: java.io.File("desktopApp/src/desktopMain/resources/pos_counter_bg.jpg").takeIf { it.exists() }?.inputStream()
+            stream?.use { loadImageBitmap(it) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF8FAF9))
+    ) {
+        // Right side arched retail counter photo
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(0.50f)
+                .align(Alignment.CenterEnd)
+                .clip(RoundedCornerShape(topStart = 320.dp, bottomStart = 320.dp))
+        ) {
+            if (bgBitmap != null) {
+                Image(
+                    bitmap = bgBitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    Color(0xFFF8FAF9).copy(alpha = 0.55f),
+                                    Color.Transparent,
+                                    Color(0xFFF8FAF9).copy(alpha = 0.2f)
+                                )
+                            )
+                        )
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFFE6F7ED), Color(0xFFCCEEDC))
+                            )
+                        )
+                )
+            }
+        }
+
+        // Soft organic mint curves in the background
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = size.width
+            val height = size.height
+            drawCircle(
+                color = Color(0xFF10B981).copy(alpha = 0.05f),
+                radius = width * 0.32f,
+                center = androidx.compose.ui.geometry.Offset(-width * 0.04f, height * 0.15f)
+            )
+            drawCircle(
+                color = Color(0xFF059669).copy(alpha = 0.04f),
+                radius = width * 0.28f,
+                center = androidx.compose.ui.geometry.Offset(width * 0.12f, height * 0.85f)
+            )
+        }
+
+        // Foreground content split: Marketing features on left, elevated floating card in center
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 72.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Left Column: Branding, Value Proposition, Feature list & pagination
+            Column(
+                modifier = Modifier
+                    .weight(1.15f)
+                    .padding(end = 40.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Header Logo
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF009665)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("B360", color = Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    }
+                    Column {
+                        Text("Biashara360", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0F172A))
+                        Text("Business Management", fontSize = 11.sp, color = Color(0xFF64748B))
+                    }
+                }
+
+                Spacer(Modifier.height(32.dp))
+
+                // Headline
+                Text(
+                    "Manage Your",
+                    fontSize = 38.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFF0F172A),
+                    letterSpacing = (-0.5).sp
+                )
+                Row {
+                    Text(
+                        "Business ",
+                        fontSize = 38.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF0F172A),
+                        letterSpacing = (-0.5).sp
+                    )
+                    Text(
+                        "Smarter",
+                        fontSize = 38.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF00A36C),
+                        letterSpacing = (-0.5).sp
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Description
+                Text(
+                    "All-in-one platform for retail, POS, inventory, customers, bookings, and more. Built for growing businesses.",
+                    fontSize = 15.sp,
+                    color = Color(0xFF64748B),
+                    lineHeight = 22.sp,
+                    modifier = Modifier.widthIn(max = 440.dp)
+                )
+
+                Spacer(Modifier.height(32.dp))
+
+                // 4 Feature items
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    DesktopLoginFeatureItem(
+                        icon = Icons.Default.ShoppingCart,
+                        title = "Point of Sale",
+                        subtitle = "Fast and reliable sales"
+                    )
+                    DesktopLoginFeatureItem(
+                        icon = Icons.Default.Inventory2,
+                        title = "Inventory Management",
+                        subtitle = "Track your stock in real-time"
+                    )
+                    DesktopLoginFeatureItem(
+                        icon = Icons.Default.People,
+                        title = "Customer Management",
+                        subtitle = "Build stronger relationships"
+                    )
+                    DesktopLoginFeatureItem(
+                        icon = Icons.Default.BarChart,
+                        title = "Reports & Analytics",
+                        subtitle = "Make data-driven decisions"
+                    )
+                }
+
+                Spacer(Modifier.height(32.dp))
+
+                // Pagination Dots
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.width(26.dp).height(5.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF00A36C)))
+                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(Color(0xFFCBD5E1)))
+                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(Color(0xFFCBD5E1)))
+                }
+            }
+
+            // Center Floating Login Card
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                DesktopLoginCard(viewModel, state)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DesktopLoginFeatureItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
+                .border(BorderStroke(1.dp, Color(0xFFE2E8F0)), RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color(0xFF00A36C),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = Color(0xFF1E293B)
+            )
+            Text(
+                text = subtitle,
+                fontSize = 12.sp,
+                color = Color(0xFF64748B)
+            )
         }
     }
 }
@@ -1310,42 +1545,96 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
 
     Card(
         modifier = Modifier
-            .width(460.dp)
-            .padding(16.dp),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+            .width(440.dp)
+            .padding(vertical = 8.dp),
+        shape = RoundedCornerShape(22.dp),
+        elevation = CardDefaults.cardElevation(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
     ) {
         Column(
             modifier = Modifier.padding(32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header Logo
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(B360Green),
-                contentAlignment = Alignment.Center
+            // Header Row: Left Mini B360 + Right Kenya Language Pill
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("B360", color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF009665)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("B360", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+                    Column {
+                        Text(
+                            "Biashara360",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color(0xFF00A36C)
+                        )
+                        Text(
+                            "Business Management",
+                            fontSize = 10.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                }
+
+                // Language Selector Pill
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    color = Color.White
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("🇰🇪 EN", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF334155))
+                        Icon(
+                            Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = Color(0xFF64748B),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
             }
 
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Welcome to Biashara360", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color(0xFF0F172A))
-                Spacer(Modifier.height(4.dp))
-                Text("Enterprise Management Platform", color = Color.Gray, fontSize = 12.sp)
+            // Welcome back Header
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "Welcome back",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 26.sp,
+                    color = Color(0xFF0F172A)
+                )
+                Text(
+                    "Sign in to your account to continue",
+                    fontSize = 13.sp,
+                    color = Color(0xFF64748B)
+                )
             }
 
-            // Auth Mode Toggle Tabs (Password vs Staff PIN)
+            // Toggle Tabs (Password vs Staff PIN)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(44.dp)
+                    .height(42.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(Color(0xFFF1F5F9))
-                    .padding(4.dp),
+                    .padding(3.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -1353,36 +1642,44 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (!isPinLoginMode) B360Green else Color.Transparent)
+                        .background(if (!isPinLoginMode) Color(0xFF009665) else Color.Transparent)
                         .clickable { isPinLoginMode = false; viewModel.dismissError() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        "Password",
-                        fontWeight = if (!isPinLoginMode) FontWeight.Bold else FontWeight.Medium,
-                        color = if (!isPinLoginMode) Color.White else Color(0xFF64748B),
-                        fontSize = 13.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = if (!isPinLoginMode) Color.White else Color(0xFF64748B),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            "Password",
+                            fontWeight = FontWeight.Bold,
+                            color = if (!isPinLoginMode) Color.White else Color(0xFF64748B),
+                            fontSize = 13.sp
+                        )
+                    }
                 }
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isPinLoginMode) B360Green else Color.Transparent)
+                        .background(if (isPinLoginMode) Color(0xFF009665) else Color.Transparent)
                         .clickable { isPinLoginMode = true; viewModel.dismissError() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Icon(
-                            Icons.Default.Pin,
+                            Icons.Default.Apps,
                             contentDescription = null,
                             tint = if (isPinLoginMode) Color.White else Color(0xFF64748B),
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                         Text(
                             "Staff PIN",
-                            fontWeight = if (isPinLoginMode) FontWeight.Bold else FontWeight.Medium,
+                            fontWeight = FontWeight.Bold,
                             color = if (isPinLoginMode) Color.White else Color(0xFF64748B),
                             fontSize = 13.sp
                         )
@@ -1390,8 +1687,7 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
-
+            // Error message display if present
             val errorText = state.error
             if (errorText != null) {
                 Surface(
@@ -1400,12 +1696,12 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(10.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Filled.Error, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                        Text(errorText, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        Text(errorText, color = MaterialTheme.colorScheme.error, fontSize = 12.sp, modifier = Modifier.weight(1f))
                         IconButton(onClick = { viewModel.dismissError() }, modifier = Modifier.size(16.dp)) {
                             Icon(Icons.Filled.Close, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(12.dp))
                         }
@@ -1442,14 +1738,14 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         Checkbox(
                             checked = rememberMe,
                             onCheckedChange = { rememberMe = it },
-                            colors = CheckboxDefaults.colors(checkedColor = B360Green)
+                            colors = CheckboxDefaults.colors(checkedColor = Color(0xFF009665))
                         )
-                        Text("Remember me", fontSize = 14.sp, color = Color(0xFF475569))
+                        Text("Remember me", fontSize = 13.sp, color = Color(0xFF475569))
                     }
                     Text(
                         text = "Forgot password?",
-                        fontSize = 14.sp,
-                        color = B360Green,
+                        fontSize = 13.sp,
+                        color = Color(0xFF00A36C),
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clickable { showForgotPassword = true }
                     )
@@ -1457,9 +1753,9 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
 
                 Button(
                     onClick = { viewModel.login(email, password) },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF009665)),
+                    shape = RoundedCornerShape(10.dp),
                     enabled = !state.isLoading && email.isNotBlank() && password.isNotBlank()
                 ) {
                     if (state.isLoading) {
@@ -1468,7 +1764,7 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                             Icon(Icons.AutoMirrored.Filled.ExitToApp, null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Sign In", fontWeight = FontWeight.Bold)
+                            Text("Sign In", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 }
@@ -1492,9 +1788,9 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
 
                 Button(
                     onClick = { viewModel.loginWithPin(pin) },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF009665)),
+                    shape = RoundedCornerShape(10.dp),
                     enabled = !state.isLoading && pin.length == 6
                 ) {
                     if (state.isLoading) {
@@ -1503,28 +1799,28 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                             Icon(Icons.Filled.Pin, null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Sign In with Staff PIN", fontWeight = FontWeight.Bold)
+                            Text("Sign In with Staff PIN", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 }
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
                 Text(
                     text = "OR",
                     color = Color(0xFF94A3B8),
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier.padding(horizontal = 14.dp)
                 )
                 HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
             }
 
-            OutlinedButton(
+            Surface(
                 onClick = {
                     if (isDesktopFingerprintAvailable()) {
                         viewModel.setError("Fingerprint login requires prior enrollment. Please ask your administrator to enroll your fingerprint via the admin portal.")
@@ -1532,15 +1828,19 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         viewModel.setError("No fingerprint reader or biometric hardware detected on this system.")
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                shape = RoundedCornerShape(10.dp),
                 border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF475569))
+                color = Color(0xFFF8FAFC)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Icon(Icons.Default.Fingerprint, null, tint = B360Green, modifier = Modifier.size(22.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Icon(Icons.Default.Fingerprint, null, tint = Color(0xFF00A36C), modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Sign in with Fingerprint", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("Sign in with Fingerprint", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF1E293B))
                 }
             }
         }

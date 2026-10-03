@@ -136,34 +136,14 @@ fun DesktopTitleBar(
             }
 
             DesktopPlatform.WINDOWS -> {
-                // Windows layout: Left title with icon, Right window controls
-                Spacer(modifier = Modifier.width(12.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(18.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(B360Green),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "B",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF334155)
-                    )
-                }
-
+                Spacer(modifier = Modifier.width(135.dp))
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF334155)
+                )
                 Spacer(modifier = Modifier.weight(1f))
 
                 // Windows native controls on the right
@@ -207,34 +187,15 @@ fun DesktopTitleBar(
             }
 
             DesktopPlatform.LINUX -> {
-                // Linux desktop layout: Left title with icon, Right window controls
-                Spacer(modifier = Modifier.width(12.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(18.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(B360Green),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "B",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF334155)
-                    )
-                }
-
+                // Centered title layout with circular flat controls matching client mockup
+                Spacer(modifier = Modifier.width(72.dp))
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF334155)
+                )
                 Spacer(modifier = Modifier.weight(1f))
 
                 Row(
