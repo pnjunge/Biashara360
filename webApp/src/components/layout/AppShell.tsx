@@ -50,6 +50,7 @@ export default function AppShell() {
   const [search, setSearch] = useState('')
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [allowedMenus, setAllowedMenus] = useState<Set<string> | null>(null)
+  const [allowedPermissions, setAllowedPermissions] = useState<Set<string>>(new Set())
   const [servicesEnabled, setServicesEnabled] = useState(false)
   const [hospitalityEnabled, setHospitalityEnabled] = useState<boolean | null>(null)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -63,7 +64,7 @@ export default function AppShell() {
   const [showBranchMenu, setShowBranchMenu] = useState(false)
   useEffect(() => {
     accessApi.me().then(result => {
-      if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
+      if (result.success && result.data) { setAllowedMenus(new Set(result.data.enabledMenus)); setAllowedPermissions(new Set(result.data.permissions || [])) }
     }).catch(() => setAllowedMenus(null))
     servicesApi.status().then(result => setServicesEnabled(result.success && result.data?.enabled === true)).catch(() => setServicesEnabled(false))
     hospitalityApi.status().then(result => {
@@ -77,7 +78,7 @@ export default function AppShell() {
       const enabled = (event as CustomEvent<{ enabled: boolean }>).detail?.enabled
       if (typeof enabled === 'boolean') setServicesEnabled(enabled)
       accessApi.me().then(result => {
-        if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
+        if (result.success && result.data) { setAllowedMenus(new Set(result.data.enabledMenus)); setAllowedPermissions(new Set(result.data.permissions || [])) }
       }).catch(() => {})
     }
     window.addEventListener('services-mode-changed', handleServicesChange)
@@ -119,6 +120,7 @@ export default function AppShell() {
   const visibleNavItems = navItems.filter(item => {
     if (item.key === 'SERVICES' && !servicesEnabled) return false
     const accessKeys = [item.key]
+    if (item.key === 'PURCHASES') return !!((allowedMenus?.has('PURCHASES') && allowedPermissions.has('purchases.view')) || (hospitalityEnabled && allowedMenus?.has('HOSPITALITY_OPS') && allowedPermissions.has('hospitality.view') && allowedPermissions.has('hospitality.purchasing')))
     if (allowedMenus && !accessKeys.some(key => allowedMenus.has(key) || (key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS')))) return false
     const isHospitalityNav = item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS' || item.to === '/kitchen-display'
     if (isHospitalityNav && hospitalityEnabled !== true) return false

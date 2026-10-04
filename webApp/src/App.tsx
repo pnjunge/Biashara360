@@ -8,7 +8,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const InventoryPage = lazy(() => import('./pages/InventoryPage'))
-const PurchasesPage = lazy(() => import('./pages/PurchasesPage'))
+const PurchasesPage = lazy(() => import('./pages/UnifiedPurchasesPage'))
 const OrdersPage = lazy(() => import('./pages/OrdersPage'))
 const PosPage = lazy(() => import('./pages/PosPage'))
 const CustomersPage = lazy(() => import('./pages/CustomersPage'))
@@ -224,7 +224,7 @@ export default function App() {
           <Route element={<PrivateRoute><AppShell /></PrivateRoute>}>
             <Route path="/dashboard"  element={<DashboardPage />} />
             <Route path="/inventory"  element={<MenuAccess menu="INVENTORY" permission="inventory.view"><InventoryPage /></MenuAccess>} />
-            <Route path="/purchases"  element={<MenuAccess menu="PURCHASES" permission="purchases.view"><PurchasesPage /></MenuAccess>} />
+            <Route path="/purchases"  element={<PurchasesPage />} />
             <Route path="/pos"        element={<PosPage />} />
             <Route path="/hospitality" element={<HospitalityProtectedRoute><HospitalityPage /></HospitalityProtectedRoute>} />
             <Route path="/hotel" element={<HotelPage />} />

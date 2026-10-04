@@ -358,7 +358,7 @@ export default function PurchasesPage() {
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Page Header */}
       <PageHeader
-        title="Purchases & Supplier Invoices"
+        title="Product invoices & suppliers"
         action={
           <div style={{ display: 'flex', gap: 8 }}>
             <Btn variant="secondary" icon={<Package size={14} />} onClick={() => navigate('/inventory')}>
