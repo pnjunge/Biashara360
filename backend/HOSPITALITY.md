@@ -46,3 +46,16 @@ Historical recipe costs use current recipes and ingredient costs.
 rollback, stock, cancellation, report totals and API permission enforcement.
 It supports the same isolated PostgreSQL fixture as `HotelServiceTest`; never
 point `HOTEL_TEST_POSTGRES_URL` at a live database.
+
+## Staff sound alerts
+
+The web header's **Enable sound** control starts browser audio after a staff
+click. Distinct tones identify new kitchen/bar tickets, tickets becoming READY,
+and new online orders from the portal queue. Alerts continue across staff pages;
+**Mute alerts** stops sound while visual notices remain available. Hospitality
+polling requires `hospitality.view` and hospitality mode to be enabled.
+The first successful snapshot is silent. Seen orders and ready transitions are
+remembered for the session so repeat polling and claiming do not replay sounds.
+Polling occurs every five seconds after each response; keep the staff app open.
+After refreshing or signing in again, enable sound again. No sound asset downloads
+or customer notifications are involved.

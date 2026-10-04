@@ -3,11 +3,12 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../App'
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Receipt,
-  CreditCard, BarChart3, Settings, LogOut, Bell, Search,
+  CreditCard, BarChart3, Settings, LogOut, Search,
   ChevronLeft, ChevronRight, ChevronDown, Menu, MessageSquare, UserPlus, Building2, Store, ShoppingBag, Download, ChefHat, CalendarClock, ScrollText, Check, Plus
 } from 'lucide-react'
 import styles from './AppShell.module.css'
 import PortalOrdersInbox from '../orders/PortalOrdersInbox'
+import OrderSoundAlerts from '../alerts/OrderSoundAlerts'
 import { accessApi, hospitalityApi, servicesApi, branchApi, BranchResponse } from '../../services/api'
 
 const navItems = [
@@ -314,10 +315,7 @@ export default function AppShell() {
             )}
 
             {user?.businessId && <PortalOrdersInbox key={`${user.businessId}:${user.id}`} />}
-            <button className={styles.iconBtn} title="Notifications">
-              <Bell size={18} />
-              <span className={styles.notifDot} />
-            </button>
+            {user?.businessId && <OrderSoundAlerts key={`${user.businessId}:${user.id}`} hospitalityEnabled={hospitalityEnabled === true} />}
 
             <div style={{ position: 'relative' }}>
               <div

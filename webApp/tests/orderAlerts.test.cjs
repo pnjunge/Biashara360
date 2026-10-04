@@ -1,0 +1,36 @@
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const Module = require('node:module')
+const ts = require('typescript')
+const filename = path.resolve(__dirname, '../src/utils/orderAlerts.ts')
+const mod = new Module(filename, module)
+mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, filename)
+const { OrderAlertTracker } = mod.exports
+
+test('initial snapshot is silent, including existing ready orders', () => {
+  const tracker = new OrderAlertTracker()
+  assert.deepEqual(tracker.observe([{id:'old',status:'READY'}]), [])
+  assert.deepEqual(tracker.observe([{id:'old',status:'READY'}]), [])
+})
+test('new orders alert after an empty initial queue and repeated polls stay silent', () => {
+  const tracker = new OrderAlertTracker()
+  tracker.observe([])
+  assert.deepEqual(tracker.observe([{id:'new',status:'NEW'}]), ['placed'])
+  assert.deepEqual(tracker.observe([{id:'new',status:'PREPARING'}]), [])
+  assert.deepEqual(tracker.observe([{id:'new',status:'READY'}]), ['ready'])
+  assert.deepEqual(tracker.observe([{id:'new',status:'READY'}]), [])
+})
+test('removed or claimed orders do not replay and batches emit one alert per event type', () => {
+  const tracker = new OrderAlertTracker()
+  tracker.observe([{id:'a',status:'NEW'}]); tracker.observe([])
+  assert.deepEqual(tracker.observe([{id:'a',status:'NEW'}]), [])
+  assert.deepEqual(tracker.observe([{id:'b',status:'NEW'},{id:'c',status:'NEW'},{id:'a',status:'READY'}]), ['placed','ready'])
+  tracker.observe([])
+  assert.deepEqual(tracker.observe([{id:'a',status:'READY'}]), [])
+})
+test('cancelled and served historical tickets do not trigger new-order sounds', () => {
+  const tracker = new OrderAlertTracker(); tracker.observe([])
+  assert.deepEqual(tracker.observe([{id:'a',status:'CANCELLED'},{id:'b',status:'SERVED'}]), [])
+})

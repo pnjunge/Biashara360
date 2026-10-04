@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { client, ApiResponse } from '../../services/api'
 import { Btn, Modal } from '../ui'
+import { announceOnlineOrders } from '../../utils/orderAlerts'
 import { CheckCircle2, ChevronRight, Clock3, CreditCard, List, PackageOpen, ShoppingBag } from 'lucide-react'
 
 type PortalOrder = {
@@ -34,6 +35,7 @@ export default function PortalOrdersInbox() {
       if (!result.success || !result.data) throw new Error(result.message || 'Could not load portal orders.')
       const incoming = result.data.waiting.some(order => !known.current.has(order.id))
       known.current = new Set(result.data.waiting.map(order => order.id))
+      announceOnlineOrders([...result.data.waiting, ...result.data.mine])
       setQueue(result.data)
       if (incoming) { setMine(false); setOpen(true); setMessage('New portal orders are waiting to be claimed.') }
       setError('')
