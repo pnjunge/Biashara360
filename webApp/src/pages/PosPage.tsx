@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Btn, Input, Select } from '../components/ui'
 import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, CheckCircle, Store, Smartphone, Printer, UtensilsCrossed, ChevronRight, Clock3, Grid2X2, List, MoreVertical, Utensils, WalletCards, QrCode, Receipt, ExternalLink, Share2 } from 'lucide-react'
-import { orderApi, productApi, customerApi, paymentApi, settingsApi, businessApi, hospitalityApi, hospitalityOpsApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse, BusinessProfileResponse, HospitalityTable } from '../services/api'
+import { orderApi, productApi, customerApi, paymentApi, settingsApi, businessApi, hospitalityApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse, BusinessProfileResponse, HospitalityTable } from '../services/api'
 import { printOrderReceipt } from '../utils/receipt'
 import QRCode from 'qrcode'
 import EReceiptModal from '../components/pos/EReceiptModal'
@@ -100,9 +100,8 @@ export function PosPage() {
       customerApi.list().catch(() => ({ success: false, data: [] as CustomerResponse[] })),
       settingsApi.getMpesaChannels().catch(() => ({ success: false, data: [] as MpesaConfigResponse[] })),
       businessApi.getProfile().catch(() => ({ success: false, data: null })),
-      hospitalityApi.status().catch(() => ({ success: false, data: { enabled: false, shiftOpen: false } })),
-      hospitalityOpsApi.dashboard().catch(() => ({ success: false, data: null }))
-    ]).then(([prodRes, custRes, mpesaRes, profileRes, hospRes, opsRes]) => {
+      hospitalityApi.status().catch(() => ({ success: false, data: { enabled: false, shiftOpen: false } }))
+    ]).then(([prodRes, custRes, mpesaRes, profileRes, hospRes]) => {
       if (prodRes.success && prodRes.data) setProducts(prodRes.data)
       if (custRes.success && custRes.data) setCustomers(custRes.data)
       if (mpesaRes.success && mpesaRes.data) {
@@ -130,7 +129,7 @@ export function PosPage() {
           }
         })
       }
-      if (opsRes.success && opsRes.data) setShiftOpen(opsRes.data.shifts?.some((shift: { status: string }) => shift.status === 'OPEN') ?? false)
+      // Shift state comes from hospitality status, independently of management access.
     }).catch(err => {
       console.error("Failed to load POS resources:", err instanceof Error ? err.message : "request failed")
     }).finally(() => setLoading(false))

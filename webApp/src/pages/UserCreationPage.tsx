@@ -89,9 +89,9 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
     permissions: [
       'orders.view', 'orders.create',
       'products.view',
-      'payments.view', 'payments.process', 'hospitality.view', 'hospitality.orders', 'hospitality.billing'
+      'payments.view', 'payments.process', 'hospitality.view', 'hospitality.orders', 'hospitality.billing', 'hospitality.kitchen'
     ],
-    menus: ['POS', 'OPEN_TABS', 'ORDERS', 'PAYMENTS', 'CUSTOMERS']
+    menus: ['POS', 'HOSPITALITY', 'OPEN_TABS', 'ORDERS', 'PAYMENTS', 'CUSTOMERS']
   },
   KITCHEN_STAFF: {
     label: 'Kitchen/Order Staff',

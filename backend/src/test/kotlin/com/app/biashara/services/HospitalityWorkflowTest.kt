@@ -126,11 +126,11 @@ class HospitalityWorkflowTest {
  @Test fun `hospitality permissions separate viewers from management and permit authorized managers`() = testApplication {
   environment {config=io.ktor.server.config.MapApplicationConfig()}
   transaction {
-   for(code in listOf("hospitality.view","hospitality.approvals"))if(!PermissionsTable.select{PermissionsTable.code eq code}.any())PermissionsTable.insert {it[id]=UUID.randomUUID().toString();it[PermissionsTable.code]=code;it[module]="HOSPITALITY";it[action]="MANAGE";it[name]=code;it[createdAt]=Clock.System.now()}
+   for(code in listOf("hospitality.view","hospitality.approvals","hospitality.kitchen"))if(!PermissionsTable.select{PermissionsTable.code eq code}.any())PermissionsTable.insert {it[id]=UUID.randomUUID().toString();it[PermissionsTable.code]=code;it[module]="HOSPITALITY";it[action]="MANAGE";it[name]=code;it[createdAt]=Clock.System.now()}
   }
   val access=AccessControlService()
   val role=access.createRole("business",SaveAccessRoleRequest("Viewer",allowedMenus=listOf("HOSPITALITY"),permissions=listOf("hospitality.view")))
-  val managerRole=access.createRole("business",SaveAccessRoleRequest("Approval manager",allowedMenus=listOf("HOSPITALITY_OPS"),permissions=listOf("hospitality.view","hospitality.approvals")))
+  val managerRole=access.createRole("business",SaveAccessRoleRequest("Approval manager",allowedMenus=listOf("HOSPITALITY_OPS"),permissions=listOf("hospitality.view","hospitality.approvals","hospitality.kitchen")))
   transaction{UserAccessRolesTable.insert{it[userId]="staff";it[roleId]=role.id};UserAccessRolesTable.insert{it[userId]="manager";it[roleId]=managerRole.id}}
   val algorithm=Algorithm.HMAC256("hospitality-test-secret")
   fun token(user:String)=JWT.create().withSubject(user).withClaim("businessId","business").withClaim("role","STAFF").sign(algorithm)
@@ -150,6 +150,13 @@ class HospitalityWorkflowTest {
   assertEquals(HttpStatusCode.Forbidden,client.post("/hospitality/operations/approvals/${request.id}/decision"){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{\"approved\":true}")}.status)
   assertEquals(HttpStatusCode.OK,client.post("/hospitality/operations/approvals/${request.id}/decision"){bearerAuth(token("manager"));contentType(ContentType.Application.Json);setBody("{\"approved\":true}")}.status)
   assertEquals(90.0,orders.getById(order.id,"business")!!.subtotal)
+  val ticket=service.dashboard("business").tickets.single()
+  assertEquals(HttpStatusCode.Forbidden,client.patch("/hospitality/tickets/${ticket.id}"){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{\"status\":\"PREPARING\"}")}.status)
+  val cashier=access.createRole("business",SaveAccessRoleRequest("Cashier",allowedMenus=listOf("HOSPITALITY","OPEN_TABS"),permissions=listOf("hospitality.view","hospitality.kitchen")))
+  transaction{UserAccessRolesTable.insert{it[userId]="staff";it[roleId]=cashier.id}}
+  assertEquals(HttpStatusCode.OK,client.patch("/hospitality/tickets/${ticket.id}"){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{\"status\":\"PREPARING\"}")}.status)
+  assertEquals("PREPARING",service.dashboard("business").tickets.single().status)
+
  }
 
  @Test fun `tables start spaced and merging then unmerging releases the source`() {
