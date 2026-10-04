@@ -78,7 +78,7 @@ export default function PurchasesPage() {
         setPurchases(purchasesRes.data)
       }
       if (productsRes.success && productsRes.data) {
-        setProducts(productsRes.data)
+        setProducts(productsRes.data.filter(product => product.stockMode !== 'INGREDIENTS'))
       }
       if (suppliersRes.success && suppliersRes.data) {
         setSuppliers(suppliersRes.data)
@@ -386,6 +386,8 @@ export default function PurchasesPage() {
           </div>
         }
       />
+
+      {access.hasMenu('HOSPITALITY_OPS') && access.hasPermission('hospitality.view') && access.hasPermission('hospitality.purchasing') && <p style={{margin:0}}>Recipe portions use bulk ingredient stock. <button type="button" onClick={() => navigate('/purchases?type=ingredients')} style={{border:0,background:'none',color:'var(--b360-green)',cursor:'pointer',fontWeight:700}}>Purchase ingredients</button> for items such as goat portions.</p>}
 
       {/* Sub-nav Tab Switcher augmenting Inventory */}
       <div style={{

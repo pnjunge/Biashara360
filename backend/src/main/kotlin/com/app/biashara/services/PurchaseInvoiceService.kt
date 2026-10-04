@@ -83,7 +83,7 @@ class PurchaseInvoiceService(
     fun create(businessId: String, req: CreatePurchaseInvoiceRequest): ApiResponse<PurchaseInvoice> = transaction {
         BusinessesTable.select { BusinessesTable.id eq businessId }.forUpdate().firstOrNull()
         if (recipeStock(businessId, req.items.map { it.productId }.filter { it.isNotBlank() }).isNotEmpty())
-            return@transaction ApiResponse(false, message = "Recipe portions use bulk stock. Purchase their ingredients in Hospitality Operations instead.")
+            return@transaction ApiResponse(false, message = "Recipe portions use bulk stock. Purchase their ingredients under Purchases → Ingredient purchases.")
         val invoiceNum = req.invoiceNumber.trim()
         if (invoiceNum.isBlank()) {
             return@transaction ApiResponse(false, message = "Invoice Number is required")
