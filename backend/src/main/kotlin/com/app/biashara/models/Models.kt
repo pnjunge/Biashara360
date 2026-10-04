@@ -383,6 +383,7 @@ data class ExpenseResponse(
     val outstandingAmount:Double=0.0,
     val affectsProfit:Boolean=true,
     val linkedPurchase:Boolean=false,
+    val payments:List<IngredientPurchasePaymentResponse> = emptyList(),
     val id: String,
     val businessId: String,
     val category: String,

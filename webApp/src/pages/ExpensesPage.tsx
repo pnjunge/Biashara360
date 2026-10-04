@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { expenseApi, purchaseApi, ExpenseResponse } from '../services/api'
-import { Modal, Btn, Input, Select } from '../components/ui'
+import { Card, DataTable, Modal, Btn, Input, Select } from '../components/ui'
 
 const EXPENSE_CATEGORIES = [
   { value: 'ADVERTISING', label: 'Advertising / Ads' },
@@ -225,6 +225,19 @@ export default function ExpensesPage() {
     })
     return filtered
   }, [activeList, selectedPeriod])
+
+  const supplierPayments = useMemo(() => {
+    const today = new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())
+    const [year,month] = today.split('-').map(Number)
+    return expenses.flatMap(expense => (expense.payments||[]).map(payment => ({...payment,description:expense.description}))).filter(payment => {
+      const date = new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(payment.paidAt))
+      const [y,m] = date.split('-').map(Number)
+      if (selectedPeriod==='This Month') return y===year&&m===month
+      if (selectedPeriod==='Last Month') return y===(month===1?year-1:year)&&m===(month===1?12:month-1)
+      if (selectedPeriod==='This Year') return y===year
+      return true
+    }).sort((a,b)=>new Date(b.paidAt).getTime()-new Date(a.paidAt).getTime())
+  },[expenses,selectedPeriod])
 
   const filteredExpenses = useMemo(() => {
     return periodExpenses.filter((e: ExpenseResponse) => {
@@ -1150,7 +1163,7 @@ export default function ExpensesPage() {
                           <span>{expense.expenseDate}</span>
                         </div>
                       </td>
-                      <td style={{padding:'14px 20px',fontSize:12}}><strong>{expense.paymentStatus||'PAID'}</strong><div>Paid KES {(expense.paidAmount??expense.amount).toLocaleString()}</div>{(expense.outstandingAmount||0)>0&&<div>Balance KES {expense.outstandingAmount!.toLocaleString()}</div>}</td>
+                      <td style={{padding:'14px 20px',fontSize:12}}><strong>{expense.paymentStatus||'PAID'}</strong><div>Paid KES {(expense.paidAmount??expense.amount).toLocaleString()}</div>{(expense.outstandingAmount||0)>0&&<div>Balance KES {expense.outstandingAmount!.toLocaleString()}</div>}{!!expense.payments?.length&&<details><summary>Payment history ({expense.payments.length})</summary>{expense.payments.map(p=><div key={p.id} style={{marginTop:6}}>{new Date(p.paidAt).toLocaleString('en-KE',{timeZone:'Africa/Nairobi'})} · KES {p.amount.toLocaleString()} · {p.method} · {p.reference||'Cash'} · {p.paidFromTill?'Business cash drawer':'Outside cash drawer'}</div>)}</details>}</td>
                       <td style={{ padding: '14px 20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           {!expense.linkedPurchase&&<>
@@ -1322,6 +1335,7 @@ export default function ExpensesPage() {
       )}
 
       {/* ── View Expense Modal ────────────────────────────────────── */}
+      <Card style={{padding:18}}><h3>Ingredient supplier payments</h3><p>Payments made during {selectedPeriod.toLowerCase()}, including purchases received in earlier periods. These settle the linked purchase and do not create a second expense.</p><strong>Paid KES {supplierPayments.reduce((sum,p)=>sum+p.amount,0).toLocaleString()}</strong>{supplierPayments.length?<DataTable headers={['Paid on','Linked purchase','Amount','Method','Reference','Cash source']} rows={supplierPayments.map(p=>[new Date(p.paidAt).toLocaleString('en-KE',{timeZone:'Africa/Nairobi'}),p.description,`KES ${p.amount.toLocaleString()}`,p.method,p.reference||'—',p.paidFromTill?'Business cash drawer':p.method==='CASH'?'Outside cash drawer':'—'])}/>:<p>No ingredient supplier payments recorded for this period.</p>}</Card>
       <p style={{fontSize:12,color:'#64748B'}}>Stock purchases are tracked here and excluded from operating expenses in profit reports. Supplier payments determine paid amounts; sold portion costs are counted separately as cost of goods.</p>
       {viewingExpense && (
         <Modal
@@ -1350,12 +1364,14 @@ export default function ExpensesPage() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
               <span style={{ fontSize: 13, color: '#94A3B8' }}>Payment</span>
-              <span style={{ fontSize: 13, color: '#0F172A' }}>{currentUserName} ({userRole})</span>
+              <span style={{ fontSize: 13, color: '#0F172A' }}>{viewingExpense.paymentStatus||'PAID'} · Paid KES {(viewingExpense.paidAmount??viewingExpense.amount).toLocaleString()} · Balance KES {(viewingExpense.outstandingAmount||0).toLocaleString()}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 13, color: '#94A3B8' }}>Expense ID</span>
               <span style={{ fontSize: 12, color: '#64748B', fontFamily: 'monospace' }}>{viewingExpense.id}</span>
             </div>
+            {!!viewingExpense.payments?.length&&<div><strong>Supplier payment history</strong>{viewingExpense.payments.map(p=><p key={p.id}>{new Date(p.paidAt).toLocaleString('en-KE',{timeZone:'Africa/Nairobi'})} · KES {p.amount.toLocaleString()} · {p.method} · {p.reference||'Cash'} · {p.paidFromTill?'Business cash drawer':'Outside cash drawer'}</p>)}</div>}
+            {viewingExpense.purchaseOrderId&&<Btn variant="secondary" onClick={()=>navigate('/purchases?type=ingredients')}>Open ingredient purchases</Btn>}
           </div>
         </Modal>
       )}

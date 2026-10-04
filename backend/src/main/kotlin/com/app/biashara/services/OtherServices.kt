@@ -336,6 +336,7 @@ class ExpenseService(
                 .firstOrNull()?.get(BranchesTable.name)
         }
         return ExpenseResponse(
+            payments=this[ExpensesTable.purchaseOrderId]?.let { poId -> IngredientPurchasePaymentsTable.select { (IngredientPurchasePaymentsTable.purchaseOrderId eq poId) and (IngredientPurchasePaymentsTable.businessId eq sourceBusiness) }.orderBy(IngredientPurchasePaymentsTable.paidAt,SortOrder.DESC).map { p -> IngredientPurchasePaymentResponse(p[IngredientPurchasePaymentsTable.id],p[IngredientPurchasePaymentsTable.amount],p[IngredientPurchasePaymentsTable.method],p[IngredientPurchasePaymentsTable.reference],p[IngredientPurchasePaymentsTable.paidAt].toString(),p[IngredientPurchasePaymentsTable.recordedBy],p[IngredientPurchasePaymentsTable.paidFromTill]) } } ?: emptyList(),
             purchaseOrderId=this[ExpensesTable.purchaseOrderId],paymentStatus=payment.status,paidAmount=payment.paid,outstandingAmount=payment.outstanding,affectsProfit=this[ExpensesTable.category]!="STOCK_PURCHASE",linkedPurchase=linked,
             id = this[ExpensesTable.id],
             businessId = this[ExpensesTable.businessId],

@@ -13,6 +13,7 @@ import com.app.biashara.routes.*
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -162,6 +163,8 @@ class HospitalityWorkflowTest {
   val (_,purchase)=goatPurchase(1.0,100.0)
   val receiverRole=access.createRole("business",SaveAccessRoleRequest("Stock receiver",allowedMenus=listOf("HOSPITALITY_OPS"),permissions=listOf("hospitality.view","hospitality.purchasing")))
   transaction{UserAccessRolesTable.insert{it[userId]="staff";it[roleId]=receiverRole.id}}
+  val purchaserDashboard=client.get("/hospitality/operations"){bearerAuth(token("staff"))}.bodyAsText()
+  assertTrue(purchaserDashboard.contains("\"tradingDayOpen\":true"));assertTrue(purchaserDashboard.contains("\"shifts\":[]"))
   val receivePath="/hospitality/operations/purchase-orders/${purchase.id}/receive"
   assertEquals(HttpStatusCode.Forbidden,client.post(receivePath){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{\"payment\":{\"amount\":100,\"method\":\"CASH\",\"clientReference\":\"receiver-payment\"}}")}.status)
   assertEquals("ORDERED",ops.dashboard("business").purchaseOrders.first{it.id==purchase.id}.status)
@@ -510,6 +513,23 @@ class HospitalityWorkflowTest {
   val shift=ops.dashboard("business").shifts.single()
   val closed=ops.closeShift("business","manager",shift.id,ShiftCloseRequest(actualCash=0.0,actualMpesa=0.0,actualCard=0.0))
   assertEquals(0.0,closed.expectedCash);assertEquals(100.0,closed.expensesTotal);assertEquals(0.0,closed.variance)
+  assertEquals(100.0,closed.supplierCashPayments)
+  val expense=ExpenseService().getAll("business").single()
+  assertEquals(100.0,expense.paidAmount);assertEquals(1,expense.payments.size);assertTrue(expense.payments.single().paidFromTill);assertEquals("CASH",expense.payments.single().method)
+  assertEquals(0,ExpenseService().getAll("other-business").size)
+ }
+
+ @Test fun `drawer payment without open trading day fails without recording payment`() {
+  val (_,po)=goatPurchase(1.0,100.0);ops.receivePurchaseOrder("business","manager",po.id)
+  val day=ops.dashboard("business").shifts.single()
+  ops.closeShift("business","manager",day.id,ShiftCloseRequest(actualCash=0.0,actualMpesa=0.0,actualCard=0.0))
+  val error=assertFails { ops.payPurchaseOrder("business","manager",po.id,IngredientPurchasePaymentRequest(100.0,"CASH",clientReference="closed-drawer-pay",paidFromTill=true)) }
+  assertTrue(error.message.orEmpty().contains("Open the business trading day"))
+  assertEquals(0,transaction{IngredientPurchasePaymentsTable.selectAll().count()}.toInt())
+  assertEquals("UNPAID",ExpenseService().getAll("business").single().paymentStatus)
+  ops.openShift("business","manager",ShiftOpenRequest())
+  val paid=ops.payPurchaseOrder("business","manager",po.id,IngredientPurchasePaymentRequest(100.0,"CASH",clientReference="closed-drawer-pay",paidFromTill=true))
+  assertTrue(paid.payments.single().paidFromTill);assertEquals(100.0,ops.dashboard("business").shifts.first{it.status=="OPEN"}.supplierCashPayments)
  }
 
  @Test fun `simultaneous supplier payments cannot exceed the purchase balance`() {

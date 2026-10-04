@@ -260,10 +260,11 @@ export interface HospitalityTable { id:string; name:string; area:string; capacit
 export interface KitchenTicket { id:string; orderId:string; orderNumber:string; tableName:string|null; station:string; status:string; notes:string; items:OrderItemResponse[]; createdAt:string }
 export interface MenuOption { name:string; priceDelta:number }
 export interface HospitalityOperations {
+  tradingDayOpen?:boolean
   reservations:Array<{id:string;tableId:string|null;customerName:string;customerPhone:string;guestCount:number;reservedAt:string;durationMinutes:number;status:string;notes:string}>
   menuProfiles:Array<{productId:string;preparationStation:string|null;mealPeriods:string[];sizes:MenuOption[];extras:MenuOption[];variants:MenuOption[];comboProductIds:string[];soldOut:boolean;happyHourPrice:number|null;happyHourStart:string|null;happyHourEnd:string|null;ageRestricted:boolean;minimumAge:number|null}>
   ingredients:Array<{id:string;name:string;unit:string;quantity:number;reorderLevel:number;unitCost:number;isLowStock:boolean;purchaseUnit?:string|null;purchaseUnitSize?:number}>
-  shifts:Array<{id:string;openedBy:string;openedAt:string;closedAt:string|null;openingFloat:number;expectedCash:number|null;actualCash:number|null;mpesaTotal:number|null;cardTotal:number|null;tipsTotal:number;expensesTotal:number;status:string;variance:number|null;actualMpesa:number|null;actualCard:number|null;mpesaVariance:number|null;cardVariance:number|null;totalVariance:number|null}>
+  shifts:Array<{supplierCashPayments?:number;id:string;openedBy:string;openedAt:string;closedAt:string|null;openingFloat:number;expectedCash:number|null;actualCash:number|null;mpesaTotal:number|null;cardTotal:number|null;tipsTotal:number;expensesTotal:number;status:string;variance:number|null;actualMpesa:number|null;actualCard:number|null;mpesaVariance:number|null;cardVariance:number|null;totalVariance:number|null}>
   suppliers:Array<{id:string;name:string;phone:string;email:string|null;address:string|null;isActive:boolean}>
   purchaseOrders:Array<{id:string;orderNumber:string;supplierId:string;status:string;totalCost:number;expenseId?:string|null;paidAmount?:number;outstandingAmount?:number;paymentStatus?:string;payments?:Array<{id:string;amount:number;method:string;reference:string;paidAt:string;recordedBy?:string|null;paidFromTill?:boolean}>;orderedAt:string;receivedAt:string|null;items?:PurchaseOrderLine[]}>
   approvals:Array<{id:string;actionType:string;entityType:string;entityId:string;requestedBy:string;approvedBy:string|null;status:string;reason:string;requestedAt:string;amount?:number|null;quantity?:number|null;eventType?:string|null}>
@@ -286,6 +287,7 @@ export interface CustomerResponse {
 }
 
 export interface ExpenseResponse {
+  payments?:Array<{id:string;amount:number;method:string;reference:string;paidAt:string;recordedBy?:string|null;paidFromTill:boolean}>
   purchaseOrderId?:string|null;paymentStatus?:string;paidAmount?:number;outstandingAmount?:number;affectsProfit?:boolean;linkedPurchase?:boolean
   id: string; businessId: string; category: string; amount: number; description: string
   expenseDate: string; receiptUrl: string | null

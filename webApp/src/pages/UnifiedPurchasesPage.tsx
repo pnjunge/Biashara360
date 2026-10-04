@@ -37,7 +37,7 @@ function IngredientPurchases({canPay}:{canPay:boolean}) {
   }
   useEffect(() => {
     let active = true
-    const load = async () => { try { const r = await hospitalityOpsApi.dashboard(); if (active) { if (!r.success || !r.data) throw new Error(r.message || 'Could not load ingredient purchases'); setData(r.data); setError('') } } catch(e:any) { if (active) setError(e.response?.data?.message || e.message || 'Could not load ingredient purchases') } }
+    const load = async () => { try { const r = await hospitalityOpsApi.dashboard(); if (active) { if (!r.success || !r.data) throw new Error(r.message || 'Could not load ingredient purchases'); setData(r.data) } } catch(e:any) { if (active) setError(e.response?.data?.message || e.message || 'Could not load ingredient purchases') } }
     load(); const timer = window.setInterval(load,5000)
     return () => { active = false; window.clearInterval(timer) }
   },[])
