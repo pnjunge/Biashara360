@@ -51,6 +51,8 @@ class ProductService(
     }
 
     fun create(businessId: String, req: ProductRequest): ApiResponse<ProductResponse> = transaction {
+        val unit = req.baseUnit?.trim()?.uppercase() ?: "PCS"
+        if (unit.isBlank() || unit.length > 30) return@transaction ApiResponse(false, message = "Choose a valid unit of measure")
         val existing = ProductsTable.select {
             (ProductsTable.businessId eq businessId) and
                 ((ProductsTable.sku eq req.sku) or
@@ -63,6 +65,7 @@ class ProductService(
         ProductsTable.insert {
             it[ProductsTable.id] = id
             it[ProductsTable.businessId] = businessId
+            it[baseUnit] = unit
             it[sku] = req.sku
             it[name] = req.name
             it[description] = req.description
@@ -98,10 +101,13 @@ class ProductService(
                     (req.barcode?.let { ProductsTable.barcode eq it } ?: Op.FALSE))
         }.any()
         if (duplicate) return@transaction ApiResponse(false, message = "SKU or barcode already exists")
+        val unit = req.baseUnit?.trim()?.uppercase() ?: current[ProductsTable.baseUnit]
+        if (unit.isBlank() || unit.length > 30) return@transaction ApiResponse(false, message = "Choose a valid unit of measure")
         val previousStock = current[ProductsTable.currentStock]
         val updated = ProductsTable.update({
             (ProductsTable.id eq id) and (ProductsTable.businessId eq businessId)
         }) {
+            it[baseUnit] = unit
             it[sku] = req.sku
             it[name] = req.name
             it[description] = req.description
@@ -188,6 +194,7 @@ class ProductService(
         val threshold = this[ProductsTable.lowStockThreshold]
         val profit = selling - buying
         return ProductResponse(
+            baseUnit = this[ProductsTable.baseUnit],
             stockMode = if (recipe != null) "INGREDIENTS" else "PRODUCT",
             productStock = this[ProductsTable.currentStock],
             id = this[ProductsTable.id],

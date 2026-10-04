@@ -1,3 +1,4 @@
+import { unitOptions } from '../utils/unitsOfMeasure'
 import { useMenuAccess } from '../components/access/MenuAccess'
 import React, { useState, useEffect } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
@@ -472,7 +473,7 @@ export default function DashboardPage() {
 }
 
 // ── Inventory ─────────────────────────────────────────────────────────────────
-const emptyProduct = { name:'', sku:'', category:'Other', buyingPrice:'', sellingPrice:'', currentStock:'', lowStockThreshold:'10', description:'', imageUrl:'' }
+const emptyProduct = { baseUnit:'PCS', name:'', sku:'', category:'Other', buyingPrice:'', sellingPrice:'', currentStock:'', lowStockThreshold:'10', description:'', imageUrl:'' }
 
 export function InventoryPage() {
   const access=useMenuAccess()
@@ -537,7 +538,7 @@ export function InventoryPage() {
     setForm({ ...emptyProduct, category:firstActive }); setError(''); setShowAdd(true)
   }
   const openEdit = (p: ProductResponse) => {
-    setForm({ name:p.name, sku:p.sku, category:p.category, buyingPrice:String(p.buyingPrice),
+    setForm({ baseUnit:p.baseUnit||'PCS', name:p.name, sku:p.sku, category:p.category, buyingPrice:String(p.buyingPrice),
       sellingPrice:String(p.sellingPrice), currentStock:String(p.currentStock),
       lowStockThreshold:String(p.lowStockThreshold), description:p.description, imageUrl:p.imageUrl || '' })
     setError(''); setEditProduct(p)
@@ -551,7 +552,7 @@ export function InventoryPage() {
     setSaving(true); setError('')
     try {
       const payload = {
-        name: form.name, sku: form.sku, category: form.category,
+        name: form.name, sku: form.sku, category: form.category, baseUnit: form.baseUnit,
         buyingPrice: Number(form.buyingPrice), sellingPrice: Number(form.sellingPrice),
         currentStock: Number(form.currentStock), lowStockThreshold: Number(form.lowStockThreshold) || 10,
         description: form.description, imageUrl:form.imageUrl.trim() || null,
@@ -619,6 +620,7 @@ export function InventoryPage() {
         </div>
         <Select label="Category" value={form.category} onChange={f('category')}
           options={categories.filter(c => c.isActive || c.name === form.category).map(c => ({ value:c.name, label:c.isActive ? c.name : `${c.name} (disabled)` }))} />
+        <Select label="Unit of measure" value={form.baseUnit} onChange={f('baseUnit')} options={unitOptions(form.baseUnit)} />
         <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
           <Input label="Buying Price (KES) *" value={form.buyingPrice} onChange={f('buyingPrice')} type="number" />
           <Input label="Selling Price (KES) *" value={form.sellingPrice} onChange={f('sellingPrice')} type="number" />

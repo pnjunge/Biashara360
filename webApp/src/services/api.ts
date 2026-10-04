@@ -125,6 +125,7 @@ export interface SessionTimeoutConfig {
 // ── Domain Models ─────────────────────────────────────────────────────────────
 
 export interface ProductResponse {
+  baseUnit?: string
   stockMode?: 'PRODUCT' | 'INGREDIENTS'
   productStock?: number
   id: string; businessId: string; sku: string; name: string; description: string

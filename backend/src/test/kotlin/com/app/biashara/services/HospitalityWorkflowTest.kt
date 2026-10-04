@@ -418,4 +418,17 @@ class HospitalityWorkflowTest {
   assertEquals(before+2,transaction{ProductsTable.select{ProductsTable.id eq "meal"}.single()[ProductsTable.currentStock]})
  }
 
+ @Test fun `product measure saves and older updates preserve it`() {
+  val catalog=ProductService()
+  val request=ProductRequest(sku="bulk-unit",name="Bulk meat",buyingPrice=50.0,sellingPrice=100.0,currentStock=10,category="Meat",baseUnit=" kg ")
+  val created=catalog.create("business",request).data!!
+  assertEquals("KG",created.baseUnit)
+  assertEquals("KG",catalog.getAll("business").first{it.id==created.id}.baseUnit)
+  assertEquals("KG",catalog.update(created.id,"business",request.copy(baseUnit=null)).data!!.baseUnit)
+  assertEquals("G",catalog.update(created.id,"business",request.copy(baseUnit="G")).data!!.baseUnit)
+  assertFalse(catalog.update(created.id,"business",request.copy(baseUnit=" ")).success)
+  assertEquals("G",catalog.getById(created.id,"business")!!.baseUnit)
+  assertEquals("PCS",catalog.create("business",request.copy(sku="default-unit",baseUnit=null)).data!!.baseUnit)
+ }
+
 }

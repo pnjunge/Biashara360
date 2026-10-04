@@ -127,11 +127,13 @@ data class ProductRequest(
     val category: String = "",
     val imageUrl: String? = null,
     val barcode: String? = null,
-    val expectedUpdatedAt: String? = null
+    val expectedUpdatedAt: String? = null,
+    val baseUnit: String? = null
 )
 
 @Serializable
 data class ProductResponse(
+    val baseUnit: String = "PCS",
     val stockMode: String = "PRODUCT",
     val productStock: Int = 0,
     val id: String,
