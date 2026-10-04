@@ -364,8 +364,7 @@ fun DesktopOrdersScreen(
                     localSearchQuery = it
                     currentPage = 1
                 },
-                placeholder = { Text("Search order, customer, or phone…", color = Color(0xFF94A3B8), fontSize = 13.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search orders", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp)) },
                 singleLine = true,
                 modifier = Modifier.weight(1.8f).height(46.dp),
                 shape = RoundedCornerShape(10.dp),

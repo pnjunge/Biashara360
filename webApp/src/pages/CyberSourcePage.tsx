@@ -128,7 +128,7 @@ export default function CyberSourcePage() {
             Search
             <span style={{ position: 'relative', display: 'block' }}>
               <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--b360-text-secondary)' }} />
-              <input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Reference, order, approval or last 4" style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px 8px 32px', border: '1px solid var(--b360-border)', borderRadius: 8 }} />
+              <input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px 8px 32px', border: '1px solid var(--b360-border)', borderRadius: 8 }} />
             </span>
           </label>
           <label style={{ display: 'grid', gap: 5, fontSize: 12, color: 'var(--b360-text-secondary)' }}>

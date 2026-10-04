@@ -212,7 +212,6 @@ export default function RegisterPage() {
               <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <Input
                   label="Full Name / Jina Kamili *"
-                  placeholder="e.g. Jane Mwangi"
                   value={name}
                   onChange={setName}
                 />
@@ -220,13 +219,11 @@ export default function RegisterPage() {
                 <div className="responsive-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, width: '100%' }}>
                   <Input
                     label="Phone / Simu (07XX) *"
-                    placeholder="e.g. 0712345678"
                     value={phone}
                     onChange={setPhone}
                   />
                   <Input
                     label="Email / Barua Pepe *"
-                    placeholder="e.g. jane@example.com"
                     value={email}
                     onChange={socialCredential ? () => undefined : setEmail}
                     type="email"
@@ -235,7 +232,6 @@ export default function RegisterPage() {
 
                 <Input
                   label="Business Name / Jina la Biashara *"
-                  placeholder="e.g. Kamau Wholesalers"
                   value={businessName}
                   onChange={setBusinessName}
                 />
@@ -256,7 +252,6 @@ export default function RegisterPage() {
 
                 {!socialCredential && <Input
                   label="Password / Nenosiri *"
-                  placeholder="•••••••• (Min 6 characters)"
                   value={password}
                   onChange={setPassword}
                   type="password"
@@ -297,7 +292,7 @@ export default function RegisterPage() {
 
               <form onSubmit={handleOtp} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <Input
-                  placeholder="Enter 6-digit code"
+                  label="Verification Code (6 digits) *"
                   value={otp}
                   onChange={v => setOtp(v.replace(/\D/g, '').slice(0, 6))}
                   type="text"

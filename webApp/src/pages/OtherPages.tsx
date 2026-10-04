@@ -96,8 +96,8 @@ export function ExpensesPage() {
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
             <Select label="Category" value={form.category} onChange={f('category')} options={EXPENSE_CATEGORIES} />
-            <Input label="Amount (KES) *" value={form.amount} onChange={f('amount')} type="number" placeholder="0" />
-            <Input label="Description *" value={form.description} onChange={f('description')} placeholder="e.g. Facebook Ads April" />
+            <Input label="Amount (KES) *" value={form.amount} onChange={f('amount')} type="number" />
+            <Input label="Description *" value={form.description} onChange={f('description')} />
             <Input label="Date *" value={form.expenseDate} onChange={f('expenseDate')} type="date" />
           </div>
         </Modal>
@@ -1098,13 +1098,13 @@ export function UserCreationPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {adminError && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{adminError}</div>}
             <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--b360-text-secondary)', borderBottom: '1px solid var(--b360-border)', paddingBottom: 6 }}>Business Details</div>
-            <Input label="Business Name *" value={adminForm.businessName} onChange={af('businessName')} placeholder="e.g. Kamau Supplies" />
-            <Input label="Business Type *" value={adminForm.businessType} onChange={af('businessType')} placeholder="e.g. Retail" />
+            <Input label="Business Name *" value={adminForm.businessName} onChange={af('businessName')} />
+            <Input label="Business Type *" value={adminForm.businessType} onChange={af('businessType')} />
             <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--b360-text-secondary)', borderBottom: '1px solid var(--b360-border)', paddingBottom: 6, marginTop: 4 }}>Admin User Details</div>
-            <Input label="Admin Full Name *" value={adminForm.adminName} onChange={af('adminName')} placeholder="e.g. Jane Mwangi" />
-            <Input label="Admin Email *" value={adminForm.adminEmail} onChange={af('adminEmail')} placeholder="jane@example.com" />
-            <Input label="Admin Phone *" value={adminForm.adminPhone} onChange={af('adminPhone')} placeholder="+254 7XX XXX XXX" />
-            <Input label="Temporary Password *" value={adminForm.adminPassword} onChange={af('adminPassword')} placeholder="Min 6 characters" />
+            <Input label="Admin Full Name *" value={adminForm.adminName} onChange={af('adminName')} />
+            <Input label="Admin Email *" value={adminForm.adminEmail} onChange={af('adminEmail')} />
+            <Input label="Admin Phone *" value={adminForm.adminPhone} onChange={af('adminPhone')} />
+            <Input label="Temporary Password *" value={adminForm.adminPassword} onChange={af('adminPassword')} />
           </div>
         </Modal>
       )}
@@ -1113,10 +1113,10 @@ export function UserCreationPage() {
       {showAdd && (
         <Modal title="Create New User" onClose={() => { setShowAdd(false); setForm(emptyUser); setInviteGroupId(''); setInviteRoleIds([]); setSelectedBusinessId(''); setError('') }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Input label="Full Name *" value={form.name} onChange={f('name')} placeholder="e.g. Jane Mwangi" />
-            <Input label="Email *" value={form.email} onChange={f('email')} placeholder="jane@example.com" />
-            <Input label="Phone *" value={form.phone} onChange={f('phone')} placeholder="+254 7XX XXX XXX" />
-            <Input label="Password *" type="password" value={form.password || ''} onChange={f('password')} placeholder="Min 6 characters" />
+            <Input label="Full Name *" value={form.name} onChange={f('name')} />
+            <Input label="Email *" value={form.email} onChange={f('email')} />
+            <Input label="Phone *" value={form.phone} onChange={f('phone')} />
+            <Input label="Password *" type="password" value={form.password || ''} onChange={f('password')} />
             <Select label="Role *" value={form.role ?? 'STAFF'} onChange={f('role')} options={ROLES} />
             <Select
               label="Assigned Branch"
@@ -1174,7 +1174,6 @@ export function UserCreationPage() {
                 value={selectedBusinessId}
                 onChange={setSelectedBusinessId}
                 options={businesses.map(b => ({ value: b.id, label: b.name }))}
-                placeholder={bizLoading ? 'Loading businesses…' : 'Select business'}
               />
             )}
             {error && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{error}</div>}
@@ -1496,7 +1495,7 @@ export function UserCreationPage() {
 
       {accessConfig && (
         <>
-          {isSuperAdmin && <Card style={{ padding: 16 }}><Select label="Business to manage" value={selectedBusinessId} onChange={setSelectedBusinessId} options={businesses.map(b => ({ value: b.id, label: `${b.name} · ${b.type}` }))} placeholder={bizLoading ? 'Loading businesses…' : 'Select business'} /></Card>}
+          {isSuperAdmin && <Card style={{ padding: 16 }}><Select label="Business to manage" value={selectedBusinessId} onChange={setSelectedBusinessId} options={businesses.map(b => ({ value: b.id, label: `${b.name} · ${b.type}` }))} /></Card>}
           <PageHeader title={`Access Groups & Rights${isSuperAdmin ? ` · ${businesses.find(b => b.id === selectedBusinessId)?.name || 'Selected business'}` : ''}`} />
           {accessMessage && <div style={{fontSize:13,color:'var(--b360-blue)'}}>{accessMessage}</div>}
           <div style={{fontSize:12,color:'var(--b360-text-secondary)',background:'var(--b360-surface)',border:'1px solid var(--b360-border)',borderRadius:8,padding:'10px 12px'}}>
@@ -1537,8 +1536,8 @@ export function UserCreationPage() {
                 Configure group details and assign direct menu and operational rights.
               </p>
               <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                <Input label="Group Name *" value={groupDraft.name} onChange={v=>setGroupDraft({...groupDraft,name:v})} placeholder="e.g. Cashier, Supervisor, Storekeeper" />
-                <Input label="Description" value={groupDraft.description} onChange={v=>setGroupDraft({...groupDraft,description:v})} placeholder="e.g. Front desk sales and order handling" />
+                <Input label="Group Name *" value={groupDraft.name} onChange={v=>setGroupDraft({...groupDraft,name:v})} />
+                <Input label="Description" value={groupDraft.description} onChange={v=>setGroupDraft({...groupDraft,description:v})} />
               </div>
 
               <div style={{marginTop:14}}>
@@ -2246,7 +2245,6 @@ export function BusinessPage() {
                     label="Business Name *"
                     value={bizForm.businessName}
                     onChange={v => setBizForm(p => ({ ...p, businessName: v }))}
-                    placeholder="e.g. Kamau Supplies"
                   />
                   <Select
                     label="Business Type *"
@@ -2445,7 +2443,6 @@ export function BusinessPage() {
                     label="Expense Title *"
                     value={expForm.title}
                     onChange={v => setExpForm(p => ({ ...p, title: v }))}
-                    placeholder="e.g. Railway Compute & PostgreSQL Managed DB"
                   />
                   <Select
                     label="Category *"
@@ -2458,19 +2455,16 @@ export function BusinessPage() {
                     type="number"
                     value={String(expForm.amount || '')}
                     onChange={v => setExpForm(p => ({ ...p, amount: Number(v) || 0 }))}
-                    placeholder="e.g. 15000"
                   />
                   <Input
                     label="Vendor / Provider"
                     value={expForm.vendor || ''}
                     onChange={v => setExpForm(p => ({ ...p, vendor: v }))}
-                    placeholder="e.g. Railway, Safaricom, Africa's Talking, Cloudflare"
                   />
                   <Input
                     label="Notes & Invoice Reference"
                     value={expForm.notes || ''}
                     onChange={v => setExpForm(p => ({ ...p, notes: v }))}
-                    placeholder="e.g. Monthly hosting invoice for October"
                   />
                 </div>
               </Modal>

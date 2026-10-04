@@ -192,7 +192,7 @@ export default function AppReleasesPage() {
           </div>
           <div>
             <label style={label} htmlFor="release-version">Version</label>
-            <input id="release-version" style={input} value={version} onChange={e => setVersion(e.target.value)} placeholder="1.2.0" />
+            <input id="release-version" style={input} value={version} onChange={e => setVersion(e.target.value)} />
           </div>
           <div>
             <label style={label} htmlFor="release-build">Build number / versionCode</label>
@@ -200,7 +200,7 @@ export default function AppReleasesPage() {
           </div>
           <div>
             <label style={label} htmlFor="release-minos">Minimum OS</label>
-            <input id="release-minos" style={input} value={minOsVersion} onChange={e => setMinOsVersion(e.target.value)} placeholder="Android 7.0 / Windows 10" />
+            <input id="release-minos" style={input} value={minOsVersion} onChange={e => setMinOsVersion(e.target.value)} />
           </div>
         </div>
 
@@ -245,7 +245,6 @@ export default function AppReleasesPage() {
               style={input}
               value={externalUrl}
               onChange={e => setExternalUrl(e.target.value)}
-              placeholder="https://play.google.com/store/apps/details?id=com.app.biashara"
             />
           </div>
         )}
@@ -258,7 +257,6 @@ export default function AppReleasesPage() {
             style={{ ...input, resize: 'vertical' }}
             value={releaseNotes}
             onChange={e => setReleaseNotes(e.target.value)}
-            placeholder="What's new: faster M-Pesa STK confirmation, offline receipt reprint…"
           />
         </div>
 

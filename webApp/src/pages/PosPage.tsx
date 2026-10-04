@@ -491,7 +491,6 @@ export function PosPage() {
                   label="M-Pesa Phone Number"
                   value={stkPhone}
                   onChange={setStkPhone}
-                  placeholder="+254 7XX XXX XXX"
                 />
                 {mpesaChannels.length > 1 && (
                   <Select
@@ -685,7 +684,7 @@ export function PosPage() {
                   <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'gray' }} />
                   <input
                     style={{ width: '100%', padding: '10px 12px 10px 36px', border: '1px solid var(--b360-border)', borderRadius: 8, fontSize: 14 }}
-                    placeholder="Search by SKU or product name..."
+                    aria-label="Search by SKU or product name"
                     value={searchQuery}
                     onChange={e => {
                       const value = e.target.value
@@ -952,7 +951,7 @@ export function PosPage() {
                   )}
                 </div>
 
-                <Input label="Sale Notes" placeholder="Optional notes..." value={notes} onChange={setNotes} />
+                <Input label="Sale Notes" value={notes} onChange={setNotes} />
 
                 <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', border: '1px solid var(--b360-border)', borderRadius: 8, cursor: 'pointer', background: includeTax ? 'var(--b360-green-bg)' : 'white' }}>
                   <span>

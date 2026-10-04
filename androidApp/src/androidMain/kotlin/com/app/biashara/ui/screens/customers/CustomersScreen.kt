@@ -165,8 +165,7 @@ fun CustomersScreen(
                 value = state.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChange(it) },
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                placeholder = { Text("Search customers...", color = Color(0xFF94A3B8)) },
-                leadingIcon = { Icon(Icons.Filled.Search, null, tint = Color(0xFF64748B)) },
+                leadingIcon = { Icon(Icons.Filled.Search, "Search customers", tint = Color(0xFF64748B)) },
                 trailingIcon = {
                     if (state.searchQuery.isNotEmpty()) {
                         IconButton({ viewModel.onSearchQueryChange("") }) {

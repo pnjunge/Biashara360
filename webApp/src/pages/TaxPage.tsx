@@ -102,13 +102,11 @@ function TaxRatesTab() {
             <div>
               <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5 }}>Display Name</label>
               <input value={form.name} onChange={e => setForm(f => ({...f, name:e.target.value}))}
-                placeholder="e.g. Value Added Tax"
                 style={{ width:'100%', padding:'8px 10px', borderRadius:7, border:'1px solid #E0E0E0', fontSize:13 }} />
             </div>
             <div>
               <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5 }}>Rate (%)</label>
               <input type="number" value={form.rate} onChange={e => setForm(f => ({...f, rate:e.target.value}))}
-                placeholder="e.g. 16"
                 style={{ width:'100%', padding:'8px 10px', borderRadius:7, border:'1px solid #E0E0E0', fontSize:13 }} />
             </div>
           </div>
@@ -129,7 +127,6 @@ function TaxRatesTab() {
           <div style={{ marginBottom:16 }}>
             <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5 }}>Description</label>
             <input value={form.description} onChange={e => setForm(f => ({...f, description:e.target.value}))}
-              placeholder="Optional description"
               style={{ width:'100%', padding:'8px 10px', borderRadius:7, border:'1px solid #E0E0E0', fontSize:13 }} />
           </div>
           <div style={{ display:'flex', gap:10 }}>
@@ -355,7 +352,7 @@ function RemittancesTab() {
             </div>
             <div>
               <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5 }}>KRA Receipt #</label>
-              <input placeholder="Optional" style={{ width:'100%', padding:'8px 10px', borderRadius:7, border:'1px solid #E0E0E0', fontSize:13 }} />
+              <input style={{ width:'100%', padding:'8px 10px', borderRadius:7, border:'1px solid #E0E0E0', fontSize:13 }} />
             </div>
           </div>
           <Btn icon={<Plus size={13}/>}>Save Remittance</Btn>

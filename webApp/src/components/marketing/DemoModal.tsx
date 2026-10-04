@@ -111,7 +111,6 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Dennis Kiprop"
                   value={name}
                   onChange={e => setName(e.target.value)}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 14 }}
@@ -125,7 +124,6 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Westlands Gourmet Mart"
                   value={businessName}
                   onChange={e => setBusinessName(e.target.value)}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 14 }}
@@ -140,7 +138,6 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
                   <input
                     type="tel"
                     required
-                    placeholder="0712 345 678"
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 14 }}

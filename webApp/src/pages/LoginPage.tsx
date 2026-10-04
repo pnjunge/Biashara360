@@ -7,14 +7,14 @@ import { usePageSeo } from '../utils/usePageSeo'
 function CustomLoginTextField({
   value,
   onChange,
-  placeholder,
+  ariaLabel,
   type = 'text',
   icon,
   disabled
 }: {
   value: string
   onChange: (v: string) => void
-  placeholder: string
+  ariaLabel?: string
   type?: string
   icon: React.ReactNode
   disabled?: boolean
@@ -59,7 +59,7 @@ function CustomLoginTextField({
       {/* Input */}
       <input
         type={actualType}
-        placeholder={placeholder}
+        aria-label={ariaLabel}
         value={value}
         onChange={e => onChange(e.target.value)}
         disabled={disabled}
@@ -387,7 +387,7 @@ export default function LoginPage() {
                       <CustomLoginTextField
                         value={email}
                         onChange={v => { setEmail(v); setError(''); setSuccessMsg('') }}
-                        placeholder="Email / Username"
+                        ariaLabel="Email or Username"
                         disabled={loading}
                         icon={
                           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
@@ -397,7 +397,7 @@ export default function LoginPage() {
                       <CustomLoginTextField
                         value={password}
                         onChange={v => { setPassword(v); setError(''); setSuccessMsg('') }}
-                        placeholder="Password"
+                        ariaLabel="Password"
                         type="password"
                         disabled={loading}
                         icon={
@@ -442,7 +442,7 @@ export default function LoginPage() {
                       <CustomLoginTextField
                         value={pin}
                         onChange={v => { setPin(v.replace(/\D/g, '').slice(0, 6)); setError(''); setSuccessMsg('') }}
-                        placeholder="Enter 6-digit Staff PIN"
+                        ariaLabel="6-digit Staff PIN"
                         type="password"
                         disabled={loading}
                         icon={<span style={{ fontWeight: 900, color: 'var(--b360-green)' }}>••</span>}
@@ -543,7 +543,7 @@ export default function LoginPage() {
               <form onSubmit={handleOtp} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <input
                   type="text"
-                  placeholder="Enter 6-digit code"
+                  aria-label="6-digit verification code"
                   value={otp}
                   onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   style={{
@@ -611,7 +611,7 @@ export default function LoginPage() {
                 <CustomLoginTextField
                   value={email}
                   onChange={v => { setEmail(v); setError(''); setSuccessMsg('') }}
-                  placeholder="Registered Email Address"
+                  ariaLabel="Registered Email Address"
                   disabled={loading}
                   icon={
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
@@ -662,7 +662,7 @@ export default function LoginPage() {
                 <CustomLoginTextField
                   value={resetToken}
                   onChange={v => { setResetToken(v.replace(/\D/g, '').slice(0, 6)); setError(''); setSuccessMsg('') }}
-                  placeholder="6-digit Reset Code"
+                  ariaLabel="6-digit Reset Code"
                   disabled={loading}
                   icon={<span style={{ fontWeight: 900, color: 'var(--b360-green)' }}>#</span>}
                 />
@@ -670,7 +670,7 @@ export default function LoginPage() {
                 <CustomLoginTextField
                   value={newPassword}
                   onChange={v => { setNewPassword(v); setError(''); setSuccessMsg('') }}
-                  placeholder="New Password (min 6 chars)"
+                  ariaLabel="New Password"
                   type="password"
                   disabled={loading}
                   icon={

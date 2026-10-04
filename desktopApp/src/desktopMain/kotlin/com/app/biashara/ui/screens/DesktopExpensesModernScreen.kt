@@ -676,9 +676,8 @@ fun DesktopExpensesModernScreen(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search expense, category...", fontSize = 12.sp, color = ExpensesLightMuted) },
                             leadingIcon = {
-                                Icon(Icons.Default.Search, contentDescription = null, tint = ExpensesLightMuted, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Search, contentDescription = "Search expenses", tint = ExpensesLightMuted, modifier = Modifier.size(18.dp))
                             },
                             singleLine = true,
                             shape = RoundedCornerShape(8.dp),
@@ -1515,7 +1514,6 @@ private fun AddOrEditExpenseDialog(
                     OutlinedTextField(
                         value = description,
                         onValueChange = { description = it; error = null },
-                        placeholder = { Text("e.g. August [Cash] or Facebook Ads", fontSize = 13.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp)
                     )
@@ -1526,7 +1524,6 @@ private fun AddOrEditExpenseDialog(
                     OutlinedTextField(
                         value = amount,
                         onValueChange = { amount = it.filter { ch -> ch.isDigit() || ch == '.' }; error = null },
-                        placeholder = { Text("0.00", fontSize = 13.sp) },
                         prefix = { Text("KES ", color = ExpensesGreen, fontWeight = FontWeight.Bold) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp)
@@ -1603,7 +1600,6 @@ private fun AddOrEditExpenseDialog(
                     OutlinedTextField(
                         value = notes,
                         onValueChange = { notes = it },
-                        placeholder = { Text("Add any notes or transaction references...", fontSize = 13.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp)
                     )

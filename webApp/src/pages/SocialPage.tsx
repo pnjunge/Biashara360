@@ -177,7 +177,7 @@ function InboxTab() {
         <div style={{ padding:'14px 14px 10px' }}>
           <div style={{ position:'relative', marginBottom:10 }}>
             <Search size={14} color='#999' style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)' }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search conversations…"
+            <input value={search} onChange={e => setSearch(e.target.value)} aria-label="Search conversations"
               style={{ width:'100%', paddingLeft:32, paddingRight:10, paddingTop:8, paddingBottom:8, borderRadius:10, border:'1px solid #E8EDE9', fontSize:12, outline:'none', boxSizing:'border-box' }} />
           </div>
           <div style={{ display:'flex', gap:4, overflowX:'auto', paddingBottom:4 }}>
@@ -329,7 +329,7 @@ function InboxTab() {
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                placeholder={`Reply to ${activeConv.customerName}…`}
+                aria-label={`Reply to ${activeConv.customerName}`}
                 rows={2}
                 style={{ flex:1, padding:'10px 14px', borderRadius:10, border:'1.5px solid #E8EDE9', fontSize:13, resize:'none', outline:'none', fontFamily:'inherit', lineHeight:1.5 }}
               />
@@ -361,12 +361,12 @@ function InboxTab() {
             </div>
             <div style={{ marginBottom:14 }}>
               <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5, color:'#666' }}>Amount (KES) *</label>
-              <input value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder="e.g. 850" type="number"
+              <input value={payAmt} onChange={e => setPayAmt(e.target.value)} type="number"
                 style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #E0E0E0', fontSize:15, fontWeight:700, outline:'none', boxSizing:'border-box' }} />
             </div>
             <div style={{ marginBottom:20 }}>
               <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5, color:'#666' }}>Description</label>
-              <input value={payDesc} onChange={e => setPayDesc(e.target.value)} placeholder="e.g. Unga 2kg × 3"
+              <input value={payDesc} onChange={e => setPayDesc(e.target.value)}
                 style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #E0E0E0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
             </div>
             {payAmt && (
@@ -399,12 +399,12 @@ function InboxTab() {
             </div>
             <div style={{ marginBottom:14 }}>
               <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5, color:'#666' }}>Customer Phone (for M-Pesa STK)</label>
-              <input placeholder="+254712345678" defaultValue={activeConv?.customerPhone||''}
+              <input defaultValue={activeConv?.customerPhone||''}
                 style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #E0E0E0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
             </div>
             <div style={{ marginBottom:14 }}>
               <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5, color:'#666' }}>Delivery Location</label>
-              <input placeholder="e.g. Westlands, Nairobi"
+              <input
                 style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #E0E0E0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
             </div>
             <div style={{ marginBottom:20, padding:12, background:'#FFF8E1', borderRadius:10, fontSize:12, border:'1px solid #FFB300' }}>
@@ -652,24 +652,24 @@ function ChannelsTab() {
 
             {/* Form fields */}
             {[
-              { label:'Channel Name', placeholder:'e.g. My WhatsApp Business', key:'channelName' },
-              { label: newPlatform === 'WHATSAPP' ? 'Phone Number ID (from Embedded Signup)' : newPlatform === 'TIKTOK' ? 'TikTok Open ID / Client Key' : 'Page ID / Account ID', placeholder:'Numeric ID from developer console', key:'externalId' },
+              { label:'Channel Name', key:'channelName' },
+              { label: newPlatform === 'WHATSAPP' ? 'Phone Number ID (from Embedded Signup)' : newPlatform === 'TIKTOK' ? 'TikTok Open ID / Client Key' : 'Page ID / Account ID', key:'externalId' },
               ...(newPlatform === 'WHATSAPP' ? [
-                { label:'WABA ID', placeholder:'102939...', key:'wabaId' },
-                { label:'Meta Business ID', placeholder:'merchant_business_id', key:'metaBusinessId' },
-                { label:'Phone Number', placeholder:'+254700000001', key:'phone' }
-              ] : [{ label:'Access Token', placeholder:'Long-lived access token', key:'token' }]),
+                { label:'WABA ID', key:'wabaId' },
+                { label:'Meta Business ID', key:'metaBusinessId' },
+                { label:'Phone Number', key:'phone' }
+              ] : [{ label:'Access Token', key:'token' }]),
             ].map(f => (
               <div key={f.key} style={{ marginBottom:12 }}>
                 <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5, color:'#666' }}>{f.label}</label>
-                <input placeholder={f.placeholder}
+                <input
                   style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #E0E0E0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
               </div>
             ))}
 
             <div style={{ marginBottom:20 }}>
               <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5, color:'#666' }}>AI Auto-reply Persona (optional)</label>
-              <textarea placeholder="e.g. You are a friendly sales agent for Biashara360. Reply in Swahili/English. Keep replies short and helpful."
+              <textarea
                 rows={3} style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #E0E0E0', fontSize:13, outline:'none', resize:'vertical', boxSizing:'border-box', fontFamily:'inherit' }} />
             </div>
 

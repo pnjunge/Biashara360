@@ -1790,7 +1790,6 @@ fun DesktopInventoryScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = activeSearch, onValueChange = { localSearchQuery = it },
-                placeholder = { Text("Search products by name, SKU, or barcode…") },
                 leadingIcon = { Icon(Icons.Filled.Search, null) },
                 modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp), singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -2210,7 +2209,7 @@ fun DesktopCustomersScreen(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = activeSearch, onValueChange = { localSearchQuery = it }, placeholder = { Text("Search customers...") },
+            OutlinedTextField(value = activeSearch, onValueChange = { localSearchQuery = it },
                 leadingIcon = { Icon(Icons.Filled.Search, null) }, modifier = Modifier.width(420.dp), shape = RoundedCornerShape(10.dp), singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = Color.White,
@@ -2447,7 +2446,6 @@ fun DesktopCustomersScreen(
                         OutlinedTextField(
                             value = name,
                             onValueChange = { name = it },
-                            placeholder = { Text("Enter customer name") },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Person,
@@ -2475,7 +2473,6 @@ fun DesktopCustomersScreen(
                         OutlinedTextField(
                             value = phone,
                             onValueChange = { phone = it },
-                            placeholder = { Text("Enter phone number") },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Phone,
@@ -2500,7 +2497,6 @@ fun DesktopCustomersScreen(
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it },
-                            placeholder = { Text("Enter email address") },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Email,
@@ -3680,130 +3676,7 @@ fun SettingsToggle(
     }
 }
 
-// ── Tax Screen ────────────────────────────────────────────────────────────────
-@Composable
-@Deprecated("Legacy prototype with static tax data; use DesktopTaxModernScreen", level = DeprecationLevel.ERROR)
-fun DesktopTaxScreen() {
-    val taxTypes = listOf(
-        Triple("VAT 16%", "KES 48,000", "Due 20th"),
-        Triple("TOT 1.5%", "KES 4,500", "Due 20th"),
-        Triple("WHT 3%", "KES 9,000", "Due 20th"),
-    )
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Text("Tax Management", fontWeight = FontWeight.Bold, fontSize = 20.sp)
 
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            listOf("VAT Liability" to "KES 48,000", "TOT Liability" to "KES 4,500", "Next Filing" to "Mar 20").forEach { (label, value) ->
-                Card(Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(label, fontSize = 12.sp, color = Color.Gray)
-                        Text(value, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = B360Green)
-                    }
-                }
-            }
-        }
-
-        Card(shape = RoundedCornerShape(12.dp)) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Tax Summary", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                taxTypes.forEach { (type, amount, due) ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(type, fontSize = 14.sp)
-                        Text(amount, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text(due, fontSize = 12.sp, color = Color.Gray)
-                    }
-                    HorizontalDivider(color = Color(0xFFF0F0F0))
-                }
-            }
-        }
-    }
-}
-
-// ── KRA iTax Screen ───────────────────────────────────────────────────────────
-@Composable
-@Deprecated("Legacy prototype with static KRA data; use DesktopKraModernScreen", level = DeprecationLevel.ERROR)
-fun DesktopKraScreen() {
-    val returns = listOf(
-        Triple("VAT3 - Feb 2025", "Submitted", "KES 48,000"),
-        Triple("TOT - Feb 2025", "Pending", "KES 4,500"),
-        Triple("WHT - Feb 2025", "Pending", "KES 9,000"),
-    )
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Text("KRA iTax Integration", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            listOf("Compliance Score" to "87%", "eTIMS Invoices" to "142", "Pending Returns" to "2").forEach { (label, value) ->
-                Card(Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(label, fontSize = 12.sp, color = Color.Gray)
-                        Text(value, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = B360Green)
-                    }
-                }
-            }
-        }
-
-        Card(shape = RoundedCornerShape(12.dp)) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Tax Returns", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                    Button(onClick = {}, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
-                        Text("Download CSV", fontSize = 13.sp)
-                    }
-                }
-                returns.forEach { (name, status, amount) ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(name, fontSize = 14.sp)
-                        Text(amount, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        val statusColor = if (status == "Submitted") B360Green else Color(0xFFFF8F00)
-                        Text(status, fontSize = 12.sp, color = statusColor, fontWeight = FontWeight.SemiBold)
-                    }
-                    HorizontalDivider(color = Color(0xFFF0F0F0))
-                }
-            }
-        }
-    }
-}
-
-// ── Social Inbox Screen ───────────────────────────────────────────────────────
-@Composable
-fun DesktopSocialScreen() {
-    val conversations = listOf(
-        Triple("Amara Osei", "WhatsApp", "Do you have Nike size 42?"),
-        Triple("Fatuma Amin", "Instagram", "What's the price of the dress?"),
-        Triple("James Kariuki", "Facebook", "Can I pay via Mpesa?"),
-        Triple("Grace Mwangi", "TikTok", "Hi, I want to order 2 pieces"),
-    )
-    val platformColor = mapOf("WhatsApp" to Color(0xFF25D366), "Instagram" to Color(0xFFE1306C), "Facebook" to Color(0xFF1877F2), "TikTok" to Color(0xFF000000))
-
-    Row(Modifier.fillMaxSize()) {
-        // Conversation list
-        Column(Modifier.width(320.dp).fillMaxHeight().background(Color.White).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Unified Inbox", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            HorizontalDivider()
-            conversations.forEach { (name, platform, msg) ->
-                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(Modifier.size(36.dp).clip(CircleShape).background(platformColor[platform] ?: B360Green), contentAlignment = Alignment.Center) {
-                            Text(name.first().toString(), color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                        Column(Modifier.weight(1f)) {
-                            Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            Text(msg, fontSize = 11.sp, color = Color.Gray, maxLines = 1)
-                        }
-                        Text(platform, fontSize = 10.sp, color = platformColor[platform] ?: B360Green)
-                    }
-                }
-            }
-        }
-        VerticalDivider(Modifier.fillMaxHeight().width(1.dp))
-        // Chat panel placeholder
-        Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Icon(Icons.Filled.Forum, null, tint = Color.LightGray, modifier = Modifier.size(64.dp))
-            Spacer(Modifier.height(16.dp))
-            Text("Select a conversation", color = Color.Gray, fontSize = 16.sp)
-        }
-    }
-}
 
 // ─── CyberSource Settings Screen ──────────────────────────────────────────────
 @Composable
@@ -3950,255 +3823,6 @@ fun DesktopCyberSourceSettingsScreen(
     }
 }
 
-@Composable
-@Deprecated("Legacy editable payment screen; use DesktopPaymentConfigurationScreen", level = DeprecationLevel.ERROR)
-fun DesktopMpesaScreen(
-    viewModel: BusinessViewModel = remember { inject() }
-) {
-    val state by viewModel.mpesaState.collectAsState()
-    
-    LaunchedEffect(Unit) {
-        viewModel.loadMpesaConfig()
-    }
-
-    var shortCode by remember { mutableStateOf("") }
-    var callbackUrl by remember { mutableStateOf("") }
-    var environment by remember { mutableStateOf("sandbox") }
-    var accountType by remember { mutableStateOf("paybill") }
-
-    LaunchedEffect(state.config) {
-        state.config?.let { cfg ->
-            shortCode = cfg.shortCode
-            callbackUrl = cfg.callbackUrl
-            environment = cfg.environment
-            accountType = cfg.accountType
-        }
-    }
-
-    val scrollState = rememberScrollState()
-
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .background(Color(0xFFF8FAFC))
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        // Header
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = "M-Pesa Integration Settings",
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                color = Color(0xFF1E293B)
-            )
-            Text(
-                text = "Configure your Safaricom Daraja API keys for real-time mobile checkout",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF64748B)
-            )
-        }
-
-        if (state.isLoading) {
-            Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = B360Green)
-            }
-        } else {
-            // Error Card
-            state.error?.let { err ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
-                    border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = err,
-                        color = Color(0xFFB91C1C),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            }
-
-            // Success Card
-            if (state.saveSuccess) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFECFDF5)),
-                    border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "✓ M-Pesa configuration saved successfully!",
-                        color = Color(0xFF065F46),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            }
-
-            Card(
-                Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-            ) {
-                Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    Text(
-                        text = "Daraja API Configurations",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color(0xFF1E293B)
-                    )
-                    HorizontalDivider(color = Color(0xFFE2E8F0))
-
-                    Text("Consumer credentials and the Lipa na M-Pesa passkey are managed globally by the backend.", color = Color(0xFF64748B), fontSize = 12.sp)
-
-                    // Shortcode
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Business Shortcode (Paybill / Till) *", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color(0xFF64748B))
-                        OutlinedTextField(
-                            value = shortCode,
-                            onValueChange = { shortCode = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            singleLine = true,
-                            placeholder = { Text("e.g. 174379") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = B360Green,
-                                unfocusedBorderColor = Color(0xFFE2E8F0)
-                            )
-                        )
-                    }
-
-                    // Callback URL
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Callback URL *", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color(0xFF64748B))
-                        OutlinedTextField(
-                            value = callbackUrl,
-                            onValueChange = { callbackUrl = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            singleLine = true,
-                            placeholder = { Text("https://api.yourdomain.com/v1/payments/mpesa/callback") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = B360Green,
-                                unfocusedBorderColor = Color(0xFFE2E8F0)
-                            )
-                        )
-                    }
-
-                    // Select Dropdowns
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // Environment Dropdown
-                        Box(modifier = Modifier.weight(1f)) {
-                            var envExpanded by remember { mutableStateOf(false) }
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Environment", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color(0xFF64748B))
-                                Box {
-                                    OutlinedTextField(
-                                        value = if (environment == "sandbox") "Sandbox" else "Production",
-                                        onValueChange = {},
-                                        readOnly = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        trailingIcon = {
-                                            IconButton(onClick = { envExpanded = true }) {
-                                                Icon(Icons.Filled.ArrowDropDown, null)
-                                            }
-                                        },
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = B360Green,
-                                            unfocusedBorderColor = Color(0xFFE2E8F0)
-                                        )
-                                    )
-                                    DropdownMenu(expanded = envExpanded, onDismissRequest = { envExpanded = false }) {
-                                        DropdownMenuItem(
-                                            text = { Text("Sandbox") },
-                                            onClick = { environment = "sandbox"; envExpanded = false }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Production") },
-                                            onClick = { environment = "production"; envExpanded = false }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Account Type Dropdown
-                        Box(modifier = Modifier.weight(1f)) {
-                            var typeExpanded by remember { mutableStateOf(false) }
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Account Type", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color(0xFF64748B))
-                                Box {
-                                    OutlinedTextField(
-                                        value = if (accountType == "paybill") "Paybill (C2B / LNM)" else "Buy Goods Till",
-                                        onValueChange = {},
-                                        readOnly = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        trailingIcon = {
-                                            IconButton(onClick = { typeExpanded = true }) {
-                                                Icon(Icons.Filled.ArrowDropDown, null)
-                                            }
-                                        },
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = B360Green,
-                                            unfocusedBorderColor = Color(0xFFE2E8F0)
-                                        )
-                                    )
-                                    DropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
-                                        DropdownMenuItem(
-                                            text = { Text("Paybill (C2B / LNM)") },
-                                            onClick = { accountType = "paybill"; typeExpanded = false }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Buy Goods Till") },
-                                            onClick = { accountType = "till"; typeExpanded = false }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Save Button
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(
-                            onClick = {
-                                viewModel.saveMpesaConfig(
-                                    MpesaConfigRequest(
-                                        shortCode = shortCode,
-                                        callbackUrl = callbackUrl,
-                                        environment = environment,
-                                        accountType = accountType
-                                    )
-                                )
-                            },
-                            enabled = !state.isSaving,
-                            colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.width(180.dp)
-                        ) {
-                            if (state.isSaving) {
-                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
-                            } else {
-                                Text("Save Config", fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun DesktopReceiptTemplateScreen(

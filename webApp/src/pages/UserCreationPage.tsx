@@ -1062,7 +1062,7 @@ export function UserCreationPage() {
                     type="text"
                     value={userSearch}
                     onChange={e => setUserSearch(e.target.value)}
-                    placeholder="Search staff by name, email, phone, role..."
+                    aria-label="Search staff by name, email, phone, role"
                     style={{
                       width: '100%', padding: '8px 12px 8px 36px', borderRadius: 8,
                       border: '1px solid var(--b360-border)', fontSize: 13, outline: 'none'
@@ -1459,7 +1459,7 @@ export function UserCreationPage() {
                     type="text"
                     value={auditSearch}
                     onChange={e => setAuditSearch(e.target.value)}
-                    placeholder="Search audit trail by actor, action, IP, target..."
+                    aria-label="Search audit trail by actor, action, IP, target"
                     style={{
                       width: '100%', padding: '8px 12px 8px 36px', borderRadius: 8,
                       border: '1px solid var(--b360-border)', fontSize: 13, outline: 'none'
@@ -1613,13 +1613,11 @@ export function UserCreationPage() {
                 label="Full Name *"
                 value={addUserForm.name}
                 onChange={v => setAddUserForm(p => ({ ...p, name: v }))}
-                placeholder="e.g. Grace Wanjiku"
               />
               <Input
                 label="Email Address *"
                 value={addUserForm.email}
                 onChange={v => setAddUserForm(p => ({ ...p, email: v }))}
-                placeholder="grace@example.com"
                 type="email"
               />
             </div>
@@ -1629,14 +1627,12 @@ export function UserCreationPage() {
                 label="Phone Number *"
                 value={addUserForm.phone}
                 onChange={v => setAddUserForm(p => ({ ...p, phone: v }))}
-                placeholder="+254 7XX XXX XXX"
               />
               <Input
                 label="Temporary Password *"
                 value={addUserForm.password || ''}
                 onChange={v => setAddUserForm(p => ({ ...p, password: v }))}
                 type="password"
-                placeholder="Min 6 characters"
               />
             </div>
 
@@ -1827,14 +1823,12 @@ export function UserCreationPage() {
               type="password"
               value={newPassword}
               onChange={setNewPassword}
-              placeholder="Minimum 6 characters"
             />
             <Input
               label="Confirm New Password *"
               type="password"
               value={confirmPassword}
               onChange={setConfirmPassword}
-              placeholder="Re-enter new password"
             />
           </div>
         </Modal>
@@ -1880,7 +1874,7 @@ export function UserCreationPage() {
                 maxLength={6}
                 value={pinValue}
                 onChange={e => setPinValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="••••••"
+                aria-label="6-Digit Numeric PIN"
                 style={{
                   fontSize: 24, letterSpacing: '0.3em', textAlign: 'center',
                   padding: '8px 16px', borderRadius: 8, border: '2px solid var(--b360-blue)',
@@ -2065,13 +2059,11 @@ export function UserCreationPage() {
                 label="Role Name *"
                 value={roleDraft.name}
                 onChange={v => setRoleDraft(p => ({ ...p, name: v }))}
-                placeholder="e.g. Senior Cashier, Floor Supervisor"
               />
               <Input
                 label="Description"
                 value={roleDraft.description}
                 onChange={v => setRoleDraft(p => ({ ...p, description: v }))}
-                placeholder="e.g. Front desk POS sales, refunds authorization and end of day"
               />
             </div>
 
@@ -2250,39 +2242,33 @@ export function UserCreationPage() {
               label="Business Name *"
               value={adminForm.businessName}
               onChange={v => setAdminForm(p => ({ ...p, businessName: v }))}
-              placeholder="e.g. Kamau Supplies & Retail"
             />
             <Input
               label="Business Type *"
               value={adminForm.businessType}
               onChange={v => setAdminForm(p => ({ ...p, businessType: v }))}
-              placeholder="e.g. Retail, Grocery, Hospitality"
             />
             <Input
               label="Admin Full Name *"
               value={adminForm.adminName}
               onChange={v => setAdminForm(p => ({ ...p, adminName: v }))}
-              placeholder="e.g. Jane Mwangi"
             />
             <Input
               label="Admin Email Address *"
               value={adminForm.adminEmail}
               onChange={v => setAdminForm(p => ({ ...p, adminEmail: v }))}
               type="email"
-              placeholder="jane@example.com"
             />
             <Input
               label="Admin Phone Number *"
               value={adminForm.adminPhone}
               onChange={v => setAdminForm(p => ({ ...p, adminPhone: v }))}
-              placeholder="+254 7XX XXX XXX"
             />
             <Input
               label="Admin Initial Password *"
               value={adminForm.adminPassword}
               onChange={v => setAdminForm(p => ({ ...p, adminPassword: v }))}
               type="password"
-              placeholder="Min 6 characters"
             />
           </div>
         </Modal>

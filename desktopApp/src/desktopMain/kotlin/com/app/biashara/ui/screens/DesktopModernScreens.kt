@@ -486,8 +486,7 @@ fun DesktopSocialModernScreen(
                         OutlinedTextField(
                             value = search,
                             onValueChange = { search = it },
-                            placeholder = { Text("Search conversations…") },
-                            leadingIcon = { Icon(Icons.Default.Search, null) },
+                            leadingIcon = { Icon(Icons.Default.Search, "Search conversations") },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(9.dp)
@@ -601,7 +600,6 @@ fun DesktopSocialModernScreen(
                                 OutlinedTextField(
                                     value = reply,
                                     onValueChange = { reply = it },
-                                    placeholder = { Text("Type a reply…") },
                                     trailingIcon = {
                                         IconButton(
                                             onClick = {

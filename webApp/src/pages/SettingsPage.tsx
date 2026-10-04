@@ -831,8 +831,8 @@ export function SettingsPage() {
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)', marginTop: 5 }}>PNG, JPEG, or WebP; maximum 500 KB. It appears at the top of printed receipts.</div>
                 </div>
-                <Input label="Receipt Header Message" value={receiptHeader} onChange={setReceiptHeader} placeholder="e.g. Welcome to Kamau Store!" />
-                <Input label="Receipt Footer Message" value={receiptFooter} onChange={setReceiptFooter} placeholder="e.g. Thank you for your purchase!" />
+                <Input label="Receipt Header Message" value={receiptHeader} onChange={setReceiptHeader} />
+                <Input label="Receipt Footer Message" value={receiptFooter} onChange={setReceiptFooter} />
               </Section>
 
               <Section title="Operating Day">
@@ -873,9 +873,9 @@ export function SettingsPage() {
           {profileLoading ? <div style={{padding:32,textAlign:'center',color:'var(--b360-text-secondary)'}}>Loading storefront settings…</div> : <>
             {storefrontSlug && <Section title="Customer ordering"><p>Share your online shop or print a QR code for each table. Customers can order without an account.</p><a href={`/shop/${encodeURIComponent(storefrontSlug)}/qr`} target="_blank" rel="noreferrer">Open shop and table QR codes</a></Section>}
             <Section title="Storefront Appearance">
-              <Input label="Welcome headline" value={profile.storefrontHeadline || ''} onChange={value => setProfile(current => ({...current, storefrontHeadline:value}))} placeholder="Shop with us online" />
-              <Input label="Store description" value={profile.storefrontDescription || ''} onChange={value => setProfile(current => ({...current, storefrontDescription:value}))} placeholder="Tell customers about your store" />
-              <Input label="HTTPS banner image" value={profile.storefrontBannerUrl || ''} onChange={value => setProfile(current => ({...current, storefrontBannerUrl:value || null}))} placeholder="https://example.com/banner.jpg" />
+              <Input label="Welcome headline" value={profile.storefrontHeadline || ''} onChange={value => setProfile(current => ({...current, storefrontHeadline:value}))} />
+              <Input label="Store description" value={profile.storefrontDescription || ''} onChange={value => setProfile(current => ({...current, storefrontDescription:value}))} />
+              <Input label="HTTPS banner image" value={profile.storefrontBannerUrl || ''} onChange={value => setProfile(current => ({...current, storefrontBannerUrl:value || null}))} />
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
                 <label style={{fontSize:12,fontWeight:600}}>Theme color<div style={{display:'flex',gap:8,marginTop:5}}><input type="color" value={profile.storefrontThemeColor || '#0F766E'} onChange={event => setProfile(current => ({...current,storefrontThemeColor:event.target.value.toUpperCase()}))} style={{width:48,height:40,padding:2,border:'1px solid var(--b360-border)',borderRadius:8}}/><input value={profile.storefrontThemeColor || '#0F766E'} maxLength={7} onChange={event => setProfile(current => ({...current,storefrontThemeColor:event.target.value.toUpperCase()}))} style={{minWidth:0,flex:1,padding:'9px 12px',border:'1px solid var(--b360-border)',borderRadius:8}}/></div></label>
                 <label style={{fontSize:12,fontWeight:600}}>Product layout<select value={profile.storefrontLayout || 'GRID'} onChange={event => setProfile(current => ({...current,storefrontLayout:event.target.value as 'GRID'|'LIST'}))} style={{display:'block',width:'100%',marginTop:5,padding:'10px 12px',border:'1px solid var(--b360-border)',borderRadius:8,background:'white'}}><option value="GRID">Product grid</option><option value="LIST">Product list</option></select></label>
@@ -912,32 +912,27 @@ export function SettingsPage() {
                   label="Merchant ID (Organization ID) *"
                   value={csMerchantId}
                   onChange={setCsMerchantId}
-                  placeholder="e.g. biashara360_merchant"
                 />
                 <Input
                   label="Merchant Key ID (REST API Key ID) *"
                   value={csMerchantKeyId}
                   onChange={setCsMerchantKeyId}
-                  placeholder="e.g. 9c7c25eb-xxxx-xxxx-xxxx-xxxxxxx"
                 />
                 <Input
                   label="Secure Acceptance Profile ID *"
                   value={csProfileId}
                   onChange={setCsProfileId}
-                  placeholder="e.g. 3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F"
                 />
                 <Input
                   label="Secure Acceptance Access Key *"
                   value={csAccessKey}
                   onChange={setCsAccessKey}
-                  placeholder="e.g. 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d"
                 />
                 <Input
                   label="Shared Secret Key (HMAC Signing Secret) *"
                   value={csMerchantSecretKey}
                   onChange={setCsMerchantSecretKey}
                   type="password"
-                  placeholder="Leave blank to keep current secret key"
                 />
 
                 <div style={{ padding: 14, background: 'rgba(59, 130, 246, 0.08)', borderRadius: 10, border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: 12, lineHeight: 1.6, color: 'var(--b360-text-secondary)', marginTop: 8 }}>
@@ -1001,7 +996,6 @@ export function SettingsPage() {
                 <input
                   value={kraPin}
                   onChange={e => setKraPin(e.target.value.toUpperCase())}
-                  placeholder="P051234567X"
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--b360-border)', fontSize: 13, fontFamily: 'monospace', fontWeight: 700 }}
                 />
               </div>
@@ -1010,7 +1004,6 @@ export function SettingsPage() {
                 <input
                   value={kraCompanyName}
                   onChange={e => setKraCompanyName(e.target.value)}
-                  placeholder="Company Name"
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--b360-border)', fontSize: 13 }}
                 />
               </div>
@@ -1019,7 +1012,6 @@ export function SettingsPage() {
                 <input
                   value={kraVatNo}
                   onChange={e => setKraVatNo(e.target.value)}
-                  placeholder="Same as PIN if VAT registered"
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--b360-border)', fontSize: 13 }}
                 />
               </div>
@@ -1047,7 +1039,6 @@ export function SettingsPage() {
                 <input
                   value={kraSdcId}
                   onChange={e => setKraSdcId(e.target.value)}
-                  placeholder="From KRA eTIMS portal"
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--b360-border)', fontSize: 13, fontFamily: 'monospace' }}
                 />
               </div>
@@ -1056,7 +1047,6 @@ export function SettingsPage() {
                 <input
                   value={kraSerialNo}
                   onChange={e => setKraSerialNo(e.target.value)}
-                  placeholder="VSCU assigned by KRA"
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--b360-border)', fontSize: 13, fontFamily: 'monospace' }}
                 />
               </div>
@@ -1101,14 +1091,12 @@ export function SettingsPage() {
                   label={mpAccountType === 'till' ? 'Till Number (Buy Goods) *' : 'Business Paybill Shortcode *'}
                   value={mpShortCode}
                   onChange={setMpShortCode}
-                  placeholder={mpAccountType === 'till' ? 'e.g. 842109' : 'e.g. 174379'}
                 />
                 <Input
                   label={mpPasskeyConfigured ? 'Replace Lipa na M-Pesa Passkey' : 'Lipa na M-Pesa Passkey (Optional for Till / Sandbox)'}
                   value={mpPassKey}
                   onChange={setMpPassKey}
                   type="password"
-                  placeholder={mpPasskeyConfigured ? '••••••••••••••••' : 'Enter passkey from Safaricom'}
                 />
                 <Select
                   label="Environment"
@@ -1283,8 +1271,7 @@ export function SettingsPage() {
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 220 }}>
                   <Input
-                    label=""
-                    placeholder="Recipient email address (e.g. your email)"
+                    label="Test recipient email"
                     value={testRecipient}
                     onChange={setTestRecipient}
                     type="email"
@@ -1385,39 +1372,33 @@ export function SettingsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                   <Input
                     label="SMTP Host"
-                    placeholder="smtp.email.eu-frankfurt-1.oci.oraclecloud.com"
                     value={smtpForm.host}
                     onChange={v => setSmtpForm(p => ({ ...p, host: v }))}
                   />
                   <Input
                     label="SMTP Port"
-                    placeholder="587"
                     type="number"
                     value={String(smtpForm.port)}
                     onChange={v => setSmtpForm(p => ({ ...p, port: parseInt(v) || 587 }))}
                   />
                   <Input
                     label="Account Username / OCID"
-                    placeholder="e.g. ocid1.user.oc1... or email"
                     value={smtpForm.username}
                     onChange={v => setSmtpForm(p => ({ ...p, username: v, fromEmail: p.fromEmail || (v.includes('@') ? v : '') }))}
                   />
                   <Input
                     label="Password / SMTP Secret"
-                    placeholder="Enter SMTP Password (or leave blank to keep unchanged)"
                     type="password"
                     value={smtpForm.password}
                     onChange={v => setSmtpForm(p => ({ ...p, password: v }))}
                   />
                   <Input
                     label="From Email (Approved Sender)"
-                    placeholder="e.g. noreply@biashara360.co.ke"
                     value={smtpForm.fromEmail}
                     onChange={v => setSmtpForm(p => ({ ...p, fromEmail: v }))}
                   />
                   <Input
                     label="From Sender Name"
-                    placeholder="Biashara360"
                     value={smtpForm.fromName}
                     onChange={v => setSmtpForm(p => ({ ...p, fromName: v }))}
                   />
@@ -1725,14 +1706,12 @@ export function SettingsPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <Input
                   label="Branch Name *"
-                  placeholder="e.g. Westlands Branch, Mombasa Road Depot"
                   value={branchForm.name}
                   onChange={v => setBranchForm(prev => ({ ...prev, name: v }))}
                 />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <Input
                     label="Branch Code (eTIMS bhfId)"
-                    placeholder="e.g. MAIN, 01, WTL"
                     value={branchForm.code || ''}
                     onChange={v => setBranchForm(prev => ({ ...prev, code: v.toUpperCase() }))}
                   />
@@ -1743,33 +1722,28 @@ export function SettingsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <Input
                     label="Phone Number"
-                    placeholder="+254 7XX XXX XXX"
                     value={branchForm.phone || ''}
                     onChange={v => setBranchForm(prev => ({ ...prev, phone: v }))}
                   />
                   <Input
                     label="Email Address"
-                    placeholder="branch@business.co.ke"
                     value={branchForm.email || ''}
                     onChange={v => setBranchForm(prev => ({ ...prev, email: v }))}
                   />
                 </div>
                 <Input
                   label="Physical Address"
-                  placeholder="e.g. Sarit Centre, 2nd Floor"
                   value={branchForm.address || ''}
                   onChange={v => setBranchForm(prev => ({ ...prev, address: v }))}
                 />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <Input
                     label="City / Town"
-                    placeholder="e.g. Nairobi, Mombasa, Kisumu"
                     value={branchForm.city || ''}
                     onChange={v => setBranchForm(prev => ({ ...prev, city: v }))}
                   />
                   <Input
                     label="County"
-                    placeholder="e.g. Nairobi, Kiambu, Nakuru"
                     value={branchForm.county || ''}
                     onChange={v => setBranchForm(prev => ({ ...prev, county: v }))}
                   />
@@ -1805,13 +1779,11 @@ export function SettingsPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <Input
                       label="Receipt Header"
-                      placeholder="e.g. Welcome to Biashara360 - Westlands Branch"
                       value={branchForm.receiptHeader || ''}
                       onChange={v => setBranchForm(prev => ({ ...prev, receiptHeader: v }))}
                     />
                     <Input
                       label="Receipt Footer"
-                      placeholder="e.g. Westlands Branch: Return window is 7 days."
                       value={branchForm.receiptFooter || ''}
                       onChange={v => setBranchForm(prev => ({ ...prev, receiptFooter: v }))}
                     />

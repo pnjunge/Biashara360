@@ -151,13 +151,13 @@ export function ProgressBar({ value, color = 'var(--b360-green)' }: { value: num
 }
 
 // ── Input ─────────────────────────────────────────────────────────────────────
-export function Input({ label, placeholder, value, onChange, type = 'text', disabled, readOnly }:
-  { label?: string; placeholder?: string; value: string; onChange?: (v: string) => void; type?: string; disabled?: boolean; readOnly?: boolean }) {
+export function Input({ label, value, onChange, type = 'text', disabled, readOnly }:
+  { label?: string; value: string; onChange?: (v: string) => void; type?: string; disabled?: boolean; readOnly?: boolean }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:5, minWidth:0, width:'100%' }}>
       {label && <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)' }}>{label}</label>}
       <input
-        type={type} placeholder={placeholder} value={value}
+        type={type} value={value}
         disabled={disabled}
         readOnly={readOnly}
         onChange={e => onChange?.(e.target.value)}
@@ -212,15 +212,14 @@ export function Modal({ title, onClose, children, footer, wide, extraWide }: {
 }
 
 // ── Select ────────────────────────────────────────────────────────────────────
-export function Select({ label, value, onChange, options, placeholder, disabled }: {
-  label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; placeholder?: string; disabled?: boolean
+export function Select({ label, value, onChange, options, disabled }: {
+  label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; disabled?: boolean
 }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
       {label && <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)' }}>{label}</label>}
       <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
         style={{ padding:'10px 14px', border:'1px solid var(--b360-border)', borderRadius:'var(--radius-sm)', fontSize:13, outline:'none', fontFamily:'inherit', background: disabled ? 'var(--b360-surface)' : 'white', color:'var(--b360-text)', cursor: disabled ? 'not-allowed' : 'pointer' }}>
-        {placeholder && <option value="" disabled>{placeholder}</option>}
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>

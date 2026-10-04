@@ -207,7 +207,6 @@ export function ExtendSubscriptionModal({ business, onClose, onSuccess }: Extend
           type="number"
           value={String(extendDays)}
           onChange={v => setExtendDays(Math.max(1, parseInt(v, 10) || 1))}
-          placeholder="e.g. 14"
         />
 
         {/* Plan Configuration */}
@@ -264,7 +263,6 @@ export function ExtendSubscriptionModal({ business, onClose, onSuccess }: Extend
           label="SuperAdmin Reason / Audit Note (Optional)"
           value={extendNote}
           onChange={setExtendNote}
-          placeholder="e.g. Complimentary trial extension for merchant onboarding"
         />
       </div>
     </Modal>

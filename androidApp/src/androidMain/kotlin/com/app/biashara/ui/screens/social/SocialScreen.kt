@@ -343,7 +343,6 @@ fun ChatView(
                     value         = draft,
                     onValueChange = { draft = it },
                     modifier      = Modifier.weight(1f),
-                    placeholder   = { Text("Reply to ${conv.customerName.split(" ")[0]}…", fontSize = 13.sp) },
                     maxLines      = 3,
                     shape         = RoundedCornerShape(12.dp),
                     colors        = OutlinedTextFieldDefaults.colors(
@@ -389,7 +388,6 @@ fun ChatView(
                         value = payAmt,
                         onValueChange = { payAmt = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("e.g. 850") },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -405,7 +403,6 @@ fun ChatView(
                         value = payDesc,
                         onValueChange = { payDesc = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("e.g. Unga 2kg × 3") },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(

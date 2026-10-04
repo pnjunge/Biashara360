@@ -64,12 +64,12 @@ export function CustomersPage() {
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
             <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
-              <Input label="Full Name *" value={form.name} onChange={f('name')} placeholder="e.g. Jane Wanjiru" />
-              <Input label="Phone *" value={form.phone} onChange={f('phone')} placeholder="+254..." />
+              <Input label="Full Name *" value={form.name} onChange={f('name')} />
+              <Input label="Phone *" value={form.phone} onChange={f('phone')} />
             </div>
-            <Input label="Email" value={form.email} onChange={f('email')} placeholder="optional@email.com" type="email" />
-            <Input label="Location" value={form.location} onChange={f('location')} placeholder="e.g. Westlands, Nairobi" />
-            <Input label="Notes" value={form.notes} onChange={f('notes')} placeholder="Optional notes" />
+            <Input label="Email" value={form.email} onChange={f('email')} type="email" />
+            <Input label="Location" value={form.location} onChange={f('location')} />
+            <Input label="Notes" value={form.notes} onChange={f('notes')} />
           </div>
         </Modal>
       )}

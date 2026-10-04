@@ -340,7 +340,7 @@ export default function AuditLogPage() {
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search actor, target, details, IP, action…"
+                aria-label="Search audit log"
                 style={{
                   width: '100%',
                   padding: '9px 12px 9px 36px',

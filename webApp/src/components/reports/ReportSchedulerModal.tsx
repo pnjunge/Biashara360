@@ -673,7 +673,6 @@ export function ReportSchedulerModal({ onClose, businessName = 'Biashara360 Merc
                 label="Schedule Name"
                 value={formData.name}
                 onChange={v => setFormData(p => ({ ...p, name: v }))}
-                placeholder="e.g. Daily Closing Sales Summary"
               />
             </div>
 
@@ -729,7 +728,6 @@ export function ReportSchedulerModal({ onClose, businessName = 'Biashara360 Merc
                 type="text"
                 value={formData.timeOfDay || '20:00'}
                 onChange={v => setFormData(p => ({ ...p, timeOfDay: v }))}
-                placeholder="20:00 (e.g. 20:00 for 8 PM)"
               />
             </div>
 
@@ -757,7 +755,6 @@ export function ReportSchedulerModal({ onClose, businessName = 'Biashara360 Merc
                   type="number"
                   value={String(formData.dayOfMonth || 1)}
                   onChange={v => setFormData(p => ({ ...p, dayOfMonth: Math.min(28, Math.max(1, Number(v) || 1)) }))}
-                  placeholder="1"
                 />
               </div>
             )}
@@ -783,7 +780,6 @@ export function ReportSchedulerModal({ onClose, businessName = 'Biashara360 Merc
                   label="Email Recipients (Comma-separated)"
                   value={formData.emailRecipients || ''}
                   onChange={v => setFormData(p => ({ ...p, emailRecipients: v }))}
-                  placeholder="e.g. director@biashara.com, accountant@biashara.com (Leave blank for owner email)"
                 />
                 <span style={{ fontSize:11, color:'var(--b360-text-secondary)', marginTop:3, display:'block' }}>
                   A branded, responsive executive HTML email report with financial KPIs, tables, and login links will be sent.
@@ -797,7 +793,6 @@ export function ReportSchedulerModal({ onClose, businessName = 'Biashara360 Merc
                   label="WhatsApp Phone Numbers (Comma-separated)"
                   value={formData.whatsappRecipients || ''}
                   onChange={v => setFormData(p => ({ ...p, whatsappRecipients: v }))}
-                  placeholder="e.g. +254712345678, 0722000000 (Leave blank for owner phone)"
                 />
                 <span style={{ fontSize:11, color:'var(--b360-text-secondary)', marginTop:3, display:'block' }}>
                   Formatted WhatsApp message with bold metrics, emojis, and dashboard links delivered via WhatsApp Cloud API or click-to-chat.

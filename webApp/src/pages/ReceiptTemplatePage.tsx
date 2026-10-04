@@ -153,14 +153,12 @@ export default function ReceiptTemplatePage() {
               label="Header Message"
               value={header}
               onChange={setHeader}
-              placeholder="e.g. Welcome to our store!"
             />
             
             <Input
               label="Footer Note"
               value={footer}
               onChange={setFooter}
-              placeholder="e.g. Thank you for shopping with us!"
             />
 
             <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>

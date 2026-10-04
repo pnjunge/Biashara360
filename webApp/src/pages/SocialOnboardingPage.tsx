@@ -841,14 +841,12 @@ export default function SocialOnboardingPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <Input
                 label="Integration Display Name *"
-                placeholder="e.g. Primary Customer Line"
                 value={channelName}
                 onChange={setChannelName}
               />
 
               <Input
                 label={setupMeta?.idLabel || 'Account ID *'}
-                placeholder="e.g. 102938475610293"
                 value={externalId}
                 onChange={setExternalId}
               />
@@ -861,7 +859,6 @@ export default function SocialOnboardingPage() {
                   {setupMeta?.tokenLabel || 'Access Token *'}
                 </label>
                 <textarea
-                  placeholder="Paste your access token here..."
                   value={accessToken}
                   onChange={e => setAccessToken(e.target.value)}
                   style={{

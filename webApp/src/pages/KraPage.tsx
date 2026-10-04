@@ -425,7 +425,7 @@ function ReturnsTab() {
                     <input
                       value={ackInput[r.id] ?? ''}
                       onChange={e => setAckInput(a => ({...a, [r.id]: e.target.value}))}
-                      placeholder="Paste iTax acknowledgement number…"
+                      aria-label="iTax acknowledgement number"
                       style={{ flex:1, padding:'7px 10px', borderRadius:7, border:'1px solid #E0E0E0', fontSize:12, minWidth:220 }}
                     />
                     <Btn icon={<CheckCircle size={13}/>} onClick={() => markSubmitted(r.id)}>Confirm</Btn>
@@ -475,7 +475,6 @@ function SetupTab() {
           <div>
             <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5 }}>KRA PIN *</label>
             <input value={pin} onChange={e => setPin(e.target.value.toUpperCase())}
-              placeholder="P051234567X"
               style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #E0E0E0', fontSize:13, fontFamily:'monospace', fontWeight:700 }} />
             <div style={{ fontSize:11, color:'#888', marginTop:4 }}>Format: letter + 9 digits + letter</div>
           </div>
@@ -487,7 +486,6 @@ function SetupTab() {
           <div>
             <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5 }}>VAT Registration Number</label>
             <input value={vatNo} onChange={e => setVatNo(e.target.value)}
-              placeholder="Same as PIN if registered"
               style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #E0E0E0', fontSize:13 }} />
           </div>
           <div>
@@ -514,13 +512,11 @@ function SetupTab() {
           <div>
             <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5 }}>SDC ID</label>
             <input value={sdcId} onChange={e => setSdcId(e.target.value)}
-              placeholder="From KRA eTIMS portal"
               style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #E0E0E0', fontSize:13, fontFamily:'monospace' }} />
           </div>
           <div>
             <label style={{ fontSize:12, fontWeight:600, display:'block', marginBottom:5 }}>Device Serial Number</label>
             <input value={serialNo} onChange={e => setSerial(e.target.value)}
-              placeholder="VSCU assigned by KRA"
               style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #E0E0E0', fontSize:13, fontFamily:'monospace' }} />
           </div>
         </div>

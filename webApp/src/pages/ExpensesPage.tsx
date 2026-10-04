@@ -989,9 +989,9 @@ export default function ExpensesPage() {
               <Search size={16} color="#94A3B8" />
               <input
                 type="text"
+                aria-label="Search expense, category"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search expense, category..."
                 style={{
                   border: 'none',
                   outline: 'none',
@@ -1343,14 +1343,12 @@ export default function ExpensesPage() {
             )}
             <Input
               label="Description *"
-              placeholder="e.g. August [Cash] or Facebook Ads"
               value={form.description}
               onChange={(v) => setForm((p) => ({ ...p, description: v }))}
             />
             <Input
               label="Amount (KES) *"
               type="number"
-              placeholder="0.00"
               value={form.amount}
               onChange={(v) => setForm((p) => ({ ...p, amount: v }))}
             />
@@ -1379,7 +1377,6 @@ export default function ExpensesPage() {
             />
             <Input
               label="Notes (Optional)"
-              placeholder="Add any extra notes or reference..."
               value={form.notes}
               onChange={(v) => setForm((p) => ({ ...p, notes: v }))}
             />

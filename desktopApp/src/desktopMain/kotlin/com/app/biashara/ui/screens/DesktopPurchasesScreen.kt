@@ -268,8 +268,7 @@ fun DesktopPurchasesScreen(
             OutlinedTextField(
                 value = activeSearch,
                 onValueChange = { localSearchQuery = it },
-                placeholder = { Text("Search by Invoice #, Supplier, or Product…") },
-                leadingIcon = { Icon(Icons.Default.Search, null, tint = Color(0xFF94A3B8)) },
+                leadingIcon = { Icon(Icons.Default.Search, "Search invoices", tint = Color(0xFF94A3B8)) },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(10.dp),
                 singleLine = true,
@@ -744,7 +743,6 @@ fun RecordPurchaseInvoiceDialog(
                                 value = invoiceNumber,
                                 onValueChange = { invoiceNumber = it; validationError = null },
                                 label = { Text("Invoice Number *") },
-                                placeholder = { Text("Enter invoice number") },
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 shape = RoundedCornerShape(8.dp),
@@ -766,7 +764,6 @@ fun RecordPurchaseInvoiceDialog(
                                         supplierDropdownExpanded = it.isNotBlank() && suppliers.any { s -> s.name.contains(it, ignoreCase = true) }
                                     },
                                     label = { Text("Supplier Name (Optional)") },
-                                    placeholder = { Text("Search or select supplier") },
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
                                     shape = RoundedCornerShape(8.dp),
@@ -813,7 +810,6 @@ fun RecordPurchaseInvoiceDialog(
                                 value = supplierPhone,
                                 onValueChange = { supplierPhone = it },
                                 label = { Text("Supplier Phone (Optional)") },
-                                placeholder = { Text("e.g. 0712 345 678") },
                                 modifier = Modifier.weight(1.2f),
                                 singleLine = true,
                                 shape = RoundedCornerShape(8.dp),
@@ -1004,7 +1000,6 @@ fun RecordPurchaseInvoiceDialog(
                             OutlinedTextField(
                                 value = notes,
                                 onValueChange = { notes = it },
-                                placeholder = { Text("Enter any notes or delivery remarks...") },
                                 leadingIcon = { Icon(Icons.Default.Description, null, tint = Color(0xFF94A3B8)) },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(8.dp)

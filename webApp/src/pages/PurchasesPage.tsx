@@ -494,9 +494,9 @@ export default function PurchasesPage() {
               <div style={{ position: 'relative', flex: 1, maxWidth: 360 }}>
                 <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--b360-text-secondary)' }} />
                 <input
+                  aria-label="Search by invoice, supplier, or SKU"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Search by Invoice #, supplier, or SKU..."
                   style={{
                     width: '100%',
                     padding: '8px 12px 8px 32px',
@@ -639,9 +639,9 @@ export default function PurchasesPage() {
               <div style={{ position: 'relative', flex: 1, maxWidth: 360 }}>
                 <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--b360-text-secondary)' }} />
                 <input
+                  aria-label="Search suppliers by name, phone, email, address"
                   value={supplierSearch}
                   onChange={e => setSupplierSearch(e.target.value)}
-                  placeholder="Search suppliers by name, phone, email, address..."
                   style={{
                     width: '100%',
                     padding: '8px 12px 8px 32px',
@@ -826,9 +826,9 @@ export default function PurchasesPage() {
                   }}>
                     <Hash size={16} style={{ color: '#059669', flexShrink: 0 }} />
                     <input
+                      aria-label="Invoice number"
                       value={invoiceNumber}
                       onChange={e => setInvoiceNumber(e.target.value)}
-                      placeholder="Enter invoice number"
                       style={{
                         border: 'none',
                         outline: 'none',
@@ -872,6 +872,7 @@ export default function PurchasesPage() {
                   }}>
                     <Store size={16} style={{ color: '#64748B', flexShrink: 0 }} />
                     <input
+                      aria-label="Supplier name"
                       list="supplier-options"
                       value={supplierName}
                       onChange={e => {
@@ -882,7 +883,6 @@ export default function PurchasesPage() {
                           setSupplierPhone(matched.phone)
                         }
                       }}
-                      placeholder="Select existing or type supplier name..."
                       style={{
                         border: 'none',
                         outline: 'none',
@@ -919,9 +919,9 @@ export default function PurchasesPage() {
                   }}>
                     <Phone size={16} style={{ color: '#64748B', flexShrink: 0 }} />
                     <input
+                      aria-label="Supplier phone"
                       value={supplierPhone}
                       onChange={e => setSupplierPhone(e.target.value)}
-                      placeholder="e.g. 0712 345 678"
                       style={{
                         border: 'none',
                         outline: 'none',
@@ -1226,10 +1226,10 @@ export default function PurchasesPage() {
                 }}>
                   <FileText size={16} style={{ color: '#94A3B8', marginTop: 2, flexShrink: 0 }} />
                   <textarea
+                    aria-label="Purchase notes or remarks"
                     rows={2}
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
-                    placeholder="Enter any notes or delivery remarks..."
                     style={{
                       border: 'none',
                       outline: 'none',
@@ -1416,26 +1416,22 @@ export default function PurchasesPage() {
               label="Supplier / Vendor Name *"
               value={supplierForm.name}
               onChange={v => setSupplierForm({ ...supplierForm, name: v })}
-              placeholder="e.g. Kenya Wine Agencies Ltd, Farmers Choice"
             />
             <Input
               label="Phone Number"
               value={supplierForm.phone}
               onChange={v => setSupplierForm({ ...supplierForm, phone: v })}
-              placeholder="e.g. 0712 345 678"
             />
             <Input
               label="Email Address"
               type="email"
               value={supplierForm.email}
               onChange={v => setSupplierForm({ ...supplierForm, email: v })}
-              placeholder="e.g. supplier@example.com"
             />
             <Input
               label="Physical Address / Location"
               value={supplierForm.address}
               onChange={v => setSupplierForm({ ...supplierForm, address: v })}
-              placeholder="e.g. Warehouse 4, Industrial Area, Nairobi"
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
               <Btn variant="secondary" onClick={() => setShowSupplierModal(false)}>

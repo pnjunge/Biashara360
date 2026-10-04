@@ -413,7 +413,6 @@ export default function HospitalityPage() {
               label="Table name"
               value={tableDraft.name}
               onChange={(v) => setTableDraft({ ...tableDraft, name: v })}
-              placeholder="e.g. Terrace 4"
             />
             <Input
               label="Area"
@@ -490,7 +489,7 @@ export default function HospitalityPage() {
                   {[["DINE_IN","Dine in"],["TAKEAWAY","Take away"],["DELIVERY","Delivery"]].map(([value,label],index)=><button key={value} type="button" onClick={()=>{setServiceType(value);if(value!=="DINE_IN")setOrderTable(null)}} style={{padding:'11px 6px',border:0,borderLeft:index ? '1px solid var(--b360-border)' : 0,background:serviceType===value ? 'var(--b360-green)' : 'white',color:serviceType===value ? 'white' : 'var(--b360-text)',fontWeight:700,cursor:'pointer'}}>{label}</button>)}
                 </div>
               </div>
-              {serviceType==="DINE_IN"&&<Select label="Table" value={orderTable?.id||""} onChange={id=>setOrderTable(data.tables.find(table=>table.id===id)||null)} placeholder="Select a table" options={data.tables.filter(table=>!table.mergedIntoTableId).map(table=>({value:table.id,label:`${table.name} · ${table.area}`}))}/>}
+              {serviceType==="DINE_IN"&&<Select label="Table" value={orderTable?.id||""} onChange={id=>setOrderTable(data.tables.find(table=>table.id===id)||null)} options={data.tables.filter(table=>!table.mergedIntoTableId).map(table=>({value:table.id,label:`${table.name} · ${table.area}`}))}/>}
               <div>
                 <div style={{fontSize:12,fontWeight:700,marginBottom:7}}>Guests</div>
                 <div style={{display:'grid',gridTemplateColumns:'64px 1fr 64px',border:'1px solid var(--b360-border)',borderRadius:9,overflow:'hidden'}}>
@@ -510,7 +509,7 @@ export default function HospitalityPage() {
                 onChange={setCustomerPhone}
               />
               <label style={{display:'grid',gap:5,fontSize:12,fontWeight:600,color:'var(--b360-text-secondary)'}}>Kitchen / bar notes
-                <textarea value={notes} maxLength={200} onChange={event=>setNotes(event.target.value)} placeholder="Add any special instructions…" rows={3} style={{resize:'vertical',padding:'11px 13px',border:'1px solid var(--b360-border)',borderRadius:9,fontFamily:'inherit'}} />
+                <textarea value={notes} maxLength={200} onChange={event=>setNotes(event.target.value)} rows={3} style={{resize:'vertical',padding:'11px 13px',border:'1px solid var(--b360-border)',borderRadius:9,fontFamily:'inherit'}} />
                 <span style={{fontSize:10,textAlign:'right'}}>{notes.length} / 200</span>
               </label>
               {cartProducts.length > 0 && (
@@ -540,8 +539,8 @@ export default function HospitalityPage() {
                         {(profile?.sizes.length||0)>0&&<span style={{display:'block',marginTop:5}}><small>Size: </small>{profile!.sizes.map(option=><label key={option.name} style={{display:'inline-flex',alignItems:'center',gap:3,marginRight:8,fontSize:10}}><input type="radio" name={`size-${product.id}`} checked={state.modifiers.some(item=>item.name===option.name)} onChange={()=>selectOneModifier(product.id,profile!.sizes,option)}/>{option.name}{option.priceDelta?` (+${option.priceDelta})`:''}</label>)}</span>}
                         {(profile?.variants.length||0)>0&&<span style={{display:'block',marginTop:5}}><small>Variant: </small>{profile!.variants.map(option=><label key={option.name} style={{display:'inline-flex',alignItems:'center',gap:3,marginRight:8,fontSize:10}}><input type="radio" name={`variant-${product.id}`} checked={state.modifiers.some(item=>item.name===option.name)} onChange={()=>selectOneModifier(product.id,profile!.variants,option)}/>{option.name}{option.priceDelta?` (+${option.priceDelta})`:''}</label>)}</span>}
                         {(profile?.extras.length||0)>0&&<span style={{display:'block',marginTop:5}}><small>Extras: </small>{profile!.extras.map(option=><label key={option.name} style={{display:'inline-flex',alignItems:'center',gap:3,marginRight:8,fontSize:10}}><input type="checkbox" checked={state.modifiers.some(item=>item.name===option.name)} onChange={()=>toggleModifier(product.id,option)}/>{option.name}{option.priceDelta?` (+${option.priceDelta})`:''}</label>)}</span>}
-                        <input aria-label={`Note for ${product.name}`} value={state.note} onChange={event=>updateOption(product.id,{note:event.target.value})} placeholder="Item note" style={{display:'block',width:'100%',marginTop:6,padding:6,border:'1px solid var(--b360-border)',borderRadius:6}}/>
-                        {isAdmin&&<span style={{display:'flex',gap:7,marginTop:5,alignItems:'center'}}><input aria-label={`Discount for ${product.name}`} type="number" value={state.discount} onChange={event=>updateOption(product.id,{discount:event.target.value})} placeholder="Discount" style={{width:85,padding:5,border:'1px solid var(--b360-border)',borderRadius:6}}/><label><input type="checkbox" checked={state.complimentary} onChange={event=>updateOption(product.id,{complimentary:event.target.checked})}/> Complimentary</label></span>}
+                        <input aria-label={`Note for ${product.name}`} value={state.note} onChange={event=>updateOption(product.id,{note:event.target.value})} style={{display:'block',width:'100%',marginTop:6,padding:6,border:'1px solid var(--b360-border)',borderRadius:6}}/>
+                        {isAdmin&&<span style={{display:'flex',gap:7,marginTop:5,alignItems:'center'}}><input aria-label={`Discount for ${product.name}`} type="number" value={state.discount} onChange={event=>updateOption(product.id,{discount:event.target.value})} style={{width:85,padding:5,border:'1px solid var(--b360-border)',borderRadius:6}}/><label><input type="checkbox" checked={state.complimentary} onChange={event=>updateOption(product.id,{complimentary:event.target.checked})}/> Complimentary</label></span>}
                       </span>
                       <b style={{whiteSpace:'nowrap'}}>
                         KES{" "}
@@ -569,9 +568,9 @@ export default function HospitalityPage() {
                   }}
                 />
                 <input
+                  aria-label="Search food or drinks"
                   value={menuSearch}
                   onChange={(event) => setMenuSearch(event.target.value)}
-                  placeholder="Search food or drinks…"
                   style={{
                     width: "100%",
                     padding: "10px 12px 10px 34px",

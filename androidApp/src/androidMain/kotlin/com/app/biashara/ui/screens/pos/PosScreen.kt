@@ -370,8 +370,7 @@ private fun PosCatalogSearchFilterHeader(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
-            placeholder = { Text("Search by name or SKU...", color = Color(0xFFB0BBC8)) },
-            leadingIcon = { Icon(Icons.Filled.Search, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(20.dp)) },
+            leadingIcon = { Icon(Icons.Filled.Search, "Search products", tint = Color(0xFF94A3B8), modifier = Modifier.size(20.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotBlank()) {
                     IconButton(onClick = { onSearchQueryChange("") }) {

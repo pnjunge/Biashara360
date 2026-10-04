@@ -228,7 +228,7 @@ export default function AppShell() {
             <Search size={16} className={styles.searchIcon} />
             <input
               className={styles.searchInput}
-              placeholder="Search orders, tables, menu items..."
+              aria-label="Search orders, tables, menu items"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />

@@ -297,7 +297,6 @@ export default function EReceiptModal({
                 <label className="ereceipt-input-label">Customer WhatsApp Number</label>
                 <input
                   type="tel"
-                  placeholder="e.g. 0712345678"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="ereceipt-input-field"
@@ -333,7 +332,6 @@ export default function EReceiptModal({
                 <label className="ereceipt-input-label">Recipient Phone Number</label>
                 <input
                   type="tel"
-                  placeholder="e.g. 0712345678 or +254..."
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="ereceipt-input-field"
@@ -363,7 +361,6 @@ export default function EReceiptModal({
                 <label className="ereceipt-input-label">Recipient Email Address</label>
                 <input
                   type="email"
-                  placeholder="customer@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="ereceipt-input-field"

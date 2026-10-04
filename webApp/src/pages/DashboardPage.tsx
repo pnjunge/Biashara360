@@ -597,21 +597,21 @@ export function InventoryPage() {
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
         <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
-          <Input label="Product Name *" value={form.name} onChange={f('name')} placeholder="e.g. Men's Shirt" />
-          <Input label="SKU *" value={form.sku} onChange={f('sku')} placeholder="e.g. SHIRT-001" />
+          <Input label="Product Name *" value={form.name} onChange={f('name')} />
+          <Input label="SKU *" value={form.sku} onChange={f('sku')} />
         </div>
         <Select label="Category" value={form.category} onChange={f('category')}
           options={categories.filter(c => c.isActive || c.name === form.category).map(c => ({ value:c.name, label:c.isActive ? c.name : `${c.name} (disabled)` }))} />
         <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
-          <Input label="Buying Price (KES) *" value={form.buyingPrice} onChange={f('buyingPrice')} type="number" placeholder="0" />
-          <Input label="Selling Price (KES) *" value={form.sellingPrice} onChange={f('sellingPrice')} type="number" placeholder="0" />
+          <Input label="Buying Price (KES) *" value={form.buyingPrice} onChange={f('buyingPrice')} type="number" />
+          <Input label="Selling Price (KES) *" value={form.sellingPrice} onChange={f('sellingPrice')} type="number" />
         </div>
         <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
-          <Input label="Current Stock *" value={form.currentStock} onChange={f('currentStock')} type="number" placeholder="0" />
-          <Input label="Low Stock Threshold" value={form.lowStockThreshold} onChange={f('lowStockThreshold')} type="number" placeholder="10" />
+          <Input label="Current Stock *" value={form.currentStock} onChange={f('currentStock')} type="number" />
+          <Input label="Low Stock Threshold" value={form.lowStockThreshold} onChange={f('lowStockThreshold')} type="number" />
         </div>
-        <Input label="Description" value={form.description} onChange={f('description')} placeholder="Optional product description" />
-        <Input label="Product image URL" value={form.imageUrl} onChange={f('imageUrl')} placeholder="https://example.com/product.jpg" />
+        <Input label="Description" value={form.description} onChange={f('description')} />
+        <Input label="Product image URL" value={form.imageUrl} onChange={f('imageUrl')} />
         {form.imageUrl && <img src={form.imageUrl} alt="Product preview" style={{width:96,height:96,objectFit:'cover',borderRadius:10,border:'1px solid var(--b360-border)'}} onError={event => { event.currentTarget.style.display='none' }} />}
       </div>
     </Modal>
@@ -628,11 +628,11 @@ export function InventoryPage() {
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
             <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
-              <div style={{ flex:1 }}><Input label={editingCategory ? 'Rename category' : 'New category'} value={categoryName} onChange={setCategoryName} placeholder="e.g. Beverages" /></div>
+              <div style={{ flex:1 }}><Input label={editingCategory ? 'Rename category' : 'New category'} value={categoryName} onChange={setCategoryName} /></div>
               <Btn onClick={saveCategory} disabled={saving}>{editingCategory ? 'Save' : 'Add'}</Btn>
               {editingCategory && <Btn variant="secondary" onClick={() => { setEditingCategory(null); setCategoryName(''); setCategoryImageUrl('') }}>Cancel</Btn>}
             </div>
-            <Input label="Category image URL" value={categoryImageUrl} onChange={setCategoryImageUrl} placeholder="https://example.com/category.jpg" />
+            <Input label="Category image URL" value={categoryImageUrl} onChange={setCategoryImageUrl} />
             <div style={{ display:'flex', flexDirection:'column', border:'1px solid var(--b360-border)', borderRadius:10, overflow:'hidden' }}>
               {categories.map((category, index) => (
                 <div key={category.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'11px 12px', borderTop:index ? '1px solid var(--b360-border)' : undefined, opacity:category.isActive ? 1 : .65 }}>
@@ -653,7 +653,7 @@ export function InventoryPage() {
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
             <p style={{ fontSize:13, color:'var(--b360-text-secondary)' }}>Current stock: <strong>{stockProduct.currentStock}</strong></p>
-            <Input label="Quantity to Add" value={stockQty} onChange={setStockQty} type="number" placeholder="e.g. 50" />
+            <Input label="Quantity to Add" value={stockQty} onChange={setStockQty} type="number" />
           </div>
         </Modal>
       )}
@@ -721,7 +721,7 @@ export function InventoryPage() {
         <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--b360-border)', display:'flex', gap:12, alignItems:'center' }}>
           <div style={{ position:'relative', flex:1, maxWidth:300 }}>
             <Search size={14} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--b360-text-secondary)' }} />
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search products or SKU..."
+            <input value={search} onChange={e=>setSearch(e.target.value)} aria-label="Search products or SKU"
               style={{ width:'100%', padding:'8px 12px 8px 32px', border:'1px solid var(--b360-border)', borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit' }} />
           </div>
           <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, cursor:'pointer' }}>

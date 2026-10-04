@@ -1220,7 +1220,7 @@ private fun DesktopSettleModal(
                 if (selectedMethod == "MPESA") {
                     OutlinedTextField(value = phone, onValueChange = { phone = it },
                         enabled = !isSubmitting, label = { Text("M-Pesa phone number") },
-                        placeholder = { Text("0712345678") }, singleLine = true)
+                        singleLine = true)
                 }
                 errorMessage?.let { Text(it, color = Color(0xFFDC2626)) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

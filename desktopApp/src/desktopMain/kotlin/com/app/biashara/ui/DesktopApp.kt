@@ -1209,7 +1209,7 @@ fun DesktopAuthBackground(
 fun CustomLoginTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String,
+    label: String? = null,
     leadingIcon: ImageVector,
     isPassword: Boolean = false,
     passwordVisible: Boolean = false,
@@ -1220,47 +1220,45 @@ fun CustomLoginTextField(
     val borderColor = if (isFocused) Color(0xFF00A36C) else Color(0xFFE2E8F0)
     val focusRequester = remember { FocusRequester() }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(46.dp)
-            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.White)
-            .clickable(enabled = enabled) { focusRequester.requestFocus() }
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = leadingIcon,
-            contentDescription = null,
-            tint = Color(0xFF00A36C),
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(Modifier.width(12.dp))
-        Box(
-            modifier = Modifier.weight(1f),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester)
-                    .onFocusChanged { isFocused = it.isFocused },
-                singleLine = true,
-                enabled = enabled,
-                visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
-                textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 14.sp),
-                decorationBox = { innerTextField ->
-                    if (value.isEmpty()) {
-                        Text(placeholder, color = Color(0xFF94A3B8), fontSize = 14.sp)
-                    }
-                    innerTextField()
-                }
-            )
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (!label.isNullOrBlank()) {
+            Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
         }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp)
+                .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.White)
+                .clickable(enabled = enabled) { focusRequester.requestFocus() }
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = leadingIcon,
+                contentDescription = null,
+                tint = Color(0xFF00A36C),
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { isFocused = it.isFocused },
+                    singleLine = true,
+                    enabled = enabled,
+                    visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+                    textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 14.sp)
+                )
+            }
         if (isPassword && onPasswordToggle != null) {
             IconButton(
                 onClick = onPasswordToggle,
@@ -1275,6 +1273,7 @@ fun CustomLoginTextField(
             }
         }
     }
+}
 }
 
 @Composable
@@ -1743,7 +1742,7 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         CustomLoginTextField(
                             value = email,
                             onValueChange = { email = it; viewModel.dismissError() },
-                            placeholder = "Email / Username",
+                            label = "Email / Username",
                             leadingIcon = Icons.Filled.Person,
                             enabled = !state.isLoading
                         )
@@ -1751,7 +1750,7 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         CustomLoginTextField(
                             value = password,
                             onValueChange = { password = it; viewModel.dismissError() },
-                            placeholder = "Password",
+                            label = "Password",
                             leadingIcon = Icons.Filled.Lock,
                             isPassword = true,
                             passwordVisible = passwordVisible,
@@ -1804,7 +1803,7 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                         CustomLoginTextField(
                             value = pin,
                             onValueChange = { pin = it.filter { char -> char.isDigit() }.take(6); viewModel.dismissError() },
-                            placeholder = "Enter 6-Digit Staff PIN",
+                            label = "Staff PIN",
                             leadingIcon = Icons.Filled.Pin,
                             isPassword = true,
                             passwordVisible = passwordVisible,

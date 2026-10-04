@@ -232,7 +232,7 @@ fun FloatingShieldBadge() {
 fun AndroidCustomLoginTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String,
+    label: String? = null,
     leadingIcon: androidx.compose.ui.graphics.vector.ImageVector,
     isPassword: Boolean = false,
     passwordVisible: Boolean = false,
@@ -245,81 +245,80 @@ fun AndroidCustomLoginTextField(
     val focusRequester = remember { FocusRequester() }
     val borderColor = if (isFocused) B360Green else Color(0xFFE2E8F0)
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
-            .clickable { focusRequester.requestFocus() },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Icon Box
-        Box(
-            modifier = Modifier
-                .width(56.dp)
-                .fillMaxHeight()
-                .background(Color(0xFFF0FDF4)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = leadingIcon,
-                contentDescription = null,
-                tint = B360Green,
-                modifier = Modifier.size(20.dp)
-            )
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (!label.isNullOrBlank()) {
+            Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
         }
-
-        // Vertical Divider
-        Box(
+        Row(
             modifier = Modifier
-                .width(1.dp)
-                .fillMaxHeight()
-                .background(Color(0xFFE2E8F0))
-        )
-
-        // Text Input
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(horizontal = 16.dp),
-            contentAlignment = Alignment.CenterStart
+                .fillMaxWidth()
+                .height(56.dp)
+                .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
+                .clickable { focusRequester.requestFocus() },
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
+            // Icon Box
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester)
-                    .onFocusChanged { isFocused = it.isFocused },
-                singleLine = true,
-                enabled = enabled,
-                keyboardOptions = keyboardOptions,
-                keyboardActions = keyboardActions,
-                visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
-                textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 15.sp),
-                decorationBox = { innerTextField: @Composable () -> Unit ->
-                    if (value.isEmpty()) {
-                        Text(placeholder, color = Color(0xFF94A3B8), fontSize = 15.sp)
-                    }
-                    innerTextField()
-                }
-            )
-        }
-
-        if (isPassword && onPasswordToggle != null) {
-            IconButton(
-                onClick = onPasswordToggle,
-                modifier = Modifier.padding(end = 8.dp)
+                    .width(56.dp)
+                    .fillMaxHeight()
+                    .background(Color(0xFFF0FDF4)),
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    imageVector = leadingIcon,
                     contentDescription = null,
-                    tint = Color(0xFF64748B),
+                    tint = B360Green,
                     modifier = Modifier.size(20.dp)
                 )
+            }
+
+            // Vertical Divider
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(Color(0xFFE2E8F0))
+            )
+
+            // Text Input
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { isFocused = it.isFocused },
+                    singleLine = true,
+                    enabled = enabled,
+                    keyboardOptions = keyboardOptions,
+                    keyboardActions = keyboardActions,
+                    visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+                    textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 15.sp)
+                )
+            }
+
+            if (isPassword && onPasswordToggle != null) {
+                IconButton(
+                    onClick = onPasswordToggle,
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                        contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
@@ -605,7 +604,7 @@ fun LoginScreen(
                                     AndroidCustomLoginTextField(
                                         value = email,
                                         onValueChange = { email = it; viewModel.dismissError() },
-                                        placeholder = "Email / Phone",
+                                        label = "Email / Phone",
                                         leadingIcon = Icons.Filled.Person,
                                         enabled = !state.isLoading,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
@@ -626,7 +625,7 @@ fun LoginScreen(
                                     AndroidCustomLoginTextField(
                                         value = password,
                                         onValueChange = { password = it; viewModel.dismissError() },
-                                        placeholder = "Password",
+                                        label = "Password",
                                         leadingIcon = Icons.Filled.Lock,
                                         isPassword = true,
                                         passwordVisible = passwordVisible,
@@ -656,7 +655,7 @@ fun LoginScreen(
                                     AndroidCustomLoginTextField(
                                         value = pin,
                                         onValueChange = { pin = it.filter { c -> c.isDigit() }.take(6); viewModel.dismissError() },
-                                        placeholder = "Enter 6-Digit Staff PIN",
+                                        label = "Staff PIN",
                                         leadingIcon = Icons.Filled.Pin,
                                         isPassword = true,
                                         passwordVisible = passwordVisible,

@@ -415,8 +415,7 @@ fun DesktopPosScreen(
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Search product name or SKU...") },
-                    leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
+                    leadingIcon = { Icon(Icons.Default.Search, "Search product name or SKU", tint = Color.Gray) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -1294,7 +1293,7 @@ fun DesktopPosScreen(
                         OutlinedTextField(
                             value = notes,
                             onValueChange = { notes = it },
-                            placeholder = { Text("Add sale notes (optional)") },
+                            label = { Text("Sale notes") },
                             leadingIcon = { Icon(Icons.Default.Edit, null, tint = Color.Gray, modifier = Modifier.size(18.dp)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
@@ -1852,7 +1851,6 @@ private fun SettleTabDialogOverlay(
                         value = mpesaPhone,
                         onValueChange = { mpesaPhone = it },
                         label = { Text("Customer M-Pesa Phone Number") },
-                        placeholder = { Text("e.g. 0712345678") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )

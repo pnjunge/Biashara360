@@ -155,8 +155,7 @@ fun DesktopProductsScreen(
             OutlinedTextField(
                 value = localSearch,
                 onValueChange = { localSearch = it },
-                placeholder = { Text("Filter products...", fontSize = 12.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, null, Modifier.size(16.dp), tint = Color(0xFF94A3B8)) },
+                leadingIcon = { Icon(Icons.Default.Search, "Filter products", Modifier.size(16.dp), tint = Color(0xFF94A3B8)) },
                 modifier = Modifier.width(240.dp).height(44.dp),
                 shape = RoundedCornerShape(8.dp),
                 singleLine = true

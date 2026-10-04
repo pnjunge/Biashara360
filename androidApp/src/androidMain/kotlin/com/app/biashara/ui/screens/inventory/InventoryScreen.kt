@@ -72,8 +72,7 @@ fun InventoryScreen(
                 value = state.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChange(it) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search products...", color = Color(0xFF94A3B8)) },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color(0xFF64748B)) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Search products", tint = Color(0xFF64748B)) },
                 trailingIcon = {
                     if (state.searchQuery.isNotEmpty()) {
                         IconButton({ viewModel.onSearchQueryChange("") }) {

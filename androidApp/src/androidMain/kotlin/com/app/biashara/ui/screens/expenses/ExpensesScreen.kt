@@ -204,8 +204,7 @@ fun ExpensesScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search expense, category...", fontSize = 13.sp, color = Color.Gray) },
-                    leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray, modifier = Modifier.size(18.dp)) },
+                    leadingIcon = { Icon(Icons.Default.Search, "Search expenses", tint = Color.Gray, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth().height(50.dp),
