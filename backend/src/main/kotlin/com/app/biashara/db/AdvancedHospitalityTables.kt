@@ -42,6 +42,7 @@ object PurchaseOrderItemsTable : Table("purchase_order_items") {
     val id=varchar("id",36); val purchaseOrderId=varchar("purchase_order_id",36); val ingredientId=varchar("ingredient_id",36); val orderedQuantity=double("ordered_quantity"); val receivedQuantity=double("received_quantity"); val unitCost=double("unit_cost"); override val primaryKey=PrimaryKey(id)
 }
 object ManagerApprovalsTable : Table("manager_approvals") {
+    val payload=text("payload_json").default("{}")
     val id=varchar("id",36); val businessId=varchar("business_id",36); val actionType=varchar("action_type",30); val entityType=varchar("entity_type",30); val entityId=varchar("entity_id",36); val requestedBy=varchar("requested_by",36); val approvedBy=varchar("approved_by",36).nullable(); val status=varchar("status",20); val reason=varchar("reason",500); val requestedAt=timestamp("requested_at"); val decidedAt=timestamp("decided_at").nullable(); override val primaryKey=PrimaryKey(id)
 }
 object AuditEventsTable : Table("audit_events") {

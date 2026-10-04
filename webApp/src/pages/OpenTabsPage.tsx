@@ -2,12 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Clock, ExternalLink, Printer, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Btn, Card, DataTable, KpiCard, PageHeader, StatusBadge } from '../components/ui'
-import { BusinessProfileResponse, HospitalityDashboard, OrderResponse, businessApi, hospitalityApi } from '../services/api'
+import { BusinessProfileResponse, HospitalityDashboard, OrderResponse, businessApi, hospitalityApi, accessApi } from '../services/api'
 import { SettlementModal } from '../components/hospitality/SettlementModal'
 import { printOrderReceipt } from '../utils/receipt'
 
 export default function OpenTabsPage() {
   const navigate = useNavigate()
+  const [permissions,setPermissions]=useState<string[]>([])
+  useEffect(()=>{accessApi.me().then(r=>setPermissions(r.data?.permissions||[])).catch(()=>setPermissions([]))},[])
   const [data, setData] = useState<HospitalityDashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -50,8 +52,9 @@ export default function OpenTabsPage() {
       </div>
       {loading ? <Card style={{padding:32,textAlign:'center'}}>Loading open tabs…</Card> : !data?.openTabs.length ? <Card style={{padding:32,textAlign:'center',color:'var(--b360-text-secondary)'}}>No open tabs.</Card> : <Card><DataTable headers={['Table','Receipt / Tab','Customer','Guests / Items','Open','Amount','Status','Actions']} rows={data.openTabs.map(order => {
         const table = data.tables.find(item => item.id === order.hospitalityTableId)
-        return [<strong>{table?.name || order.serviceType?.replace(/_/g, ' ') || 'Takeaway'}</strong>, <span style={{fontFamily:'monospace',fontWeight:800,color:'var(--b360-green)'}}>{order.orderNumber}</span>, order.customerName || 'Walk-in Guest', `${order.guestCount || 1} guest(s) · ${order.items.length} item(s)`, age(order.createdAt), <strong>KES {order.subtotal.toLocaleString()}</strong>, <StatusBadge status={order.tabStatus || 'OPEN'} />,<div style={{display:'flex',gap:6,alignItems:'center',minWidth:310}}><Btn small onClick={()=>setSettleOrder(order)}>{order.tabStatus==='AWAITING_PAYMENT'?'Retry / settle':'Settle'}</Btn><Btn small variant="secondary" icon={<Printer size={12}/>} onClick={()=>printOrderReceipt(order,receiptProfile)}>{order.paymentStatus === 'PAID' ? 'Print Receipt' : 'Print Bill'}</Btn>{table&&<select aria-label={`Transfer ${order.orderNumber}`} defaultValue="" onChange={event=>transfer(order.id,event.target.value)} style={{padding:7,border:'1px solid var(--b360-border)',borderRadius:7}}><option value="">Transfer…</option>{data.tables.filter(item=>item.id!==table.id&&!item.mergedIntoTableId).map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>}</div>]
+        return [<strong>{table?.name || order.serviceType?.replace(/_/g, ' ') || 'Takeaway'}</strong>, <span style={{fontFamily:'monospace',fontWeight:800,color:'var(--b360-green)'}}>{order.orderNumber}</span>, order.customerName || 'Walk-in Guest', `${order.guestCount || 1} guest(s) · ${order.items.length} item(s)`, age(order.createdAt), <strong>KES {order.subtotal.toLocaleString()}</strong>, <StatusBadge status={order.tabStatus || 'OPEN'} />,<div style={{display:'flex',gap:6,alignItems:'center',minWidth:310}}><Btn small disabled={!permissions.includes('hospitality.billing')} onClick={()=>setSettleOrder(order)}>{order.tabStatus==='AWAITING_PAYMENT'?'Retry / settle':'Settle'}</Btn><Btn small variant="secondary" icon={<Printer size={12}/>} onClick={()=>printOrderReceipt(order,receiptProfile)}>{order.paymentStatus === 'PAID' ? 'Print Receipt' : 'Print Bill'}</Btn>{table&&permissions.includes('hospitality.orders')&&<select aria-label={`Transfer ${order.orderNumber}`} defaultValue="" onChange={event=>transfer(order.id,event.target.value)} style={{padding:7,border:'1px solid var(--b360-border)',borderRadius:7}}><option value="">Transfer…</option>{data.tables.filter(item=>item.id!==table.id&&!item.mergedIntoTableId).map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>}</div>]
       })} /></Card>}
+      <Btn variant="secondary" onClick={()=>navigate('/hospitality-operations?tab=APPROVALS')}>Request discount / cancellation approval</Btn>
       {settleOrder&&<SettlementModal order={settleOrder} onClose={()=>setSettleOrder(null)} onComplete={async()=>load()}/>}
     </div>
   )

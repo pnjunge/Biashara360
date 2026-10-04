@@ -72,7 +72,7 @@ fun appModule(config: ApplicationConfig) = module {
     single { AccessControlService(get()) }
     single { HospitalityService(get()) }
     single { HotelService(get()) }
-    single { AdvancedHospitalityService() }
+    single { AdvancedHospitalityService(get()) }
     single { ServiceManagementService(get()) }
     single { SubscriptionService(get(), get(), get()) }
     single { ReportService() }

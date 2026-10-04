@@ -156,7 +156,7 @@ export function Input({ label, value, onChange, type = 'text', disabled, readOnl
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:5, minWidth:0, width:'100%' }}>
       {label && <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)' }}>{label}</label>}
-      <input
+      <input aria-label={label}
         type={type} value={value}
         disabled={disabled}
         readOnly={readOnly}
@@ -218,7 +218,7 @@ export function Select({ label, value, onChange, options, disabled }: {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
       {label && <label style={{ fontSize:12, fontWeight:600, color:'var(--b360-text-secondary)' }}>{label}</label>}
-      <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
+      <select aria-label={label} value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
         style={{ padding:'10px 14px', border:'1px solid var(--b360-border)', borderRadius:'var(--radius-sm)', fontSize:13, outline:'none', fontFamily:'inherit', background: disabled ? 'var(--b360-surface)' : 'white', color:'var(--b360-text)', cursor: disabled ? 'not-allowed' : 'pointer' }}>
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>

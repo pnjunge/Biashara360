@@ -225,6 +225,7 @@ fun Route.orderRoutesValidated() {
              * POST /orders/{id}/cancel
              */
             post("/cancel") {
+                if(!call.hasPermission("orders.cancel")) return@post call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Order cancellation permission required"))
                 val businessId = call.businessId()
                 val id = call.parameters["id"] ?: throw IllegalArgumentException("Order ID required")
                 
@@ -247,6 +248,7 @@ fun Route.orderRoutesValidated() {
              * POST /orders/{id}/void
              */
             post("/void") {
+                if(!call.hasPermission("orders.refund")) return@post call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Order refund permission required"))
                 val businessId = call.businessId()
                 val id = call.parameters["id"] ?: throw IllegalArgumentException("Order ID required")
 

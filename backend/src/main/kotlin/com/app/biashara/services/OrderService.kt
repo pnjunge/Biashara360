@@ -386,6 +386,7 @@ class OrderService(
         closeOrder(id, businessId, isVoid = true)
 
     private fun closeOrder(id: String, businessId: String, isVoid: Boolean): ApiResponse<OrderResponse> = transaction {
+        BusinessesTable.select { BusinessesTable.id eq businessId }.forUpdate().firstOrNull()
         val order = OrdersTable.select {
             (OrdersTable.id eq id) and (OrdersTable.businessId eq businessId)
         }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Order not found")
@@ -399,6 +400,15 @@ class OrderService(
             return@transaction ApiResponse(false, message = "Cannot cancel a paid order. Please initiate a refund instead.")
         }
 
+        if(order[OrdersTable.serviceType] in listOf("DINE_IN","TAKEAWAY","DELIVERY")) {
+            // Prepared ingredients are consumed; record their disposition as wastage rather than restoring them blindly.
+            KitchenTicketsTable.update({KitchenTicketsTable.orderId eq id}) { it[status]="CANCELLED";it[updatedAt]=Clock.System.now() }
+            OrdersTable.update({OrdersTable.id eq id}) { it[tabStatus]="CLOSED" }
+            order[OrdersTable.hospitalityTableId]?.let { tableId ->
+                val others=OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.hospitalityTableId eq tableId) and (OrdersTable.id neq id) and (OrdersTable.tabStatus inList HospitalityService.ACTIVE_TAB_STATUSES) }.any()
+                if(!others) HospitalityTablesTable.update({HospitalityTablesTable.id eq tableId}) {it[status]="AVAILABLE";it[updatedAt]=Clock.System.now()}
+            }
+        }
         // Revert stock for all items
         val items = OrderItemsTable.select { OrderItemsTable.orderId eq id }
         val now = Clock.System.now()

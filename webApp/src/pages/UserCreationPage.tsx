@@ -78,9 +78,10 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
       'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers',
       'payments.view', 'payments.process', 'payments.refund',
       'reports.sales', 'reports.financial', 'reports.export',
-      'settings.general', 'settings.branches'
+      'settings.general', 'settings.branches',
+      ...['view','orders','kitchen','billing','reservations','floor','menu','stock','shifts','purchasing','reports','approvals'].map(p=>'hospitality.'+p)
     ],
-    menus: ['DASHBOARD', 'POS', 'ORDERS', 'CUSTOMERS', 'PRODUCTS', 'INVENTORY', 'PAYMENTS', 'REPORTS']
+    menus: ['DASHBOARD', 'POS', 'HOSPITALITY', 'HOSPITALITY_OPS', 'OPEN_TABS', 'ORDERS', 'CUSTOMERS', 'INVENTORY', 'PAYMENTS', 'REPORTS']
   },
   CASHIER: {
     label: 'Cashier',
@@ -88,18 +89,18 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
     permissions: [
       'orders.view', 'orders.create',
       'products.view',
-      'payments.view', 'payments.process'
+      'payments.view', 'payments.process', 'hospitality.view', 'hospitality.orders', 'hospitality.billing'
     ],
-    menus: ['POS', 'ORDERS', 'PAYMENTS', 'CUSTOMERS']
+    menus: ['POS', 'OPEN_TABS', 'ORDERS', 'PAYMENTS', 'CUSTOMERS']
   },
   KITCHEN_STAFF: {
     label: 'Kitchen/Order Staff',
     description: 'View order queue, kitchen tickets and process assigned orders',
     permissions: [
       'orders.view', 'orders.edit',
-      'products.view'
+      'products.view', 'hospitality.view', 'hospitality.kitchen'
     ],
-    menus: ['ORDERS', 'HOSPITALITY_KITCHEN']
+    menus: ['ORDERS', 'HOSPITALITY']
   },
   INVENTORY_STAFF: {
     label: 'Inventory Staff',
@@ -149,6 +150,10 @@ interface PermissionMatrixModule {
 }
 
 const PERMISSION_MODULES: PermissionMatrixModule[] = [
+  { key: 'hospitality', label: 'Hospitality Front Desk', description: 'Restaurant orders, preparation and settlement', view: {code:'hospitality.view',label:'View hospitality'}, create:{code:'hospitality.orders',label:'Take orders'}, edit:{code:'hospitality.kitchen',label:'Update preparation'}, special:{code:'hospitality.billing',label:'Settle tabs'} },
+  { key: 'hospitality_floor', label: 'Hospitality Floor', description: 'Reservations and seating', create:{code:'hospitality.reservations',label:'Reservations'}, edit:{code:'hospitality.floor',label:'Floor and tables'} },
+  { key: 'hospitality_stock', label: 'Hospitality Stock', description: 'Menus, recipes and ingredients', create:{code:'hospitality.menu',label:'Menus and recipes'}, edit:{code:'hospitality.stock',label:'Ingredients and stock'}, special:{code:'hospitality.purchasing',label:'Ingredient purchasing'} },
+  { key: 'hospitality_management', label: 'Hospitality Management', description: 'Shifts, financial reports and approvals', view:{code:'hospitality.reports',label:'Financial reports'}, edit:{code:'hospitality.shifts',label:'Open and close shifts'}, special:{code:'hospitality.approvals',label:'Decide approvals'} },
   { key: 'hotel', label: 'Hotel & Accommodation', description: 'Room inventory, reservations, arrivals and departures',
     view: { code: 'hotel.view', label: 'View hotel' }, create: { code: 'hotel.reservations', label: 'Manage reservations' },
     edit: { code: 'hotel.frontdesk', label: 'Check in / out' }, special: { code: 'hotel.manage', label: 'Manage rooms and prices' } },

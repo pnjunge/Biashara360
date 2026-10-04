@@ -261,7 +261,7 @@ export interface HospitalityOperations {
   shifts:Array<{id:string;openedBy:string;openedAt:string;closedAt:string|null;openingFloat:number;expectedCash:number|null;actualCash:number|null;mpesaTotal:number|null;cardTotal:number|null;tipsTotal:number;expensesTotal:number;status:string;variance:number|null;actualMpesa:number|null;actualCard:number|null;mpesaVariance:number|null;cardVariance:number|null;totalVariance:number|null}>
   suppliers:Array<{id:string;name:string;phone:string;email:string|null;address:string|null;isActive:boolean}>
   purchaseOrders:Array<{id:string;orderNumber:string;supplierId:string;status:string;totalCost:number;orderedAt:string;receivedAt:string|null}>
-  approvals:Array<{id:string;actionType:string;entityType:string;entityId:string;requestedBy:string;approvedBy:string|null;status:string;reason:string;requestedAt:string}>
+  approvals:Array<{id:string;actionType:string;entityType:string;entityId:string;requestedBy:string;approvedBy:string|null;status:string;reason:string;requestedAt:string;amount?:number|null;quantity?:number|null;eventType?:string|null}>
 }
 export interface HospitalityDashboard { enabled:boolean; tables:HospitalityTable[]; openTabs:OrderResponse[]; tickets:KitchenTicket[]; shiftOpen?: boolean }
 
@@ -1294,12 +1294,14 @@ export const hospitalityApi = {
 }
 
 export const hospitalityOpsApi = {
+  staff: async () => (await client.get(`/hospitality/operations/staff`)).data,
   dashboard: async () => (await client.get<ApiResponse<HospitalityOperations>>('/hospitality/operations')).data,
   reservation: async (data:any) => (await client.post('/hospitality/operations/reservations',data)).data,
   reservationStatus: async (id:string,status:string) => (await client.patch(`/hospitality/operations/reservations/${id}/${status}`)).data,
   table: async (id:string,data:any) => (await client.put(`/hospitality/operations/tables/${id}`,data)).data,
   menu: async (productId:string,data:any) => (await client.put(`/hospitality/operations/menu/${productId}`,data)).data,
   ingredient: async (data:any) => (await client.post('/hospitality/operations/ingredients',data)).data,
+  getRecipe: async (productId:string) => (await client.get(`/hospitality/operations/recipes/${productId}`)).data,
   recipe: async (productId:string,lines:any[]) => (await client.put(`/hospitality/operations/recipes/${productId}`,{lines})).data,
   barStock: async (data:any) => (await client.post('/hospitality/operations/bar-stock',data)).data,
   openShift: async (data:any) => (await client.post('/hospitality/operations/shifts/open',data)).data,
