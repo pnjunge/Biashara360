@@ -65,13 +65,14 @@ export default function LoginShiftPrompt() {
   const validFloat=Number.isFinite(Number(float))&&Number(float)>=0&&float.trim()!==''
   return <Modal title="Open your hospitality shift" onClose={()=>{if(!busy)finish()}} footer={<>
     <Btn variant="secondary" disabled={busy} onClick={finish}>Later</Btn>
-    {!state.dayOpen&&state.canOpenDay?<Btn disabled={busy||!validFloat} onClick={()=>act(true)}>{busy?'Opening…':'Open trading day'}</Btn>:state.dayOpen&&state.canStartPersonal&&!state.personalOpen?<Btn disabled={busy} onClick={()=>act(false)}>{busy?'Starting…':'Start my shift'}</Btn>:<Btn disabled={busy} onClick={()=>{setError('');setRetry(n=>n+1)}}>Check again</Btn>}
+    {!state.dayOpen&&state.canOpenDay&&<Btn variant="secondary" disabled={busy||!validFloat} onClick={()=>act(true)}>{busy?'Opening…':'Open trading day'}</Btn>}
+    {state.canStartPersonal&&!state.personalOpen?<Btn disabled={busy} onClick={()=>act(false)}>{busy?'Starting…':'Start my shift'}</Btn>:<Btn disabled={busy} onClick={()=>{setError('');setRetry(n=>n+1)}}>Check again</Btn>}
   </>}>
     <p>Start your shift before taking orders or settling customer bills.</p>
     {error&&<p role="alert" style={{color:'var(--b360-red)'}}>{error}</p>}
     <p>Business trading day: <strong>{state.dayOpen?'Open':'Closed'}</strong></p>
     {state.canStartPersonal&&<p>Your personal shift: <strong>{state.personalOpen?'Open':'Not started'}</strong></p>}
-    {!state.dayOpen&&(state.canOpenDay?<><Input label="Opening cash float (KES)" type="number" value={float} onChange={setFloat}/><p>The trading day is shared by all staff. Opening it does not start each staff member's personal shift.</p></>:<p>Ask your manager to open the business trading day. You can start your personal shift here once the day is open.</p>)}
-    {state.dayOpen&&state.canStartPersonal&&!state.personalOpen&&<p>This starts your own waiter or cashier shift. Your completed orders and collected payments will be tallied when you end it.</p>}
+    {!state.dayOpen&&(state.canOpenDay?<><Input label="Opening cash float (KES)" type="number" value={float} onChange={setFloat}/><p>To record an opening cash float, open the trading day first. Choosing Start my shift directly opens a closed trading day with zero float.</p></>:<p>Start your own shift now. If the trading day is closed, it opens automatically with zero cash float.</p>)}
+    {state.canStartPersonal&&!state.personalOpen&&<p>This starts your own waiter or cashier shift. Your completed orders and collected payments will be tallied when you end it.</p>}
   </Modal>
 }

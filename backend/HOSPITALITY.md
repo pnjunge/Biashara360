@@ -66,7 +66,7 @@ Recipe products derive available portions from their limiting ingredient and con
 
 ## Personal shifts and bill handover
 
-Start your personal shift from Hospitality or Open Tabs. Select unpaid bills and an incoming staff member who is on duty, then request handover. Responsibility transfers only after the recipient accepts. Original serving attribution and earlier payment collectors remain unchanged. Settle or hand over all your unpaid bills before ending your shift.
+Each waiter or cashier starts their own personal shift at login or from Open Tabs. No manager approval is required. If there is no open trading day, the first personal shift opens one with zero cash float; simultaneous staff starts share the same trading day. Managers can open the day with a cash float before staff start. Ending a personal shift leaves the trading day and other users’ shifts open. Select unpaid bills and an incoming staff member who is on duty, then request handover. Responsibility transfers only after the recipient accepts. Original serving attribution and earlier payment collectors remain unchanged. Settle or hand over all your unpaid bills before ending your shift.
 
 End shift saves a tally of completed bills you served, held or settled during that shift. Payment totals include only payments collected by that user, grouped by method. Different staff may have worked on the same bill; do not add their bill values together as business revenue. Closed tallies remain fixed and support CSV download. Managers can review staff tallies in Operations → Shifts. The business day closing and reconciliation remain separate.
 

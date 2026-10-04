@@ -279,7 +279,7 @@ export function PosPage() {
   const handleOpenHospitalityTab = async () => {
     if (cart.length === 0) { setError('Your shopping cart is empty.'); return }
     if (hospitalityEnabled && serviceType === 'DINE_IN' && !selectedTableId) { setError('Select a table before placing a dine-in order.'); return }
-    if(!shiftOpen){setError('Open the business trading day under Hospitality Operations → Shifts before opening a tab.');return}
+    if(!shiftOpen){setError('Start your own shift under Open Tabs before opening a tab. A closed trading day will open automatically with zero cash float.');return}
     if(personalShiftEnded){setError('Your staff shift has ended. Start your staff shift under Open Tabs before opening a new tab.');return}
     setIsOpeningTab(true)
     setError('')
@@ -396,7 +396,7 @@ export function PosPage() {
       </div>
       {hospitalityEnabled && <div className="pos-hospitality-banner"><div><Utensils size={19} /><strong>Hospitality mode active · Unified POS interface</strong></div><button type="button" onClick={() => document.querySelector('.pos-order-context')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>Select a table <ChevronRight size={17} /></button></div>}
 
-      {hospitalityEnabled&&(!shiftOpen||personalShiftEnded)&&<div role="status" style={{padding:12,background:'var(--b360-amber-bg)',borderRadius:8}}>{!shiftOpen&&<p style={{margin:'4px 0'}}>The business trading day is closed. <a href="/hospitality-operations?tab=SHIFTS">Open the trading day</a> or ask your manager to open it.</p>}{personalShiftEnded&&<p style={{margin:'4px 0'}}>Your personal staff shift has ended. <a href="/open-tabs">Start my staff shift</a> before taking new orders.</p>}</div>}
+      {hospitalityEnabled&&(!shiftOpen||personalShiftEnded)&&<div role="status" style={{padding:12,background:'var(--b360-amber-bg)',borderRadius:8}}>{!shiftOpen&&<p style={{margin:'4px 0'}}>The business trading day is closed. <a href="/open-tabs">Start your own shift</a> to begin with zero cash float. Managers can <a href="/hospitality-operations?tab=SHIFTS">Open the trading day</a> with an opening float.</p>}{personalShiftEnded&&<p style={{margin:'4px 0'}}>Your personal staff shift has ended. <a href="/open-tabs">Start my staff shift</a> before taking new orders.</p>}</div>}
 
       {/* ── Card Payment Link Modal ── */}
       {cardModalOrder && (

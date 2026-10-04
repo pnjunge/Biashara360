@@ -27,8 +27,15 @@ class HospitalityDutyService(private val access: AccessControlService = AccessCo
 
     fun startShift(businessId: String, userId: String, request: StaffShiftRequest): StaffShiftResponse = transaction {
         lockBusiness(businessId); require(eligible(businessId,userId)) { "Waiter or cashier access is required" }
-        require(HospitalityShiftsTable.select { (HospitalityShiftsTable.businessId eq businessId) and (HospitalityShiftsTable.status eq "OPEN") }.any()) { "Open the business trading day first" }
         require(openShift(businessId,userId)==null) { "Your staff shift is already open" }
+        if(HospitalityShiftsTable.select { (HospitalityShiftsTable.businessId eq businessId) and (HospitalityShiftsTable.status eq "OPEN") }.none()) {
+            val dayId=generateId()
+            HospitalityShiftsTable.insert {
+                it[id]=dayId;it[HospitalityShiftsTable.businessId]=businessId;it[openedBy]=userId;it[openedAt]=Clock.System.now()
+                it[openingFloat]=0.0;it[tipsTotal]=0.0;it[expensesTotal]=0.0;it[status]="OPEN";it[notes]="Trading day opened by the first personal staff shift; zero cash float"
+            }
+            audit(businessId,userId,"TRADING_DAY_STARTED_BY_STAFF","SHIFT",dayId)
+        }
         val id=generateId()
         HospitalityStaffShiftsTable.insert {
             it[HospitalityStaffShiftsTable.id]=id; it[HospitalityStaffShiftsTable.businessId]=businessId; it[HospitalityStaffShiftsTable.userId]=userId

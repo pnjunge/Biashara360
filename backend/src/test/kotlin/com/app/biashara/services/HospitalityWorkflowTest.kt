@@ -362,6 +362,32 @@ class HospitalityWorkflowTest {
   ops.closeShift("business","manager",shift.id,ShiftCloseRequest(100.0,0.0,0.0))
   assertNull(duty.dashboard("business","manager").shift)
  }
+ @Test fun `staff open their own shifts without manager and concurrent starts open one zero float day`() {
+  val existing=ops.dashboard("business").shifts.single()
+  ops.closeShift("business","manager",existing.id,ShiftCloseRequest(actualCash=0.0,actualMpesa=0.0,actualCard=0.0))
+  transaction {
+   for(code in listOf("hospitality.view","hospitality.orders")) PermissionsTable.insert {it[id]=UUID.randomUUID().toString();it[PermissionsTable.code]=code;it[module]="HOSPITALITY";it[action]="MANAGE";it[name]=code;it[createdAt]=Clock.System.now()}
+   UsersTable.update({UsersTable.businessId eq "business"}){it[role]="STAFF"}
+  }
+  val access=AccessControlService()
+  val role=access.createRole("business",SaveAccessRoleRequest("Waiter personal shifts",allowedMenus=listOf("HOSPITALITY","OPEN_TABS"),permissions=listOf("hospitality.view","hospitality.orders")))
+  transaction { for(user in listOf("staff","manager"))UserAccessRolesTable.insert{it[userId]=user;it[roleId]=role.id} }
+  assertFalse(access.hasPermission("staff","business","hospitality.shifts"))
+  val duty=HospitalityDutyService();val executor=java.util.concurrent.Executors.newFixedThreadPool(2);val start=java.util.concurrent.CountDownLatch(1)
+  try {
+   val attempts=listOf("staff","manager").map { user->executor.submit<StaffShiftResponse>{start.await();duty.startShift("business",user,StaffShiftRequest())} }
+   start.countDown();assertEquals(setOf("staff","manager"),attempts.map{it.get(15,java.util.concurrent.TimeUnit.SECONDS).userId}.toSet())
+  } finally { executor.shutdownNow() }
+  val days=ops.dashboard("business").shifts.filter{it.status=="OPEN"};assertEquals(1,days.size);assertEquals(0.0,days.single().openingFloat)
+  assertEquals(2,transaction{HospitalityStaffShiftsTable.select{HospitalityStaffShiftsTable.status eq "OPEN"}.count()}.toInt())
+  assertFails{duty.startShift("business","staff",StaffShiftRequest())};assertFails{duty.startShift("other","staff",StaffShiftRequest())}
+  assertTrue(tab("meal").items.isNotEmpty())
+  assertFails{duty.endShift("business","staff",StaffShiftRequest())}
+  val order=service.dashboard("business").openTabs.single();service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")
+  duty.endShift("business","staff",StaffShiftRequest())
+  assertNull(duty.dashboard("business","staff").shift);assertNotNull(duty.dashboard("business","manager").shift);assertTrue(ops.dashboard("business").tradingDayOpen)
+ }
+
  @Test fun `staff shift tally counts only this users completed orders and freezes on close`() {
   authorizeDuty();val duty=HospitalityDutyService()
   val before=tab("meal");service.closeTab("business",before.id,CloseHospitalityTabRequest("CASH"),"staff")
