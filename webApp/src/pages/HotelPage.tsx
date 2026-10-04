@@ -37,6 +37,7 @@ const today = () =>
   }).format(new Date());
 function addDays(date: string, days: number) {
   const d = new Date(`${date}T12:00:00Z`);
+  if (!date || Number.isNaN(d.getTime())) return "";
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
