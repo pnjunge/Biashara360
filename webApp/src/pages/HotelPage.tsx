@@ -263,12 +263,15 @@ export default function HotelPage() {
     ]);
     setFolio(f);
     setPayments(p);
+    return f;
   }
-  function openFolio(r: Reservation) {
+  function openFolio(r: Reservation, checkout = false) {
     run(async () => {
-      await refreshFolio(r.id);
-      setEntry({ kind: "CHARGE", description: "", amount: "" });
-      setPayment({ method: "CASH", amount: "" });
+      const f = await refreshFolio(r.id);
+      setEntry(checkout && f.balanceCents < 0 && can("refunds")
+        ? { kind: "CASH_REFUND", description: "Guest credit refunded before checkout", amount: String(-f.balanceCents / 100) }
+        : { kind: "CHARGE", description: "", amount: "" });
+      setPayment({ method: "CASH", amount: checkout && f.balanceCents > 0 ? String(f.balanceCents / 100) : "" });
       setRequestId(crypto.randomUUID());
       setModal("FOLIO");
     });
@@ -550,13 +553,10 @@ export default function HotelPage() {
                             <Btn
                               small
                               disabled={busy}
-                              onClick={() =>
-                                setConfirmation({
-                                  id: r.id,
-                                  action: "check-out",
-                                  name: r.guestName,
-                                })
-                              }
+                              onClick={() => {
+                                if (can("billing")) openFolio(r, true);
+                                else setConfirmation({ id: r.id, action: "check-out", name: r.guestName });
+                              }}
                             >
                               Check Out
                             </Btn>
@@ -1417,6 +1417,31 @@ export default function HotelPage() {
                     {money(folio.totalPaidCents)} ·{" "}
                     <strong>Balance: {money(folio.balanceCents)}</strong>
                   </p>
+                  {folio.reservation.status === "CHECKED_IN" && (
+                    <>
+                      <p role="status">
+                        {folio.balanceCents > 0
+                          ? `Collect ${money(folio.balanceCents)} using the payment form below before checkout.`
+                          : folio.balanceCents < 0
+                            ? `Return the guest credit of ${money(-folio.balanceCents)} before checkout.${can("refunds") ? " Record cash actually returned using Cash refund paid to guest below." : " Ask a user with hotel refund permission to record the refund."}`
+                            : payments.some(p => p.paymentStatus === "PENDING")
+                              ? "Resolve pending payment requests before checkout."
+                              : "The folio is settled and ready for checkout."}
+                      </p>
+                      {can("frontdesk") && (
+                        <Btn disabled={busy || folio.balanceCents !== 0 || payments.some(p => p.paymentStatus === "PENDING")}
+                          onClick={() => run(async () => {
+                            await hotelApi.transition(folio.reservation.id, "check-out");
+                            setModal("");
+                            setFolio(null);
+                            await load();
+                            setMessage("Guest checked out. The room is marked dirty.");
+                          })}>
+                          Complete Checkout
+                        </Btn>
+                      )}
+                    </>
+                  )}
                   <div className="hotel-actions">
                     <Btn
                       small
@@ -1437,7 +1462,7 @@ export default function HotelPage() {
                       small
                       variant="secondary"
                       onClick={() =>
-                        run(() => refreshFolio(folio.reservation.id))
+                        run(async () => { await refreshFolio(folio.reservation.id); })
                       }
                     >
                       Refresh Payments
