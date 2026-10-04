@@ -934,8 +934,10 @@ fun ApplicationCall.branchId(): String? =
 fun ApplicationCall.userRole(): String =
     principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() ?: ""
 
-fun ApplicationCall.hasRole(vararg roles: String): Boolean =
-    userRole() in roles
+fun ApplicationCall.hasRole(vararg roles: String): Boolean {
+    val r = userRole()
+    return r in roles || (("ADMIN" in roles) && r == "BUSINESS_ADMIN")
+}
 
 /**
  * Returns true when the business's enabledModules list contains [module].

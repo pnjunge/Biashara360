@@ -124,13 +124,22 @@ export default function AppShell() {
     return item.to !== '/users' && item.to !== '/settings' && item.to !== '/business' && item.to !== '/cybersource-settings' && item.to !== '/audit-logs'
   })
 
+  const isSuperAdmin = (user?.role || '').toUpperCase() === 'SUPERADMIN'
+  const superAdminNavItems = [
+    { key: 'BUSINESSES', to: '/business', icon: Building2, label: 'Tenants & Platform' },
+    { key: 'USERS', to: '/users', icon: UserPlus, label: 'Platform Users' },
+    { key: 'AUDIT_LOG', to: '/audit-logs', icon: ScrollText, label: 'Platform Audit Log' },
+    { key: 'DOWNLOADS', to: '/downloads', icon: Download, label: 'App Releases' },
+    { key: 'SETTINGS', to: '/settings', icon: Settings, label: 'System Settings' },
+  ]
+
   const visibleTopNavItems = visibleNavItems.filter(item => item.key === 'DASHBOARD' || item.key === 'POS')
   const visibleNavSections = navSectionDefinitions.map(section => ({
     ...section,
     items: section.itemKeys.flatMap(key => visibleNavItems.filter(item => item.key === key))
   })).filter(section => section.items.length > 0)
 
-  const renderNavItem = (item: typeof navItems[number]) => {
+  const renderNavItem = (item: { to?: string; icon: any; label: string; key?: string }) => {
     const Icon = item.icon
     return (
       <NavLink key={item.to} to={item.to!} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`} title={collapsed ? item.label : undefined} onClick={() => setMobileOpen(false)}>
@@ -157,30 +166,43 @@ export default function AppShell() {
             {!collapsed && (
               <div>
                 <div className={styles.logoName}>Biashara360</div>
-                <div className={styles.logoSub}>Business Management</div>
+                <div className={styles.logoSub}>{isSuperAdmin ? 'Platform Management' : 'Business Management'}</div>
               </div>
             )}
           </div>
         </div>
 
         <nav className={styles.nav}>
-          {visibleTopNavItems.map(renderNavItem)}
-          {visibleNavSections.map(section => (
-            <div key={section.key} className={styles.navSection}>
+          {isSuperAdmin ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {!collapsed && (
-                <button
-                  type="button"
-                  className={styles.navSectionHeader}
-                  onClick={() => setOpenSections(current => ({ ...current, [section.key]: !current[section.key] }))}
-                  aria-expanded={openSections[section.key]}
-                >
-                  <span>{section.label}</span>
-                  <ChevronDown size={14} className={`${styles.groupChevron} ${openSections[section.key] ? styles.groupChevronOpen : ''}`} />
-                </button>
+                <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 800, color: 'var(--b360-text-secondary)', letterSpacing: '0.05em' }}>
+                  PLATFORM MANAGEMENT
+                </div>
               )}
-              {(collapsed || openSections[section.key]) && section.items.map(renderNavItem)}
+              {superAdminNavItems.map(renderNavItem)}
             </div>
-          ))}
+          ) : (
+            <>
+              {visibleTopNavItems.map(renderNavItem)}
+              {visibleNavSections.map(section => (
+                <div key={section.key} className={styles.navSection}>
+                  {!collapsed && (
+                    <button
+                      type="button"
+                      className={styles.navSectionHeader}
+                      onClick={() => setOpenSections(current => ({ ...current, [section.key]: !current[section.key] }))}
+                      aria-expanded={openSections[section.key]}
+                    >
+                      <span>{section.label}</span>
+                      <ChevronDown size={14} className={`${styles.groupChevron} ${openSections[section.key] ? styles.groupChevronOpen : ''}`} />
+                    </button>
+                  )}
+                  {(collapsed || openSections[section.key]) && section.items.map(renderNavItem)}
+                </div>
+              ))}
+            </>
+          )}
         </nav>
 
         <div className={styles.sidebarBottom}>

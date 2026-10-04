@@ -382,4 +382,140 @@ class SuperAdminService(private val auditLogService: AuditLogService? = null) {
             message = "User linked to business successfully"
         )
     }
+
+    // ── Super Admin: Subscription Records & MRR ──────────────────────────────
+
+    fun getSubscriptionSummary(): PlatformSubscriptionSummaryResponse = transaction {
+        val now = Clock.System.now()
+        val allBiz = BusinessesTable.selectAll().orderBy(BusinessesTable.createdAt, SortOrder.DESC).toList()
+        val usersCountByBiz = UsersTable.select { UsersTable.isActive eq true }
+            .groupBy { it[UsersTable.businessId] ?: "" }
+            .mapValues { it.value.size }
+
+        val records = allBiz.map { b ->
+            val bId = b[BusinessesTable.id]
+            val tier = b[BusinessesTable.subscriptionTier]
+            val isTrial = b[BusinessesTable.isTrial]
+            val enabled = b[BusinessesTable.subscriptionEnabled]
+            val validUntil = b[BusinessesTable.subscriptionValidUntil]
+            val diffSec = validUntil?.let { v -> v.epochSeconds - now.epochSeconds }
+            val daysRem = if (diffSec != null) (if (diffSec <= 0) 0L else (diffSec + 86399) / 86400) else null
+            val isExpired = validUntil != null && now > validUntil
+            val userCount = usersCountByBiz[bId] ?: 1
+            val maxUsers = b[BusinessesTable.maxUsers]
+
+            // Approximate monthly revenue per tier
+            val mrr = when {
+                !enabled || isExpired -> 0.0
+                isTrial -> 0.0
+                tier.equals("PREMIUM", ignoreCase = true) -> 2500.0 + maxOf(0, userCount - 3) * 500.0
+                tier.equals("ENTERPRISE", ignoreCase = true) -> 7500.0 + maxOf(0, userCount - 10) * 400.0
+                else -> 0.0 // Freemium
+            }
+
+            SubscriptionRecordResponse(
+                businessId = bId,
+                businessName = b[BusinessesTable.name],
+                businessType = b[BusinessesTable.type],
+                ownerEmail = b[BusinessesTable.ownerEmail],
+                ownerPhone = b[BusinessesTable.ownerPhone],
+                subscriptionTier = tier,
+                isTrial = isTrial,
+                subscriptionEnabled = enabled,
+                userCount = userCount,
+                maxUsers = maxUsers,
+                validUntil = validUntil?.toString(),
+                daysRemaining = daysRem,
+                isExpired = isExpired,
+                monthlyRevenue = mrr,
+                createdAt = b[BusinessesTable.createdAt].toString()
+            )
+        }
+
+        val totalTenants = records.size
+        val activeSubscriptions = records.count { it.subscriptionEnabled && !it.isExpired }
+        val trialSubscriptions = records.count { it.isTrial && !it.isExpired }
+        val expiredSubscriptions = records.count { it.isExpired }
+        val totalEstimatedMRR = records.sumOf { it.monthlyRevenue }
+
+        PlatformSubscriptionSummaryResponse(
+            totalTenants = totalTenants,
+            activeSubscriptions = activeSubscriptions,
+            trialSubscriptions = trialSubscriptions,
+            expiredSubscriptions = expiredSubscriptions,
+            totalEstimatedMRR = totalEstimatedMRR,
+            subscriptions = records
+        )
+    }
+
+    // ── Super Admin: Platform Operating Expenses ─────────────────────────────
+
+    fun getPlatformExpenses(): PlatformExpensesSummaryResponse = transaction {
+        val rows = com.app.biashara.db.PlatformExpensesTable.selectAll()
+            .orderBy(com.app.biashara.db.PlatformExpensesTable.expenseDate, SortOrder.DESC)
+            .toList()
+
+        val expenses = rows.map { r ->
+            PlatformExpenseResponse(
+                id = r[com.app.biashara.db.PlatformExpensesTable.id],
+                title = r[com.app.biashara.db.PlatformExpensesTable.title],
+                category = r[com.app.biashara.db.PlatformExpensesTable.category],
+                amount = r[com.app.biashara.db.PlatformExpensesTable.amount],
+                currency = r[com.app.biashara.db.PlatformExpensesTable.currency],
+                vendor = r[com.app.biashara.db.PlatformExpensesTable.vendor],
+                expenseDate = r[com.app.biashara.db.PlatformExpensesTable.expenseDate].toString(),
+                notes = r[com.app.biashara.db.PlatformExpensesTable.notes],
+                createdBy = r[com.app.biashara.db.PlatformExpensesTable.createdBy],
+                createdAt = r[com.app.biashara.db.PlatformExpensesTable.createdAt].toString()
+            )
+        }
+
+        val total = expenses.sumOf { it.amount }
+        val byCat = expenses.groupBy { it.category }.mapValues { it.value.sumOf { exp -> exp.amount } }
+
+        PlatformExpensesSummaryResponse(
+            totalAmount = total,
+            currency = "KES",
+            byCategory = byCat,
+            expenses = expenses
+        )
+    }
+
+    fun createPlatformExpense(req: CreatePlatformExpenseRequest, createdByUserId: String?): ApiResponse<PlatformExpenseResponse> = transaction {
+        if (req.title.isBlank() || req.amount <= 0) {
+            return@transaction ApiResponse(false, message = "Expense title and positive amount are required")
+        }
+        val id = generateId()
+        val now = Clock.System.now()
+        val parsedDate = req.expenseDate?.let { parseInstantOrDate(it) } ?: now
+
+        com.app.biashara.db.PlatformExpensesTable.insert {
+            it[com.app.biashara.db.PlatformExpensesTable.id] = id
+            it[title] = req.title.trim()
+            it[category] = req.category.trim().uppercase()
+            it[amount] = req.amount
+            it[currency] = req.currency.trim().uppercase()
+            it[vendor] = req.vendor.trim()
+            it[expenseDate] = parsedDate
+            it[notes] = req.notes.trim()
+            it[createdBy] = createdByUserId
+            it[createdAt] = now
+        }
+
+        val inserted = com.app.biashara.db.PlatformExpensesTable.select { com.app.biashara.db.PlatformExpensesTable.id eq id }.first()
+        val resp = PlatformExpenseResponse(
+            id = inserted[com.app.biashara.db.PlatformExpensesTable.id],
+            title = inserted[com.app.biashara.db.PlatformExpensesTable.title],
+            category = inserted[com.app.biashara.db.PlatformExpensesTable.category],
+            amount = inserted[com.app.biashara.db.PlatformExpensesTable.amount],
+            currency = inserted[com.app.biashara.db.PlatformExpensesTable.currency],
+            vendor = inserted[com.app.biashara.db.PlatformExpensesTable.vendor],
+            expenseDate = inserted[com.app.biashara.db.PlatformExpensesTable.expenseDate].toString(),
+            notes = inserted[com.app.biashara.db.PlatformExpensesTable.notes],
+            createdBy = inserted[com.app.biashara.db.PlatformExpensesTable.createdBy],
+            createdAt = inserted[com.app.biashara.db.PlatformExpensesTable.createdAt].toString()
+        )
+        auditLogService?.logEvent(null, createdByUserId, null, "CREATE_PLATFORM_EXPENSE", null, "Recorded platform expense ${req.title} of KES ${req.amount}", "PLATFORM_EXPENSE", id)
+        ApiResponse(true, data = resp, message = "Platform expense recorded successfully")
+    }
 }

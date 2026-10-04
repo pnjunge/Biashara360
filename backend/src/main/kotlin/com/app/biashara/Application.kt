@@ -115,6 +115,7 @@ fun Application.module() {
             socialWebhookRoutes()
             publicReceiptRoutes()
             publicAppReleaseRoutes()
+            promotionsAndLedgerPublicRoutes()
 
             // Protected routes (JWT required)
             authenticate("jwt-auth") {
@@ -145,6 +146,7 @@ fun Application.module() {
                 businessProfileRoutes()
                 branchRoutes()
                 reportScheduleRoutes()
+                promotionsAndLedgerProtectedRoutes()
             }
         }
     }

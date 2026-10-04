@@ -128,7 +128,7 @@ class AuthService(
             it[type] = req.businessType
             it[ownerPhone] = req.phone
             it[ownerEmail] = req.email
-            it[maxUsers] = req.userCount.coerceAtLeast(1)
+            it[maxUsers] = maxOf(req.userCount, 10) // Allow 10 users during trial period
             it[subscriptionTier] = "TRIAL"
             it[subscriptionEnabled] = true
             it[BusinessesTable.isTrial] = true
@@ -167,6 +167,59 @@ class AuthService(
             it[updatedAt] = now
         }
 
+        UserBranchesTable.insert {
+            it[UserBranchesTable.userId] = userId
+            it[UserBranchesTable.branchId] = branchId
+            it[isPrimary] = true
+        }
+
+        // Seed default access roles for the new business and assign Business Admin role to the creator
+        val adminRoleId = generateId()
+        AccessRolesTable.insert {
+            it[id] = adminRoleId
+            it[AccessRolesTable.businessId] = businessId
+            it[name] = "Business Admin"
+            it[description] = "Full management access to store operations, team members, finance, and settings"
+            it[allowedMenus] = "DASHBOARD,POS,HOSPITALITY,HOSPITALITY_OPS,SERVICES,OPEN_TABS,INVENTORY,PURCHASES,ORDERS,CUSTOMERS,EXPENSES,PAYMENTS,CARD_PAYMENTS,TAX,KRA,SOCIAL,SOCIAL_SETUP,USERS,AUDIT_LOG,REPORTS,DOWNLOADS,SETTINGS,ACCOUNTING"
+            it[isActive] = true
+            it[createdAt] = now
+            it[updatedAt] = now
+        }
+
+        UserAccessRolesTable.insert {
+            it[UserAccessRolesTable.userId] = userId
+            it[UserAccessRolesTable.roleId] = adminRoleId
+        }
+
+        // Assign permissions to the Business Admin role
+        val allPermIds = PermissionsTable.selectAll().map { it[PermissionsTable.id] }
+        for (pId in allPermIds) {
+            RolePermissionsTable.insert {
+                it[roleId] = adminRoleId
+                it[permissionId] = pId
+            }
+        }
+
+        // Seed standard staff roles for the new business
+        val standardRoles = listOf(
+            Triple("Manager", "Assigned outlets, orders, inventory and operational reports", "DASHBOARD,POS,HOSPITALITY,SERVICES,OPEN_TABS,INVENTORY,ORDERS,CUSTOMERS,EXPENSES,PAYMENTS,REPORTS"),
+            Triple("Cashier", "Point of sale, customer checkouts, payments and receipts", "POS,OPEN_TABS,PAYMENTS,CARD_PAYMENTS,ORDERS,CUSTOMERS"),
+            Triple("Kitchen/Order Staff", "Kitchen display, bar tickets and order preparation", "HOSPITALITY,OPEN_TABS,ORDERS")
+        )
+        for ((rName, rDesc, rMenus) in standardRoles) {
+            val rId = generateId()
+            AccessRolesTable.insert {
+                it[id] = rId
+                it[AccessRolesTable.businessId] = businessId
+                it[name] = rName
+                it[description] = rDesc
+                it[allowedMenus] = rMenus
+                it[isActive] = true
+                it[createdAt] = now
+                it[updatedAt] = now
+            }
+        }
+
         val userResp = UserResponse(
             id = userId,
             name = req.name,
@@ -177,7 +230,9 @@ class AuthService(
             preferredLanguage = "ENGLISH",
             businessName = req.businessName,
             branchId = branchId,
-            branchName = branchName
+            branchName = branchName,
+            assignedRoles = listOf("Business Admin"),
+            assignedRoleIds = listOf(adminRoleId)
         )
         ApiResponse(success = true, data = userResp, message = "Registration successful")
     }

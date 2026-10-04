@@ -1761,6 +1761,75 @@ export const superAdminApi = {
     const res = await client.post<ApiResponse<void>>('/admin/email/test', { email })
     return res.data
   },
+  getSubscriptions: async () => {
+    const res = await client.get<ApiResponse<PlatformSubscriptionSummaryResponse>>('/admin/subscriptions')
+    return res.data
+  },
+  getPlatformExpenses: async () => {
+    const res = await client.get<ApiResponse<PlatformExpensesSummaryResponse>>('/admin/platform-expenses')
+    return res.data
+  },
+  createPlatformExpense: async (data: CreatePlatformExpenseRequest) => {
+    const res = await client.post<ApiResponse<PlatformExpenseResponse>>('/admin/platform-expenses', data)
+    return res.data
+  },
+}
+
+export interface SubscriptionRecordResponse {
+  businessId: string
+  businessName: string
+  businessType: string
+  ownerEmail: string
+  ownerPhone: string
+  subscriptionTier: string
+  isTrial: boolean
+  subscriptionEnabled: boolean
+  userCount: number
+  maxUsers: number
+  validUntil: string | null
+  daysRemaining: number | null
+  isExpired: boolean
+  monthlyRevenue: number
+  createdAt: string
+}
+
+export interface PlatformSubscriptionSummaryResponse {
+  totalTenants: number
+  activeSubscriptions: number
+  trialSubscriptions: number
+  expiredSubscriptions: number
+  totalEstimatedMRR: number
+  subscriptions: SubscriptionRecordResponse[]
+}
+
+export interface PlatformExpenseResponse {
+  id: string
+  title: string
+  category: string
+  amount: number
+  currency: string
+  vendor: string
+  expenseDate: string
+  notes: string
+  createdBy: string | null
+  createdAt: string
+}
+
+export interface CreatePlatformExpenseRequest {
+  title: string
+  category: string
+  amount: number
+  currency?: string
+  vendor?: string
+  expenseDate?: string
+  notes?: string
+}
+
+export interface PlatformExpensesSummaryResponse {
+  totalAmount: number
+  currency: string
+  byCategory: Record<string, number>
+  expenses: PlatformExpenseResponse[]
 }
 
 export const adminApi = superAdminApi

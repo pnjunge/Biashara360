@@ -403,7 +403,7 @@ export function SettingsPage() {
         ...(mpPassKey.trim() ? { passKey: mpPassKey.trim() } : {}),
         environment: mpEnvironment,
         accountType: mpAccountType,
-        callbackUrl: mpCallbackUrl
+        callbackUrl: mpCallbackUrl.trim() || 'https://api.biashara360.co.ke/v1/payments/mpesa/callback'
       })
       if (res.success) {
         if (res.data) {
@@ -1093,36 +1093,30 @@ export function SettingsPage() {
                   value={mpAccountType}
                   onChange={setMpAccountType}
                   options={[
-                    { value: 'paybill', label: mpChannels.some(c => c.accountType === 'paybill') ? 'Paybill — Configured' : 'Paybill — Not configured' },
-                    { value: 'till', label: mpChannels.some(c => c.accountType === 'till') ? 'Till — Not configured' : 'Till — Configured' }
+                    { value: 'till', label: mpChannels.some(c => c.accountType === 'till') ? 'Till Number (Buy Goods) — Configured' : 'Till Number (Buy Goods) — Not configured' },
+                    { value: 'paybill', label: mpChannels.some(c => c.accountType === 'paybill') ? 'Paybill Number — Configured' : 'Paybill Number — Not configured' }
                   ]}
                 />
                 <Input
-                  label={mpPasskeyConfigured ? 'Replace Lipa na M-Pesa Passkey' : 'Lipa na M-Pesa Passkey *'}
+                  label={mpAccountType === 'till' ? 'Till Number (Buy Goods) *' : 'Business Paybill Shortcode *'}
+                  value={mpShortCode}
+                  onChange={setMpShortCode}
+                  placeholder={mpAccountType === 'till' ? 'e.g. 842109' : 'e.g. 174379'}
+                />
+                <Input
+                  label={mpPasskeyConfigured ? 'Replace Lipa na M-Pesa Passkey' : 'Lipa na M-Pesa Passkey (Optional for Till / Sandbox)'}
                   value={mpPassKey}
                   onChange={setMpPassKey}
                   type="password"
                   placeholder={mpPasskeyConfigured ? '••••••••••••••••' : 'Enter passkey from Safaricom'}
-                />
-                <Input
-                  label="Business Shortcode (Paybill / Till) *"
-                  value={mpShortCode}
-                  onChange={setMpShortCode}
-                  placeholder="e.g. 174379"
-                />
-                <Input
-                  label="Callback URL *"
-                  value={mpCallbackUrl}
-                  onChange={setMpCallbackUrl}
-                  placeholder="https://api.biashara360.co.ke/v1/payments/mpesa/callback"
                 />
                 <Select
                   label="Environment"
                   value={mpEnvironment}
                   onChange={setMpEnvironment}
                   options={[
-                    { value: 'sandbox', label: 'Sandbox' },
-                    { value: 'production', label: 'Production' }
+                    { value: 'sandbox', label: 'Sandbox (Test Mode)' },
+                    { value: 'production', label: 'Production (Live Daraja)' }
                   ]}
                 />
               </Section>

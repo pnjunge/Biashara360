@@ -61,26 +61,37 @@ class MpesaService(
     private val defaultResultUrl get() = config.propertyOrNull("mpesa.resultUrl")?.getString() ?: ""
     private val defaultTimeoutUrl get() = config.propertyOrNull("mpesa.timeoutUrl")?.getString() ?: ""
 
+    private val defaultPassKey get() =
+        config.propertyOrNull("mpesa.passKey")?.getString()
+            ?: (if (defaultIsSandbox) "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919" else "")
+
     private fun resolveConfig(businessId: String?, accountType: String? = null): MpesaRuntimeConfig {
+        val bizPassKey = passKeyForBusiness(businessId)
+        val sandboxPassKey = if (defaultIsSandbox) defaultPassKey else ""
         if (businessId != null && settingsService != null) {
             val dbConfig = settingsService.loadMpesaConfigForBusiness(businessId, accountType)
-            if (dbConfig != null) return dbConfig.copy(
-                consumerKey = defaultConsumerKey,
-                consumerSecret = defaultConsumerSecret,
-                passKey = dbConfig.passKey.ifBlank { passKeyForBusiness(businessId) },
-                callbackUrl = defaultCallbackUrl,
-                initiatorName = defaultInitiatorName,
-                initiatorPassword = defaultInitiatorPassword,
-                certificateBase64 = defaultCertificateBase64,
-                resultUrl = defaultResultUrl,
-                timeoutUrl = defaultTimeoutUrl
-            )
+            if (dbConfig != null) {
+                val resolvedPass = dbConfig.passKey.ifBlank { bizPassKey }.ifBlank {
+                    if (dbConfig.isSandbox || defaultIsSandbox) defaultPassKey else ""
+                }
+                return dbConfig.copy(
+                    consumerKey = dbConfig.consumerKey.ifBlank { defaultConsumerKey },
+                    consumerSecret = dbConfig.consumerSecret.ifBlank { defaultConsumerSecret },
+                    passKey = resolvedPass,
+                    callbackUrl = dbConfig.callbackUrl.ifBlank { defaultCallbackUrl },
+                    initiatorName = defaultInitiatorName,
+                    initiatorPassword = defaultInitiatorPassword,
+                    certificateBase64 = defaultCertificateBase64,
+                    resultUrl = defaultResultUrl,
+                    timeoutUrl = defaultTimeoutUrl
+                )
+            }
         }
         return MpesaRuntimeConfig(
             consumerKey    = defaultConsumerKey,
             consumerSecret = defaultConsumerSecret,
             shortCode      = defaultShortCode,
-            passKey        = passKeyForBusiness(businessId),
+            passKey        = bizPassKey.ifBlank { sandboxPassKey },
             callbackUrl    = defaultCallbackUrl,
             isSandbox      = defaultIsSandbox,
             accountType    = defaultAccountType,
@@ -144,7 +155,7 @@ class MpesaService(
             val missing = validateConfig(cfg)
             if (missing.isNotEmpty()) {
                 return StkPushResult.Error(
-                    "M-Pesa is not configured. Update: ${missing.joinToString(", ")}"
+                    "M-Pesa payment gateway is not yet configured (${missing.joinToString(", ")}). Please configure your Till/Paybill in Settings > M-Pesa or contact support."
                 )
             }
             val token = getAccessToken(cfg)
@@ -219,11 +230,11 @@ class MpesaService(
 
     private fun validateConfig(cfg: MpesaRuntimeConfig): List<String> {
         val missing = mutableListOf<String>()
-        if (cfg.consumerKey.isBlank() || cfg.consumerKey.contains("your_")) missing += "MPESA_CONSUMER_KEY"
-        if (cfg.consumerSecret.isBlank() || cfg.consumerSecret.contains("your_")) missing += "MPESA_CONSUMER_SECRET"
-        if (cfg.passKey.isBlank() || cfg.passKey.contains("your_")) missing += "MPESA_PASSKEYS_JSON[merchant]"
-        if (cfg.shortCode.isBlank() || cfg.shortCode.contains("your_")) missing += "MPESA_SHORT_CODE"
-        if (cfg.callbackUrl.isBlank() || cfg.callbackUrl.contains("your-domain")) missing += "MPESA_CALLBACK_URL"
+        if (cfg.consumerKey.isBlank() || cfg.consumerKey.contains("your_")) missing += "Consumer Key"
+        if (cfg.consumerSecret.isBlank() || cfg.consumerSecret.contains("your_")) missing += "Consumer Secret"
+        if (cfg.shortCode.isBlank() || cfg.shortCode.contains("your_")) missing += "Shortcode / Till"
+        if (cfg.passKey.isBlank() || cfg.passKey.contains("your_")) missing += "Passkey"
+        if (cfg.callbackUrl.isBlank() || cfg.callbackUrl.contains("your-domain")) missing += "Callback URL"
         return missing
     }
 
@@ -231,14 +242,14 @@ class MpesaService(
         return try {
             val cfg = resolveConfig(businessId)
             val missing = mutableListOf<String>()
-            if (cfg.shortCode.isBlank()) missing += "MPESA_SHORT_CODE"
-            if (cfg.passKey.isBlank()) missing += "MPESA_PASSKEYS_JSON[merchant]"
-            if (cfg.initiatorName.isBlank()) missing += "MPESA_INITIATOR_NAME"
-            if (cfg.initiatorPassword.isBlank()) missing += "MPESA_INITIATOR_PASSWORD"
-            if (cfg.certificateBase64.isBlank()) missing += "MPESA_CERTIFICATE_BASE64"
-            if (cfg.resultUrl.isBlank()) missing += "MPESA_RESULT_URL"
-            if (cfg.timeoutUrl.isBlank()) missing += "MPESA_TIMEOUT_URL"
-            if (missing.isNotEmpty()) return TransactionQueryResult(false, "M-Pesa transaction query is not configured. Update: ${missing.joinToString(", ")}")
+            if (cfg.shortCode.isBlank()) missing += "Shortcode / Till"
+            if (cfg.passKey.isBlank()) missing += "Passkey"
+            if (cfg.initiatorName.isBlank()) missing += "Initiator Name"
+            if (cfg.initiatorPassword.isBlank()) missing += "Initiator Password"
+            if (cfg.certificateBase64.isBlank()) missing += "Security Certificate"
+            if (cfg.resultUrl.isBlank()) missing += "Result URL"
+            if (cfg.timeoutUrl.isBlank()) missing += "Timeout URL"
+            if (missing.isNotEmpty()) return TransactionQueryResult(false, "M-Pesa transaction query is not configured. Required: ${missing.joinToString(", ")}")
 
             val token = getAccessToken(cfg)
             val certBytes = Base64.getDecoder().decode(cfg.certificateBase64)

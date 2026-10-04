@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer, ArrowRightLeft, Shield, MapPin, Clock, Calendar } from 'lucide-react'
+import { Plus, Share2, FileText, Table, Building2, Copy, ExternalLink, Mail, Printer, ArrowRightLeft, Shield, MapPin, Clock, Calendar, TrendingUp, DollarSign, Server, AlertCircle } from 'lucide-react'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, ProgressBar, KpiCard, Modal, Input, Select } from '../components/ui'
-import { expenseApi, paymentApi, orderApi, reportApi, customerApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, CustomerResponse, userApi, superAdminApi, businessApi, accessApi, branchApi, AccessConfig, AuditLogResponse, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest, BranchResponse } from '../services/api'
+import { expenseApi, paymentApi, orderApi, reportApi, customerApi, ExpenseResponse, PaymentResponse, OrderResponse, ProfitSummaryResponse, PaymentReportResponse, OrderReportResponse, CustomerResponse, userApi, superAdminApi, businessApi, accessApi, branchApi, AccessConfig, AuditLogResponse, BusinessResponse, BusinessProfileRequest, BusinessProfileResponse, UserResponse, InviteUserRequest, BranchResponse, PlatformSubscriptionSummaryResponse, PlatformExpensesSummaryResponse, CreatePlatformExpenseRequest } from '../services/api'
 import { useAuth } from '../App'
 import { ShareableReport, downloadReportCsv, emailReport, printReport, whatsappReport } from '../utils/reportShare'
 import { ReportSchedulerModal } from '../components/reports/ReportSchedulerModal'
@@ -2010,6 +2010,84 @@ export function BusinessPage() {
     } finally { setBizFormSaving(false) }
   }
 
+  // ── SuperAdmin: Subscription Records & Platform Expenses ──
+  const [adminTab, setAdminTab] = useState<'businesses' | 'subscriptions' | 'expenses'>('businesses')
+  const [subSummary, setSubSummary] = useState<PlatformSubscriptionSummaryResponse | null>(null)
+  const [subLoading, setSubLoading] = useState(false)
+  const [subError, setSubError] = useState('')
+
+  const [expSummary, setExpSummary] = useState<PlatformExpensesSummaryResponse | null>(null)
+  const [expLoading, setExpLoading] = useState(false)
+  const [expError, setExpError] = useState('')
+
+  const [showAddExpense, setShowAddExpense] = useState(false)
+  const [expForm, setExpForm] = useState<CreatePlatformExpenseRequest>({
+    title: '',
+    category: 'INFRASTRUCTURE',
+    amount: 0,
+    vendor: '',
+    notes: ''
+  })
+  const [expSaving, setExpSaving] = useState(false)
+  const [expFormError, setExpFormError] = useState('')
+
+  const loadSubscriptions = () => {
+    setSubLoading(true)
+    setSubError('')
+    superAdminApi.getSubscriptions()
+      .then(res => {
+        if (res.success && res.data) setSubSummary(res.data)
+        else setSubError(res.message || 'Failed to load subscription records')
+      })
+      .catch(() => setSubError('Network error loading subscriptions'))
+      .finally(() => setSubLoading(false))
+  }
+
+  const loadPlatformExpenses = () => {
+    setExpLoading(true)
+    setExpError('')
+    superAdminApi.getPlatformExpenses()
+      .then(res => {
+        if (res.success && res.data) setExpSummary(res.data)
+        else setExpError(res.message || 'Failed to load platform expenses')
+      })
+      .catch(() => setExpError('Network error loading platform expenses'))
+      .finally(() => setExpLoading(false))
+  }
+
+  const handleCreatePlatformExpense = async () => {
+    if (!expForm.title.trim() || Number(expForm.amount) <= 0) {
+      setExpFormError('Title and positive amount are required.')
+      return
+    }
+    setExpSaving(true)
+    setExpFormError('')
+    try {
+      const res = await superAdminApi.createPlatformExpense({
+        ...expForm,
+        amount: Number(expForm.amount)
+      })
+      if (res.success) {
+        setShowAddExpense(false)
+        setExpForm({ title: '', category: 'INFRASTRUCTURE', amount: 0, vendor: '', notes: '' })
+        loadPlatformExpenses()
+      } else {
+        setExpFormError(res.message || 'Failed to save platform expense.')
+      }
+    } catch (e: any) {
+      setExpFormError(e.response?.data?.message || 'Network error saving expense.')
+    } finally {
+      setExpSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      if (adminTab === 'subscriptions') loadSubscriptions()
+      if (adminTab === 'expenses') loadPlatformExpenses()
+    }
+  }, [adminTab, isSuperAdmin])
+
   useEffect(() => {
     if (isSuperAdmin) {
       setBizLoading(true)
@@ -2079,137 +2157,364 @@ export function BusinessPage() {
     }
   }
 
-  // ── SuperAdmin view: list of all businesses ──
+  // ── SuperAdmin view: multi-tab platform management ──
   if (isSuperAdmin) {
     const BIZ_TYPES = BUSINESS_TYPE_OPTIONS
+    const PLATFORM_EXP_CATS = [
+      { value: 'INFRASTRUCTURE', label: 'Cloud Infrastructure / Hosting' },
+      { value: 'API_FEES', label: 'Daraja / Banking API Fees' },
+      { value: 'SMS_GATEWAY', label: 'SMS & OTP Delivery' },
+      { value: 'DOMAIN_SSL', label: 'Domain & Security / SSL' },
+      { value: 'SUPPORT', label: 'Support & Operations' },
+      { value: 'GENERAL', label: 'General Administrative' },
+    ]
+
     return (
       <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-        {/* Create Business Modal — name & type only */}
-        {showCreateBiz && (
-          <Modal
-            title="Add Business"
-            onClose={() => { setShowCreateBiz(false); setBizForm({ businessName: '', businessType: 'RETAIL' }); setBizFormError('') }}
-            footer={
-              <>
-                <Btn variant="secondary" onClick={() => { setShowCreateBiz(false); setBizFormError('') }}>Cancel</Btn>
-                <Btn onClick={handleCreateBusiness} disabled={bizFormSaving}>{bizFormSaving ? 'Creating...' : 'Add Business'}</Btn>
-              </>
-            }
+        {/* Navigation Tabs for Platform Management */}
+        <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--b360-border)', paddingBottom: 10 }}>
+          <button
+            type="button"
+            onClick={() => setAdminTab('businesses')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: 13,
+              background: adminTab === 'businesses' ? 'var(--b360-primary)' : 'transparent',
+              color: adminTab === 'businesses' ? 'white' : 'var(--b360-text-secondary)',
+              transition: 'all 0.15s ease'
+            }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {bizFormError && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{bizFormError}</div>}
-              <Input
-                label="Business Name *"
-                value={bizForm.businessName}
-                onChange={v => setBizForm(p => ({ ...p, businessName: v }))}
-                placeholder="e.g. Kamau Supplies"
-              />
-              <Select
-                label="Business Type *"
-                value={bizForm.businessType}
-                onChange={v => setBizForm(p => ({ ...p, businessType: v }))}
-                options={BIZ_TYPES}
-              />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                <input
-                  type="checkbox"
-                  id="createBizTrial"
-                  checked={bizFormTrial}
-                  onChange={e => setBizFormTrial(e.target.checked)}
+            🏢 Tenants & Businesses ({businesses.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('subscriptions')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: 13,
+              background: adminTab === 'subscriptions' ? 'var(--b360-primary)' : 'transparent',
+              color: adminTab === 'subscriptions' ? 'white' : 'var(--b360-text-secondary)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            📊 Subscriptions & MRR
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('expenses')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: 13,
+              background: adminTab === 'expenses' ? 'var(--b360-primary)' : 'transparent',
+              color: adminTab === 'expenses' ? 'white' : 'var(--b360-text-secondary)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            💳 Platform Operating Expenses
+          </button>
+        </div>
+
+        {/* ── TAB 1: TENANTS & BUSINESSES ── */}
+        {adminTab === 'businesses' && (
+          <>
+            {showCreateBiz && (
+              <Modal
+                title="Add Business"
+                onClose={() => { setShowCreateBiz(false); setBizForm({ businessName: '', businessType: 'RETAIL' }); setBizFormError('') }}
+                footer={
+                  <>
+                    <Btn variant="secondary" onClick={() => { setShowCreateBiz(false); setBizFormError('') }}>Cancel</Btn>
+                    <Btn onClick={handleCreateBusiness} disabled={bizFormSaving}>{bizFormSaving ? 'Creating...' : 'Add Business'}</Btn>
+                  </>
+                }
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {bizFormError && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{bizFormError}</div>}
+                  <Input
+                    label="Business Name *"
+                    value={bizForm.businessName}
+                    onChange={v => setBizForm(p => ({ ...p, businessName: v }))}
+                    placeholder="e.g. Kamau Supplies"
+                  />
+                  <Select
+                    label="Business Type *"
+                    value={bizForm.businessType}
+                    onChange={v => setBizForm(p => ({ ...p, businessType: v }))}
+                    options={BIZ_TYPES}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    <input
+                      type="checkbox"
+                      id="createBizTrial"
+                      checked={bizFormTrial}
+                      onChange={e => setBizFormTrial(e.target.checked)}
+                    />
+                    <label htmlFor="createBizTrial" style={{ fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      Start with 14-day Free Trial (10 Users included)
+                    </label>
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--b360-text-secondary)', margin: 0 }}>
+                    💡 You can add admin users to this business from the <strong>Users</strong> menu after creation.
+                  </p>
+                </div>
+              </Modal>
+            )}
+
+            <PageHeader
+              title="Tenant Businesses"
+              action={<Btn icon={<Building2 size={14} />} onClick={() => { setBizFormError(''); setShowCreateBiz(true) }}>Add Business</Btn>}
+            />
+            <Card style={{ padding: 0 }}>
+              {bizLoading ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading businesses…</div>
+              ) : bizError ? (
+                <div style={{ padding: 24, color: 'var(--b360-red)' }}>{bizError}</div>
+              ) : businesses.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Click "Add Business" to create one.</div>
+              ) : (
+                <DataTable
+                  headers={['Business Name', 'Type', 'Plan & Trial', 'Expiry / Validity', 'Subscription', 'Business', 'Created', 'Actions']}
+                  rows={businesses.map(b => [
+                    b.name,
+                    b.type,
+                    <div key="tier" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <select
+                        value={b.subscriptionTier}
+                        onChange={event => handleSubscriptionChange(b, b.subscriptionEnabled, event.target.value)}
+                        style={{ padding: '6px 8px', borderRadius: 7, fontSize: 12 }}
+                      >
+                        <option value="FREEMIUM">Freemium</option>
+                        <option value="TRIAL">Trial</option>
+                        <option value="PREMIUM">Premium</option>
+                      </select>
+                      {b.isTrial && (
+                        <span style={{
+                          background: '#fef3c7',
+                          color: '#b45309',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          fontSize: 10,
+                          fontWeight: 800
+                        }}>
+                          TRIAL (10 SEATS)
+                        </span>
+                      )}
+                    </div>,
+                    <div key="validity">
+                      {b.isExpired ? (
+                        <div>
+                          <span style={{ color: 'var(--b360-red)', fontWeight: 700, fontSize: 12 }}>Expired</span>
+                          <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{b.subscriptionValidUntil ? new Date(b.subscriptionValidUntil).toLocaleDateString() : ''}</div>
+                        </div>
+                      ) : b.subscriptionValidUntil ? (
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 12, color: (b.daysRemaining != null && b.daysRemaining <= 3) ? 'var(--b360-red)' : 'var(--b360-green)' }}>
+                            {b.daysRemaining != null ? `${b.daysRemaining}d left` : 'Active'}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Until {new Date(b.subscriptionValidUntil).toLocaleDateString()}</div>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>Unlimited</span>
+                      )}
+                    </div>,
+                    <StatusBadge key="subscription" status={b.subscriptionEnabled ? 'ACTIVE' : 'INACTIVE'} />,
+                    <StatusBadge key="status" status={b.isActive ? 'ACTIVE' : 'INACTIVE'} />,
+                    new Date(b.createdAt).toLocaleDateString(),
+                    <div key="actions" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <Btn variant="primary" small icon={<Calendar size={13} />} onClick={() => setExtendingBiz(b)}>
+                        Extend Period
+                      </Btn>
+                      <Btn variant={b.subscriptionEnabled ? 'danger' : 'secondary'} small onClick={() => handleSubscriptionChange(b, !b.subscriptionEnabled)}>
+                        {b.subscriptionEnabled ? 'Disable' : 'Enable'}
+                      </Btn>
+                      <Btn variant={b.isActive ? 'danger' : 'secondary'} small onClick={() => handleToggleBusinessStatus(b.id, !b.isActive)}>
+                        {b.isActive ? 'Deactivate' : 'Activate'}
+                      </Btn>
+                    </div>,
+                  ])}
                 />
-                <label htmlFor="createBizTrial" style={{ fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  Start with 14-day Free Trial
-                </label>
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--b360-text-secondary)', margin: 0 }}>
-                💡 You can add admin users to this business from the <strong>Users</strong> menu after creation.
-              </p>
-            </div>
-          </Modal>
+              )}
+            </Card>
+            {extendingBiz && (
+              <ExtendSubscriptionModal
+                business={extendingBiz}
+                onClose={() => setExtendingBiz(null)}
+                onSuccess={updated => setBusinesses(prev => prev.map(b => b.id === updated.id ? updated : b))}
+              />
+            )}
+          </>
         )}
 
-        <PageHeader
-          title="Businesses"
-          action={<Btn icon={<Building2 size={14} />} onClick={() => { setBizFormError(''); setShowCreateBiz(true) }}>Add Business</Btn>}
-        />
-        <Card style={{ padding: 0 }}>
-          {bizLoading ? (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading businesses…</div>
-          ) : bizError ? (
-            <div style={{ padding: 24, color: 'var(--b360-red)' }}>{bizError}</div>
-          ) : businesses.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>No businesses yet. Click "Add Business" to create one.</div>
-          ) : (
-            <DataTable
-              headers={['Business Name', 'Type', 'Plan & Trial', 'Expiry / Validity', 'Subscription', 'Business', 'Created', 'Actions']}
-              rows={businesses.map(b => [
-                b.name,
-                b.type,
-                <div key="tier" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <select
-                    value={b.subscriptionTier}
-                    onChange={event => handleSubscriptionChange(b, b.subscriptionEnabled, event.target.value)}
-                    style={{ padding: '6px 8px', borderRadius: 7, fontSize: 12 }}
-                  >
-                    <option value="FREEMIUM">Freemium</option>
-                    <option value="TRIAL">Trial</option>
-                    <option value="PREMIUM">Premium</option>
-                  </select>
-                  {b.isTrial && (
-                    <span style={{
-                      background: '#fef3c7',
-                      color: '#b45309',
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      fontSize: 10,
-                      fontWeight: 800
-                    }}>
-                      TRIAL
-                    </span>
-                  )}
-                </div>,
-                <div key="validity">
-                  {b.isExpired ? (
-                    <div>
-                      <span style={{ color: 'var(--b360-red)', fontWeight: 700, fontSize: 12 }}>Expired</span>
-                      <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{b.subscriptionValidUntil ? new Date(b.subscriptionValidUntil).toLocaleDateString() : ''}</div>
-                    </div>
-                  ) : b.subscriptionValidUntil ? (
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 12, color: (b.daysRemaining != null && b.daysRemaining <= 3) ? 'var(--b360-red)' : 'var(--b360-green)' }}>
-                        {b.daysRemaining != null ? `${b.daysRemaining}d left` : 'Active'}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>Until {new Date(b.subscriptionValidUntil).toLocaleDateString()}</div>
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>Unlimited</span>
-                  )}
-                </div>,
-                <StatusBadge key="subscription" status={b.subscriptionEnabled ? 'ACTIVE' : 'INACTIVE'} />,
-                <StatusBadge key="status" status={b.isActive ? 'ACTIVE' : 'INACTIVE'} />,
-                new Date(b.createdAt).toLocaleDateString(),
-                <div key="actions" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <Btn variant="primary" small icon={<Calendar size={13} />} onClick={() => setExtendingBiz(b)}>
-                    Extend Period
-                  </Btn>
-                  <Btn variant={b.subscriptionEnabled ? 'danger' : 'secondary'} small onClick={() => handleSubscriptionChange(b, !b.subscriptionEnabled)}>
-                    {b.subscriptionEnabled ? 'Disable' : 'Enable'}
-                  </Btn>
-                  <Btn variant={b.isActive ? 'danger' : 'secondary'} small onClick={() => handleToggleBusinessStatus(b.id, !b.isActive)}>
-                    {b.isActive ? 'Deactivate' : 'Activate'}
-                  </Btn>
-                </div>,
-              ])}
+        {/* ── TAB 2: SUBSCRIPTION RECORDS & MRR ── */}
+        {adminTab === 'subscriptions' && (
+          <>
+            <PageHeader title="Platform Subscriptions & MRR" />
+            {subLoading ? (
+              <div style={{ padding: 32, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading subscription records…</div>
+            ) : subError ? (
+              <div style={{ padding: 24, color: 'var(--b360-red)' }}>{subError}</div>
+            ) : subSummary && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                  <KpiCard title="Estimated Active MRR" value={`KES ${subSummary.totalEstimatedMRR.toLocaleString()}`} change="Monthly Recurring" icon={<TrendingUp size={20} />} color="var(--b360-green)" />
+                  <KpiCard title="Active Subscriptions" value={String(subSummary.activeSubscriptions)} change={`${subSummary.totalTenants} total tenants`} icon={<Shield size={20} />} color="var(--b360-primary)" />
+                  <KpiCard title="Free Trials (14-day)" value={String(subSummary.trialSubscriptions)} change="10 seats included" icon={<Clock size={20} />} color="var(--b360-amber)" />
+                  <KpiCard title="Expired Subscriptions" value={String(subSummary.expiredSubscriptions)} change="Action needed" icon={<AlertCircle size={20} />} color="var(--b360-red)" />
+                </div>
+
+                <Card style={{ padding: 0 }}>
+                  <DataTable
+                    headers={['Business Name', 'Tier', 'Trial Status', 'Seats / Users', 'Valid Until', 'Days Left', 'Estimated MRR', 'Actions']}
+                    rows={subSummary.subscriptions.map(s => [
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>{s.businessName}</div>
+                        <div style={{ fontSize: 11, color: 'var(--b360-text-secondary)' }}>{s.ownerEmail} • {s.businessType}</div>
+                      </div>,
+                      <span style={{ fontWeight: 700, fontSize: 12, padding: '3px 8px', borderRadius: 6, background: s.subscriptionTier === 'PREMIUM' ? '#dcfce7' : '#f1f5f9', color: s.subscriptionTier === 'PREMIUM' ? '#166534' : '#475569' }}>
+                        {s.subscriptionTier}
+                      </span>,
+                      s.isTrial ? (
+                        <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}>
+                          TRIAL
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--b360-green)', fontSize: 12, fontWeight: 600 }}>PAID</span>
+                      ),
+                      `${s.userCount} / ${s.maxUsers} seats`,
+                      s.validUntil ? new Date(s.validUntil).toLocaleDateString() : 'Unlimited',
+                      s.isExpired ? (
+                        <span style={{ color: 'var(--b360-red)', fontWeight: 700, fontSize: 12 }}>Expired</span>
+                      ) : s.daysRemaining != null ? (
+                        <span style={{ color: s.daysRemaining <= 3 ? 'var(--b360-red)' : 'var(--b360-green)', fontWeight: 600, fontSize: 12 }}>
+                          {s.daysRemaining} days left
+                        </span>
+                      ) : (
+                        '—'
+                      ),
+                      <span style={{ fontWeight: 700, color: 'var(--b360-text)' }}>
+                        KES {s.monthlyRevenue.toLocaleString()}
+                      </span>,
+                      <Btn
+                        variant="secondary"
+                        small
+                        icon={<Calendar size={12} />}
+                        onClick={() => {
+                          const match = businesses.find(b => b.id === s.businessId)
+                          if (match) setExtendingBiz(match)
+                        }}
+                      >
+                        Extend
+                      </Btn>
+                    ])}
+                  />
+                </Card>
+              </>
+            )}
+          </>
+        )}
+
+        {/* ── TAB 3: PLATFORM OPERATING EXPENSES ── */}
+        {adminTab === 'expenses' && (
+          <>
+            {showAddExpense && (
+              <Modal
+                title="Record Platform Operating Expense"
+                onClose={() => { setShowAddExpense(false); setExpFormError('') }}
+                footer={
+                  <>
+                    <Btn variant="secondary" onClick={() => { setShowAddExpense(false); setExpFormError('') }}>Cancel</Btn>
+                    <Btn onClick={handleCreatePlatformExpense} disabled={expSaving}>{expSaving ? 'Saving…' : 'Record Expense'}</Btn>
+                  </>
+                }
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {expFormError && <div style={{ color: 'var(--b360-red)', fontSize: 13 }}>{expFormError}</div>}
+                  <Input
+                    label="Expense Title *"
+                    value={expForm.title}
+                    onChange={v => setExpForm(p => ({ ...p, title: v }))}
+                    placeholder="e.g. Railway Compute & PostgreSQL Managed DB"
+                  />
+                  <Select
+                    label="Category *"
+                    value={expForm.category}
+                    onChange={v => setExpForm(p => ({ ...p, category: v }))}
+                    options={PLATFORM_EXP_CATS}
+                  />
+                  <Input
+                    label="Amount (KES) *"
+                    type="number"
+                    value={String(expForm.amount || '')}
+                    onChange={v => setExpForm(p => ({ ...p, amount: Number(v) || 0 }))}
+                    placeholder="e.g. 15000"
+                  />
+                  <Input
+                    label="Vendor / Provider"
+                    value={expForm.vendor || ''}
+                    onChange={v => setExpForm(p => ({ ...p, vendor: v }))}
+                    placeholder="e.g. Railway, Safaricom, Africa's Talking, Cloudflare"
+                  />
+                  <Input
+                    label="Notes & Invoice Reference"
+                    value={expForm.notes || ''}
+                    onChange={v => setExpForm(p => ({ ...p, notes: v }))}
+                    placeholder="e.g. Monthly hosting invoice for October"
+                  />
+                </div>
+              </Modal>
+            )}
+
+            <PageHeader
+              title="Platform Management Operating Expenses"
+              action={<Btn icon={<Plus size={14} />} onClick={() => { setExpFormError(''); setShowAddExpense(true) }}>Record Expense</Btn>}
             />
-          )}
-        </Card>
-        {extendingBiz && (
-          <ExtendSubscriptionModal
-            business={extendingBiz}
-            onClose={() => setExtendingBiz(null)}
-            onSuccess={updated => setBusinesses(prev => prev.map(b => b.id === updated.id ? updated : b))}
-          />
+
+            {expLoading ? (
+              <div style={{ padding: 32, textAlign: 'center', color: 'var(--b360-text-secondary)' }}>Loading platform expenses…</div>
+            ) : expError ? (
+              <div style={{ padding: 24, color: 'var(--b360-red)' }}>{expError}</div>
+            ) : expSummary && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                  <KpiCard title="Total Platform Expenses" value={`KES ${expSummary.totalAmount.toLocaleString()}`} change="Infrastructure & operations" icon={<DollarSign size={20} />} color="var(--b360-red)" />
+                  <KpiCard title="Hosting & Compute" value={`KES ${(expSummary.byCategory['INFRASTRUCTURE'] || 0).toLocaleString()}`} change="Railway & PostgreSQL" icon={<Server size={20} />} color="var(--b360-blue)" />
+                  <KpiCard title="Gateway & API Fees" value={`KES ${((expSummary.byCategory['API_FEES'] || 0) + (expSummary.byCategory['SMS_GATEWAY'] || 0)).toLocaleString()}`} change="Daraja & SMS OTP" icon={<TrendingUp size={20} />} color="var(--b360-amber)" />
+                </div>
+
+                <Card style={{ padding: 0 }}>
+                  <DataTable
+                    headers={['Title & Description', 'Category', 'Vendor', 'Date', 'Amount (KES)', 'Notes']}
+                    rows={expSummary.expenses.map(e => [
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{e.title}</div>,
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: '#f1f5f9', color: '#334155' }}>
+                        {e.category}
+                      </span>,
+                      e.vendor || '—',
+                      new Date(e.expenseDate).toLocaleDateString(),
+                      <span style={{ fontWeight: 700, color: 'var(--b360-red)' }}>
+                        KES {e.amount.toLocaleString()}
+                      </span>,
+                      <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>
+                        {e.notes || '—'}
+                      </span>
+                    ])}
+                  />
+                </Card>
+              </>
+            )}
+          </>
         )}
       </div>
     )

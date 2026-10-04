@@ -135,6 +135,40 @@ fun Route.superAdminRoutes() {
             }
         }
 
+        // ── Super Admin: Platform Subscriptions & MRR ────────────────────────
+        route("/subscriptions") {
+            get {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@get
+                }
+                val summary = superAdminService.getSubscriptionSummary()
+                call.respond(ApiResponse(true, data = summary))
+            }
+        }
+
+        // ── Super Admin: Platform Operating Expenses ─────────────────────────
+        route("/platform-expenses") {
+            get {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@get
+                }
+                val summary = superAdminService.getPlatformExpenses()
+                call.respond(ApiResponse(true, data = summary))
+            }
+
+            post {
+                if (!call.hasRole("SUPERADMIN")) {
+                    call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Superadmin access required"))
+                    return@post
+                }
+                val req = call.receive<CreatePlatformExpenseRequest>()
+                val result = superAdminService.createPlatformExpense(req, call.callerUserId())
+                call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
+            }
+        }
+
         route("/settings") {
             route("/subscription-bands") {
                 get { if(!call.hasRole("SUPERADMIN")) return@get call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Superadmin access required")); call.respond(ApiResponse(true,data=subscriptionService.bands())) }

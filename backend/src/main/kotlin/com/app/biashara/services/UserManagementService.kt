@@ -10,7 +10,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
 import org.jetbrains.exposed.sql.transactions.transaction
 
-private val ASSIGNABLE_ROLES = setOf("ADMIN", "MANAGER", "STAFF")
+private val ASSIGNABLE_ROLES = setOf("ADMIN", "BUSINESS_ADMIN", "MANAGER", "STAFF")
 
 class UserManagementService(
     private val authService: AuthService,
@@ -90,8 +90,10 @@ class UserManagementService(
         val business = BusinessesTable.select { BusinessesTable.id eq businessId }.singleOrNull()
             ?: return@transaction ApiResponse(false, message = "Business not found")
         val activeUsers = UsersTable.select { (UsersTable.businessId eq businessId) and (UsersTable.isActive eq true) }.count()
-        if (activeUsers >= business[BusinessesTable.maxUsers]) {
-            return@transaction ApiResponse(false, message = "User limit reached (${business[BusinessesTable.maxUsers]}). Upgrade your subscription to add more users.")
+        val isTrial = business[BusinessesTable.isTrial]
+        val effectiveMaxUsers = if (isTrial) maxOf(business[BusinessesTable.maxUsers], 10) else business[BusinessesTable.maxUsers]
+        if (activeUsers >= effectiveMaxUsers) {
+            return@transaction ApiResponse(false, message = "User limit reached ($effectiveMaxUsers). Upgrade your subscription to add more users.")
         }
         if (req.name.isBlank() || req.email.isBlank() || req.phone.isBlank()) {
             return@transaction ApiResponse(false, message = "Name, email, and phone are required")

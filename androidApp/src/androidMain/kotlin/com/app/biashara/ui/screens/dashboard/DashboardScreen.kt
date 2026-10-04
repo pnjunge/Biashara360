@@ -380,7 +380,9 @@ fun DashboardScreen(
             item {
                 QuickAlertsSection(
                     lowStockCount = state.lowStockCount,
-                    pendingOrdersCount = state.pendingOrders
+                    pendingOrdersCount = state.pendingOrders,
+                    customerCount = state.customerCount,
+                    unreconciledCount = state.unreconciledCount
                 )
             }
 
@@ -844,7 +846,9 @@ fun AlertCard(
 @Composable
 fun QuickAlertsSection(
     lowStockCount: Int,
-    pendingOrdersCount: Int
+    pendingOrdersCount: Int,
+    customerCount: Int = 0,
+    unreconciledCount: Int = 0
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -853,31 +857,38 @@ fun QuickAlertsSection(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Quick Alerts", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Quick Alerts", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Live", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = B360Green)
+            }
             
             AlertCard(
-                message = "$lowStockCount products low stock",
-                icon = Icons.Filled.Warning,
-                tint = B360Amber,
-                bgColor = B360Amber.copy(0.12f)
+                message = if (lowStockCount > 0) "$lowStockCount products low stock" else "Inventory healthy",
+                icon = if (lowStockCount > 0) Icons.Filled.Warning else Icons.Filled.CheckCircle,
+                tint = if (lowStockCount > 0) B360Amber else B360Green,
+                bgColor = if (lowStockCount > 0) B360Amber.copy(0.12f) else B360Green.copy(0.12f)
             )
             AlertCard(
-                message = "$pendingOrdersCount unpaid orders",
-                icon = Icons.Filled.AccessTime,
-                tint = B360Red,
-                bgColor = B360Red.copy(0.12f)
+                message = if (pendingOrdersCount > 0) "$pendingOrdersCount unpaid orders" else "All orders settled",
+                icon = if (pendingOrdersCount > 0) Icons.Filled.AccessTime else Icons.Filled.CheckCircle,
+                tint = if (pendingOrdersCount > 0) B360Red else B360Green,
+                bgColor = if (pendingOrdersCount > 0) B360Red.copy(0.12f) else B360Green.copy(0.12f)
             )
             AlertCard(
-                message = "5 new customers this week",
+                message = if (customerCount > 0) "$customerCount registered customers" else "No customers recorded yet",
                 icon = Icons.Filled.People,
                 tint = B360Green,
                 bgColor = B360Green.copy(0.12f)
             )
             AlertCard(
-                message = "Mpesa: 2 unreconciled",
-                icon = Icons.Filled.Sync,
-                tint = B360Blue,
-                bgColor = B360Blue.copy(0.12f)
+                message = if (unreconciledCount > 0) "Mpesa: $unreconciledCount unreconciled" else "Mpesa: All reconciled",
+                icon = if (unreconciledCount > 0) Icons.Filled.Sync else Icons.Filled.CheckCircle,
+                tint = if (unreconciledCount > 0) B360Blue else B360Green,
+                bgColor = (if (unreconciledCount > 0) B360Blue else B360Green).copy(0.12f)
             )
         }
     }

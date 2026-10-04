@@ -98,16 +98,20 @@ class BusinessSettingsService {
     }
 
     fun saveMpesaConfig(businessId: String, req: MpesaConfigRequest): ApiResponse<MpesaConfigResponse> = transaction {
-        if (req.shortCode.isBlank() || req.callbackUrl.isBlank()) {
-            return@transaction ApiResponse(false, message = "Shortcode and callback URL are required")
+        if (req.shortCode.isBlank()) {
+            return@transaction ApiResponse(false, message = "Shortcode or Till number is required")
         }
-        val env = req.environment.lowercase()
+        val env = req.environment.lowercase().ifBlank { "sandbox" }
         if (env !in listOf("sandbox", "production")) {
             return@transaction ApiResponse(false, message = "Environment must be 'sandbox' or 'production'")
         }
-        val acctType = req.accountType.lowercase()
+        val acctType = req.accountType.lowercase().ifBlank { "till" }
         if (acctType !in listOf("paybill", "till")) {
             return@transaction ApiResponse(false, message = "accountType must be 'paybill' or 'till'")
+        }
+
+        val effectiveCallbackUrl = req.callbackUrl.trim().ifBlank {
+            "https://api.biashara360.co.ke/v1/mpesa/callback"
         }
 
         val now = Clock.System.now()
@@ -117,22 +121,22 @@ class BusinessSettingsService {
 
         if (exists) {
             MpesaConfigsTable.update({ channelFilter }) {
-                it[shortCode]      = req.shortCode
-                it[callbackUrl]    = req.callbackUrl
+                it[shortCode]      = req.shortCode.trim()
+                it[callbackUrl]    = effectiveCallbackUrl
                 it[environment]    = env
                 it[accountType]    = acctType
-                if (!req.passKey.isNullOrBlank()) it[passKey] = req.passKey
+                if (!req.passKey.isNullOrBlank()) it[passKey] = req.passKey.trim()
                 it[updatedAt]      = now
             }
         } else {
             MpesaConfigsTable.insert {
                 it[id]             = generateId()
                 it[MpesaConfigsTable.businessId] = businessId
-                it[shortCode]      = req.shortCode
-                it[callbackUrl]    = req.callbackUrl
+                it[shortCode]      = req.shortCode.trim()
+                it[callbackUrl]    = effectiveCallbackUrl
                 it[environment]    = env
                 it[accountType]    = acctType
-                if (!req.passKey.isNullOrBlank()) it[passKey] = req.passKey
+                if (!req.passKey.isNullOrBlank()) it[passKey] = req.passKey.trim()
                 it[createdAt]      = now
                 it[updatedAt]      = now
             }

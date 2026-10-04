@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building, ShoppingCart, Clock, UserPlus, HelpCircle, Activity, ChevronDown, CheckCircle, Smartphone, ExternalLink, Copy, Store, ShoppingBag, FileText } from 'lucide-react'
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
-import { productApi, orderApi, customerApi, reportApi, businessApi, socialApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse, InventoryCategory } from '../services/api'
+import { productApi, orderApi, customerApi, paymentApi, reportApi, businessApi, socialApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse, InventoryCategory } from '../services/api'
 import { useAuth } from '../App'
 import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
@@ -21,6 +21,12 @@ function getCurrentMonthRange() {
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+
+  // SuperAdmin is strictly dedicated to platform management
+  if ((user?.role || '').toUpperCase() === 'SUPERADMIN') {
+    return <Navigate to="/business" replace />
+  }
+
   const [dashboardPeriod, setDashboardPeriod] = useState<string>('This Month')
   const [revenueLoading, setRevenueLoading] = useState(true)
   const [revenueError, setRevenueError] = useState('')
@@ -29,6 +35,8 @@ export default function DashboardPage() {
   const [recentOrders, setRecentOrders] = useState<OrderResponse[]>([])
   const [lowStockProducts, setLowStockProducts] = useState<ProductResponse[]>([])
   const [customerCount, setCustomerCount] = useState<number>(0)
+  const [newCustomersThisWeek, setNewCustomersThisWeek] = useState<number>(0)
+  const [unreconciledCount, setUnreconciledCount] = useState<number>(0)
   const [topCustomers, setTopCustomers] = useState<CustomerResponse[]>([])
   const [socialChannels, setSocialChannels] = useState<any[]>([])
   const [resolvedBusinessName, setResolvedBusinessName] = useState('')
@@ -98,12 +106,21 @@ export default function DashboardPage() {
       productApi.list(undefined, true),
       customerApi.list(),
       customerApi.top(4),
+      paymentApi.list(true).catch(() => ({ success: false, data: [] })),
       socialApi.getChannels().catch(() => ({ success: false, data: [] }))
-    ]).then(([ord, prods, custs, topCusts, soc]) => {
+    ]).then(([ord, prods, custs, topCusts, unreconciled, soc]) => {
       if (ord.success && ord.data) setRecentOrders(ord.data.data)
       if (prods.success && prods.data) setLowStockProducts(prods.data)
-      if (custs.success && custs.data) setCustomerCount(custs.data.length)
+      if (custs.success && custs.data) {
+        setCustomerCount(custs.data.length)
+        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        const recentCusts = custs.data.filter(c => new Date(c.createdAt) >= oneWeekAgo).length
+        setNewCustomersThisWeek(recentCusts)
+      }
       if (topCusts.success && topCusts.data) setTopCustomers(topCusts.data)
+      if (unreconciled && unreconciled.success && unreconciled.data) {
+        setUnreconciledCount(unreconciled.data.length)
+      }
       if (soc && soc.success && soc.data) setSocialChannels(soc.data)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
@@ -319,17 +336,34 @@ export default function DashboardPage() {
 
             {/* Quick Alerts Card */}
             <Card style={{ padding:20 }}>
-              <h3 style={{ fontWeight:700, fontSize:15, color:'var(--b360-text)', marginBottom:20 }}>Quick Alerts</h3>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+                <h3 style={{ fontWeight:700, fontSize:15, color:'var(--b360-text)' }}>Quick Alerts</h3>
+                <span style={{ fontSize:11, fontWeight:700, color:'var(--b360-green)', background:'var(--b360-green-bg)', padding:'2px 8px', borderRadius:10 }}>Live</span>
+              </div>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {[
-                  { msg: `${lowStockProducts.length || 2} products low stock`, icon: AlertTriangle, color: 'var(--b360-amber)', bg: 'var(--b360-amber-bg)' },
-                  { msg: `${recentOrders.filter(o => o.paymentStatus === 'PENDING').length} unpaid orders`, icon: Clock, color: 'var(--b360-red)', bg: 'var(--b360-red-bg)' },
-                  { msg: '5 new customers this week', icon: UserPlus, color: 'var(--b360-green)', bg: 'var(--b360-green-bg)' },
-                  { msg: 'Mpesa: 2 unreconciled', icon: Activity, color: 'var(--b360-blue)', bg: 'var(--b360-blue-bg)' }
+                  lowStockProducts.length > 0
+                    ? { msg: `${lowStockProducts.length} product${lowStockProducts.length > 1 ? 's' : ''} low stock`, icon: AlertTriangle, color: 'var(--b360-amber)', bg: 'var(--b360-amber-bg)', path: '/inventory' }
+                    : { msg: 'Inventory healthy', icon: CheckCircle, color: 'var(--b360-green)', bg: 'var(--b360-green-bg)', path: '/inventory' },
+                  recentOrders.filter(o => o.paymentStatus === 'PENDING').length > 0
+                    ? { msg: `${recentOrders.filter(o => o.paymentStatus === 'PENDING').length} unpaid orders`, icon: Clock, color: 'var(--b360-red)', bg: 'var(--b360-red-bg)', path: '/orders' }
+                    : { msg: 'All orders settled', icon: CheckCircle, color: 'var(--b360-green)', bg: 'var(--b360-green-bg)', path: '/orders' },
+                  newCustomersThisWeek > 0
+                    ? { msg: `${newCustomersThisWeek} new customer${newCustomersThisWeek > 1 ? 's' : ''} this week`, icon: UserPlus, color: 'var(--b360-green)', bg: 'var(--b360-green-bg)', path: '/customers' }
+                    : customerCount > 0
+                    ? { msg: `${customerCount} active customer${customerCount > 1 ? 's' : ''}`, icon: UserPlus, color: 'var(--b360-green)', bg: 'var(--b360-green-bg)', path: '/customers' }
+                    : { msg: 'No customers recorded yet', icon: UserPlus, color: 'var(--b360-text-secondary)', bg: '#f1f5f9', path: '/customers' },
+                  unreconciledCount > 0
+                    ? { msg: `Mpesa: ${unreconciledCount} unreconciled`, icon: Activity, color: 'var(--b360-blue)', bg: 'var(--b360-blue-bg)', path: '/reconciliation' }
+                    : { msg: 'Mpesa: All reconciled', icon: CheckCircle, color: 'var(--b360-green)', bg: 'var(--b360-green-bg)', path: '/reconciliation' }
                 ].map((a, i) => {
                   const Icon = a.icon
                   return (
-                    <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'0 12px', height:52, borderRadius:10, background:'#F8FAFC', border:'1px solid var(--b360-border)' }}>
+                    <div
+                      key={i}
+                      onClick={() => navigate(a.path)}
+                      style={{ display:'flex', alignItems:'center', gap:12, padding:'0 12px', height:52, borderRadius:10, background:'#F8FAFC', border:'1px solid var(--b360-border)', cursor:'pointer', transition:'all 0.15s ease' }}
+                    >
                       <div style={{ background:a.bg, color:a.color, borderRadius:'50%', width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                         <Icon size={16} />
                       </div>

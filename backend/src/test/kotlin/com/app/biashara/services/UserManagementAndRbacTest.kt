@@ -10,14 +10,20 @@ import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
+import io.ktor.client.engine.mock.*
+import io.ktor.http.*
 import java.util.UUID
 import kotlin.test.*
 
 class UserManagementAndRbacTest {
+    private val testConfig = io.ktor.server.config.MapApplicationConfig()
+    private val testHttpClient = io.ktor.client.HttpClient(io.ktor.client.engine.mock.MockEngine {
+        respond("{}", io.ktor.http.HttpStatusCode.OK, io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"))
+    })
     private val auditLogService = AuditLogService()
-    private val emailService = EmailService()
-    private val smsService = SmsService()
-    private val whatsappOtpService = WhatsAppOtpService()
+    private val emailService = EmailService(testConfig)
+    private val smsService = SmsService(testConfig, testHttpClient)
+    private val whatsappOtpService = WhatsAppOtpService(testConfig, testHttpClient)
     private val authService = AuthService(smsService, emailService, whatsappOtpService, auditLogService)
     private val userManagementService = UserManagementService(authService, auditLogService)
     private val accessControlService = AccessControlService(auditLogService)
@@ -134,7 +140,7 @@ class UserManagementAndRbacTest {
             branchId = branch1Id
         )
 
-        val result = userManagementService.inviteUser(inviteReq, testBusinessId, adminUserId)
+        val result = userManagementService.inviteUser(testBusinessId, inviteReq, adminUserId)
         assertTrue(result.success)
         assertNotNull(result.data)
 
@@ -162,7 +168,7 @@ class UserManagementAndRbacTest {
             password = "SecretPassword123!",
             branchId = branch1Id
         )
-        val created = userManagementService.inviteUser(inviteReq, testBusinessId, adminUserId).data!!
+        val created = userManagementService.inviteUser(testBusinessId, inviteReq, adminUserId).data!!
 
         val editReq = EditUserRequest(
             name = "Johnathan Doe",
@@ -193,7 +199,7 @@ class UserManagementAndRbacTest {
             password = "SecretPassword123!",
             branchId = branch1Id
         )
-        val created = userManagementService.inviteUser(inviteReq, testBusinessId, adminUserId).data!!
+        val created = userManagementService.inviteUser(testBusinessId, inviteReq, adminUserId).data!!
 
         // Assign to both branch 1 and branch 2
         val assignReq = AssignUserBranchesRequest(
@@ -219,7 +225,7 @@ class UserManagementAndRbacTest {
             password = "SecretPassword123!",
             branchId = branch1Id
         )
-        val created = userManagementService.inviteUser(inviteReq, testBusinessId, adminUserId).data!!
+        val created = userManagementService.inviteUser(testBusinessId, inviteReq, adminUserId).data!!
 
         // 1. Assign staff PIN "123456"
         val setPinResult = userManagementService.setStaffPin(
@@ -230,13 +236,13 @@ class UserManagementAndRbacTest {
 
         // 2. Simulate 5 failed PIN attempts
         for (i in 1..4) {
-            val failedLogin = authService.loginWithPin(PinLoginRequest(userId = created.id, pin = "000000"))
+            val failedLogin = authService.loginWithPin(PinLoginRequest(pin = "000000", email = created.email))
             assertFalse(failedLogin.success)
             assertTrue(failedLogin.message?.contains("Incorrect PIN") == true)
         }
 
         // 5th failed attempt should lock account
-        val fifthAttempt = authService.loginWithPin(PinLoginRequest(userId = created.id, pin = "000000"))
+        val fifthAttempt = authService.loginWithPin(PinLoginRequest(pin = "000000", email = created.email))
         assertFalse(fifthAttempt.success)
         assertTrue(fifthAttempt.message?.contains("Account locked") == true)
 
@@ -253,7 +259,7 @@ class UserManagementAndRbacTest {
         assertFalse(unlockedUser.isPinLocked == true)
 
         // Now correct PIN sign-in succeeds
-        val successLogin = authService.loginWithPin(PinLoginRequest(userId = created.id, pin = "123456"))
+        val successLogin = authService.loginWithPin(PinLoginRequest(pin = "123456", email = created.email))
         assertTrue(successLogin.success)
     }
 
@@ -267,7 +273,7 @@ class UserManagementAndRbacTest {
             password = "OriginalPassword123!",
             branchId = branch1Id
         )
-        val created = userManagementService.inviteUser(inviteReq, testBusinessId, adminUserId).data!!
+        val created = userManagementService.inviteUser(testBusinessId, inviteReq, adminUserId).data!!
 
         // Admin resets password
         val resetResult = userManagementService.adminResetPassword(
@@ -276,11 +282,11 @@ class UserManagementAndRbacTest {
         assertTrue(resetResult.success)
 
         // Old password fails
-        val oldLogin = authService.loginUser(LoginRequest(email = "mary@biashara.co.ke", password = "OriginalPassword123!"))
+        val oldLogin = authService.login(LoginRequest(email = "mary@biashara.co.ke", password = "OriginalPassword123!"))
         assertFalse(oldLogin.success)
 
         // New password succeeds
-        val newLogin = authService.loginUser(LoginRequest(email = "mary@biashara.co.ke", password = "NewSecretPass456!"))
+        val newLogin = authService.login(LoginRequest(email = "mary@biashara.co.ke", password = "NewSecretPass456!"))
         assertTrue(newLogin.success)
     }
 
@@ -308,7 +314,7 @@ class UserManagementAndRbacTest {
             password = "SecretPassword123!",
             roleIds = listOf(role.id)
         )
-        val created = userManagementService.inviteUser(inviteReq, testBusinessId, adminUserId).data!!
+        val created = userManagementService.inviteUser(testBusinessId, inviteReq, adminUserId).data!!
 
         // Verify permission evaluation
         val canRefund = accessControlService.hasPermission(created.id, testBusinessId, "orders.refund")
@@ -328,27 +334,27 @@ class UserManagementAndRbacTest {
             password = "SecretPassword123!",
             branchId = branch1Id
         )
-        val created = userManagementService.inviteUser(inviteReq, testBusinessId, adminUserId).data!!
+        val created = userManagementService.inviteUser(testBusinessId, inviteReq, adminUserId).data!!
 
         // Deactivate user
-        val deactivateRes = userManagementService.setActiveStatus(created.id, testBusinessId, false, adminUserId)
+        val deactivateRes = userManagementService.setActiveStatus(created.id, testBusinessId, adminUserId, UpdateUserStatusRequest(isActive = false))
         assertTrue(deactivateRes.success)
         assertEquals("DISABLED", deactivateRes.data!!.status)
         assertFalse(deactivateRes.data!!.isActive)
 
         // Login fails when disabled
-        val loginAttempt = authService.loginUser(LoginRequest(email = "david@biashara.co.ke", password = "SecretPassword123!"))
+        val loginAttempt = authService.login(LoginRequest(email = "david@biashara.co.ke", password = "SecretPassword123!"))
         assertFalse(loginAttempt.success)
         assertTrue(loginAttempt.message?.contains("Account is disabled") == true)
 
         // Reactivate user
-        val activateRes = userManagementService.setActiveStatus(created.id, testBusinessId, true, adminUserId)
+        val activateRes = userManagementService.setActiveStatus(created.id, testBusinessId, adminUserId, UpdateUserStatusRequest(isActive = true))
         assertTrue(activateRes.success)
         assertEquals("ACTIVE", activateRes.data!!.status)
         assertTrue(activateRes.data!!.isActive)
 
         // Login succeeds again
-        val loginSuccess = authService.loginUser(LoginRequest(email = "david@biashara.co.ke", password = "SecretPassword123!"))
+        val loginSuccess = authService.login(LoginRequest(email = "david@biashara.co.ke", password = "SecretPassword123!"))
         assertTrue(loginSuccess.success)
     }
 }

@@ -24,6 +24,7 @@ data class DashboardState(
     val pendingOrders: Int = 0,
     val totalOrders: Int = 0,
     val customerCount: Int = 0,
+    val unreconciledCount: Int = 0,
     val lowStockCount: Int = 0,
     val lowStockProducts: List<Product> = emptyList(),
     val recentOrders: List<Order> = emptyList(),
@@ -157,6 +158,24 @@ class DashboardViewModel(
                 customerRepository?.getTopCustomersWithStats(businessId, 4)?.collect { topList ->
                     _state.update {
                         it.copy(topCustomers = topList)
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+        scope.launch {
+            try {
+                customerRepository?.getCustomers(businessId)?.collect { list ->
+                    _state.update {
+                        it.copy(customerCount = list.size)
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+        scope.launch {
+            try {
+                paymentRepository?.getUnreconciledPayments(businessId)?.collect { list ->
+                    _state.update {
+                        it.copy(unreconciledCount = list.size)
                     }
                 }
             } catch (_: Exception) { }

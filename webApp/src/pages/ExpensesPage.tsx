@@ -75,55 +75,6 @@ export default function ExpensesPage() {
   const userInitial = currentUserName[0]?.toUpperCase() || 'A'
   const userRole = authUser?.role ? String(authUser.role).toLowerCase() : 'admin'
 
-  // Dynamic sample data with current year and month for initial fallback
-  const sampleExpenses: ExpenseResponse[] = useMemo(() => {
-    const d = new Date()
-    const y = d.getFullYear()
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    return [
-      {
-        id: 'exp-1',
-        businessId: 'default',
-        category: 'SALARIES',
-        amount: 100000,
-        description: 'August [Cash]',
-        expenseDate: `${y}-${m}-27`,
-        recordedAt: `${y}-${m}-27T10:00:00Z`,
-        receiptUrl: null,
-      },
-      {
-        id: 'exp-2',
-        businessId: 'default',
-        category: 'STOCK_PURCHASE',
-        amount: 10000,
-        description: 'Tusker',
-        expenseDate: `${y}-${m}-27`,
-        recordedAt: `${y}-${m}-27T11:00:00Z`,
-        receiptUrl: null,
-      },
-      {
-        id: 'exp-3',
-        businessId: 'default',
-        category: 'RENT',
-        amount: 10000,
-        description: 'Rent July',
-        expenseDate: `${y}-${m}-26`,
-        recordedAt: `${y}-${m}-26T09:30:00Z`,
-        receiptUrl: null,
-      },
-      {
-        id: 'exp-4',
-        businessId: 'default',
-        category: 'ADVERTISING',
-        amount: 10000,
-        description: 'Facebook',
-        expenseDate: `${y}-${m}-26`,
-        recordedAt: `${y}-${m}-26T14:15:00Z`,
-        receiptUrl: null,
-      },
-    ]
-  }, [])
-
   const navigate = useNavigate()
 
   const loadExpenses = async () => {
@@ -164,10 +115,10 @@ export default function ExpensesPage() {
       if (list.length > 0) {
         setExpenses(list.sort((a, b) => new Date(b.expenseDate).getTime() - new Date(a.expenseDate).getTime()))
       } else {
-        setExpenses(sampleExpenses)
+        setExpenses([])
       }
     } catch {
-      setExpenses(sampleExpenses)
+      setExpenses([])
     } finally {
       setLoading(false)
     }
@@ -296,14 +247,14 @@ export default function ExpensesPage() {
     setError('')
   }
 
-  const activeList = expenses.length > 0 ? expenses : sampleExpenses
+  const activeList: ExpenseResponse[] = expenses
 
   // Dynamic period filter
   const periodExpenses = useMemo(() => {
     const now = new Date()
     const curYear = now.getFullYear()
     const curMonth = now.getMonth() + 1
-    const filtered = activeList.filter((e) => {
+    const filtered = activeList.filter((e: ExpenseResponse) => {
       const parts = (e.expenseDate || '').split('-')
       if (parts.length < 2) return true
       const y = parseInt(parts[0], 10)
@@ -317,11 +268,11 @@ export default function ExpensesPage() {
       if (selectedPeriod === 'This Year') return y === curYear
       return true
     })
-    return filtered.length > 0 ? filtered : activeList
+    return filtered
   }, [activeList, selectedPeriod])
 
   const filteredExpenses = useMemo(() => {
-    return periodExpenses.filter((e) => {
+    return periodExpenses.filter((e: ExpenseResponse) => {
       const matchesSearch =
         searchQuery.trim() === '' ||
         e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -332,20 +283,20 @@ export default function ExpensesPage() {
   }, [periodExpenses, searchQuery, selectedCategory])
 
   // Computations dynamically from periodExpenses
-  const totalAmount = useMemo(() => periodExpenses.reduce((sum, e) => sum + e.amount, 0), [periodExpenses])
+  const totalAmount = useMemo(() => periodExpenses.reduce((sum: number, e: ExpenseResponse) => sum + e.amount, 0), [periodExpenses])
   const stockPurchaseTotal = useMemo(
-    () => periodExpenses.filter((e) => e.category === 'STOCK_PURCHASE').reduce((sum, e) => sum + e.amount, 0),
+    () => periodExpenses.filter((e: ExpenseResponse) => e.category === 'STOCK_PURCHASE').reduce((sum: number, e: ExpenseResponse) => sum + e.amount, 0),
     [periodExpenses]
   )
   const advertisingTotal = useMemo(
-    () => periodExpenses.filter((e) => e.category === 'ADVERTISING').reduce((sum, e) => sum + e.amount, 0),
+    () => periodExpenses.filter((e: ExpenseResponse) => e.category === 'ADVERTISING').reduce((sum: number, e: ExpenseResponse) => sum + e.amount, 0),
     [periodExpenses]
   )
   const operationsTotal = useMemo(
     () =>
       periodExpenses
-        .filter((e) => ['RENT', 'UTILITIES', 'DELIVERY', 'PACKAGING', 'TRANSPORT'].includes(e.category))
-        .reduce((sum, e) => sum + e.amount, 0),
+        .filter((e: ExpenseResponse) => ['RENT', 'UTILITIES', 'DELIVERY', 'PACKAGING', 'TRANSPORT'].includes(e.category))
+        .reduce((sum: number, e: ExpenseResponse) => sum + e.amount, 0),
     [periodExpenses]
   )
 
@@ -376,7 +327,7 @@ export default function ExpensesPage() {
   const breakdownItems = useMemo(() => {
     if (periodExpenses.length === 0) return []
     const map = new Map<string, { sum: number; topDesc: string }>()
-    periodExpenses.forEach((e) => {
+    periodExpenses.forEach((e: ExpenseResponse) => {
       const existing = map.get(e.category) || { sum: 0, topDesc: e.description }
       existing.sum += e.amount
       map.set(e.category, existing)
@@ -401,7 +352,7 @@ export default function ExpensesPage() {
   // Dynamic bar chart computation
   const chartItems = useMemo(() => {
     const map = new Map<string, number>()
-    periodExpenses.forEach((e) => {
+    periodExpenses.forEach((e: ExpenseResponse) => {
       map.set(e.category, (map.get(e.category) || 0) + e.amount)
     })
     const sorted: [string, number][] = Array.from(map.entries()).sort((a, b) => b[1] - a[1])
@@ -1196,11 +1147,11 @@ export default function ExpensesPage() {
               {filteredExpenses.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ padding: '40px 20px', textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>
-                    No expenses found matching the criteria.
+                    {expenses.length === 0 ? 'No expenses recorded yet. Click "+ Record Expense" to get started.' : 'No expenses found matching the criteria.'}
                   </td>
                 </tr>
               ) : (
-                filteredExpenses.map((expense, idx) => {
+                filteredExpenses.map((expense: ExpenseResponse, idx: number) => {
                   const badge = getBadgeStyle(expense.category)
                   const BadgeIcon = badge.icon
                   return (

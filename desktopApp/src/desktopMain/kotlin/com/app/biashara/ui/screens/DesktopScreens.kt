@@ -984,34 +984,44 @@ fun DesktopDashboardScreen(
                             )
                         }
 
+                        val lowStockCount = state.lowStockCount
+                        val pendingCount = state.pendingOrders
+                        val totalOrders = state.totalOrders
+
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             DesktopAlertCard(
-                                title = "Low stock",
-                                subtitle = "2 products below reorder level",
+                                title = if (lowStockCount > 0) "Low stock" else "Stock status",
+                                subtitle = if (lowStockCount > 0) "$lowStockCount products below reorder level" else "All inventory healthy",
                                 actionText = "›",
-                                icon = Icons.Default.Warning,
-                                color = B360Amber,
-                                bgColor = Color(0xFFFEF3C7),
+                                icon = if (lowStockCount > 0) Icons.Default.Warning else Icons.Default.CheckCircle,
+                                color = if (lowStockCount > 0) B360Amber else B360Green,
+                                bgColor = if (lowStockCount > 0) Color(0xFFFEF3C7) else Color(0xFFD1FAE5),
                                 onClick = { navigationViewModel.navigateTo(AppScreen.Inventory) }
                             )
                             DesktopAlertCard(
-                                title = "Unpaid orders",
-                                subtitle = "22 unpaid orders need follow-up",
+                                title = if (pendingCount > 0) "Unpaid orders" else "Payment status",
+                                subtitle = if (pendingCount > 0) "$pendingCount unpaid orders need follow-up" else "All orders settled",
                                 actionText = "›",
-                                icon = Icons.Default.ErrorOutline,
-                                color = B360Red,
-                                bgColor = Color(0xFFFEE2E2),
+                                icon = if (pendingCount > 0) Icons.Default.ErrorOutline else Icons.Default.CheckCircle,
+                                color = if (pendingCount > 0) B360Red else B360Green,
+                                bgColor = if (pendingCount > 0) Color(0xFFFEE2E2) else Color(0xFFD1FAE5),
                                 onClick = { navigationViewModel.navigateTo(AppScreen.Orders) }
                             )
                         }
 
-                        // Store Health indicator
+                        // Store Health indicator based on real metrics
                         var healthTrigger by remember { mutableStateOf(false) }
                         LaunchedEffect(Unit) {
                             healthTrigger = true
                         }
+                        val healthPct = if (totalOrders > 0) {
+                            val paidRate = (totalOrders - pendingCount).toFloat() / totalOrders.toFloat()
+                            (paidRate * 100).toInt().coerceIn(20, 100)
+                        } else {
+                            100
+                        }
                         val animatedHealth by animateFloatAsState(
-                            targetValue = if (healthTrigger) 0.78f else 0f,
+                            targetValue = if (healthTrigger) (healthPct / 100f) else 0f,
                             animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
                             label = "healthAnim"
                         )
@@ -1022,12 +1032,12 @@ fun DesktopDashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text("Store health", fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-                                Text("78%", fontSize = 12.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                                Text("$healthPct%", fontSize = 12.sp, color = if (healthPct >= 70) Color(0xFF10B981) else B360Amber, fontWeight = FontWeight.Bold)
                             }
                             LinearProgressIndicator(
                                 progress = { animatedHealth },
                                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                                color = Color(0xFF10B981),
+                                color = if (healthPct >= 70) Color(0xFF10B981) else B360Amber,
                                 trackColor = Color(0xFFE2E8F0)
                             )
                         }
