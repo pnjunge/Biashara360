@@ -756,6 +756,7 @@ export const orderApi = {
     const res = await client.post<ApiResponse<OrderResponse>>(`/orders/${id}/cancel`)
     return res.data
   },
+  void: async (id:string) => (await client.post<ApiResponse<OrderResponse>>(`/orders/${id}/void`)).data,
   sendEReceipt: async (id: string, data: SendEReceiptRequest) => {
     const res = await client.post<ApiResponse<SendEReceiptResponse>>(`/orders/${id}/send-ereceipt`, data)
     return res.data

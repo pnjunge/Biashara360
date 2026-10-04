@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader, Card, Btn, DataTable, StatusBadge, KpiCard, Modal } from '../components/ui'
 import { ShoppingCart, Eye, Printer, RefreshCw, Store, Receipt, ExternalLink } from 'lucide-react'
-import { businessApi, orderApi, paymentApi, BusinessProfileResponse, OrderResponse } from '../services/api'
+import { OrderActions } from '../components/OrderActions'
+import { accessApi, businessApi, orderApi, paymentApi, BusinessProfileResponse, OrderResponse } from '../services/api'
 import { printOrderReceipt } from '../utils/receipt'
 
 export function OrdersPage() {
   const navigate = useNavigate()
+  const [permissions,setPermissions]=useState<string[]>([])
+  useEffect(()=>{accessApi.me().then(r=>setPermissions(r.data?.permissions||[])).catch(()=>setPermissions([]))},[])
   const [orders, setOrders] = useState<OrderResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [retryingOrderId, setRetryingOrderId] = useState('')
@@ -31,6 +34,10 @@ export function OrdersPage() {
     return () => window.removeEventListener('branch-changed', onBranchChanged)
   }, [])
 
+  const changed = (order?: OrderResponse) => {
+    if(order) {setOrders(rows=>rows.map(row=>row.id===order.id?order:row));setViewOrder(current=>current?.id===order.id?order:current)}
+    else loadOrders()
+  }
   const retryMpesa = async (order: OrderResponse) => {
     if (!window.confirm(`Send another M-Pesa prompt to ${order.customerPhone} for ${order.orderNumber}?`)) return
     setRetryingOrderId(order.id)
@@ -52,6 +59,7 @@ export function OrdersPage() {
           footer={<>
             <Btn icon={<ExternalLink size={14} />} onClick={() => window.open(`/receipt/${viewOrder.id}`, '_blank')}>e-Receipt</Btn>
             <Btn variant="secondary" icon={<Printer size={14} />} onClick={() => printOrderReceipt(viewOrder, receiptProfile)}>Print Slip</Btn>
+            <OrderActions order={viewOrder} permissions={permissions} onChanged={changed} />
             <Btn variant="secondary" onClick={() => setViewOrder(null)}>Close</Btn>
           </>}>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -101,6 +109,7 @@ export function OrdersPage() {
               </label>
               <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                 <select
+                  disabled={['CANCELLED','REFUNDED'].includes(viewOrder.paymentStatus)||viewOrder.deliveryStatus==='CANCELLED'}
                   value={viewOrder.deliveryStatus}
                   onChange={async e => {
                     const newStatus = e.target.value
@@ -118,7 +127,8 @@ export function OrdersPage() {
                   <option value="PROCESSING">PROCESSING (Packing)</option>
                   <option value="SHIPPED">SHIPPED (In Transit)</option>
                   <option value="DELIVERED">DELIVERED (Fulfilled)</option>
-                  <option value="CANCELLED">CANCELLED</option>
+                  <option value="CANCELLED" disabled>CANCELLED</option>
+
                 </select>
               </div>
             </div>}
@@ -212,6 +222,7 @@ export function OrdersPage() {
                 )}
               </div>,
               o.serviceType === 'RETAIL' ? <select
+                disabled={['CANCELLED','REFUNDED'].includes(o.paymentStatus)||o.deliveryStatus==='CANCELLED'}
                 value={o.deliveryStatus}
                 onChange={async e => {
                   const newStatus = e.target.value
@@ -228,10 +239,12 @@ export function OrdersPage() {
                 <option value="PROCESSING">PROCESSING</option>
                 <option value="SHIPPED">SHIPPED</option>
                 <option value="DELIVERED">DELIVERED</option>
-                <option value="CANCELLED">CANCELLED</option>
+                <option value="CANCELLED" disabled>CANCELLED</option>
+
               </select> : <StatusBadge status={o.tabStatus || 'OPEN'} />,
               <span style={{ fontSize: 12, color: 'var(--b360-text-secondary)' }}>{new Date(o.createdAt).toLocaleDateString('en-KE')}</span>,
-              <div style={{ display:'flex', gap:6 }}>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                <OrderActions order={o} permissions={permissions} onChanged={changed} />
                 <Btn small icon={<Eye size={12}/>} onClick={() => setViewOrder(o)}>View</Btn>
                 <Btn small variant="secondary" icon={<Receipt size={12}/>} onClick={() => window.open(`/receipt/${o.id}`, '_blank')}>e-Receipt</Btn>
                 {o.paymentMethod === 'CARD' && o.paymentStatus === 'PENDING' && (
