@@ -101,6 +101,7 @@ fun Route.productRoutesValidated() {
          * POST /products
          */
         post {
+            if (!call.hasPermission("products.create")) return@post call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message="Create product permission required"))
             val businessId = call.businessId()
             val req = call.receive<ProductRequest>()
             
@@ -193,6 +194,7 @@ fun Route.productRoutesValidated() {
              * PUT /products/{id}
              */
             put {
+                if (!call.hasPermission("products.update")) return@put call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message="Edit product permission required"))
                 val businessId = call.businessId()
                 val id = call.parameters["id"] ?: throw IllegalArgumentException("Product ID required")
                 val req = call.receive<ProductRequest>()
@@ -245,6 +247,7 @@ fun Route.productRoutesValidated() {
              * PUT /products/{id}/status
              */
             put("/status") {
+                if (!call.hasPermission("products.update")) return@put call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message="Edit product permission required"))
                 val businessId = call.businessId()
                 val id = call.parameters["id"] ?: throw IllegalArgumentException("Product ID required")
                 val req = call.receive<UpdateProductStatusRequest>()
@@ -289,6 +292,7 @@ fun Route.productRoutesValidated() {
              * POST /products/{id}/stock
              */
             post("/stock") {
+                if (!call.hasPermission("inventory.adjust")) return@post call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message="Adjust inventory permission required"))
                 val businessId = call.businessId()
                 val id = call.parameters["id"] ?: throw IllegalArgumentException("Product ID required")
                 val req = call.receive<StockUpdateRequest>()

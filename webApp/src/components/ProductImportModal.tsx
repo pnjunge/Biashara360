@@ -4,8 +4,8 @@ import { Btn, Modal } from './ui'
 import { productApi, ProductResponse } from '../services/api'
 import { downloadTemplate, ImportMode, ImportRow, readWorkbook, validateWorkbook } from '../utils/productImport'
 
-export default function ProductImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
-  const [mode, setMode] = useState<ImportMode>('products')
+export default function ProductImportModal({ onClose, onImported, canCreate=true, canAdjust=true }: { onClose: () => void; onImported: () => void; canCreate?:boolean; canAdjust?:boolean }) {
+  const [mode, setMode] = useState<ImportMode>(canCreate?'products':'stock')
   const [rows, setRows] = useState<ImportRow[]>([])
   const [workbook, setWorkbook] = useState<Workbook | null>(null)
   const [sheet, setSheet] = useState('')
@@ -66,7 +66,7 @@ export default function ProductImportModal({ onClose, onImported }: { onClose: (
   </>}>
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
       <label>Import type<select aria-label="Import type" value={mode} disabled={busy || started} onChange={e => { setMode(e.target.value as ImportMode); setRows([]); setWorkbook(null); setError('') }} style={{ display:'block', width:'100%', padding:10, marginTop:6 }}>
-        <option value="products">New products with opening stock</option><option value="stock">Add stock to existing products</option>
+        <option value="products" disabled={!canCreate}>New products with opening stock</option><option value="stock" disabled={!canAdjust}>Add stock to existing products</option>
       </select></label>
       <p style={{ fontSize:13 }}>{mode === 'products' ? 'Creates new products. Existing SKUs are rejected; no products are overwritten.' : 'Matches existing products by SKU and adds Quantity to their current stock. Prices and product details stay unchanged.'}</p>
       <Btn variant="secondary" disabled={busy} onClick={() => downloadTemplate(mode).catch(e => setError(e.message))}>Download Excel template</Btn>

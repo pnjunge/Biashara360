@@ -13,6 +13,9 @@ fun Route.supplierRoutes() {
     val service: SupplierService by inject()
 
     route("/suppliers") {
+        moduleGuard("INVENTORY")
+        menuGuardAny("INVENTORY", "PURCHASES")
+        permissionGuard("inventory.suppliers")
         get {
             val businessId = call.businessId()
             val list = service.list(businessId)

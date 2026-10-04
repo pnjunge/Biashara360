@@ -1,3 +1,4 @@
+import { useMenuAccess } from '../components/access/MenuAccess'
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -22,6 +23,7 @@ interface LineItemDraft {
 }
 
 export default function PurchasesPage() {
+  const access=useMenuAccess()
   const navigate = useNavigate()
   const { user } = useAuth()
 
@@ -117,6 +119,7 @@ export default function PurchasesPage() {
   }
 
   const openRecordModal = (initialSupplierName = '', initialSupplierPhone = '') => {
+    if(!access.hasPermission('purchases.create'))return
     resetForm(initialSupplierName, initialSupplierPhone)
     setShowRecordModal(true)
   }
@@ -162,12 +165,14 @@ export default function PurchasesPage() {
 
   // Supplier Management Handlers
   const handleOpenAddSupplier = () => {
+    if(!access.hasPermission("inventory.suppliers"))return
     setSupplierForm({ id: '', name: '', phone: '', email: '', address: '' })
     setSupplierError('')
     setShowSupplierModal(true)
   }
 
   const handleOpenEditSupplier = (s: Supplier) => {
+    if(!access.hasPermission("inventory.suppliers"))return
     setSupplierForm({
       id: s.id,
       name: s.name,
@@ -361,10 +366,10 @@ export default function PurchasesPage() {
             </Btn>
             {activeTab === 'SUPPLIERS' ? (
               <>
-                <Btn variant="secondary" icon={<Receipt size={14} />} onClick={() => openRecordModal()}>
+                <Btn disabled={!access.hasPermission("purchases.create")} variant="secondary" icon={<Receipt size={14} />} onClick={() => openRecordModal()}>
                   Record Purchase
                 </Btn>
-                <Btn icon={<Plus size={14} />} onClick={handleOpenAddSupplier}>
+                <Btn disabled={!access.hasPermission("inventory.suppliers")} icon={<Plus size={14} />} onClick={handleOpenAddSupplier}>
                   Add Supplier
                 </Btn>
               </>
@@ -373,7 +378,7 @@ export default function PurchasesPage() {
                 <Btn variant="secondary" icon={<Building2 size={14} />} onClick={() => setActiveTab('SUPPLIERS')}>
                   Suppliers ({suppliers.length})
                 </Btn>
-                <Btn icon={<Plus size={14} />} onClick={() => openRecordModal()}>
+                <Btn disabled={!access.hasPermission("purchases.create")} icon={<Plus size={14} />} onClick={() => openRecordModal()}>
                   Record Purchase Invoice
                 </Btn>
               </>
@@ -654,7 +659,7 @@ export default function PurchasesPage() {
                 />
               </div>
 
-              <Btn icon={<Plus size={14} />} onClick={handleOpenAddSupplier}>
+              <Btn disabled={!access.hasPermission("inventory.suppliers")} icon={<Plus size={14} />} onClick={handleOpenAddSupplier}>
                 Add Supplier
               </Btn>
             </div>

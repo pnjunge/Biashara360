@@ -1,3 +1,4 @@
+import { useMenuAccess } from '../components/access/MenuAccess'
 import React, { useState, useEffect } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building, ShoppingCart, Clock, UserPlus, HelpCircle, Activity, ChevronDown, CheckCircle, Smartphone, ExternalLink, Copy, Store, ShoppingBag, FileText } from 'lucide-react'
@@ -474,6 +475,7 @@ export default function DashboardPage() {
 const emptyProduct = { name:'', sku:'', category:'Other', buyingPrice:'', sellingPrice:'', currentStock:'', lowStockThreshold:'10', description:'', imageUrl:'' }
 
 export function InventoryPage() {
+  const access=useMenuAccess()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
@@ -634,7 +636,7 @@ export function InventoryPage() {
 
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
-      {showImport && <ProductImportModal onClose={() => setShowImport(false)} onImported={() => { loadProducts(); loadCategories() }} />}
+      {showImport && <ProductImportModal canCreate={access.hasPermission("products.create")} canAdjust={access.hasPermission("inventory.adjust")} onClose={() => setShowImport(false)} onImported={() => { loadProducts(); loadCategories() }} />}
       {showAdd && productModal('Add Product', () => setShowAdd(false))}
       {editProduct && productModal('Edit Product', () => setEditProduct(null))}
       {showCategories && (
@@ -695,12 +697,12 @@ export function InventoryPage() {
       <PageHeader title="Inventory & Stock"
         action={
           <div style={{ display:'flex', gap:8 }}>
-            <Btn variant="secondary" icon={<ShoppingBag size={14}/>} onClick={() => navigate('/purchases')}>
+            {access.hasMenu("PURCHASES")&&<Btn variant="secondary" icon={<ShoppingBag size={14}/>} onClick={() => navigate('/purchases')}>
               Purchases & Invoices
-            </Btn>
+            </Btn>}
             {user?.role === 'ADMIN' && <Btn variant="secondary" onClick={() => { setError(''); setShowCategories(true) }}>Categories</Btn>}
-            <Btn variant="secondary" onClick={() => setShowImport(true)}>Import Excel</Btn>
-            <Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Product</Btn>
+            {(access.hasPermission("products.create")||access.hasPermission("inventory.adjust"))&&<Btn variant="secondary" onClick={() => setShowImport(true)}>Import Excel</Btn>}
+            {access.hasPermission("products.create")&&<Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Product</Btn>}
           </div>
         }
       />
@@ -727,7 +729,7 @@ export function InventoryPage() {
         >
           Products & Stock
         </button>
-        <button
+        {access.hasMenu("PURCHASES")&&<button
           onClick={() => navigate('/purchases')}
           style={{
             background: 'none',
@@ -741,7 +743,7 @@ export function InventoryPage() {
           }}
         >
           Purchase Invoices (Stock In)
-        </button>
+        </button>}
       </div>
 
       <div className="responsive-grid responsive-grid-4" style={{ gap:12 }}>
@@ -787,9 +789,9 @@ export function InventoryPage() {
                 <span style={{ fontWeight:700, color:stockColor(st) }}>{p.currentStock}</span>,
                 <StatusBadge status={st} />,
                 <div style={{ display:'flex', gap:6 }}>
-                  <Btn variant="secondary" small icon={<Edit size={12}/>} onClick={() => openEdit(p)}>Edit</Btn>
-                  <Btn variant="secondary" small icon={<Plus size={12}/>} onClick={() => openStock(p)}>Stock</Btn>
-                  <Btn variant="secondary" small disabled={saving} onClick={() => handleToggleProductStatus(p)}>{active ? 'Disable' : 'Enable'}</Btn>
+                  {access.hasPermission("products.update")&&<Btn variant="secondary" small icon={<Edit size={12}/>} onClick={() => openEdit(p)}>Edit</Btn>}
+                  {access.hasPermission("inventory.adjust")&&<Btn variant="secondary" small icon={<Plus size={12}/>} onClick={() => openStock(p)}>Stock</Btn>}
+                  {access.hasPermission("products.update")&&<Btn variant="secondary" small disabled={saving} onClick={() => handleToggleProductStatus(p)}>{active ? 'Disable' : 'Enable'}</Btn>}
                 </div>
               ]
             })}

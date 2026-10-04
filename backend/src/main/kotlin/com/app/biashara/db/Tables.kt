@@ -35,7 +35,7 @@ object BusinessesTable : Table("businesses") {
     val subscriptionValidUntil = timestamp("subscription_valid_until").nullable()
     val isTrial = bool("is_trial").default(false)
     val enabledModules = text("enabled_modules").default("INVENTORY,SALES,CRM,EXPENSES,PAYMENTS,REPORTS")
-    val enabledMenus = text("enabled_menus").default("DASHBOARD,POS,HOSPITALITY,HOSPITALITY_OPS,SERVICES,OPEN_TABS,INVENTORY,ORDERS,CUSTOMERS,EXPENSES,PAYMENTS,CARD_PAYMENTS,TAX,KRA,SOCIAL,SOCIAL_SETUP,USERS,REPORTS,DOWNLOADS,SETTINGS")
+    val enabledMenus = text("enabled_menus").default("DASHBOARD,POS,HOSPITALITY,HOSPITALITY_OPS,SERVICES,OPEN_TABS,INVENTORY,PURCHASES,ORDERS,CUSTOMERS,EXPENSES,PAYMENTS,CARD_PAYMENTS,TAX,KRA,SOCIAL,SOCIAL_SETUP,USERS,REPORTS,DOWNLOADS,SETTINGS")
     val servicesEnabled = bool("services_enabled").default(false)
     val hospitalityEnabled = bool("hospitality_enabled").default(false)
     val dayStartTime = varchar("day_start_time", 5).default("06:00")

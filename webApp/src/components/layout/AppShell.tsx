@@ -119,7 +119,7 @@ export default function AppShell() {
   const visibleNavItems = navItems.filter(item => {
     if (item.key === 'SERVICES' && !servicesEnabled) return false
     const accessKeys = [item.key]
-    if (allowedMenus && !accessKeys.some(key => allowedMenus.has(key) || (key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS')) || (key === 'PURCHASES' && allowedMenus.has('INVENTORY')))) return false
+    if (allowedMenus && !accessKeys.some(key => allowedMenus.has(key) || (key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS')))) return false
     const isHospitalityNav = item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS' || item.to === '/kitchen-display'
     if (isHospitalityNav && hospitalityEnabled !== true) return false
     if (!isStaff) return true

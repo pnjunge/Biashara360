@@ -13,6 +13,9 @@ fun Route.purchaseRoutes() {
     val service: PurchaseInvoiceService by inject()
 
     route("/purchases") {
+        moduleGuard("INVENTORY")
+        menuGuardAny("PURCHASES")
+        permissionGuard("purchases.view")
         get {
             val businessId = call.businessId()
             val query = call.request.queryParameters["q"]
@@ -28,6 +31,7 @@ fun Route.purchaseRoutes() {
         }
 
         post {
+            if (!call.hasPermission("purchases.create")) return@post call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message="Create purchase permission required"))
             val businessId = call.businessId()
             val req = call.receive<CreatePurchaseInvoiceRequest>()
             val result = service.create(businessId, req)

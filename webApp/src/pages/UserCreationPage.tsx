@@ -32,8 +32,8 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
     permissions: [
       'users.view', 'users.create', 'users.edit', 'users.delete', 'users.roles_manage',
       'orders.view', 'orders.create', 'orders.edit', 'orders.cancel', 'orders.refund',
-      'products.view', 'products.create', 'products.edit', 'products.delete',
-      'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers',
+      'products.view', 'products.create', 'products.update', 'products.delete',
+      'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers', 'purchases.view', 'purchases.create',
       'payments.view', 'payments.process', 'payments.refund',
       'reports.sales', 'reports.financial', 'reports.export',
       'settings.general', 'settings.security', 'settings.branches', 'settings.tax', 'settings.integrations'
@@ -46,8 +46,8 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
     permissions: [
       'users.view', 'users.create', 'users.edit', 'users.delete', 'users.roles_manage',
       'orders.view', 'orders.create', 'orders.edit', 'orders.cancel', 'orders.refund',
-      'products.view', 'products.create', 'products.edit', 'products.delete',
-      'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers',
+      'products.view', 'products.create', 'products.update', 'products.delete',
+      'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers', 'purchases.view', 'purchases.create',
       'payments.view', 'payments.process', 'payments.refund',
       'reports.sales', 'reports.financial', 'reports.export',
       'settings.general', 'settings.security', 'settings.branches', 'settings.tax', 'settings.integrations'
@@ -60,8 +60,8 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
     permissions: [
       'users.view', 'users.create', 'users.edit', 'users.delete', 'users.roles_manage',
       'orders.view', 'orders.create', 'orders.edit', 'orders.cancel', 'orders.refund',
-      'products.view', 'products.create', 'products.edit', 'products.delete',
-      'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers',
+      'products.view', 'products.create', 'products.update', 'products.delete',
+      'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers', 'purchases.view', 'purchases.create',
       'payments.view', 'payments.process', 'payments.refund',
       'reports.sales', 'reports.financial', 'reports.export',
       'settings.general', 'settings.branches', 'settings.tax'
@@ -74,8 +74,8 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
     permissions: [
       'users.view',
       'orders.view', 'orders.create', 'orders.edit', 'orders.cancel', 'orders.refund',
-      'products.view', 'products.create', 'products.edit', 'products.delete',
-      'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers',
+      'products.view', 'products.create', 'products.update', 'products.delete',
+      'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers', 'purchases.view', 'purchases.create',
       'payments.view', 'payments.process', 'payments.refund',
       'reports.sales', 'reports.financial', 'reports.export',
       'settings.general', 'settings.branches',
@@ -106,10 +106,10 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
     label: 'Inventory Staff',
     description: 'Products, stock counts, adjustments and stock movements',
     permissions: [
-      'products.view', 'products.create', 'products.edit',
-      'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers'
+      'products.view', 'products.create', 'products.update',
+      'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers', 'purchases.view', 'purchases.create'
     ],
-    menus: ['PRODUCTS', 'INVENTORY', 'SUPPLIERS']
+    menus: ['INVENTORY', 'PURCHASES']
   },
   ACCOUNTANT: {
     label: 'Accountant',
@@ -188,7 +188,7 @@ const PERMISSION_MODULES: PermissionMatrixModule[] = [
     description: 'Product definitions, categories, prices and barcode tags',
     view: { code: 'products.view', label: 'View Products Catalog' },
     create: { code: 'products.create', label: 'Create New Products' },
-    edit: { code: 'products.edit', label: 'Edit Prices & Info' },
+    edit: { code: 'products.update', label: 'Edit Prices & Info' },
     delete: { code: 'products.delete', label: 'Delete Products' },
   },
   {

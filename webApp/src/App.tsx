@@ -1,6 +1,7 @@
 import React, { Suspense, createContext, lazy, useContext, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
+import MenuAccess from './components/access/MenuAccess'
 import { hospitalityApi, settingsApi, servicesApi } from './services/api'
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
@@ -222,8 +223,8 @@ export default function App() {
           </Route>
           <Route element={<PrivateRoute><AppShell /></PrivateRoute>}>
             <Route path="/dashboard"  element={<DashboardPage />} />
-            <Route path="/inventory"  element={<InventoryPage />} />
-            <Route path="/purchases"  element={<PurchasesPage />} />
+            <Route path="/inventory"  element={<MenuAccess menu="INVENTORY" permission="inventory.view"><InventoryPage /></MenuAccess>} />
+            <Route path="/purchases"  element={<MenuAccess menu="PURCHASES" permission="purchases.view"><PurchasesPage /></MenuAccess>} />
             <Route path="/pos"        element={<PosPage />} />
             <Route path="/hospitality" element={<HospitalityProtectedRoute><HospitalityPage /></HospitalityProtectedRoute>} />
             <Route path="/hotel" element={<HotelPage />} />

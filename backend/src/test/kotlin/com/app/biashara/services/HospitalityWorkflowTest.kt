@@ -8,7 +8,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID
 import kotlin.test.*
-import com.app.biashara.routes.hospitalityRoutes
+import com.app.biashara.routes.*
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import io.ktor.client.request.*
@@ -384,6 +384,38 @@ class HospitalityWorkflowTest {
    start.countDown();assertEquals(1,attempts.count{it.get(15,java.util.concurrent.TimeUnit.SECONDS)})
    assertEquals("manager",orders.getById(order.id,"business")!!.responsibleUserId)
   } finally {executor.shutdownNow()}
+ }
+
+ @Test fun `cashier can browse checkout products but cannot mutate inventory or purchases`() = testApplication {
+  environment {config=io.ktor.server.config.MapApplicationConfig()}
+  transaction {
+   SchemaUtils.create(InventoryCategoriesTable,PurchaseInvoicesTable)
+   for(code in listOf("products.view","products.create","products.update","inventory.view","inventory.adjust","purchases.view","purchases.create","inventory.suppliers"))if(!PermissionsTable.select{PermissionsTable.code eq code}.any())PermissionsTable.insert {it[id]=UUID.randomUUID().toString();it[PermissionsTable.code]=code;it[module]="INVENTORY";it[action]="MANAGE";it[name]=code;it[createdAt]=Clock.System.now()}
+  }
+  val access=AccessControlService()
+  // An inventory menu alone must never authorize mutations.
+  val cashier=access.createRole("business",SaveAccessRoleRequest("Cashier",allowedMenus=listOf("POS","INVENTORY","PURCHASES"),permissions=listOf("products.view","inventory.view")))
+  val keeper=access.createRole("business",SaveAccessRoleRequest("Storekeeper",allowedMenus=listOf("INVENTORY","PURCHASES"),permissions=listOf("products.view","products.create","products.update","inventory.adjust","purchases.view","purchases.create","inventory.suppliers")))
+  transaction {UserAccessRolesTable.insert{it[userId]="staff";it[roleId]=cashier.id};UserAccessRolesTable.insert{it[userId]="manager";it[roleId]=keeper.id}}
+  val algorithm=Algorithm.HMAC256("cashier-stock-test")
+  fun token(user:String)=JWT.create().withSubject(user).withClaim("businessId","business").withClaim("role","STAFF").sign(algorithm)
+  application {
+   install(Koin){modules(module{single{access};single{ProductService()};single{InventoryCategoryService()};single{PurchaseInvoiceService()};single{SupplierService()}})}
+   install(ContentNegotiation){json()}
+   install(Authentication){jwt{verifier(JWT.require(algorithm).build());validate{JWTPrincipal(it.payload)}}}
+   routing{authenticate{productRoutesValidated();purchaseRoutes();supplierRoutes()}}
+  }
+  assertEquals(HttpStatusCode.OK,client.get("/products"){bearerAuth(token("staff"))}.status)
+  val before=transaction{ProductsTable.select{ProductsTable.id eq "meal"}.single()[ProductsTable.currentStock]}
+  for(path in listOf("/products","/products/meal/stock","/purchases","/suppliers"))assertEquals(HttpStatusCode.Forbidden,client.post(path){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{}")}.status,path)
+  for(path in listOf("/products/meal","/products/meal/status","/suppliers/missing"))assertEquals(HttpStatusCode.Forbidden,client.put(path){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{}")}.status,path)
+  assertEquals(HttpStatusCode.Forbidden,client.get("/purchases"){bearerAuth(token("staff"))}.status)
+  assertEquals(HttpStatusCode.Forbidden,client.delete("/suppliers/missing"){bearerAuth(token("staff"))}.status)
+  assertEquals(before,transaction{ProductsTable.select{ProductsTable.id eq "meal"}.single()[ProductsTable.currentStock]})
+  assertEquals(HttpStatusCode.OK,client.get("/purchases"){bearerAuth(token("manager"))}.status)
+  assertEquals(HttpStatusCode.OK,client.get("/suppliers"){bearerAuth(token("manager"))}.status)
+  assertEquals(HttpStatusCode.OK,client.post("/products/meal/stock"){bearerAuth(token("manager"));contentType(ContentType.Application.Json);setBody("{\"type\":\"STOCK_IN\",\"quantity\":2}")}.status)
+  assertEquals(before+2,transaction{ProductsTable.select{ProductsTable.id eq "meal"}.single()[ProductsTable.currentStock]})
  }
 
 }

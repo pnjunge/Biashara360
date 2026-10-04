@@ -120,6 +120,7 @@ fun Route.productRoutes() {
         }
 
         post {
+            if (!call.hasPermission("products.create")) return@post call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message="Create product permission required"))
             val businessId = call.businessId()
             val req = call.receive<ProductRequest>()
             val result = productService.create(businessId, req)
@@ -136,6 +137,7 @@ fun Route.productRoutes() {
             }
 
             put {
+                if (!call.hasPermission("products.update")) return@put call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message="Edit product permission required"))
                 val businessId = call.businessId()
                 val id = call.parameters["id"]!!
                 val req = call.receive<ProductRequest>()
@@ -155,6 +157,7 @@ fun Route.productRoutes() {
             }
 
             post("/stock") {
+                if (!call.hasPermission("inventory.adjust")) return@post call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message="Adjust inventory permission required"))
                 val businessId = call.businessId()
                 val id = call.parameters["id"]!!
                 val req = call.receive<StockUpdateRequest>()
@@ -1038,6 +1041,15 @@ fun Route.moduleGuard(module: String) {
                 HttpStatusCode.Forbidden,
                 ApiResponse<Unit>(false, message = "Module '$module' is not enabled for this business")
             )
+            finish()
+        }
+    }
+}
+
+fun Route.permissionGuard(permission: String) {
+    intercept(ApplicationCallPipeline.Call) {
+        if (!call.hasPermission(permission)) {
+            call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Permission '$permission' is required"))
             finish()
         }
     }
