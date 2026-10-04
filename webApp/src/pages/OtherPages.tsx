@@ -386,10 +386,12 @@ export function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<string>('This Month')
   const [reportType, setReportType] = useState('SALES')
+  const [reportErrors, setReportErrors] = useState<Record<string, string>>({})
   const [showScheduler, setShowScheduler] = useState(false)
 
   const loadReport = (selectedPeriod: string) => {
     setLoading(true)
+    setReportErrors({})
     const { startDate, endDate } = getPeriodRange(selectedPeriod)
     Promise.allSettled([
       reportApi.profitSummary(startDate, endDate),
@@ -399,6 +401,13 @@ export function ReportsPage() {
       customerApi.list(),
       businessApi.getProfile(),
     ]).then(([profitResult, paymentResult, orderResult, expenseResult, customerResult, profileResult]) => {
+      const errorMessage = (result: PromiseSettledResult<any>) => {
+        if (result.status === 'rejected') return result.reason?.response?.data?.message || result.reason?.message || 'Could not load report. Try again.'
+        return result.value.success ? '' : result.value.message || 'Could not load report. Try again.'
+      }
+      setReportErrors({ REVENUE: errorMessage(profitResult), SALES: errorMessage(orderResult),
+        ORDERS: errorMessage(orderResult), MPESA: errorMessage(paymentResult), CARD: errorMessage(paymentResult),
+        CASH: errorMessage(paymentResult), EXPENSES: errorMessage(expenseResult), CUSTOMERS: errorMessage(customerResult) })
       const profit = profitResult.status === 'fulfilled' ? profitResult.value : null
       const payments = paymentResult.status === 'fulfilled' ? paymentResult.value : null
       const orders = orderResult.status === 'fulfilled' ? orderResult.value : null
@@ -481,7 +490,7 @@ export function ReportsPage() {
 
       {loading ? (
         <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
-      ) : selectedReport ? (
+      ) : selectedReport && !reportErrors[reportType] ? (
         <Card style={{ padding:20 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'start', gap:12, flexWrap:'wrap', marginBottom:16 }}>
             <div>
@@ -508,7 +517,8 @@ export function ReportsPage() {
         </Card>
       ) : (
         <Card style={{ padding:32, textAlign:'center', color:'var(--b360-text-secondary)' }}>
-          This report could not be loaded. Refresh the page or choose another period.
+          <p role="alert">{reportErrors[reportType] || 'This report could not be loaded. Please try again.'}</p>
+          <Btn variant="secondary" onClick={() => loadReport(period)}>Retry</Btn>
         </Card>
       )}
 

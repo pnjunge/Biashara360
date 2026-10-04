@@ -123,12 +123,16 @@ class AccessControlServiceTest {
             routing { authenticate { reportRoutes() } }
         }
         suspend fun status() = client.get("/reports/profit-summary") { bearerAuth(token) }.status
+        suspend fun ordersStatus() = client.get("/reports/orders") { bearerAuth(token) }.status
         assertEquals(HttpStatusCode.Forbidden, status())
+        assertEquals(HttpStatusCode.Forbidden, ordersStatus())
         service.updateGroup("business", group.id, SaveAccessGroupRequest(name = "Any group", roleIds = listOf(role.id)))
         // Missing dates now reach validation, proving the STAFF user passed authorization.
         assertEquals(HttpStatusCode.BadRequest, status())
+        assertEquals(HttpStatusCode.BadRequest, ordersStatus())
         transaction { BusinessesTable.update({ BusinessesTable.id eq "business" }) { it[enabledModules] = "SALES" } }
         assertEquals(HttpStatusCode.Forbidden, status())
+        assertEquals(HttpStatusCode.Forbidden, ordersStatus())
     }
 
 }

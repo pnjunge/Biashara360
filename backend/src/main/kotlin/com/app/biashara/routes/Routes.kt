@@ -598,8 +598,8 @@ fun Route.reportRoutes() {
         }
         get("/orders") {
             val businessId = call.businessId()
-            if (!call.hasPermission("reports.sales")) {
-                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Permission required: reports.sales"))
+            if (!call.hasPermission("reports.sales") && !call.hasPermission("reports.financial")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Permission required: reports.sales or reports.financial"))
                 return@get
             }
             val startDate = call.request.queryParameters["startDate"]
@@ -1105,4 +1105,3 @@ fun Route.auditLogRoutes() {
         }
     }
 }
-
