@@ -71,6 +71,7 @@ fun appModule(config: ApplicationConfig) = module {
     single { StorefrontService(get(), get(), get()) }
     single { AccessControlService(get()) }
     single { HospitalityService(get()) }
+    single { HotelService(get()) }
     single { AdvancedHospitalityService() }
     single { ServiceManagementService(get()) }
     single { SubscriptionService(get(), get(), get()) }

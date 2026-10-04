@@ -125,6 +125,7 @@ class AuthService(
             it[id] = businessId
             it[name] = req.businessName
             it[storefrontSlug] = allocateStorefrontSlug(req.businessName, businessId)
+            it[hotelEnabled] = req.businessType.uppercase() in setOf("HOTEL", "LODGE")
             it[type] = req.businessType
             it[ownerPhone] = req.phone
             it[ownerEmail] = req.email

@@ -135,6 +135,7 @@ fun Application.module() {
                 auditLogRoutes()
                 accessControlRoutes()
                 hospitalityRoutes()
+                hotelRoutes()
                 serviceRoutes()
                 cyberSourceRoutes()
                 taxRoutes()

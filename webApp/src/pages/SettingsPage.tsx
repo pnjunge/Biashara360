@@ -12,6 +12,7 @@ import {
   BusinessProfileRequest, MpesaConfigResponse, SessionTimeoutConfig, BranchRequest, BranchResponse
 } from '../services/api'
 import { useAuth } from '../App'
+import { hotelApi } from '../services/hotelApi'
 
 type SettingsTab = 'general' | 'storefront' | 'cybersource' | 'kra' | 'mpesa' | 'security' | 'notifications' | 'branches'
 type SecuritySection = 'authentication' | 'session' | 'access'
@@ -74,6 +75,9 @@ export function SettingsPage() {
   const [servicesEnabled, setServicesEnabled] = useState(false)
   const [servicesSaving, setServicesSaving] = useState(false)
   const [hospitalityEnabled, setHospitalityEnabled] = useState(false)
+  const [hotelEnabled, setHotelEnabled] = useState(false)
+  const [hotelSaving, setHotelSaving] = useState(false)
+  useEffect(() => { hotelApi.status().then(r => setHotelEnabled(r.enabled)).catch(() => {}) }, [])
   const [hospitalitySaving, setHospitalitySaving] = useState(false)
 
   // ── 2. CyberSource Configuration State ───────────────────────────────────────
@@ -855,6 +859,19 @@ export function SettingsPage() {
                 </div>
                 {!isMerchantAdmin && <div style={{fontSize:12,color:'var(--b360-amber)'}}>Only a business administrator can change this setting.</div>}
                 {hospitalitySaving && <div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>Updating hospitality mode…</div>}
+              </Section>
+
+              <Section title="Hotel & Accommodation">
+                <Toggle label={hotelEnabled ? 'Accommodation management is enabled' : 'Enable hotel accommodation'}
+                  checked={hotelEnabled} disabled={!isMerchantAdmin || hotelSaving}
+                  onChange={async enabled => {
+                    setHotelSaving(true)
+                    try { await hotelApi.enable(enabled); setHotelEnabled(enabled); window.dispatchEvent(new Event('access-updated')); setProfileMsg({ok:true,text:`Hotel accommodation ${enabled ? 'enabled' : 'disabled'}.`}) }
+                    catch (e: any) { setProfileMsg({ok:false,text:e.response?.data?.message || e.message || 'Could not update Hotels.'}) }
+                    finally { setHotelSaving(false) }
+                  }} />
+                <p style={{fontSize:12,color:'var(--b360-text-secondary)'}}>Rooms, overnight reservations, guest folios, housekeeping and occupancy reports. Assign Hotel menus and permissions under Users & Access.</p>
+                {hotelEnabled && <Btn small variant="secondary" onClick={() => navigate('/hotel')}>Open Hotel Management</Btn>}
               </Section>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

@@ -264,7 +264,11 @@ class ExpenseService(
                 (OrdersTable.createdAt greaterEq startInstant) and
                 (OrdersTable.createdAt less endInstant)
             }.map { it[OrdersTable.createdAt] to it[OrdersTable.subtotal] }
-        val dailyRevenue = buildDailyRevenue(start, end, revenueRows)
+        val hotelRefundRows = HotelFolioEntries.select {
+            (HotelFolioEntries.businessId eq businessId) and (HotelFolioEntries.kind eq "CASH_REFUND") and
+                (HotelFolioEntries.createdAt greaterEq startInstant) and (HotelFolioEntries.createdAt less endInstant)
+        }.map { it[HotelFolioEntries.createdAt] to -it[HotelFolioEntries.amount] / 100.0 }
+        val dailyRevenue = buildDailyRevenue(start, end, revenueRows + hotelRefundRows)
         val totalRevenue = dailyRevenue.sumOf { it.revenue }
 
         // COGS: sum of (buyingPrice × quantity) for items in paid orders in the date range,

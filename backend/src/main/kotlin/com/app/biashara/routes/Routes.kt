@@ -940,6 +940,7 @@ fun ApplicationCall.hasRole(vararg roles: String): Boolean {
 }
 
 fun ApplicationCall.hasPermission(permission: String): Boolean {
+    if (userRole() == "SUPERADMIN") return true
     val service: AccessControlService by inject()
     return service.hasPermission(callerUserId(), businessId(), permission)
 }
@@ -1015,6 +1016,7 @@ fun ApplicationCall.hasAnyMenu(vararg requestedMenus: String): Boolean {
         val enabled = business[BusinessesTable.enabledMenus].split(',').map { it.trim().uppercase() }.toMutableSet()
         if (business[BusinessesTable.hospitalityEnabled] || business[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true)) enabled += setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
         if (business[BusinessesTable.servicesEnabled]) enabled += "SERVICES" else enabled -= "SERVICES"
+        if (business[BusinessesTable.hotelEnabled]) enabled += "HOTEL" else enabled -= "HOTEL"
         if (enabled.intersect(requested).isEmpty()) return@transaction false
         val service: AccessControlService by inject()
         service.myMenus(businessId, userId, userRole()).enabledMenus.any { it in requested }

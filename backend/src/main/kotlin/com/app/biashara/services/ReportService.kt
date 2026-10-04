@@ -21,11 +21,12 @@ class ReportService {
                     (PaymentsTable.transactionDate less range.second)
             }.orderBy(PaymentsTable.transactionDate, SortOrder.DESC).toList()
             val successful = rows.filter { it[PaymentsTable.status] in setOf("SUCCESS", "COMPLETED", "PAID") }
+            val hotelRefunds = rows.filter { it[PaymentsTable.status] == "REFUNDED" && it[PaymentsTable.channel] == "HOTEL_REFUND" }
             PaymentReportResponse(
                 period = "$startDate to $endDate",
                 totalTransactions = rows.size,
-                totalAmount = successful.sumOf { it[PaymentsTable.amount] },
-                reconciledAmount = successful.filter { it[PaymentsTable.reconciled] }.sumOf { it[PaymentsTable.amount] },
+                totalAmount = successful.sumOf { it[PaymentsTable.amount] } - hotelRefunds.sumOf { it[PaymentsTable.amount] },
+                reconciledAmount = successful.filter { it[PaymentsTable.reconciled] }.sumOf { it[PaymentsTable.amount] } - hotelRefunds.filter { it[PaymentsTable.reconciled] }.sumOf { it[PaymentsTable.amount] },
                 byMethod = rows.toBreakdown(PaymentsTable.method, PaymentsTable.amount),
                 byChannel = rows.toBreakdown(PaymentsTable.channel, PaymentsTable.amount),
                 payments = rows.take(MAX_REPORT_ROWS).map {
@@ -90,7 +91,9 @@ class ReportService {
 
     private fun List<ResultRow>.toBreakdown(label: Column<String>, amount: Column<Double>): List<ReportBreakdown> =
         groupBy { it[label] }
-            .map { (value, rows) -> ReportBreakdown(value, rows.size, rows.sumOf { it[amount] }) }
+            .map { (value, rows) -> ReportBreakdown(value, rows.size, rows.sumOf {
+                if (amount.table == PaymentsTable && it[PaymentsTable.channel] == "HOTEL_REFUND" && it[PaymentsTable.status] == "REFUNDED") -it[amount] else it[amount]
+            }) }
             .sortedByDescending { it.amount }
 
     private companion object {

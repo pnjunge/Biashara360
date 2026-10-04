@@ -33,6 +33,7 @@ const CardCheckoutPage = lazy(() => import('./pages/CardCheckoutPage'))
 const OrderingQrPage = lazy(() => import('./pages/OrderingQrPage'))
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage'))
 const HospitalityPage = lazy(() => import('./pages/HospitalityPage'))
+const HotelPage = lazy(() => import('./pages/HotelPage'))
 const HospitalityOperationsPage = lazy(() => import('./pages/HospitalityOperationsPage'))
 const OpenTabsPage = lazy(() => import('./pages/OpenTabsPage'))
 const KitchenDisplayPage = lazy(() => import('./pages/KitchenDisplayPage'))
@@ -225,6 +226,7 @@ export default function App() {
             <Route path="/purchases"  element={<PurchasesPage />} />
             <Route path="/pos"        element={<PosPage />} />
             <Route path="/hospitality" element={<HospitalityProtectedRoute><HospitalityPage /></HospitalityProtectedRoute>} />
+            <Route path="/hotel" element={<HotelPage />} />
             <Route path="/hospitality-operations" element={<HospitalityProtectedRoute><HospitalityOperationsPage /></HospitalityProtectedRoute>} />
             <Route path="/open-tabs" element={<HospitalityProtectedRoute><OpenTabsPage /></HospitalityProtectedRoute>} />
             <Route path="/kitchen-display" element={<HospitalityProtectedRoute><KitchenDisplayPage /></HospitalityProtectedRoute>} />

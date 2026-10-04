@@ -20,6 +20,12 @@ type ActiveTab = 'users' | 'roles' | 'audit'
 
 // ── Standard Roles Presets (9 roles) ──────────────────────────────────────────
 const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string; permissions: string[]; menus: string[] }> = {
+  HOTEL_MANAGER: { label: 'Hotel Manager', description: 'Rooms, bookings, front desk, billing, refunds, housekeeping and hotel reports',
+    permissions: ['hotel.view','hotel.manage','hotel.reservations','hotel.frontdesk','hotel.billing','hotel.refunds','hotel.housekeeping','hotel.reports','hotel.channels'], menus: ['HOTEL','ORDERS','PAYMENTS'] },
+  HOTEL_FRONT_DESK: { label: 'Hotel Front Desk', description: 'Reservations, arrivals, departures and guest payments',
+    permissions: ['hotel.view','hotel.reservations','hotel.frontdesk','hotel.billing'], menus: ['HOTEL','ORDERS','PAYMENTS'] },
+  HOTEL_HOUSEKEEPING: { label: 'Hotel Housekeeping', description: 'Room readiness and cleaning updates',
+    permissions: ['hotel.view','hotel.housekeeping'], menus: ['HOTEL'] },
   PLATFORM_ADMIN: {
     label: 'Platform Admin',
     description: 'Manage the entire Biashara360 platform, businesses, config and administrators',
@@ -143,6 +149,14 @@ interface PermissionMatrixModule {
 }
 
 const PERMISSION_MODULES: PermissionMatrixModule[] = [
+  { key: 'hotel', label: 'Hotel & Accommodation', description: 'Room inventory, reservations, arrivals and departures',
+    view: { code: 'hotel.view', label: 'View hotel' }, create: { code: 'hotel.reservations', label: 'Manage reservations' },
+    edit: { code: 'hotel.frontdesk', label: 'Check in / out' }, special: { code: 'hotel.manage', label: 'Manage rooms and prices' } },
+  { key: 'hotel_finance', label: 'Hotel Billing', description: 'Guest folios, payments, credits, refunds and occupancy reports',
+    view: { code: 'hotel.reports', label: 'Hotel reports' }, edit: { code: 'hotel.billing', label: 'Collect payments and post charges' },
+    special: { code: 'hotel.refunds', label: 'Credits and cash refunds' } },
+  { key: 'hotel_operations', label: 'Hotel Operations', description: 'Housekeeping and booking channel calendars',
+    edit: { code: 'hotel.housekeeping', label: 'Update housekeeping' }, special: { code: 'hotel.channels', label: 'Exchange calendars' } },
   {
     key: 'users',
     label: 'Users & Access',

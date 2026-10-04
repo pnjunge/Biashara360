@@ -14,6 +14,7 @@ const navItems = [
   { key:'DASHBOARD', to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
   { key:'POS', to: '/pos',           icon: Store,           label: 'Point of Sale' },
   { key:'HOSPITALITY', to: '/hospitality', icon: Receipt, label: 'Bar & Restaurant' },
+  { key:'HOTEL', to: '/hotel', icon: Building2, label: 'Hotel & Accommodation' },
   { key:'HOSPITALITY_OPS', to: '/hospitality-operations', icon: Building2, label: 'Hospitality Operations' },
   { key:'OPEN_TABS', to: '/open-tabs', icon: ShoppingCart, label: 'Open Tabs' },
   { key:'HOSPITALITY', to: '/kitchen-display', icon: ChefHat, label: 'Kitchen & Bar Display' },
@@ -33,7 +34,7 @@ const navItems = [
 ]
 
 const navSectionDefinitions = [
-  { key: 'OPERATIONS', label: 'OPERATIONS', itemKeys: ['HOSPITALITY', 'HOSPITALITY_OPS', 'OPEN_TABS', 'SERVICES', 'INVENTORY', 'PURCHASES', 'ORDERS', 'CUSTOMERS'] },
+  { key: 'OPERATIONS', label: 'OPERATIONS', itemKeys: ['HOTEL', 'HOSPITALITY', 'HOSPITALITY_OPS', 'OPEN_TABS', 'SERVICES', 'INVENTORY', 'PURCHASES', 'ORDERS', 'CUSTOMERS'] },
   { key: 'FINANCE', label: 'FINANCE', itemKeys: ['EXPENSES', 'PAYMENTS'] },
   { key: 'ENGAGEMENT', label: 'ENGAGEMENT', itemKeys: ['SOCIAL', 'REPORTS', 'DOWNLOADS'] },
   { key: 'ADMINISTRATION', label: 'ADMINISTRATION', itemKeys: ['USERS', 'AUDIT_LOG', 'SETTINGS'] },
@@ -72,14 +73,16 @@ export default function AppShell() {
       if (typeof enabled === 'boolean') setHospitalityEnabled(enabled)
     }
     const handleServicesChange = (event: Event) => {
-      setServicesEnabled((event as CustomEvent<{ enabled: boolean }>).detail?.enabled === true)
+      const enabled = (event as CustomEvent<{ enabled: boolean }>).detail?.enabled
+      if (typeof enabled === 'boolean') setServicesEnabled(enabled)
       accessApi.me().then(result => {
         if (result.success && result.data) setAllowedMenus(new Set(result.data.enabledMenus))
       }).catch(() => {})
     }
     window.addEventListener('services-mode-changed', handleServicesChange)
+    window.addEventListener('access-updated', handleServicesChange)
     window.addEventListener('hospitality-mode-changed', handleModeChange)
-    return () => { window.removeEventListener('hospitality-mode-changed', handleModeChange); window.removeEventListener('services-mode-changed', handleServicesChange) }
+    return () => { window.removeEventListener('hospitality-mode-changed', handleModeChange); window.removeEventListener('services-mode-changed', handleServicesChange); window.removeEventListener('access-updated', handleServicesChange) }
   }, [user?.id])
 
   useEffect(() => {

@@ -11,6 +11,7 @@ import org.jetbrains.exposed.sql.transactions.transaction
 val BUSINESS_MENUS = listOf(
     MenuDefinition("DASHBOARD", "Dashboard"), MenuDefinition("POS", "Point of Sale"),
     MenuDefinition("HOSPITALITY", "Bar & Restaurant"),
+    MenuDefinition("HOTEL", "Hotel & Accommodation"),
     MenuDefinition("HOSPITALITY_OPS", "Hospitality Operations"),
     MenuDefinition("SERVICES", "Appointments & Services"),
     MenuDefinition("OPEN_TABS", "Open Tabs"),
@@ -294,6 +295,7 @@ class AccessControlService(
             menus -= setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
         }
         if (business[BusinessesTable.servicesEnabled]) menus += "SERVICES" else menus -= "SERVICES"
+        if (business[BusinessesTable.hotelEnabled]) menus += "HOTEL" else menus -= "HOTEL"
         return menus.toList()
     }
 

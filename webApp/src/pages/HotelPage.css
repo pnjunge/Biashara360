@@ -1,0 +1,131 @@
+.hotel-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.hotel-toolbar,
+.hotel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.hotel-toolbar h3 {
+  margin-right: auto;
+}
+.hotel-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--b360-border);
+  padding-bottom: 8px;
+}
+.hotel-tabs button {
+  border: 0;
+  border-radius: 8px;
+  background: var(--b360-surface);
+  color: var(--b360-text-secondary);
+  padding: 10px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hotel-tabs button.active {
+  background: var(--b360-green);
+  color: white;
+}
+.hotel-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.hotel-field input,
+.hotel-field select,
+.hotel-field textarea {
+  padding: 10px;
+  border: 1px solid var(--b360-border);
+  border-radius: 8px;
+  background: var(--b360-surface);
+  color: var(--b360-text);
+  font: inherit;
+}
+.hotel-field textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+.hotel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.hotel-error {
+  padding: 12px;
+  border: 1px solid var(--b360-red);
+  border-radius: 8px;
+  color: var(--b360-red);
+}
+.hotel-success {
+  padding: 12px;
+  background: var(--b360-surface);
+  color: var(--b360-green);
+  border-radius: 8px;
+}
+.hotel-empty {
+  padding: 24px;
+  text-align: center;
+}
+.hotel-calendar {
+  overflow: auto;
+  max-height: 480px;
+}
+.hotel-calendar table {
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 100%;
+}
+.hotel-calendar th,
+.hotel-calendar td {
+  padding: 10px;
+  border: 1px solid var(--b360-border);
+  text-align: center;
+  min-width: 44px;
+}
+.hotel-calendar th {
+  background: var(--b360-surface);
+  position: sticky;
+  top: 0;
+}
+.hotel-calendar th:first-child {
+  left: 0;
+  z-index: 1;
+  min-width: 90px;
+}
+.hotel-calendar td.booked {
+  background: #d1fae5;
+  color: #065f46;
+}
+.hotel-calendar td.blocked {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.hotel-payment {
+  padding: 12px;
+  border: 1px solid var(--b360-border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  .hotel-toolbar .hotel-field {
+    flex: 1;
+    min-width: 140px;
+  }
+  .hotel-actions {
+    gap: 6px;
+  }
+}

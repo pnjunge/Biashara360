@@ -9,6 +9,7 @@ import org.jetbrains.exposed.sql.ReferenceOption.SET_NULL
 // ─── Businesses ───────────────────────────────────────────────────────────────
 
 object BusinessesTable : Table("businesses") {
+    val hotelEnabled = bool("hotel_enabled").default(false)
     val id = varchar("id", 36)
     val name = varchar("name", 255)
     val storefrontSlug = varchar("storefront_slug", 120).uniqueIndex()
@@ -592,5 +593,4 @@ object AppReleasesTable : Table("app_releases") {
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
 }
-
 
