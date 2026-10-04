@@ -9,6 +9,7 @@ import {
 import styles from './AppShell.module.css'
 import PortalOrdersInbox from '../orders/PortalOrdersInbox'
 import OrderSoundAlerts from '../alerts/OrderSoundAlerts'
+import LoginShiftPrompt from '../hospitality/LoginShiftPrompt'
 import { accessApi, hospitalityApi, servicesApi, branchApi, BranchResponse } from '../../services/api'
 
 const navItems = [
@@ -360,6 +361,7 @@ export default function AppShell() {
         </header>
         <main className={`${styles.content} app-content`}>
           <Outlet />
+          <LoginShiftPrompt />
         </main>
       </div>
     </div>

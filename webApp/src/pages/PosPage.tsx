@@ -69,6 +69,15 @@ export function PosPage() {
     }
   }, [completedOrder])
 
+  useEffect(() => {
+    const refreshShifts=()=>{
+      hospitalityApi.status().then(r=>{if(r.success&&r.data)setShiftOpen(r.data.shiftOpen===true)}).catch(()=>undefined)
+      hospitalityDutyApi.dashboard().then(r=>{if(r.success&&r.data)setPersonalShiftEnded(!r.data.shift&&r.data.recentShifts.some(s=>s.userId===user?.id))}).catch(()=>undefined)
+    }
+    window.addEventListener('hospitality-shift-updated',refreshShifts)
+    return()=>window.removeEventListener('hospitality-shift-updated',refreshShifts)
+  },[user?.id])
+
   // M-Pesa STK push states
   const [stkStep, setStkStep] = useState<'idle' | 'confirm_phone' | 'pushing' | 'pushed' | 'error'>('idle')
   const [stkPhone, setStkPhone] = useState('')

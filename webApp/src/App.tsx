@@ -130,7 +130,7 @@ export default function App() {
     localStorage.setItem('isAuthenticated', 'true')
     localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
     setIsAuthenticated(true)
-    try { setUser(JSON.parse(localStorage.getItem('user') || 'null')) } catch { /* ignore */ }
+    try { const signedInUser=JSON.parse(localStorage.getItem('user') || 'null'); setUser(signedInUser); if(signedInUser?.id)sessionStorage.setItem('hospitalityShiftPromptUser',signedInUser.id) } catch { /* ignore */ }
   }
   const logout = () => {
     localStorage.removeItem('accessToken')
@@ -138,6 +138,7 @@ export default function App() {
     localStorage.removeItem('isAuthenticated')
     localStorage.removeItem(LAST_ACTIVITY_KEY)
     localStorage.removeItem('user')
+    sessionStorage.removeItem('hospitalityShiftPromptUser')
     setIsAuthenticated(false)
     setUser(null)
   }
