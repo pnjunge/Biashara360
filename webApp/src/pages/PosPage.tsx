@@ -100,7 +100,7 @@ export function PosPage() {
       customerApi.list().catch(() => ({ success: false, data: [] as CustomerResponse[] })),
       settingsApi.getMpesaChannels().catch(() => ({ success: false, data: [] as MpesaConfigResponse[] })),
       businessApi.getProfile().catch(() => ({ success: false, data: null })),
-      hospitalityApi.status().catch(() => ({ success: false, data: { enabled: false } })),
+      hospitalityApi.status().catch(() => ({ success: false, data: { enabled: false, shiftOpen: false } })),
       hospitalityOpsApi.dashboard().catch(() => ({ success: false, data: null }))
     ]).then(([prodRes, custRes, mpesaRes, profileRes, hospRes, opsRes]) => {
       if (prodRes.success && prodRes.data) setProducts(prodRes.data)
@@ -112,9 +112,15 @@ export function PosPage() {
       if (profileRes.success && profileRes.data) setReceiptProfile(profileRes.data)
       if (hospRes.success && hospRes.data?.enabled) {
         setHospitalityEnabled(true)
+        if (typeof hospRes.data.shiftOpen === 'boolean') {
+          setShiftOpen(hospRes.data.shiftOpen)
+        }
         hospitalityApi.dashboard().then(dRes => {
           if (dRes.success && dRes.data) {
             setTables(dRes.data.tables)
+            if (typeof dRes.data.shiftOpen === 'boolean') {
+              setShiftOpen(dRes.data.shiftOpen)
+            }
             const urlParams = new URLSearchParams(window.location.search)
             const paramTableId = urlParams.get('tableId')
             if (paramTableId && dRes.data.tables.some(t => t.id === paramTableId)) {
@@ -649,9 +655,14 @@ export function PosPage() {
               </Btn>
 
               {hospitalityEnabled && (
-                <Btn variant="secondary" icon={<UtensilsCrossed size={14} />} onClick={() => navigate('/hospitality')}>
-                  Return to Floor Plan
-                </Btn>
+                <>
+                  <Btn variant="secondary" icon={<ShoppingCart size={14} />} onClick={() => navigate('/open-tabs')}>
+                    View Open Tabs
+                  </Btn>
+                  <Btn variant="secondary" icon={<UtensilsCrossed size={14} />} onClick={() => navigate('/hospitality')}>
+                    Floor Plan
+                  </Btn>
+                </>
               )}
 
               <Btn

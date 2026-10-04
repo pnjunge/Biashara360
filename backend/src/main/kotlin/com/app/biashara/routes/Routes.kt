@@ -978,17 +978,21 @@ fun ApplicationCall.hasModule(module: String): Boolean {
         if (!moduleEnabled) return@transaction false
 
         val moduleMenus = when (normalizedModule) {
-            "INVENTORY" -> setOf("INVENTORY")
-            "SALES" -> setOf("POS", "ORDERS", "HOSPITALITY")
-            "SERVICES" -> setOf("SERVICES")
-            "CRM" -> setOf("CUSTOMERS")
+            "INVENTORY" -> setOf("INVENTORY", "POS", "HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS", "ORDERS", "SERVICES")
+            "SALES" -> setOf("POS", "ORDERS", "HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
+            "SERVICES" -> setOf("SERVICES", "POS", "ORDERS", "HOSPITALITY")
+            "CRM" -> setOf("CUSTOMERS", "POS", "ORDERS", "HOSPITALITY")
             "EXPENSES" -> setOf("EXPENSES")
-            "PAYMENTS" -> setOf("PAYMENTS", "CARD_PAYMENTS")
-            "REPORTS" -> setOf("REPORTS")
+            "PAYMENTS" -> setOf("PAYMENTS", "CARD_PAYMENTS", "POS", "OPEN_TABS", "ORDERS")
+            "REPORTS" -> setOf("REPORTS", "DASHBOARD")
             else -> emptySet()
         }
         if (moduleMenus.isEmpty()) return@transaction true
-        val businessMenus = business[BusinessesTable.enabledMenus].split(',').map { it.trim().uppercase() }.toSet()
+        val businessMenus = business[BusinessesTable.enabledMenus].split(',').map { it.trim().uppercase() }.toMutableSet()
+        if (business[BusinessesTable.hospitalityEnabled] || business[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true)) {
+            businessMenus += setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
+        }
+        if (business[BusinessesTable.servicesEnabled]) businessMenus += "SERVICES" else businessMenus -= "SERVICES"
         if (businessMenus.intersect(moduleMenus).isEmpty()) return@transaction false
         if (userRole() == "ADMIN") return@transaction true
 

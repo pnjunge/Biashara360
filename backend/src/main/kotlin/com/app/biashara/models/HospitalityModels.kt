@@ -10,4 +10,4 @@ import kotlinx.serialization.Serializable
 @Serializable data class UpdateTicketStatusRequest(val status: String)
 @Serializable data class CloseHospitalityTabRequest(val paymentMethod: String)
 @Serializable data class TransferHospitalityTabRequest(val tableId: String)
-@Serializable data class HospitalityDashboardResponse(val enabled: Boolean, val tables: List<HospitalityTableResponse>, val openTabs: List<OrderResponse>, val tickets: List<KitchenTicketResponse>)
+@Serializable data class HospitalityDashboardResponse(val enabled: Boolean, val tables: List<HospitalityTableResponse>, val openTabs: List<OrderResponse>, val tickets: List<KitchenTicketResponse>, val shiftOpen: Boolean = false)

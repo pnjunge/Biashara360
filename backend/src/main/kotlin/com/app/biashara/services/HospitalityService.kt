@@ -21,9 +21,16 @@ class HospitalityService(private val orderService: OrderService) {
         val row = BusinessesTable.select { BusinessesTable.id eq businessId }.firstOrNull() ?: return@transaction false
         row[BusinessesTable.hospitalityEnabled] == true || row[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true)
     }
+    fun hasOpenShift(businessId: String): Boolean = transaction {
+        HospitalityShiftsTable.select {
+            (HospitalityShiftsTable.businessId eq businessId) and (HospitalityShiftsTable.status eq "OPEN")
+        }.any()
+    }
+
     fun dashboard(businessId: String): HospitalityDashboardResponse = transaction {
         val enabled = isEnabled(businessId)
-        HospitalityDashboardResponse(enabled, tables(businessId), openTabs(businessId), tickets(businessId))
+        val shiftOpen = hasOpenShift(businessId)
+        HospitalityDashboardResponse(enabled, tables(businessId), openTabs(businessId), tickets(businessId), shiftOpen)
     }
 
     fun setEnabled(businessId: String, enabled: Boolean): HospitalityDashboardResponse = transaction {

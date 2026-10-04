@@ -73,7 +73,9 @@ enum class PaymentMethod(val value: String) {
     MPESA("MPESA"),
     CARD("CARD"),
     BANK_TRANSFER("BANK_TRANSFER"),
-    CREDIT("CREDIT");
+    COD("COD"),
+    CREDIT("CREDIT"),
+    TAB("TAB");
     
     companion object {
         fun from(value: String): PaymentMethod? = entries.find { it.value == value.uppercase() }

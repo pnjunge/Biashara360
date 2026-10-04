@@ -263,7 +263,7 @@ export interface HospitalityOperations {
   purchaseOrders:Array<{id:string;orderNumber:string;supplierId:string;status:string;totalCost:number;orderedAt:string;receivedAt:string|null}>
   approvals:Array<{id:string;actionType:string;entityType:string;entityId:string;requestedBy:string;approvedBy:string|null;status:string;reason:string;requestedAt:string}>
 }
-export interface HospitalityDashboard { enabled:boolean; tables:HospitalityTable[]; openTabs:OrderResponse[]; tickets:KitchenTicket[] }
+export interface HospitalityDashboard { enabled:boolean; tables:HospitalityTable[]; openTabs:OrderResponse[]; tickets:KitchenTicket[]; shiftOpen?: boolean }
 
 export interface PagedResponse<T> {
   data: T[]; total: number; page: number; pageSize: number; hasMore: boolean
@@ -1282,7 +1282,7 @@ export const accessApi = {
 }
 
 export const hospitalityApi = {
-  status: async () => (await client.get<ApiResponse<{enabled:boolean}>>('/hospitality/status')).data,
+  status: async () => (await client.get<ApiResponse<{enabled:boolean; shiftOpen?: boolean}>>('/hospitality/status')).data,
   dashboard: async () => (await client.get<ApiResponse<HospitalityDashboard>>('/hospitality')).data,
   setEnabled: async (enabled:boolean) => (await client.put<ApiResponse<HospitalityDashboard>>('/hospitality/enabled',{enabled})).data,
   createTable: async (data:{name:string;area:string;capacity:number}) => (await client.post<ApiResponse<HospitalityTable>>('/hospitality/tables',data)).data,

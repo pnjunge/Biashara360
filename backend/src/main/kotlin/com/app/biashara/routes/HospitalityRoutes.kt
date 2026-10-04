@@ -29,7 +29,13 @@ fun Route.hospitalityRoutes() {
                 finish()
             }
         }
-        get("/status") { call.respond(ApiResponse(true, data = mapOf("enabled" to service.isEnabled(call.businessId())))) }
+        get("/status") {
+            val bId = call.businessId()
+            call.respond(ApiResponse(true, data = mapOf(
+                "enabled" to service.isEnabled(bId),
+                "shiftOpen" to service.hasOpenShift(bId)
+            )))
+        }
         get { call.respond(ApiResponse(true,data=service.dashboard(call.businessId()))) }
         put("/enabled") {
             if(!call.hasRole("ADMIN")) return@put call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Admin access required"))
