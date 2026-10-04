@@ -562,8 +562,8 @@ fun Route.reportRoutes() {
         moduleGuard("REPORTS")
         get("/profit-summary") {
             val businessId = call.businessId()
-            if (!call.hasRole("ADMIN")) {
-                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+            if (!call.hasPermission("reports.financial")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Permission required: reports.financial"))
                 return@get
             }
             val startDate = call.request.queryParameters["startDate"] ?: run {
@@ -579,8 +579,8 @@ fun Route.reportRoutes() {
         }
         get("/payments") {
             val businessId = call.businessId()
-            if (!call.hasRole("ADMIN")) {
-                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+            if (!call.hasPermission("reports.financial")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Permission required: reports.financial"))
                 return@get
             }
             val startDate = call.request.queryParameters["startDate"]
@@ -598,8 +598,8 @@ fun Route.reportRoutes() {
         }
         get("/orders") {
             val businessId = call.businessId()
-            if (!call.hasRole("ADMIN")) {
-                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Admin access required"))
+            if (!call.hasPermission("reports.sales")) {
+                call.respond(HttpStatusCode.Forbidden, ApiResponse<Unit>(false, message = "Permission required: reports.sales"))
                 return@get
             }
             val startDate = call.request.queryParameters["startDate"]
@@ -939,6 +939,11 @@ fun ApplicationCall.hasRole(vararg roles: String): Boolean {
     return r in roles || (("ADMIN" in roles) && r == "BUSINESS_ADMIN")
 }
 
+fun ApplicationCall.hasPermission(permission: String): Boolean {
+    val service: AccessControlService by inject()
+    return service.hasPermission(callerUserId(), businessId(), permission)
+}
+
 /**
  * Returns true when the business's enabledModules list contains [module].
  * SUPERADMIN users (no businessId) always pass the check.
@@ -994,38 +999,8 @@ fun ApplicationCall.hasModule(module: String): Boolean {
         }
         if (business[BusinessesTable.servicesEnabled]) businessMenus += "SERVICES" else businessMenus -= "SERVICES"
         if (businessMenus.intersect(moduleMenus).isEmpty()) return@transaction false
-        if (userRole() == "ADMIN") return@transaction true
-
-        val directGroupMenus = (UserAccessGroupsTable innerJoin AccessGroupsTable)
-            .slice(AccessGroupsTable.allowedMenus)
-            .select {
-                (UserAccessGroupsTable.userId eq userId) and
-                    (AccessGroupsTable.businessId eq bId) and
-                    (AccessGroupsTable.isActive eq true)
-            }.flatMap { it[AccessGroupsTable.allowedMenus].split(',') }
-            .map { it.trim().uppercase() }
-            .filter { it.isNotEmpty() }
-
-        if (directGroupMenus.isNotEmpty()) {
-            return@transaction directGroupMenus.any { it in moduleMenus }
-        }
-
-        val assignedRoles = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)
-            .slice(AccessGroupRolesTable.roleId)
-            .select {
-                (UserAccessGroupsTable.userId eq userId) and
-                    (AccessGroupsTable.businessId eq bId) and
-                    (AccessGroupsTable.isActive eq true)
-            }.map { it[AccessGroupRolesTable.roleId] }
-        if (assignedRoles.isEmpty()) {
-            val defaults = BUSINESS_MENUS.map { it.key }.toSet() - setOf("USERS", "SETTINGS")
-            return@transaction defaults.intersect(moduleMenus).isNotEmpty()
-        }
-        AccessRolesTable.select {
-            (AccessRolesTable.id inList assignedRoles) and (AccessRolesTable.isActive eq true)
-        }.flatMap { it[AccessRolesTable.allowedMenus].split(',') }
-            .map { it.trim().uppercase() }
-            .any { it in moduleMenus }
+        val service: AccessControlService by inject()
+        service.myMenus(bId, userId, userRole()).enabledMenus.any { it in moduleMenus }
     }
 }
 
@@ -1041,39 +1016,8 @@ fun ApplicationCall.hasAnyMenu(vararg requestedMenus: String): Boolean {
         if (business[BusinessesTable.hospitalityEnabled] || business[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true)) enabled += setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS")
         if (business[BusinessesTable.servicesEnabled]) enabled += "SERVICES" else enabled -= "SERVICES"
         if (enabled.intersect(requested).isEmpty()) return@transaction false
-        if (userRole() == "ADMIN") return@transaction true
-
-        val directGroupMenus = (UserAccessGroupsTable innerJoin AccessGroupsTable)
-            .slice(AccessGroupsTable.allowedMenus)
-            .select {
-                (UserAccessGroupsTable.userId eq userId) and
-                    (AccessGroupsTable.businessId eq businessId) and
-                    (AccessGroupsTable.isActive eq true)
-            }.flatMap { it[AccessGroupsTable.allowedMenus].split(',') }
-            .map { it.trim().uppercase() }
-            .filter { it.isNotEmpty() }
-
-        val allowed = if (directGroupMenus.isNotEmpty()) {
-            directGroupMenus.toSet()
-        } else {
-            val roleIds = (UserAccessGroupsTable innerJoin AccessGroupRolesTable innerJoin AccessGroupsTable)
-                .slice(AccessGroupRolesTable.roleId)
-                .select {
-                    (UserAccessGroupsTable.userId eq userId) and
-                        (AccessGroupsTable.businessId eq businessId) and
-                        (AccessGroupsTable.isActive eq true)
-                }.map { it[AccessGroupRolesTable.roleId] }
-            if (roleIds.isEmpty()) {
-                BUSINESS_MENUS.map { it.key }.toSet() - setOf("USERS", "SETTINGS")
-            } else {
-                AccessRolesTable.select {
-                    (AccessRolesTable.businessId eq businessId) and
-                        (AccessRolesTable.id inList roleIds) and
-                        (AccessRolesTable.isActive eq true)
-                }.flatMap { it[AccessRolesTable.allowedMenus].split(',') }.map { it.trim().uppercase() }.toSet()
-            }
-        }
-        enabled.intersect(allowed).intersect(requested).isNotEmpty()
+        val service: AccessControlService by inject()
+        service.myMenus(businessId, userId, userRole()).enabledMenus.any { it in requested }
     }
 }
 

@@ -22,7 +22,7 @@ class InventoryCategoryService {
 
     fun create(businessId: String, rawName: String, rawImageUrl: String? = null): ApiResponse<InventoryCategoryResponse> = transaction {
         val name = normalizeName(rawName)
-        val imageUrl = validateImageUrl(rawImageUrl) ?: if (rawImageUrl.isNullOrBlank()) null else return@transaction ApiResponse(false, message = "Category image must use an HTTP(S) URL")
+        val imageUrl = CategoryImage.validate(rawImageUrl) ?: if (rawImageUrl.isNullOrBlank()) null else return@transaction ApiResponse(false, message = CategoryImage.ERROR)
         if (name.length !in 2..100) return@transaction ApiResponse(false, message = "Category name must be between 2 and 100 characters")
         if (findByName(businessId, name) != null) return@transaction ApiResponse(false, message = "Category already exists")
         val id = generateId()
@@ -48,7 +48,7 @@ class InventoryCategoryService {
         val newName = req.name?.let(::normalizeName) ?: oldName
         val imageUrl = when {
             req.imageUrl == null || req.imageUrl.isBlank() -> null
-            else -> validateImageUrl(req.imageUrl) ?: return@transaction ApiResponse(false, message = "Category image must use an HTTP(S) URL")
+            else -> CategoryImage.validate(req.imageUrl) ?: return@transaction ApiResponse(false, message = CategoryImage.ERROR)
         }
         if (newName.length !in 2..100) return@transaction ApiResponse(false, message = "Category name must be between 2 and 100 characters")
         val duplicate = findByName(businessId, newName)
@@ -104,9 +104,5 @@ class InventoryCategoryService {
 
     companion object {
         fun normalizeName(value: String): String = value.trim().replace(Regex("\\s+"), " ")
-        private fun validateImageUrl(value: String?): String? {
-            val normalized = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-            return normalized.takeIf { it.length <= 500 && (it.startsWith("https://") || it.startsWith("http://")) }
-        }
     }
 }

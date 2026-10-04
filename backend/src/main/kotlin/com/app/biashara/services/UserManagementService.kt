@@ -237,21 +237,7 @@ class UserManagementService(
         }
         auditLogService.logEvent(businessId, callerUserId, userId, "CREATE_USER", ipAddress, logDetails)
 
-        val user = UserResponse(
-            id = userId,
-            name = req.name.trim(),
-            email = email,
-            phone = phone,
-            role = normalizedRole,
-            businessId = businessId,
-            preferredLanguage = "ENGLISH",
-            isActive = true,
-            hasPinSet = false,
-            assignedGroups = assignedGroupNames,
-            assignedGroupIds = assignedGroupIdsList,
-            assignedRoles = assignedRoleNames,
-            assignedRoleIds = assignedRoleIdsList
-        )
+        val user = UsersTable.select { UsersTable.id eq userId }.single().toUserResponse()
         ApiResponse(success = true, data = user, message = "User created successfully")
     }
 

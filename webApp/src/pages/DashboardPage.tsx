@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { TrendingUp, AlertTriangle, Plus, Search, Edit, Package, Users, Building, ShoppingCart, Clock, UserPlus, HelpCircle, Activity, ChevronDown, CheckCircle, Smartphone, ExternalLink, Copy, Store, ShoppingBag, FileText } from 'lucide-react'
 import { KpiCard, StatusBadge, PageHeader, Card, Btn, DataTable, AlertBanner, Modal, Input, Select, Skeleton } from '../components/ui'
-import { productApi, orderApi, customerApi, paymentApi, reportApi, businessApi, socialApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse, InventoryCategory } from '../services/api'
+import { accessApi, productApi, orderApi, customerApi, paymentApi, reportApi, businessApi, socialApi, ProductResponse, OrderResponse, ProfitSummaryResponse, CustomerResponse, InventoryCategory } from '../services/api'
 import { useAuth } from '../App'
 import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import { nairobiDate, loadPaidRevenue } from '../utils/revenueTrend'
+import { prepareCategoryImage } from '../utils/categoryImage'
 import ProductImportModal from '../components/ProductImportModal'
 
 function getCurrentMonthRange() {
@@ -70,11 +71,23 @@ export default function DashboardPage() {
     }
   }
 
-  const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
+  const [canViewFinancialReports, setCanViewFinancialReports] = useState(false)
+  const [accessLoading, setAccessLoading] = useState(true)
+  useEffect(() => {
+    let active = true
+    setAccessLoading(true)
+    setCanViewFinancialReports(false)
+    accessApi.me().then(response => {
+      if (active) setCanViewFinancialReports(response.success &&
+        !!response.data?.permissions?.includes('reports.financial'))
+    }).catch(() => { if (active) setCanViewFinancialReports(false) })
+      .finally(() => { if (active) setAccessLoading(false) })
+    return () => { active = false }
+  }, [user?.id])
 
   useEffect(() => {
     let active = true
-    if (isStaff) {
+    if (!canViewFinancialReports) {
       setRevenueLoading(false)
       setProfitSummary(null)
       return
@@ -98,7 +111,7 @@ export default function DashboardPage() {
       if (active) setRevenueError(error.response?.data?.message || error.message || 'Unable to load revenue.')
     }).finally(() => { if (active) setRevenueLoading(false) })
     return () => { active = false }
-  }, [dashboardPeriod, revenueRetry, isStaff])
+  }, [dashboardPeriod, revenueRetry, canViewFinancialReports])
 
   useEffect(() => {
     Promise.all([
@@ -218,7 +231,7 @@ export default function DashboardPage() {
 
           {/* KPI Cards */}
           <div className="responsive-grid responsive-grid-4">
-            {isStaff ? (
+            {!canViewFinancialReports ? (
               <>
                 <KpiCard
                   title="Total Customers"
@@ -284,7 +297,7 @@ export default function DashboardPage() {
                   <h3 style={{ fontWeight:700, fontSize:15, color:'var(--b360-text)' }}>Revenue Trend</h3>
                   <span style={{ fontSize:12, color:'var(--b360-text-secondary)' }}>Period: {dashboardPeriod}</span>
                 </div>
-                {!isStaff && (
+                {canViewFinancialReports && (
                   <select
                     aria-label="Revenue period"
                     value={dashboardPeriod}
@@ -311,11 +324,11 @@ export default function DashboardPage() {
               </div>
 
               <div style={{ width:'100%', height:240, minWidth:0 }} aria-label="Daily revenue chart">
-                {isStaff ? (
+                {accessLoading ? <Skeleton height={220} /> : !canViewFinancialReports ? (
                   <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%' }}>
                     <TrendingUp size={36} style={{ opacity:0.4, marginBottom:10 }} />
                     <div style={{ fontWeight:600, fontSize:14, color:'var(--b360-text)' }}>Sales & Financial Analytics</div>
-                    <div style={{ fontSize:12, marginTop:4 }}>Detailed revenue & profit reporting is reserved for management accounts.</div>
+                    <div style={{ fontSize:12, marginTop:4 }}>Revenue and profit reporting requires the Financial Reports permission.</div>
                   </div>
                 ) : revenueLoading ? <Skeleton height={220} /> : revenueError ? <div role="alert" style={{ padding:20, color:'var(--b360-red)' }}>{revenueError}<div style={{ marginTop:12 }}><Btn small variant="secondary" onClick={() => setRevenueRetry(value => value + 1)}>Retry</Btn></div></div> : !profitSummary?.dailyRevenue?.some(point => point.revenue !== 0) ? <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>No paid sales in this period.</div> : (
                   <ResponsiveContainer width="100%" height={240} minWidth={0}>
@@ -330,7 +343,7 @@ export default function DashboardPage() {
                 )}
               </div>
               <p style={{ marginTop:8, fontSize:11, color:'var(--b360-text-secondary)' }}>
-                {isStaff ? 'Operations activity · Nairobi time' : 'Paid orders by order date · KES · Nairobi time'}
+                {!canViewFinancialReports ? 'Operations activity · Nairobi time' : 'Paid orders by order date · KES · Nairobi time'}
               </p>
             </Card>
 
@@ -475,6 +488,7 @@ export function InventoryPage() {
   const [showCategories, setShowCategories] = useState(false)
   const [categoryName, setCategoryName] = useState('')
   const [categoryImageUrl, setCategoryImageUrl] = useState('')
+  const [categoryImageLoading, setCategoryImageLoading] = useState(false)
   const [editingCategory, setEditingCategory] = useState<InventoryCategory | null>(null)
   const [editProduct, setEditProduct] = useState<ProductResponse | null>(null)
   const [stockProduct, setStockProduct] = useState<ProductResponse | null>(null)
@@ -569,6 +583,7 @@ export function InventoryPage() {
   const f = (k: keyof typeof emptyProduct) => (v: string) => setForm(prev => ({ ...prev, [k]: v }))
 
   const saveCategory = async () => {
+    if (categoryImageLoading || saving) return
     if (!categoryName.trim()) { setError('Enter a category name.'); return }
     setSaving(true); setError('')
     try {
@@ -623,22 +638,41 @@ export function InventoryPage() {
       {showAdd && productModal('Add Product', () => setShowAdd(false))}
       {editProduct && productModal('Edit Product', () => setEditProduct(null))}
       {showCategories && (
-        <Modal title="Inventory Categories" onClose={() => { setShowCategories(false); setEditingCategory(null); setCategoryName(''); setCategoryImageUrl(''); setError('') }}
-          footer={<Btn variant="secondary" onClick={() => setShowCategories(false)}>Close</Btn>}>
+        <Modal title="Inventory Categories" onClose={() => { if (saving || categoryImageLoading) return; setShowCategories(false); setEditingCategory(null); setCategoryName(''); setCategoryImageUrl(''); setError('') }}
+          footer={<Btn variant="secondary" disabled={saving || categoryImageLoading} onClick={() => { setShowCategories(false); setEditingCategory(null); setCategoryName(''); setCategoryImageUrl(''); setError('') }}>Close</Btn>}>
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {error && <p style={{ color:'var(--b360-red)', fontSize:12 }}>{error}</p>}
             <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
               <div style={{ flex:1 }}><Input label={editingCategory ? 'Rename category' : 'New category'} value={categoryName} onChange={setCategoryName} /></div>
-              <Btn onClick={saveCategory} disabled={saving}>{editingCategory ? 'Save' : 'Add'}</Btn>
-              {editingCategory && <Btn variant="secondary" onClick={() => { setEditingCategory(null); setCategoryName(''); setCategoryImageUrl('') }}>Cancel</Btn>}
+              <Btn onClick={saveCategory} disabled={saving || categoryImageLoading}>{editingCategory ? 'Save' : 'Add'}</Btn>
+              {editingCategory && <Btn variant="secondary" disabled={saving || categoryImageLoading} onClick={() => { setEditingCategory(null); setCategoryName(''); setCategoryImageUrl('') }}>Cancel</Btn>}
             </div>
-            <Input label="Category image URL" value={categoryImageUrl} onChange={setCategoryImageUrl} />
+            <label style={{display:'flex',flexDirection:'column',gap:6,fontSize:13}}>
+              Category image
+              <input type="file" accept="image/jpeg,image/png,image/webp" disabled={saving || categoryImageLoading}
+                onChange={async event => {
+                  const file = event.currentTarget.files?.[0]
+                  event.currentTarget.value = ''
+                  if (!file) return
+                  setCategoryImageLoading(true); setError('')
+                  try { setCategoryImageUrl(await prepareCategoryImage(file)) }
+                  catch (error: any) { setError(error.message || 'Could not read image.') }
+                  finally { setCategoryImageLoading(false) }
+                }} />
+              <span style={{fontSize:12,color:'var(--b360-text-secondary)'}}>JPEG, PNG or WebP, up to 5 MB. Saved when you add or save the category.</span>
+            </label>
+            {categoryImageLoading && <p role="status">Preparing image…</p>}
+            {!categoryImageUrl.startsWith('data:') && <Input label="Or paste an image URL" value={categoryImageUrl} onChange={setCategoryImageUrl} />}
+            {categoryImageUrl && <div style={{display:'flex',alignItems:'center',gap:12}}>
+              <img src={categoryImageUrl} alt="Category preview" style={{width:96,height:96,objectFit:'cover',borderRadius:8}} />
+              <Btn small variant="secondary" disabled={saving || categoryImageLoading} onClick={() => setCategoryImageUrl('')}>Remove image</Btn>
+            </div>}
             <div style={{ display:'flex', flexDirection:'column', border:'1px solid var(--b360-border)', borderRadius:10, overflow:'hidden' }}>
               {categories.map((category, index) => (
                 <div key={category.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'11px 12px', borderTop:index ? '1px solid var(--b360-border)' : undefined, opacity:category.isActive ? 1 : .65 }}>
                   {category.imageUrl ? <img src={category.imageUrl} alt="" style={{width:40,height:40,objectFit:'cover',borderRadius:8}} /> : <div style={{width:40,height:40,borderRadius:8,background:'var(--b360-bg)',display:'grid',placeItems:'center'}}><Package size={17}/></div>}
                   <div style={{ flex:1 }}><strong style={{ fontSize:13 }}>{category.name}</strong><div style={{ fontSize:11, color:'var(--b360-text-secondary)' }}>{category.productCount} product{category.productCount === 1 ? '' : 's'} · {category.isActive ? 'Active' : 'Disabled'}</div></div>
-                  <Btn small variant="secondary" onClick={() => { setEditingCategory(category); setCategoryName(category.name); setCategoryImageUrl(category.imageUrl || '') }}>Edit</Btn>
+                  <Btn small variant="secondary" disabled={saving || categoryImageLoading} onClick={() => { setEditingCategory(category); setCategoryName(category.name); setCategoryImageUrl(category.imageUrl || '') }}>Edit</Btn>
                   <Btn small variant="secondary" disabled={saving} onClick={() => toggleCategory(category)}>{category.isActive ? 'Disable' : 'Enable'}</Btn>
                 </div>
               ))}

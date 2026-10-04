@@ -238,7 +238,7 @@ object InventoryCategoriesTable : Table("inventory_categories") {
     val id = varchar("id", 36)
     val businessId = varchar("business_id", 36).references(BusinessesTable.id)
     val name = varchar("name", 100)
-    val imageUrl = varchar("image_url", 500).nullable()
+    val imageUrl = text("image_url").nullable()
     val isActive = bool("is_active").default(true)
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")

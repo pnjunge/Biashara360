@@ -1,3 +1,4 @@
+import AccessGroupsPanel from '../components/AccessGroupsPanel'
 import React, { useState, useEffect, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
@@ -28,7 +29,7 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
       'products.view', 'products.create', 'products.edit', 'products.delete',
       'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers',
       'payments.view', 'payments.process', 'payments.refund',
-      'reports.view', 'reports.financial', 'reports.export',
+      'reports.sales', 'reports.financial', 'reports.export',
       'settings.general', 'settings.security', 'settings.branches', 'settings.tax', 'settings.integrations'
     ],
     menus: ['DASHBOARD', 'POS', 'ORDERS', 'CUSTOMERS', 'PRODUCTS', 'INVENTORY', 'PAYMENTS', 'REPORTS', 'SETTINGS']
@@ -42,7 +43,7 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
       'products.view', 'products.create', 'products.edit', 'products.delete',
       'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers',
       'payments.view', 'payments.process', 'payments.refund',
-      'reports.view', 'reports.financial', 'reports.export',
+      'reports.sales', 'reports.financial', 'reports.export',
       'settings.general', 'settings.security', 'settings.branches', 'settings.tax', 'settings.integrations'
     ],
     menus: ['DASHBOARD', 'POS', 'ORDERS', 'CUSTOMERS', 'PRODUCTS', 'INVENTORY', 'PAYMENTS', 'REPORTS', 'SETTINGS']
@@ -56,7 +57,7 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
       'products.view', 'products.create', 'products.edit', 'products.delete',
       'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers',
       'payments.view', 'payments.process', 'payments.refund',
-      'reports.view', 'reports.financial', 'reports.export',
+      'reports.sales', 'reports.financial', 'reports.export',
       'settings.general', 'settings.branches', 'settings.tax'
     ],
     menus: ['DASHBOARD', 'POS', 'ORDERS', 'CUSTOMERS', 'PRODUCTS', 'INVENTORY', 'PAYMENTS', 'REPORTS', 'SETTINGS']
@@ -70,7 +71,7 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
       'products.view', 'products.create', 'products.edit', 'products.delete',
       'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.suppliers',
       'payments.view', 'payments.process', 'payments.refund',
-      'reports.view', 'reports.financial', 'reports.export',
+      'reports.sales', 'reports.financial', 'reports.export',
       'settings.general', 'settings.branches'
     ],
     menus: ['DASHBOARD', 'POS', 'ORDERS', 'CUSTOMERS', 'PRODUCTS', 'INVENTORY', 'PAYMENTS', 'REPORTS']
@@ -109,7 +110,7 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
     permissions: [
       'orders.view',
       'payments.view',
-      'reports.view', 'reports.financial', 'reports.export',
+      'reports.sales', 'reports.financial', 'reports.export',
       'settings.tax'
     ],
     menus: ['REPORTS', 'PAYMENTS', 'ORDERS', 'EXPENSES']
@@ -123,7 +124,7 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
       'products.view',
       'inventory.view',
       'payments.view',
-      'reports.view'
+      'reports.sales'
     ],
     menus: ['DASHBOARD', 'ORDERS', 'PRODUCTS', 'INVENTORY', 'REPORTS']
   },
@@ -192,7 +193,7 @@ const PERMISSION_MODULES: PermissionMatrixModule[] = [
     key: 'reports',
     label: 'Reports & Analytics',
     description: 'Sales summaries, financial statements, eTIMS tax and data export',
-    view: { code: 'reports.view', label: 'View Analytics' },
+    view: { code: 'reports.sales', label: 'View Analytics' },
     edit: { code: 'reports.financial', label: 'Financial & Profit P&L' },
     special: { code: 'reports.export', label: 'Export Data & CSV' },
   },
@@ -1360,6 +1361,9 @@ export function UserCreationPage() {
               Create Custom Role
             </Btn>
           </div>
+
+          {accessConfig && <AccessGroupsPanel key={accessBusinessId || 'current'} config={accessConfig}
+            users={users} businessId={accessBusinessId} onSaved={() => { loadAccessConfig(); loadUsers() }} />}
 
           {/* Configured Roles List */}
           <div className="responsive-grid responsive-grid-3" style={{ gap: 14 }}>

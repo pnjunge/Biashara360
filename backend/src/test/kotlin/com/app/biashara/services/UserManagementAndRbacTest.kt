@@ -1,6 +1,7 @@
 package com.app.biashara.services
 
 import com.app.biashara.auth.PasswordUtils
+import com.app.biashara.auth.JwtUtils
 import com.app.biashara.db.*
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
@@ -16,7 +17,11 @@ import java.util.UUID
 import kotlin.test.*
 
 class UserManagementAndRbacTest {
-    private val testConfig = io.ktor.server.config.MapApplicationConfig()
+    private val testConfig = io.ktor.server.config.MapApplicationConfig(
+        "jwt.secret" to "rbac-test-only-signing-secret",
+        "jwt.issuer" to "rbac-tests",
+        "jwt.audience" to "rbac-test-users"
+    )
     private val testHttpClient = io.ktor.client.HttpClient(io.ktor.client.engine.mock.MockEngine {
         respond("{}", io.ktor.http.HttpStatusCode.OK, io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"))
     })
@@ -28,13 +33,14 @@ class UserManagementAndRbacTest {
     private val userManagementService = UserManagementService(authService, auditLogService)
     private val accessControlService = AccessControlService(auditLogService)
 
-    private val testBusinessId = "biz-test-${UUID.randomUUID()}"
-    private val adminUserId = "user-admin-${UUID.randomUUID()}"
-    private val branch1Id = "branch-1-${UUID.randomUUID()}"
-    private val branch2Id = "branch-2-${UUID.randomUUID()}"
+    private val testBusinessId = UUID.randomUUID().toString()
+    private val adminUserId = UUID.randomUUID().toString()
+    private val branch1Id = UUID.randomUUID().toString()
+    private val branch2Id = UUID.randomUUID().toString()
 
     @BeforeTest
     fun setup() {
+        JwtUtils.init(testConfig)
         val db = Database.connect(
             "jdbc:h2:mem:rbac-${UUID.randomUUID()};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000",
             driver = "org.h2.Driver"
@@ -48,11 +54,13 @@ class UserManagementAndRbacTest {
                 UsersTable,
                 AccessRolesTable,
                 AccessGroupsTable,
+                AccessGroupRolesTable,
                 UserAccessGroupsTable,
                 UserAccessRolesTable,
                 PermissionsTable,
                 RolePermissionsTable,
                 UserBranchesTable,
+                RefreshTokensTable,
                 AuditLogsTable
             )
 
@@ -62,6 +70,8 @@ class UserManagementAndRbacTest {
                 it[name] = "Biashara Nairobi"
                 it[storefrontSlug] = "biashara-nairobi"
                 it[type] = "RETAIL"
+                it[ownerPhone] = "+254700000001"
+                it[ownerEmail] = "admin@biashara.co.ke"
                 it[createdAt] = Clock.System.now()
                 it[updatedAt] = Clock.System.now()
             }
@@ -123,10 +133,16 @@ class UserManagementAndRbacTest {
                     it[PermissionsTable.code] = code
                     it[PermissionsTable.name] = name
                     it[PermissionsTable.module] = module
+                    it[action] = code.substringAfterLast('.').uppercase()
                     it[createdAt] = Clock.System.now()
                 }
             }
         }
+    }
+
+    @AfterTest
+    fun tearDown() {
+        testHttpClient.close()
     }
 
     @Test
@@ -149,13 +165,14 @@ class UserManagementAndRbacTest {
         assertEquals("grace@biashara.co.ke", createdUser.email)
         assertEquals("STAFF", createdUser.role)
         assertEquals(branch1Id, createdUser.branchId)
+        assertEquals(listOf(branch1Id), createdUser.assignedBranchIds)
         assertEquals("ACTIVE", createdUser.status)
         assertTrue(createdUser.isActive)
 
         // Verify audit log was recorded
-        val activity = userManagementService.getUserActivity(testBusinessId, createdUser.id)
+        val activity = userManagementService.getUserActivity(userId = createdUser.id, businessId = testBusinessId)
         assertTrue(activity.isNotEmpty())
-        assertEquals("USER_CREATE", activity.first().action)
+        assertEquals("CREATE_USER", activity.first().action)
     }
 
     @Test
@@ -181,12 +198,12 @@ class UserManagementAndRbacTest {
         val updated = editResult.data!!
         assertEquals("Johnathan Doe", updated.name)
         assertEquals("johnathan@biashara.co.ke", updated.email)
-        assertEquals("+254799887766", updated.phone)
+        assertEquals("254799887766", updated.phone)
         assertEquals(branch2Id, updated.branchId)
 
         // Verify audit log
-        val activity = userManagementService.getUserActivity(testBusinessId, created.id)
-        assertTrue(activity.any { it.action == "USER_EDIT" })
+        val activity = userManagementService.getUserActivity(userId = created.id, businessId = testBusinessId)
+        assertTrue(activity.any { it.action == "USER_UPDATE" })
     }
 
     @Test
@@ -238,18 +255,21 @@ class UserManagementAndRbacTest {
         for (i in 1..4) {
             val failedLogin = authService.loginWithPin(PinLoginRequest(pin = "000000", email = created.email))
             assertFalse(failedLogin.success)
-            assertTrue(failedLogin.message?.contains("Incorrect PIN") == true)
+            assertEquals("Invalid credentials", failedLogin.message)
         }
 
         // 5th failed attempt should lock account
         val fifthAttempt = authService.loginWithPin(PinLoginRequest(pin = "000000", email = created.email))
         assertFalse(fifthAttempt.success)
-        assertTrue(fifthAttempt.message?.contains("Account locked") == true)
+        assertEquals("Invalid credentials", fifthAttempt.message)
 
         // Verify status in DB
         val lockedUser = userManagementService.listUsers(testBusinessId).first { it.id == created.id }
         assertEquals("LOCKED", lockedUser.status)
         assertTrue(lockedUser.isPinLocked == true)
+        val blockedLogin = authService.loginWithPin(PinLoginRequest(pin = "123456", email = created.email))
+        assertFalse(blockedLogin.success)
+        assertEquals("PIN login is temporarily locked. Use your password or try again later.", blockedLogin.message)
 
         // 3. Unlock account via admin unlockAccount
         val unlockResult = userManagementService.unlockAccount(created.id, testBusinessId, adminUserId)
@@ -345,7 +365,7 @@ class UserManagementAndRbacTest {
         // Login fails when disabled
         val loginAttempt = authService.login(LoginRequest(email = "david@biashara.co.ke", password = "SecretPassword123!"))
         assertFalse(loginAttempt.success)
-        assertTrue(loginAttempt.message?.contains("Account is disabled") == true)
+        assertEquals("Account is deactivated", loginAttempt.message)
 
         // Reactivate user
         val activateRes = userManagementService.setActiveStatus(created.id, testBusinessId, adminUserId, UpdateUserStatusRequest(isActive = true))
