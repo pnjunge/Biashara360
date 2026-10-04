@@ -204,6 +204,7 @@ class HotelService(private val audit: AuditLogService? = null) {
     fun payment(b: String, actor: String, id: String, r: HotelPaymentRequest) = mutate(b, actor, "HOTEL_PAYMENT_REQUESTED") {
         val stay = reservation(b, id); requestId(r.requestId); money(r.amountCents)
         require(r.method in setOf("CASH", "MPESA", "CARD")) { "Choose Cash, M-Pesa or Card" }
+        require(r.method != "MPESA" || r.amountCents % 100L == 0L) { "M-Pesa payments must use whole KES amounts; use Cash or Card for cents" }
         val existing = HotelPaymentRequests.select { (HotelPaymentRequests.businessId eq b) and (HotelPaymentRequests.requestId eq r.requestId) }.singleOrNull()
         if (existing != null) {
             require(existing[HotelPaymentRequests.reservationId] == id) { "requestId belongs to another reservation" }

@@ -15,6 +15,7 @@ by default. Other tenants can enable it in Settings → Hotel & Accommodation.
 5. Use the guest folio for additional charges, credits, deposits and payments.
    Cash is recorded when actually received; card and M-Pesa use existing payment
    providers and receive folio credit only after a successful recorded settlement.
+   M-Pesa amounts must be whole KES; Cash and Card can settle cents.
 6. Settle the folio before checkout. Checkout marks the room DIRTY. Housekeeping
    can mark work IN_PROGRESS, then CLEAN/INSPECTED, and record maintenance notes.
 

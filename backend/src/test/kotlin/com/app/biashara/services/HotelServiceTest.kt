@@ -108,6 +108,7 @@ class HotelServiceTest {
     }
     @Test fun `electronic requests never credit unverified payments`() {
         val r=service.saveReservation("business","actor",null,booking())
+        assertFailsWith<IllegalArgumentException> { service.payment("business","actor",r.id,HotelPaymentRequest(1_050,"MPESA",key())) }
         val p=service.payment("business","actor",r.id,HotelPaymentRequest(20_000,"CARD",key()))
         assertEquals(20_000L,service.folio("business","actor",r.id).balanceCents)
         transaction { OrdersTable.update({ OrdersTable.id eq p.orderId }) { it[paymentStatus]="PAID" } }
