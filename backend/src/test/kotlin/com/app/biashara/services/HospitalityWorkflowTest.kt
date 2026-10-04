@@ -3,6 +3,7 @@ package com.app.biashara.services
 import com.app.biashara.db.*
 import com.app.biashara.models.*
 import kotlinx.datetime.Clock
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -37,7 +38,7 @@ class HospitalityWorkflowTest {
   org.jetbrains.exposed.sql.transactions.TransactionManager.defaultDatabase=database
   transaction(database) {
    if(postgres!=null)exec("TRUNCATE TABLE businesses CASCADE")
-   SchemaUtils.create(HospitalityStaffShiftsTable,HospitalityBillHandoversTable,BusinessesTable,BranchesTable,UsersTable,ProductsTable,CustomersTable,OrdersTable,OrderItemsTable,StockMovementsTable,PaymentsTable,HospitalityTablesTable,KitchenTicketsTable,HospitalityReservationsTable,HospitalityMenuProfilesTable,InventoryIngredientsTable,ProductRecipesTable,BarStockEventsTable,HospitalityShiftsTable,SuppliersTable,PurchaseOrdersTable,PurchaseOrderItemsTable,ManagerApprovalsTable,AuditEventsTable,OrderSplitPaymentsTable,AccessRolesTable,UserAccessRolesTable,AccessGroupsTable,AccessGroupRolesTable,UserAccessGroupsTable,PermissionsTable,RolePermissionsTable)
+   SchemaUtils.create(IngredientPurchasePaymentsTable,ExpensesTable,PurchaseInvoicesTable,HotelRoomTypes,HotelRooms,HotelReservations,HotelFolioEntries,HospitalityStaffShiftsTable,HospitalityBillHandoversTable,BusinessesTable,BranchesTable,UsersTable,ProductsTable,CustomersTable,OrdersTable,OrderItemsTable,StockMovementsTable,PaymentsTable,HospitalityTablesTable,KitchenTicketsTable,HospitalityReservationsTable,HospitalityMenuProfilesTable,InventoryIngredientsTable,ProductRecipesTable,BarStockEventsTable,HospitalityShiftsTable,SuppliersTable,PurchaseOrdersTable,PurchaseOrderItemsTable,ManagerApprovalsTable,AuditEventsTable,OrderSplitPaymentsTable,AccessRolesTable,UserAccessRolesTable,AccessGroupsTable,AccessGroupRolesTable,UserAccessGroupsTable,PermissionsTable,RolePermissionsTable)
    for(b in listOf("business","other"))BusinessesTable.insert{it[id]=b;it[name]=b;it[storefrontSlug]=b;it[type]="HOSPITALITY";it[hospitalityEnabled]=true;it[ownerEmail]="$b@test.com";it[ownerPhone]="254700000001";it[createdAt]=Clock.System.now();it[updatedAt]=Clock.System.now()}
    for(u in listOf("staff","manager"))UsersTable.insert{it[id]=u;it[businessId]="business";it[name]=u;it[email]="$u@test.com";it[phone]=if(u=="staff")"254700000002" else "254700000003";it[passwordHash]="unused";it[role]="STAFF";it[createdAt]=Clock.System.now();it[updatedAt]=Clock.System.now()}
    for(p in listOf("meal","drink"))ProductsTable.insert{it[id]=p;it[businessId]="business";it[sku]=p;it[name]=p;it[buyingPrice]=10.0;it[sellingPrice]=100.0;it[currentStock]=100;it[category]=if(p=="meal")"Meals" else "Drinks";it[createdAt]=Clock.System.now();it[updatedAt]=Clock.System.now()}
@@ -127,11 +128,11 @@ class HospitalityWorkflowTest {
  @Test fun `hospitality permissions separate viewers from management and permit authorized managers`() = testApplication {
   environment {config=io.ktor.server.config.MapApplicationConfig()}
   transaction {
-   for(code in listOf("hospitality.view","hospitality.approvals","hospitality.kitchen"))if(!PermissionsTable.select{PermissionsTable.code eq code}.any())PermissionsTable.insert {it[id]=UUID.randomUUID().toString();it[PermissionsTable.code]=code;it[module]="HOSPITALITY";it[action]="MANAGE";it[name]=code;it[createdAt]=Clock.System.now()}
+   for(code in listOf("hospitality.view","hospitality.approvals","hospitality.kitchen","hospitality.purchasing","hospitality.purchase_payments"))if(!PermissionsTable.select{PermissionsTable.code eq code}.any())PermissionsTable.insert {it[id]=UUID.randomUUID().toString();it[PermissionsTable.code]=code;it[module]="HOSPITALITY";it[action]="MANAGE";it[name]=code;it[createdAt]=Clock.System.now()}
   }
   val access=AccessControlService()
   val role=access.createRole("business",SaveAccessRoleRequest("Viewer",allowedMenus=listOf("HOSPITALITY"),permissions=listOf("hospitality.view")))
-  val managerRole=access.createRole("business",SaveAccessRoleRequest("Approval manager",allowedMenus=listOf("HOSPITALITY_OPS"),permissions=listOf("hospitality.view","hospitality.approvals","hospitality.kitchen")))
+  val managerRole=access.createRole("business",SaveAccessRoleRequest("Approval manager",allowedMenus=listOf("HOSPITALITY_OPS"),permissions=listOf("hospitality.view","hospitality.approvals","hospitality.kitchen","hospitality.purchasing","hospitality.purchase_payments")))
   transaction{UserAccessRolesTable.insert{it[userId]="staff";it[roleId]=role.id};UserAccessRolesTable.insert{it[userId]="manager";it[roleId]=managerRole.id}}
   val algorithm=Algorithm.HMAC256("hospitality-test-secret")
   fun token(user:String)=JWT.create().withSubject(user).withClaim("businessId","business").withClaim("role","STAFF").sign(algorithm)
@@ -143,7 +144,7 @@ class HospitalityWorkflowTest {
   }
   assertEquals(HttpStatusCode.OK,client.get("/hospitality"){bearerAuth(token("staff"))}.status)
   assertEquals(HttpStatusCode.BadRequest,client.post("/hospitality/duty/start"){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{}")}.status)
-  for(path in listOf("/hospitality/operations/menu/meal","/hospitality/operations/shifts/open","/hospitality/operations/ingredients","/hospitality/operations/purchase-orders")) {
+  for(path in listOf("/hospitality/operations/menu/meal","/hospitality/operations/shifts/open","/hospitality/operations/ingredients","/hospitality/operations/purchase-orders","/hospitality/operations/purchase-orders/missing/payments")) {
    val response=if(path.contains("/menu/"))client.put(path){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{}")}else client.post(path){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{}")}
    assertEquals(HttpStatusCode.Forbidden,response.status)
   }
@@ -158,6 +159,18 @@ class HospitalityWorkflowTest {
   transaction{UserAccessRolesTable.insert{it[userId]="staff";it[roleId]=cashier.id}}
   assertEquals(HttpStatusCode.OK,client.patch("/hospitality/tickets/${ticket.id}"){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{\"status\":\"PREPARING\"}")}.status)
   assertEquals("PREPARING",service.dashboard("business").tickets.single().status)
+  val (_,purchase)=goatPurchase(1.0,100.0)
+  val receiverRole=access.createRole("business",SaveAccessRoleRequest("Stock receiver",allowedMenus=listOf("HOSPITALITY_OPS"),permissions=listOf("hospitality.view","hospitality.purchasing")))
+  transaction{UserAccessRolesTable.insert{it[userId]="staff";it[roleId]=receiverRole.id}}
+  val receivePath="/hospitality/operations/purchase-orders/${purchase.id}/receive"
+  assertEquals(HttpStatusCode.Forbidden,client.post(receivePath){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{\"payment\":{\"amount\":100,\"method\":\"CASH\",\"clientReference\":\"receiver-payment\"}}")}.status)
+  assertEquals("ORDERED",ops.dashboard("business").purchaseOrders.first{it.id==purchase.id}.status)
+  assertEquals(HttpStatusCode.OK,client.post(receivePath){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{}")}.status)
+  assertEquals(HttpStatusCode.Forbidden,client.post("/hospitality/operations/purchase-orders/${purchase.id}/payments"){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{}")}.status)
+  val payerRole=access.createRole("business",SaveAccessRoleRequest("Supplier accountant",allowedMenus=listOf("HOSPITALITY_OPS"),permissions=listOf("hospitality.view","hospitality.purchasing","hospitality.purchase_payments")))
+  transaction{UserAccessRolesTable.insert{it[userId]="manager";it[roleId]=payerRole.id}}
+  assertEquals(HttpStatusCode.OK,client.post("/hospitality/operations/purchase-orders/${purchase.id}/payments"){bearerAuth(token("manager"));contentType(ContentType.Application.Json);setBody("{\"amount\":100,\"method\":\"CASH\",\"clientReference\":\"accountant-payment\"}")}.status)
+
 
  }
 
@@ -223,7 +236,7 @@ class HospitalityWorkflowTest {
   ops.configurePurchaseUnit("business","manager",spirit,IngredientPurchaseUnitRequest("BOTTLE",1000.0))
   ops.receivePurchaseOrder("business","manager",po.id)
   val rows=ops.dashboard("business").ingredients
-  assertEquals(2010.0,rows.first{it.id==ingredient}.quantity);assertEquals(1.0,rows.first{it.id==ingredient}.unitCost)
+  assertEquals(2010.0,rows.first{it.id==ingredient}.quantity);assertEquals(2020.0/2010.0,rows.first{it.id==ingredient}.unitCost)
   assertEquals(1500.0,rows.first{it.id==spirit}.quantity);assertEquals(2.0,rows.first{it.id==spirit}.unitCost)
   assertFails{ops.receivePurchaseOrder("business","manager",po.id)}
  }
@@ -429,6 +442,121 @@ class HospitalityWorkflowTest {
   assertFalse(catalog.update(created.id,"business",request.copy(baseUnit=" ")).success)
   assertEquals("G",catalog.getById(created.id,"business")!!.baseUnit)
   assertEquals("PCS",catalog.create("business",request.copy(sku="default-unit",baseUnit=null)).data!!.baseUnit)
+ }
+
+ private fun goatPurchase(quantity:Double=17.0,cost:Double=500.0):Pair<String,PurchaseOrderResponse> {
+  val goat=ops.createIngredient("business","manager",IngredientRequest("Goat","G")).id
+  val supplier=ops.createSupplier("business","manager",SupplierRequest("Goat supplier"))
+  return goat to ops.createPurchaseOrder("business","manager",PurchaseOrderRequest(supplier.id,items=listOf(PurchaseOrderLineRequest(goat,quantity,cost,"KG"))))
+ }
+ @Test fun `goat receipt records expenditure while profit counts only sold portions`() {
+  val (goat,po)=goatPurchase()
+  val paid=ops.receivePurchaseOrder("business","manager",po.id,ReceiveIngredientPurchaseRequest(IngredientPurchasePaymentRequest(8500.0,"CASH",clientReference="goat-full-payment")))
+  assertEquals(17000.0,ops.dashboard("business").ingredients.first{it.id==goat}.quantity)
+  assertEquals("PAID",paid.paymentStatus);assertEquals(8500.0,paid.paidAmount);assertNotNull(paid.expenseId)
+  assertEquals(0,transaction{PaymentsTable.selectAll().count()}.toInt())
+  val expense=ExpenseService().getAll("business").single()
+  assertEquals(po.id,expense.purchaseOrderId);assertEquals(8500.0,expense.amount);assertEquals(8500.0,expense.paidAmount);assertFalse(expense.affectsProfit);assertTrue(expense.linkedPurchase)
+  assertFalse(ExpenseService().delete(expense.id,"business").success)
+  assertFalse(ExpenseService().update(expense.id,"business",ExpenseRequest("RENT",1.0,"Changed",expense.expenseDate)).success)
+  ops.saveRecipe("business","manager","meal",SaveRecipeRequest(listOf(RecipeLine(goat,1000.0))))
+  transaction{ProductsTable.update({ProductsTable.id eq "meal"}){it[sellingPrice]=1000.0}}
+  val sale=tab("meal");service.closeTab("business",sale.id,CloseHospitalityTabRequest("CASH"),"staff")
+  val date=Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi")).date.toString()
+  ExpenseService().create("business",ExpenseRequest("RENT",100.0,"Rent",date))
+  val summary=ExpenseService().getProfitSummary("business",date,date)
+  assertEquals(1000.0,summary.totalRevenue);assertEquals(500.0,summary.totalCostOfGoods);assertEquals(100.0,summary.totalExpenses);assertEquals(400.0,summary.netProfit)
+  val cache=object:com.app.biashara.cache.CacheStore {
+   override suspend fun get(key:String):String?=null
+   override suspend fun put(key:String,value:String,ttlSeconds:Long)=true
+   override suspend fun delete(key:String)=true
+  }
+  assertEquals(400.0,kotlinx.coroutines.runBlocking { DashboardService(ProductService(),orders,cache).getDashboard("business").netProfitMonth })
+  assertEquals(8500.0,summary.stockPurchases);assertEquals(8500.0,summary.stockPurchasePayments);assertEquals(8600.0,summary.cashflowOut)
+  assertEquals(16000.0,ops.dashboard("business").ingredients.first{it.id==goat}.quantity)
+  transaction{InventoryIngredientsTable.update({InventoryIngredientsTable.id eq goat}){it[unitCost]=0.9}}
+  assertEquals(500.0,ops.report("business",date,date).foodCost)
+ }
+ @Test fun `unpaid receipt partial supplier payments and retries do not duplicate stock or costs`() {
+  val (goat,po)=goatPurchase()
+  val received=ops.receivePurchaseOrder("business","manager",po.id)
+  assertEquals("UNPAID",received.paymentStatus);assertEquals(8500.0,received.outstandingAmount)
+  val request=IngredientPurchasePaymentRequest(3000.0,"MPESA","TX-GOAT-1","goat-part-payment")
+  val partial=ops.payPurchaseOrder("business","manager",po.id,request)
+  assertEquals("PARTIAL",partial.paymentStatus);assertEquals(5500.0,partial.outstandingAmount)
+  ops.payPurchaseOrder("business","manager",po.id,request)
+  assertEquals(1,transaction{IngredientPurchasePaymentsTable.selectAll().count()}.toInt())
+  assertFails{ops.payPurchaseOrder("business","manager",po.id,request.copy(amount=1.0))}
+  assertFails{ops.payPurchaseOrder("business","manager",po.id,request.copy(clientReference="second-reference"))}
+  assertFails{ops.payPurchaseOrder("business","manager",po.id,request.copy(amount=5500.01,reference="TX-GOAT-2",clientReference="new-payment-ref"))}
+  assertFails{ops.payPurchaseOrder("other","manager",po.id,request)}
+  assertFails{ops.receivePurchaseOrder("business","manager",po.id)}
+  val paid=ops.payPurchaseOrder("business","manager",po.id,IngredientPurchasePaymentRequest(5500.0,"BANK_TRANSFER","BANK-GOAT-2","final-goat-payment"))
+  assertEquals("PAID",paid.paymentStatus);assertEquals(2,paid.payments.size)
+  assertEquals(1,transaction{ExpensesTable.selectAll().count()}.toInt());assertEquals(17000.0,ops.dashboard("business").ingredients.first{it.id==goat}.quantity)
+ }
+ @Test fun `invalid receipt payment rolls back receipt and accounting together`() {
+  val (goat,po)=goatPurchase()
+  assertFails{ops.receivePurchaseOrder("business","manager",po.id,ReceiveIngredientPurchaseRequest(IngredientPurchasePaymentRequest(9000.0,"CASH",clientReference="invalid-goat-pay")))}
+  assertEquals(0.0,ops.dashboard("business").ingredients.first{it.id==goat}.quantity)
+  assertEquals("ORDERED",ops.dashboard("business").purchaseOrders.single().status)
+  assertEquals(0,transaction{ExpensesTable.selectAll().count()}.toInt());assertEquals(0,transaction{IngredientPurchasePaymentsTable.selectAll().count()}.toInt())
+  assertFails{ops.payPurchaseOrder("business","manager",po.id,IngredientPurchasePaymentRequest(100.0,"CASH",clientReference="before-receipt"))}
+ }
+ @Test fun `cash drawer supplier payout reduces business closing cash once`() {
+  val (_,po)=goatPurchase(1.0,100.0)
+  ops.receivePurchaseOrder("business","manager",po.id,ReceiveIngredientPurchaseRequest(IngredientPurchasePaymentRequest(100.0,"CASH",clientReference="drawer-goat-pay",paidFromTill=true)))
+  val sale=tab("meal");service.closeTab("business",sale.id,CloseHospitalityTabRequest("CASH"),"staff")
+  val shift=ops.dashboard("business").shifts.single()
+  val closed=ops.closeShift("business","manager",shift.id,ShiftCloseRequest(actualCash=0.0,actualMpesa=0.0,actualCard=0.0))
+  assertEquals(0.0,closed.expectedCash);assertEquals(100.0,closed.expensesTotal);assertEquals(0.0,closed.variance)
+ }
+
+ @Test fun `simultaneous supplier payments cannot exceed the purchase balance`() {
+  val (_,po)=goatPurchase();ops.receivePurchaseOrder("business","manager",po.id)
+  val executor=java.util.concurrent.Executors.newFixedThreadPool(2);val start=java.util.concurrent.CountDownLatch(1)
+  try {
+   val attempts=(1..2).map{index->executor.submit<Boolean>{start.await();runCatching{ops.payPurchaseOrder("business","manager",po.id,IngredientPurchasePaymentRequest(6000.0,"CASH",clientReference="parallel-payment-$index"))}.isSuccess}}
+   start.countDown();assertEquals(1,attempts.count{it.get(15,java.util.concurrent.TimeUnit.SECONDS)})
+   val result=ops.dashboard("business").purchaseOrders.single();assertEquals(6000.0,result.paidAmount);assertEquals(2500.0,result.outstandingAmount);assertEquals(1,result.payments.size)
+  }finally{executor.shutdownNow()}
+ }
+
+ @Test fun `product stock purchases stay in spending and outside operating profit`() {
+  val date=Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi")).date.toString()
+  val invoices=PurchaseInvoiceService()
+  assertTrue(invoices.create("business",CreatePurchaseInvoiceRequest(invoiceNumber="PAID-STOCK",supplierName="Supplier",invoiceDate=date,items=listOf(PurchaseLineItem("meal","Meal",quantity=2,unitCost=50.0)))).success)
+  assertTrue(invoices.create("business",CreatePurchaseInvoiceRequest(invoiceNumber="UNPAID-STOCK",supplierName="Supplier",invoiceDate=date,paymentStatus="PENDING",items=listOf(PurchaseLineItem("meal","Meal",quantity=2,unitCost=50.0)))).success)
+  val summary=ExpenseService().getProfitSummary("business",date,date)
+  assertEquals(0.0,summary.totalExpenses);assertEquals(0.0,summary.netProfit);assertEquals(200.0,summary.stockPurchases);assertEquals(100.0,summary.stockPurchasePayments);assertEquals(100.0,summary.cashflowOut)
+ }
+
+ @Test fun `ingredient receipts average the cost of remaining stock without repricing past sales`() {
+  val (goat,po)=goatPurchase(2.0,500.0);ops.receivePurchaseOrder("business","manager",po.id)
+  ops.saveRecipe("business","manager","meal",SaveRecipeRequest(listOf(RecipeLine(goat,1000.0))))
+  val first=tab("meal");service.closeTab("business",first.id,CloseHospitalityTabRequest("CASH"))
+  val second=ops.createPurchaseOrder("business","manager",PurchaseOrderRequest(po.supplierId,items=listOf(PurchaseOrderLineRequest(goat,1.0,1000.0,"KG"))))
+  ops.receivePurchaseOrder("business","manager",second.id)
+  val ingredient=ops.dashboard("business").ingredients.first{it.id==goat}
+  assertEquals(2000.0,ingredient.quantity);assertEquals(0.75,ingredient.unitCost)
+  assertEquals(500.0,orders.getById(first.id,"business")!!.items.single().buyingPrice)
+  assertEquals(750.0,tab("meal").items.single().buyingPrice)
+ }
+
+ @Test fun `ordinary expense edits persist and foreign edits cannot change profit`() {
+  val date=Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi")).date.toString()
+  val expenses=ExpenseService();val entry=expenses.create("business",ExpenseRequest("RENT",100.0,"Rent",date)).data!!
+  assertTrue(expenses.update(entry.id,"business",ExpenseRequest("RENT",250.0,"Revised rent",date)).success)
+  assertEquals(250.0,expenses.getProfitSummary("business",date,date).totalExpenses)
+  assertFalse(expenses.update(entry.id,"other",ExpenseRequest("RENT",1.0,"Wrong tenant",date)).success)
+  assertEquals(250.0,expenses.getAll("business").single().amount)
+ }
+
+ @Test fun `fractional purchase values settle in cents without leaving an unpayable balance`() {
+  val (_,po)=goatPurchase(0.333,100.01)
+  assertEquals(33.3,po.totalCost)
+  val result=ops.receivePurchaseOrder("business","manager",po.id,ReceiveIngredientPurchaseRequest(IngredientPurchasePaymentRequest(33.3,"CASH",clientReference="fractional-purchase")))
+  assertEquals("PAID",result.paymentStatus);assertEquals(0.0,result.outstandingAmount)
  }
 
 }

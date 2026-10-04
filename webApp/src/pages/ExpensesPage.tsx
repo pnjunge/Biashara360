@@ -99,7 +99,7 @@ export default function ExpensesPage() {
             list.push({
               id: pi.id,
               businessId: pi.businessId,
-              category: 'STOCK_PURCHASE',
+              category: 'STOCK_PURCHASE',linkedPurchase:true,affectsProfit:false,paymentStatus:pi.paymentStatus,paidAmount:pi.paymentStatus==='PAID'?pi.totalAmount:0,outstandingAmount:pi.paymentStatus==='PAID'?0:pi.totalAmount,
               amount: pi.totalAmount,
               description: pi.supplierName && pi.supplierName !== 'Unspecified' && pi.supplierName.trim() !== ''
                 ? `Stock Purchase: #${pi.invoiceNumber} - ${pi.supplierName}`
@@ -152,10 +152,11 @@ export default function ExpensesPage() {
   const handleDelete = async (id: string, desc: string) => {
     if (!window.confirm(`Delete "${desc}"? This action cannot be undone.`)) return
     try {
-      await expenseApi.delete(id)
+      const result=await expenseApi.delete(id)
+      if(!result.success){window.alert(result.message||'Expense could not be deleted');return}
       setExpenses((prev) => prev.filter((e) => e.id !== id))
     } catch (_) {
-      setExpenses((prev) => prev.filter((e) => e.id !== id))
+      window.alert('Expense could not be deleted. Please try again.')
     }
   }
 
@@ -176,65 +177,19 @@ export default function ExpensesPage() {
     const fullDesc = form.notes ? `${form.description.trim()} — ${form.notes.trim()}` : form.description.trim()
 
     try {
-      if (editingExpense) {
-        setExpenses((prev) =>
-          prev.map((e) =>
-            e.id === editingExpense.id
-              ? {
-                  ...e,
-                  category: form.category,
-                  amount: parsedAmount,
-                  description: fullDesc,
-                  expenseDate: form.expenseDate,
-                }
-              : e
-          )
-        )
-        setEditingExpense(null)
-      } else {
-        const res = await expenseApi.create({
-          category: form.category,
-          amount: parsedAmount,
-          description: fullDesc,
-          expenseDate: form.expenseDate,
-        })
-        if (res.success && res.data) {
-          setExpenses((prev) => [res.data!, ...prev])
-        } else {
-          const newExp: ExpenseResponse = {
-            id: `exp-${Date.now()}`,
-            businessId: 'default',
-            category: form.category,
-            amount: parsedAmount,
-            description: fullDesc,
-            expenseDate: form.expenseDate,
-            recordedAt: new Date().toISOString(),
-            receiptUrl: null,
-          }
-          setExpenses((prev) => [newExp, ...prev])
-        }
-        setShowAdd(false)
-      }
-    } catch (_) {
-      const newExp: ExpenseResponse = {
-        id: `exp-${Date.now()}`,
-        businessId: 'default',
-        category: form.category,
-        amount: parsedAmount,
-        description: fullDesc,
-        expenseDate: form.expenseDate,
-        recordedAt: new Date().toISOString(),
-        receiptUrl: null,
-      }
-      setExpenses((prev) => [newExp, ...prev])
-      setShowAdd(false)
-      setEditingExpense(null)
+      const payload={category:form.category,amount:parsedAmount,description:fullDesc,expenseDate:form.expenseDate}
+      const result=editingExpense?await expenseApi.update(editingExpense.id,payload):await expenseApi.create(payload)
+      if(!result.success||!result.data){setError(result.message||'Expense could not be saved');return}
+      await loadExpenses();setShowAdd(false);setEditingExpense(null)
+    } catch (e:any) {
+      setError(e.response?.data?.message||'Expense could not be saved. Please try again.')
     } finally {
       setSaving(false)
     }
   }
 
   const openEdit = (e: ExpenseResponse) => {
+    if(e.linkedPurchase)return
     setEditingExpense(e)
     setForm({
       category: e.category,
@@ -1131,7 +1086,7 @@ export default function ExpensesPage() {
                 </th>
                 <th style={{ padding: '12px 20px', fontSize: 12, fontWeight: 700, color: '#94A3B8' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span>Added By</span>
+                    <span>Payment</span>
                     <ArrowUpDown size={12} color="#CBD5E1" />
                   </div>
                 </th>
@@ -1195,30 +1150,10 @@ export default function ExpensesPage() {
                           <span>{expense.expenseDate}</span>
                         </div>
                       </td>
-                      {/* Dynamic Added By User */}
+                      <td style={{padding:'14px 20px',fontSize:12}}><strong>{expense.paymentStatus||'PAID'}</strong><div>Paid KES {(expense.paidAmount??expense.amount).toLocaleString()}</div>{(expense.outstandingAmount||0)>0&&<div>Balance KES {expense.outstandingAmount!.toLocaleString()}</div>}</td>
                       <td style={{ padding: '14px 20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div
-                            style={{
-                              width: 24,
-                              height: 24,
-                              borderRadius: '50%',
-                              background: '#DCFCE7',
-                              color: '#16A34A',
-                              fontSize: 11,
-                              fontWeight: 800,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            {userInitial}
-                          </div>
-                          <span style={{ fontSize: 13, fontWeight: 500, color: '#334155' }}>{currentUserName}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '14px 20px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {!expense.linkedPurchase&&<>
                           {/* Edit */}
                           <button
                             type="button"
@@ -1261,6 +1196,8 @@ export default function ExpensesPage() {
                             <Trash2 size={13} />
                           </button>
 
+                          </>}
+                          {expense.linkedPurchase&&<small>Linked purchase · manage in Purchasing</small>}
                           {/* View */}
                           <button
                             type="button"
@@ -1385,6 +1322,7 @@ export default function ExpensesPage() {
       )}
 
       {/* ── View Expense Modal ────────────────────────────────────── */}
+      <p style={{fontSize:12,color:'#64748B'}}>Stock purchases are tracked here and excluded from operating expenses in profit reports. Supplier payments determine paid amounts; sold portion costs are counted separately as cost of goods.</p>
       {viewingExpense && (
         <Modal
           title="Expense Details"
@@ -1411,7 +1349,7 @@ export default function ExpensesPage() {
               <span style={{ fontSize: 13, color: '#0F172A' }}>{viewingExpense.expenseDate}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
-              <span style={{ fontSize: 13, color: '#94A3B8' }}>Added By</span>
+              <span style={{ fontSize: 13, color: '#94A3B8' }}>Payment</span>
               <span style={{ fontSize: 13, color: '#0F172A' }}>{currentUserName} ({userRole})</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>

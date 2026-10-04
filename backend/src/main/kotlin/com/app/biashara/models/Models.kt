@@ -377,6 +377,12 @@ data class ExpenseRequest(
 
 @Serializable
 data class ExpenseResponse(
+    val purchaseOrderId:String?=null,
+    val paymentStatus:String="PAID",
+    val paidAmount:Double?=null,
+    val outstandingAmount:Double=0.0,
+    val affectsProfit:Boolean=true,
+    val linkedPurchase:Boolean=false,
     val id: String,
     val businessId: String,
     val category: String,
@@ -490,7 +496,9 @@ data class ProfitSummaryResponse(
     val netMargin: Double,
     val cashflowIn: Double,
     val cashflowOut: Double,
-    val dailyRevenue: List<DailyRevenueResponse> = emptyList()
+    val dailyRevenue: List<DailyRevenueResponse> = emptyList(),
+    val stockPurchases:Double=0.0,
+    val stockPurchasePayments:Double=0.0
 )
 
 @Serializable

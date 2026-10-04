@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { Btn, Card, DataTable, Input, Select, StatusBadge } from '../ui'
+import { Btn, Card, DataTable, Input, Select, StatusBadge, Modal } from '../ui'
 import { HospitalityOperations, hospitalityOpsApi } from '../../services/api'
 import { purchaseFactor, purchaseUnits } from '../../utils/purchaseUnits'
 
-type Props = {data:HospitalityOperations;act:(fn:()=>Promise<any>)=>void}
+type Props = {data:HospitalityOperations;act:(fn:()=>Promise<any>)=>void;canPay?:boolean}
 type Line = {ingredientId:string;quantity:number;unitCost:number;purchaseUnit:string}
 const emptyLine=():Line=>({ingredientId:'',quantity:1,unitCost:0,purchaseUnit:''})
 
@@ -19,7 +19,8 @@ export function IngredientPurchaseUnits({data,act}:Props) {
   </Card>
 }
 
-export default function IngredientPurchasing({data,act}:Props) {
+export default function IngredientPurchasing({data,act,canPay=false}:Props) {
+  const [paymentTarget,setPaymentTarget]=useState<{po:HospitalityOperations['purchaseOrders'][number];receive:boolean}|null>(null)
   const [supplier,setSupplier]=useState(''),[name,setName]=useState(''),[phone,setPhone]=useState(''),[lines,setLines]=useState<Line[]>([emptyLine()])
   const update=(index:number,patch:Partial<Line>)=>setLines(current=>current.map((line,i)=>i===index?{...line,...patch}:line))
   const valid=lines.every(line=>{const ingredient=data.ingredients.find(i=>i.id===line.ingredientId);return ingredient && purchaseFactor(ingredient,line.purchaseUnit||ingredient.unit)!==null && Number.isFinite(line.quantity)&&line.quantity>0&&Number.isFinite(line.unitCost)&&line.unitCost>=0}) && new Set(lines.map(l=>l.ingredientId)).size===lines.length
@@ -35,6 +36,26 @@ export default function IngredientPurchasing({data,act}:Props) {
       </div>})}
       <div style={{display:'flex',gap:8,marginTop:12}}><Btn variant="secondary" onClick={()=>setLines([...lines,emptyLine()])}>Add purchase line</Btn><Btn disabled={!supplier||!valid} onClick={()=>act(async()=>{const r=await hospitalityOpsApi.purchaseOrder({supplierId:supplier,items:lines});if(r.success)setLines([emptyLine()]);return r})}>Create purchase order</Btn></div>
     </Card>
-    <DataTable headers={['PO','Supplier','Goods / stock conversion','Total','Status','Action']} rows={data.purchaseOrders.map(po=>[po.orderNumber,data.suppliers.find(s=>s.id===po.supplierId)?.name||po.supplierId,<div>{(po.items||[]).map(line=><div key={line.ingredientId}>{line.ingredientName}: {line.purchaseQuantity} {line.purchaseUnit} → {line.stockQuantity} {line.stockUnit}</div>)}</div>,`KES ${po.totalCost.toLocaleString()}`,<StatusBadge status={po.status}/>,po.status==='ORDERED'?<Btn small onClick={()=>act(()=>hospitalityOpsApi.receivePurchaseOrder(po.id))}>Receive goods</Btn>:'—'])}/>
+    <p>Receiving goods records a linked stock-purchase entry in Expenses. Record supplier payments here; food costs are counted when portions are sold. Cash drawer payments also reduce the business day's expected cash.</p>
+    <DataTable headers={['PO','Supplier','Goods / stock conversion','Total','Goods / payment','Action']} rows={data.purchaseOrders.map(po=>[po.orderNumber,data.suppliers.find(s=>s.id===po.supplierId)?.name||po.supplierId,<div>{(po.items||[]).map(line=><div key={line.ingredientId}>{line.ingredientName}: {line.purchaseQuantity} {line.purchaseUnit} → {line.stockQuantity} {line.stockUnit}</div>)}{po.expenseId&&<small>Linked stock-purchase expenditure recorded</small>}</div>,`KES ${po.totalCost.toLocaleString()}`,<div><StatusBadge status={po.status}/><div>{po.paymentStatus||'UNPAID'} · Paid KES {(po.paidAmount||0).toLocaleString()} · Balance KES {(po.outstandingAmount??po.totalCost).toLocaleString()}</div>{!!po.payments?.length&&<details><summary>Payment history</summary>{po.payments.map(p=><div key={p.id}>{new Date(p.paidAt).toLocaleString('en-KE',{timeZone:'Africa/Nairobi'})}: KES {p.amount.toLocaleString()} · {p.method} · {p.reference||'Cash'}{p.paidFromTill?' · Cash drawer':''}</div>)}</details>}</div>,po.status==='ORDERED'?<Btn small onClick={()=>setPaymentTarget({po,receive:true})}>Receive goods</Btn>:canPay&&po.status==='RECEIVED'&&(po.outstandingAmount??po.totalCost)>0?<Btn small onClick={()=>setPaymentTarget({po,receive:false})}>Record supplier payment</Btn>:'—'])}/>
+    {paymentTarget&&<PurchasePaymentDialog target={paymentTarget} canPay={canPay} act={act} close={()=>setPaymentTarget(null)}/>}
   </>
+}
+
+function PurchasePaymentDialog({target,act,close,canPay}:{target:{po:HospitalityOperations['purchaseOrders'][number];receive:boolean};act:Props['act'];close:()=>void;canPay:boolean}) {
+  const {po,receive}=target
+  const [mode,setMode]=useState(receive?'UNPAID':'PAY'),[method,setMethod]=useState('CASH'),[amount,setAmount]=useState(String(po.outstandingAmount??po.totalCost)),[reference,setReference]=useState(''),[fromTill,setFromTill]=useState(false),[confirmed,setConfirmed]=useState(false),[busy,setBusy]=useState(false)
+  const [key]=useState(()=>crypto.randomUUID())
+  const balance=po.outstandingAmount??po.totalCost,valid=Number.isFinite(Number(amount))&&Number(amount)>0&&Number(amount)<=balance&&(method==='CASH'||reference.trim())&&(po.paymentStatus!=='UNRECORDED'||confirmed)
+  const save=()=>{if(busy)return;setBusy(true);act(async()=>{try{const payment={amount:Number(amount),method,reference,clientReference:key,paidFromTill:method==='CASH'&&fromTill};const r=receive?await hospitalityOpsApi.receivePurchaseOrder(po.id,mode==='PAY'?{payment}:{}):await hospitalityOpsApi.payPurchaseOrder(po.id,payment);if(r.success!==false)close();return r}finally{setBusy(false)}})}
+  return <Modal title={`${receive?'Receive goods':'Supplier payment'} · ${po.orderNumber}`} onClose={()=>{if(!busy)close()}} footer={<><Btn variant="secondary" disabled={busy} onClick={close}>Cancel</Btn><Btn disabled={busy||(mode==='PAY'&&!valid)} onClick={save}>{busy?'Saving…':receive?'Confirm receipt':'Record payment'}</Btn></>}>
+    <p>Purchase total: KES {po.totalCost.toLocaleString()} · Recorded paid: KES {(po.paidAmount||0).toLocaleString()} · Balance: KES {balance.toLocaleString()}</p>
+    {receive&&<Select label="Supplier payment" value={mode} onChange={setMode} options={[{value:'UNPAID',label:'Receive goods without recording payment'},...(canPay?[{value:'PAY',label:'Receive goods and record payment'}]:[])]}/>}
+    {mode==='PAY'&&<div style={{display:'grid',gap:12}}>{po.paymentStatus==='UNRECORDED'&&<label><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/> Earlier payments were not tracked. I have confirmed this supplier balance.</label>}
+    <Input label="Supplier payment amount (KES)" type="number" value={amount} onChange={setAmount}/>
+    <Select label="Supplier payment method" value={method} onChange={v=>{setMethod(v);setFromTill(false)}} options={['CASH','MPESA','CARD','BANK_TRANSFER'].map(value=>({value,label:value.replace('_',' ')}))}/>
+    <Input label={method==='CASH'?'Receipt / reference (optional)':'Payment transaction reference'} value={reference} onChange={setReference}/>
+    {method==='CASH'&&<label><input type="checkbox" checked={fromTill} onChange={e=>setFromTill(e.target.checked)}/> Paid from the business cash drawer (deduct at day closing)</label>}
+    <p>Record money already paid to the supplier. This does not send money or increase customer sales.</p></div>}
+  </Modal>
 }

@@ -313,6 +313,11 @@ fun Route.expenseRoutes() {
             call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
         }
 
+        put("/{id}") {
+            val result=expenseService.update(call.parameters["id"].orEmpty(),call.businessId(),call.receive())
+            call.respond(if(result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest,result)
+        }
+
         delete("/{id}") {
             val businessId = call.businessId()
             if (!call.hasRole("ADMIN")) {

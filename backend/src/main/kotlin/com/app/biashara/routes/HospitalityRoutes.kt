@@ -37,6 +37,7 @@ fun Route.hospitalityRoutes() {
                     path.startsWith("/operations/menu") || path.startsWith("/operations/recipes") -> "menu"
                     path.startsWith("/operations/ingredients") || path.startsWith("/operations/bar-stock") -> "stock"
                     path.startsWith("/operations/shifts") -> "shifts"
+                    path.startsWith("/operations/purchase-orders/") && path.endsWith("/payments") -> "purchase_payments"
                     path.startsWith("/operations/suppliers") || path.startsWith("/operations/purchase-orders") -> "purchasing"
                     path=="/operations/staff" || path.startsWith("/operations/tables") || path.startsWith("/tables") -> "floor"
                     path=="/orders" || path.endsWith("/transfer") -> "orders"
@@ -126,8 +127,13 @@ fun Route.hospitalityRoutes() {
             post("/shifts/open") { call.respondHospitality(HttpStatusCode.Created){operations.openShift(call.businessId(),call.userId(),call.receive())} }
             post("/shifts/{id}/close") { call.respondHospitality{operations.closeShift(call.businessId(),call.userId(),call.parameters["id"].orEmpty(),call.receive())} }
             post("/suppliers") { call.respondHospitality(HttpStatusCode.Created){operations.createSupplier(call.businessId(),call.userId(),call.receive())} }
+            post("/purchase-orders/{id}/payments") { call.respondHospitality{operations.payPurchaseOrder(call.businessId(),call.userId(),call.parameters["id"].orEmpty(),call.receive())} }
             post("/purchase-orders") { call.respondHospitality(HttpStatusCode.Created){operations.createPurchaseOrder(call.businessId(),call.userId(),call.receive())} }
-            post("/purchase-orders/{id}/receive") { call.respondHospitality{operations.receivePurchaseOrder(call.businessId(),call.userId(),call.parameters["id"].orEmpty())} }
+            post("/purchase-orders/{id}/receive") {
+                val request=runCatching { call.receiveText().let{if(it.isBlank()) ReceiveIngredientPurchaseRequest() else kotlinx.serialization.json.Json.decodeFromString<ReceiveIngredientPurchaseRequest>(it)} }.getOrElse{return@post call.respond(HttpStatusCode.BadRequest,ApiResponse<Unit>(false,message="Invalid goods receipt details"))}
+                if(request.payment!=null && !call.hasPermission("hospitality.purchase_payments"))return@post call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Supplier payment permission required"))
+                call.respondHospitality{operations.receivePurchaseOrder(call.businessId(),call.userId(),call.parameters["id"].orEmpty(),request)}
+            }
             post("/approvals") { call.respondHospitality(HttpStatusCode.Created){operations.requestApproval(call.businessId(),call.userId(),call.receive())} }
             post("/approvals/{id}/decision") {
                 val request=call.receive<ApprovalDecisionRequest>();call.respondHospitality{operations.decideApproval(call.businessId(),call.userId(),call.parameters["id"].orEmpty(),request.approved)}

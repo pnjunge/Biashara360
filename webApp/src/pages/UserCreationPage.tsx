@@ -79,7 +79,7 @@ const STANDARD_ROLE_PRESETS: Record<string, { label: string; description: string
       'payments.view', 'payments.process', 'payments.refund',
       'reports.sales', 'reports.financial', 'reports.export',
       'settings.general', 'settings.branches',
-      ...['view','orders','kitchen','billing','reservations','floor','menu','stock','shifts','purchasing','reports','approvals'].map(p=>'hospitality.'+p)
+      ...['view','orders','kitchen','billing','reservations','floor','menu','stock','shifts','purchasing','purchase_payments','reports','approvals'].map(p=>'hospitality.'+p)
     ],
     menus: ['DASHBOARD', 'POS', 'HOSPITALITY', 'HOSPITALITY_OPS', 'OPEN_TABS', 'ORDERS', 'CUSTOMERS', 'INVENTORY', 'PAYMENTS', 'REPORTS']
   },

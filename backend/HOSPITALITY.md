@@ -40,7 +40,7 @@ orders and receiving goods independently of product purchase invoices.
 Financial reports include paid, non-cancelled DINE_IN/TAKEAWAY/DELIVERY orders.
 They exclude hotel/service orders and include modifier prices, discounts and
 complimentary lines. Shift payment counts likewise exclude unrelated modules.
-Historical recipe costs use current recipes and ingredient costs.
+Food and beverage costs use the buying-cost snapshot saved on each sold order item; later ingredient price or recipe edits do not change those costs.
 
 `HospitalityWorkflowTest` exercises actual workflows, concurrency, approvals,
 rollback, stock, cancellation, report totals and API permission enforcement.
@@ -73,3 +73,11 @@ End shift saves a tally of completed bills you served, held or settled during th
 ## Cashier stock restrictions
 
 Cashiers can browse the product catalog for checkout and progress kitchen orders, but cannot create/edit products, adjust inventory, manage suppliers or record purchases. Inventory and purchase pages require their menus and permissions even when opened by a direct URL. Product mutations enforce `products.create`, `products.update` or `inventory.adjust`; purchases require `purchases.view` and `purchases.create`, and supplier management requires `inventory.suppliers`. Migration 47 removes stock-management rights from existing Cashier role/group presets and preserves purchasing for existing stock-management roles. Assign extra management rights through an appropriate separate role.
+
+## Ingredient purchases, payments and profit
+
+Receipts use the weighted average cost of remaining and newly received ingredient stock. Receiving an ingredient purchase atomically creates one linked `STOCK_PURCHASE` expenditure entry and receives converted stock. Choose receipt without payment or receipt with a real supplier payment. Supplier payments have their own ledger, amount, method, reference, staff attribution and retry key; they never create customer revenue. Partial payments reduce the supplier balance. Reused request keys return the existing payment, mismatched keys/references and overpayments fail, and receipt/payment failures roll back the entire transaction. Payments require `hospitality.purchase_payments` in addition to purchasing access; stock receivers can receive without paying.
+
+Expenses displays purchase costs, payment status and balances, and protects source-linked entries from deletion. Stock purchases are excluded from operating expenses in profit summaries and dashboard profit because sold-item costs already enter COGS. Cash outflow uses recorded supplier payments rather than adding COGS again. Product stock purchases are also excluded from operating profit; their existing invoice payment status controls purchase cash outflow. The stock-purchase figures distinguish received purchase costs from payments made.
+
+Mark a cash supplier payment as paid from the business drawer only when it was taken from that drawer during an open trading day. Day closing deducts those payments automatically; enter other cash expenses separately. Payment recording does not send funds. Existing received purchase orders receive linked expenditure entries in migration 48, with earlier payments marked UNRECORDED rather than invented. Confirm old supplier balances before recording payments.

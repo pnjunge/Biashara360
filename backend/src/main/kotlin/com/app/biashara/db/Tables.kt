@@ -428,6 +428,7 @@ object KitchenTicketsTable : Table("kitchen_tickets") {
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 
 object ExpensesTable : Table("expenses") {
+    val purchaseOrderId=varchar("purchase_order_id",36).nullable()
     val id = varchar("id", 36)
     val businessId = varchar("business_id", 36).references(BusinessesTable.id)
     val branchId = varchar("branch_id", 36).references(BranchesTable.id, onDelete = SET_NULL).nullable()

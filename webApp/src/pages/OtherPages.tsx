@@ -113,6 +113,7 @@ export function ExpensesPage() {
         <KpiCard title="Operations"        value={`KES ${expenses.filter(e=>e.category==='RENT'||e.category==='DELIVERY'||e.category==='PACKAGING').reduce((s,e)=>s+e.amount,0).toLocaleString()}`} change="Rent + Ops" icon={<FileText size={18}/>} color="var(--b360-amber)" />
       </div>
 
+      <p style={{fontSize:12}}>Stock purchases appear here for expenditure tracking. Their cost is counted in profit when stock is sold, so purchases are excluded from operating expenses. Ingredient purchase payment status comes from recorded supplier payments.</p>
       {loading ? (
         <div style={{ padding:40, textAlign:'center', color:'var(--b360-text-secondary)' }}>Loading...</div>
       ) : expenses.length === 0 ? (
@@ -156,13 +157,14 @@ export function ExpensesPage() {
 
           <Card>
             <DataTable
-              headers={['Description', 'Category', 'Amount', 'Date', 'Actions']}
+              headers={['Description', 'Category', 'Amount', 'Payment', 'Date', 'Actions']}
               rows={expenses.map(e => [
                 <span style={{ fontWeight:500 }}>{e.description}</span>,
                 <span style={{ color:catColors[e.category] || '#9E9E9E', fontWeight:600, fontSize:12 }}>{e.category.replace('_',' ')}</span>,
                 <span style={{ fontWeight:700, color:'var(--b360-red)' }}>KES {e.amount.toLocaleString()}</span>,
+                <span>{e.paymentStatus||'PAID'} · Paid KES {(e.paidAmount??e.amount).toLocaleString()}{(e.outstandingAmount||0)>0?` · Balance KES ${e.outstandingAmount!.toLocaleString()}`:''}</span>,
                 e.expenseDate,
-                <Btn variant="danger" small onClick={() => handleDelete(e.id)}>Delete</Btn>
+                e.linkedPurchase?<small>Linked purchase · manage in Purchasing</small>:<Btn variant="danger" small onClick={() => handleDelete(e.id)}>Delete</Btn>
               ])}
             />
           </Card>
@@ -444,7 +446,7 @@ export function ReportsPage() {
       return {...base,title:'Customer Report',summary:[['New customers',String(rows.length)],['Total spent',money(rows.reduce((sum,item)=>sum+item.totalSpent,0))],['Repeat customers',String(rows.filter(item=>item.isRepeatCustomer).length)]],columns:['Customer','Phone','Email','Location','Orders','Total Spent','Loyalty Points','Joined'],rows:rows.map(item=>[item.name,item.phone,item.email,item.location,item.totalOrders,item.totalSpent,item.loyaltyPoints,item.createdAt])}
     }
     if(reportType==='ORDERS')return orderReport ? {...base,title:'Order Report',summary:[['Orders',String(orderReport.totalOrders)],['Order value',money(orderReport.totalValue)],['Paid value',money(orderReport.paidValue)]],columns:['Order','Customer','Method','Channel','Payment','Fulfilment / Tab','Value','Date'],rows:orderReport.orders.map(item=>[item.orderNumber,item.customerName,item.paymentMethod,item.salesChannel,item.paymentStatus,item.serviceType === 'RETAIL' ? item.deliveryStatus : item.tabStatus,item.subtotal,item.createdAt])} : null
-    if(reportType==='REVENUE')return profitSummary ? {...base,title:'Revenue & Profit Report',summary:[['Revenue',money(profitSummary.totalRevenue)],['Gross profit',money(profitSummary.grossProfit)],['Expenses',money(profitSummary.totalExpenses)],['Net profit',money(profitSummary.netProfit)]],columns:['Metric','Value'],rows:[['Revenue',profitSummary.totalRevenue],['Cost of goods',profitSummary.totalCostOfGoods],['Gross profit',profitSummary.grossProfit],['Expenses',profitSummary.totalExpenses],['Net profit',profitSummary.netProfit],['Net margin',`${profitSummary.netMargin.toFixed(1)}%`]]} : null
+    if(reportType==='REVENUE')return profitSummary ? {...base,title:'Revenue & Profit Report',summary:[['Revenue',money(profitSummary.totalRevenue)],['Gross profit',money(profitSummary.grossProfit)],['Operating expenses',money(profitSummary.totalExpenses)],['Net profit',money(profitSummary.netProfit)]],columns:['Metric','Value'],rows:[['Revenue',profitSummary.totalRevenue],['Cost of goods',profitSummary.totalCostOfGoods],['Gross profit',profitSummary.grossProfit],['Operating expenses',profitSummary.totalExpenses],['Net profit',profitSummary.netProfit],['Net margin',`${profitSummary.netMargin.toFixed(1)}%`]]} : null
     if (!orderReport) return null
     const sales=orderReport.orders.filter(item=>item.paymentStatus==='PAID')
     return {...base,title:'Sales Report',summary:[['Paid sales',String(sales.length)],['Sales revenue',money(sales.reduce((sum,item)=>sum+item.subtotal,0))]],columns:['Sale','Customer','Method','Channel','Amount','Date'],rows:sales.map(item=>[item.orderNumber,item.customerName,item.paymentMethod,item.salesChannel,item.subtotal,item.createdAt])}
@@ -533,7 +535,7 @@ export function ReportsPage() {
                   ['Total Revenue',     profitSummary.totalRevenue,      'var(--b360-green)', false],
                   ['Cost of Goods',     profitSummary.totalCostOfGoods,  'var(--b360-red)',   false],
                   ['Gross Profit',      profitSummary.grossProfit,       'var(--b360-green)', true],
-                  ['Total Expenses',    profitSummary.totalExpenses,     'var(--b360-red)',   false],
+                  ['Operating Expenses',    profitSummary.totalExpenses,     'var(--b360-red)',   false],
                 ].map(([l, v, c, bold]) => (
                   <div key={l as string} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid var(--b360-border)', fontWeight: bold ? 700 : 400 }}>
                     <span style={{ fontSize:13 }}>{l}</span>
@@ -563,9 +565,11 @@ export function ReportsPage() {
               <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                 {[
                   ['Gross Profit',   profitSummary.grossProfit,  `${profitSummary.grossMargin.toFixed(1)}% margin`, 'var(--b360-green)'],
-                  ['Total Expenses', profitSummary.totalExpenses, 'Operating costs', 'var(--b360-red)'],
+                  ['Operating Expenses', profitSummary.totalExpenses, 'Operating costs', 'var(--b360-red)'],
                   ['Cash In',        profitSummary.cashflowIn,   'Revenue received', 'var(--b360-blue)'],
-                  ['Cash Out',       profitSummary.cashflowOut,  'Expenses paid', 'var(--b360-amber)'],
+                  ['Stock Purchases',profitSummary.stockPurchases||0,'Goods received; excluded from operating expenses','var(--b360-blue)'],
+                  ['Supplier Payments',profitSummary.stockPurchasePayments||0,'Stock purchases paid','var(--b360-amber)'],
+                  ['Cash Out',       profitSummary.cashflowOut,  'Operating expenses and stock payments', 'var(--b360-amber)'],
                 ].map(([label, value, sub, color]) => (
                   <div key={label as string} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', background:'var(--b360-surface)', borderRadius:10 }}>
                     <div>

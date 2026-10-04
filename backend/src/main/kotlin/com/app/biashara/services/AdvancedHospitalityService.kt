@@ -118,7 +118,9 @@ class AdvancedHospitalityService(private val orderService: OrderService) {
         val cash = payments.filter { it[PaymentsTable.method] == "CASH" }.sumOf { it[PaymentsTable.amount] }
         val mpesa = payments.filter { it[PaymentsTable.method] == "MPESA" }.sumOf { it[PaymentsTable.amount] }
         val card = payments.filter { it[PaymentsTable.method] == "CARD" }.sumOf { it[PaymentsTable.amount] }
-        val expectedCashAmount = shift[HospitalityShiftsTable.openingFloat] + cash - r.expensesTotal
+        val supplierCash=IngredientPurchasePaymentsTable.select{(IngredientPurchasePaymentsTable.businessId eq businessId) and (IngredientPurchasePaymentsTable.method eq "CASH") and (IngredientPurchasePaymentsTable.paidFromTill eq true) and (IngredientPurchasePaymentsTable.paidAt greaterEq shift[HospitalityShiftsTable.openedAt]) and (IngredientPurchasePaymentsTable.paidAt less closedAt)}.sumOf{it[IngredientPurchasePaymentsTable.amount]}
+        val cashExpenses=r.expensesTotal+supplierCash
+        val expectedCashAmount = shift[HospitalityShiftsTable.openingFloat] + cash - cashExpenses
         val cashVariance = r.actualCash - expectedCashAmount
         val mpesaVariance = actualMpesa - mpesa
         val cardVariance = actualCard - card
@@ -132,7 +134,7 @@ class AdvancedHospitalityService(private val orderService: OrderService) {
             it[mpesaActual] = actualMpesa
             it[cardActual] = actualCard
             it[tipsTotal] = r.tipsTotal
-            it[expensesTotal] = r.expensesTotal
+            it[expensesTotal] = cashExpenses
             it[status] = "CLOSED"
             it[notes] = r.notes.take(500)
         }
@@ -153,7 +155,7 @@ class AdvancedHospitalityService(private val orderService: OrderService) {
             Triple(line,unit,factor)
         }
         val id=generateId(); val now=Clock.System.now(); val number="PO-${generateId().take(12)}"
-        val total=r.items.sumOf { it.quantity*it.unitCost }; require(total.isFinite()) { "Purchase total is too large" }
+        val total=kotlin.math.round(r.items.sumOf { it.quantity*it.unitCost }*100)/100; require(total.isFinite()) { "Purchase total is too large" }
         PurchaseOrdersTable.insert {
             it[PurchaseOrdersTable.id]=id; it[PurchaseOrdersTable.businessId]=businessId; it[supplierId]=r.supplierId; it[orderNumber]=number
             it[status]="ORDERED"; it[orderedAt]=now; it[totalCost]=total; it[notes]=r.notes.take(500); it[createdBy]=userId
@@ -165,7 +167,30 @@ class AdvancedHospitalityService(private val orderService: OrderService) {
         } }
         audit(businessId,userId,"PURCHASE_ORDER_CREATED","PURCHASE_ORDER",id); purchaseOrders(businessId).first { it.id==id }
     }
-    fun receivePurchaseOrder(businessId:String,userId:String,id:String)=transaction { BusinessesTable.select{BusinessesTable.id eq businessId}.forUpdate().first(); val po=PurchaseOrdersTable.select{(PurchaseOrdersTable.id eq id) and (PurchaseOrdersTable.businessId eq businessId) and (PurchaseOrdersTable.status neq "RECEIVED")}.forUpdate().firstOrNull()?:error("Purchase order not found or already received");PurchaseOrderItemsTable.select{PurchaseOrderItemsTable.purchaseOrderId eq id}.forEach{line->require(InventoryIngredientsTable.update({(InventoryIngredientsTable.id eq line[PurchaseOrderItemsTable.ingredientId]) and (InventoryIngredientsTable.businessId eq businessId)}){with(SqlExpressionBuilder){it.update(quantity,quantity+line[PurchaseOrderItemsTable.orderedQuantity])};it[unitCost]=line[PurchaseOrderItemsTable.unitCost];it[updatedAt]=Clock.System.now()}==1){"Ingredient not found"};PurchaseOrderItemsTable.update({PurchaseOrderItemsTable.id eq line[PurchaseOrderItemsTable.id]}){it[receivedQuantity]=line[PurchaseOrderItemsTable.orderedQuantity]}};PurchaseOrdersTable.update({PurchaseOrdersTable.id eq po[PurchaseOrdersTable.id]}){it[status]="RECEIVED";it[receivedAt]=Clock.System.now()};audit(businessId,userId,"PURCHASE_ORDER_RECEIVED","PURCHASE_ORDER",id);purchaseOrders(businessId).first{it.id==id} }
+    fun receivePurchaseOrder(businessId:String,userId:String,id:String,request:ReceiveIngredientPurchaseRequest=ReceiveIngredientPurchaseRequest())=transaction {
+        BusinessesTable.select{BusinessesTable.id eq businessId}.forUpdate().first()
+        val po=PurchaseOrdersTable.select{(PurchaseOrdersTable.id eq id) and (PurchaseOrdersTable.businessId eq businessId) and (PurchaseOrdersTable.status eq "ORDERED")}.forUpdate().firstOrNull()?:error("Purchase order not found or already received")
+        val now=Clock.System.now()
+        PurchaseOrderItemsTable.select{PurchaseOrderItemsTable.purchaseOrderId eq id}.forEach{line->
+            val ingredient=InventoryIngredientsTable.select{(InventoryIngredientsTable.id eq line[PurchaseOrderItemsTable.ingredientId]) and (InventoryIngredientsTable.businessId eq businessId)}.forUpdate().firstOrNull()?:error("Ingredient not found")
+            val quantity=ingredient[InventoryIngredientsTable.quantity]+line[PurchaseOrderItemsTable.orderedQuantity]
+            val value=ingredient[InventoryIngredientsTable.quantity]*ingredient[InventoryIngredientsTable.unitCost]+line[PurchaseOrderItemsTable.orderedQuantity]*line[PurchaseOrderItemsTable.unitCost]
+            require(quantity.isFinite() && value.isFinite() && quantity>0){"Received stock value is too large"}
+            InventoryIngredientsTable.update({InventoryIngredientsTable.id eq line[PurchaseOrderItemsTable.ingredientId]}){it[InventoryIngredientsTable.quantity]=quantity;it[unitCost]=value/quantity;it[updatedAt]=now}
+            PurchaseOrderItemsTable.update({PurchaseOrderItemsTable.id eq line[PurchaseOrderItemsTable.id]}){it[receivedQuantity]=line[PurchaseOrderItemsTable.orderedQuantity]}
+        }
+        PurchaseOrdersTable.update({PurchaseOrdersTable.id eq id}){it[status]="RECEIVED";it[receivedAt]=now}
+        recordIngredientPurchaseExpense(po,now)
+        if(request.payment!=null)recordIngredientPayment(businessId,userId,PurchaseOrdersTable.select{PurchaseOrdersTable.id eq id}.first(),request.payment)
+        audit(businessId,userId,"PURCHASE_ORDER_RECEIVED","PURCHASE_ORDER",id)
+        purchaseOrders(businessId).first{it.id==id}
+    }
+    fun payPurchaseOrder(businessId:String,userId:String,id:String,request:IngredientPurchasePaymentRequest)=transaction {
+        BusinessesTable.select{BusinessesTable.id eq businessId}.forUpdate().first()
+        val po=PurchaseOrdersTable.select{(PurchaseOrdersTable.id eq id) and (PurchaseOrdersTable.businessId eq businessId)}.forUpdate().firstOrNull()?:error("Purchase order not found")
+        recordIngredientPayment(businessId,userId,po,request)
+        purchaseOrders(businessId).first{it.id==id}
+    }
     private fun validateApproval(businessId:String,r:ApprovalRequest) {
         require(r.reason.trim().isNotBlank()) { "A reason is required" }
         when(r.actionType) {
@@ -258,7 +283,7 @@ class AdvancedHospitalityService(private val orderService: OrderService) {
         val orders=OrdersTable.select{(OrdersTable.businessId eq businessId) and (OrdersTable.serviceType inList listOf("DINE_IN","TAKEAWAY","DELIVERY")) and (OrdersTable.paymentStatus eq "PAID") and (OrdersTable.deliveryStatus neq "CANCELLED") and (OrdersTable.createdAt greaterEq start) and (OrdersTable.createdAt less end)}.toList();val ids=orders.map{it[OrdersTable.id]};val items=if(ids.isEmpty())emptyList() else OrderItemsTable.select{OrderItemsTable.orderId inList ids}.toList();val products=if(items.isEmpty())emptyMap() else ProductsTable.select{ProductsTable.id inList items.map{it[OrderItemsTable.productId]}}.associateBy{it[ProductsTable.id]};val users=UsersTable.select{UsersTable.businessId eq businessId}.associate{it[UsersTable.id] to it[UsersTable.name]};val tables=HospitalityTablesTable.select{HospitalityTablesTable.businessId eq businessId}.associate{it[HospitalityTablesTable.id] to it[HospitalityTablesTable.name]}
         fun orderBreakdown(key:(ResultRow)->String)=orders.groupBy(key).map{(label,rows)->ReportBreakdown(label,rows.size,rows.sumOf{it[OrdersTable.subtotal]})}.sortedByDescending{it.amount}
         fun itemBreakdown(key:(ResultRow)->String)=items.groupBy(key).map{(label,rows)->ReportBreakdown(label,rows.sumOf{it[OrderItemsTable.quantity]},rows.sumOf{if(it[OrderItemsTable.complimentary])0.0 else (it[OrderItemsTable.quantity]*(it[OrderItemsTable.unitPrice]+json.decodeFromString<List<MenuOption>>(it[OrderItemsTable.modifiersJson]).sumOf{m->m.priceDelta})-it[OrderItemsTable.discountAmount]).coerceAtLeast(0.0)})}.sortedByDescending{it.amount}
-        var food=0.0;var beverage=0.0;items.forEach{item->val recipe=ProductRecipesTable.select{ProductRecipesTable.productId eq item[OrderItemsTable.productId]};val cost=recipe.sumOf{line->val ingredient=InventoryIngredientsTable.select{InventoryIngredientsTable.id eq line[ProductRecipesTable.ingredientId]}.firstOrNull();line[ProductRecipesTable.quantity]*(ingredient?.get(InventoryIngredientsTable.unitCost)?:0.0)*item[OrderItemsTable.quantity]};if(isBeverageCategory(products[item[OrderItemsTable.productId]]?.get(ProductsTable.category).orEmpty()))beverage+=cost else food+=cost}
+        var food=0.0;var beverage=0.0;items.forEach{item->val cost=item[OrderItemsTable.buyingPrice]*item[OrderItemsTable.quantity];if(isBeverageCategory(products[item[OrderItemsTable.productId]]?.get(ProductsTable.category).orEmpty()))beverage+=cost else food+=cost}
         val waste=BarStockEventsTable.select{(BarStockEventsTable.businessId eq businessId) and (BarStockEventsTable.recordedAt greaterEq start) and (BarStockEventsTable.recordedAt less end) and (BarStockEventsTable.eventType inList listOf("WASTAGE","BREAKAGE","SPILLAGE"))}.sumOf{event->event[BarStockEventsTable.quantity]*(event[BarStockEventsTable.ingredientId]?.let{id->InventoryIngredientsTable.select{InventoryIngredientsTable.id eq id}.firstOrNull()?.get(InventoryIngredientsTable.unitCost)}?:0.0)}
         val revenue=orders.sumOf{it[OrdersTable.subtotal]};val closed=orders.filter{it[OrdersTable.tabStatus]=="CLOSED"};val turnover=if(closed.isEmpty())0.0 else closed.map{(it[OrdersTable.updatedAt].toEpochMilliseconds()-it[OrdersTable.createdAt].toEpochMilliseconds())/60000.0}.average();val shiftRows=HospitalityShiftsTable.select{(HospitalityShiftsTable.businessId eq businessId) and (HospitalityShiftsTable.openedAt less end)}.toList()
         HospitalityReportResponse(orderBreakdown{users[it[OrdersTable.serverUserId]]?:"Unassigned"},orderBreakdown{tables[it[OrdersTable.hospitalityTableId]]?:it[OrdersTable.serviceType]},itemBreakdown{it[OrderItemsTable.productName]},itemBreakdown{products[it[OrderItemsTable.productId]]?.get(ProductsTable.category)?.ifBlank{"Uncategorised"}?:"Uncategorised"},orderBreakdown{"${it[OrdersTable.createdAt].toLocalDateTime(zone).hour.toString().padStart(2,'0')}:00"},orderBreakdown{it[OrdersTable.paymentMethod]},orderBreakdown{it[OrdersTable.salesChannel]},orderBreakdown{o->shiftRows.firstOrNull{s->o[OrdersTable.createdAt]>=s[HospitalityShiftsTable.openedAt]&&(s[HospitalityShiftsTable.closedAt]?.let{o[OrdersTable.createdAt]<it}?:true)}?.get(HospitalityShiftsTable.id)?.take(8)?:"No shift"},orderBreakdown{it[OrdersTable.serviceType]},food,beverage,waste,if(revenue>0)(revenue-food-beverage-waste)/revenue*100 else 0.0,turnover)
@@ -285,7 +310,9 @@ class AdvancedHospitalityService(private val orderService: OrderService) {
             val ingredient=InventoryIngredientsTable.select { (InventoryIngredientsTable.id eq line[PurchaseOrderItemsTable.ingredientId]) and (InventoryIngredientsTable.businessId eq b) }.first()
             PurchaseOrderLineResponse(line[PurchaseOrderItemsTable.ingredientId],ingredient[InventoryIngredientsTable.name],ingredient[InventoryIngredientsTable.unit],line[PurchaseOrderItemsTable.purchaseQuantity]?:line[PurchaseOrderItemsTable.orderedQuantity],line[PurchaseOrderItemsTable.purchaseUnit]?:ingredient[InventoryIngredientsTable.unit],line[PurchaseOrderItemsTable.purchaseUnitCost]?:line[PurchaseOrderItemsTable.unitCost],line[PurchaseOrderItemsTable.conversionFactor],line[PurchaseOrderItemsTable.orderedQuantity],line[PurchaseOrderItemsTable.unitCost])
         }
-        PurchaseOrderResponse(po[PurchaseOrdersTable.id],po[PurchaseOrdersTable.orderNumber],po[PurchaseOrdersTable.supplierId],po[PurchaseOrdersTable.status],po[PurchaseOrdersTable.totalCost],po[PurchaseOrdersTable.orderedAt].toString(),po[PurchaseOrdersTable.receivedAt]?.toString(),lines)
+        ingredientPaymentTotals(po).let { totals -> PurchaseOrderResponse(po[PurchaseOrdersTable.id],po[PurchaseOrdersTable.orderNumber],po[PurchaseOrdersTable.supplierId],po[PurchaseOrdersTable.status],po[PurchaseOrdersTable.totalCost],po[PurchaseOrdersTable.orderedAt].toString(),po[PurchaseOrdersTable.receivedAt]?.toString(),lines,
+            expenseId=ExpensesTable.select{(ExpensesTable.purchaseOrderId eq po[PurchaseOrdersTable.id]) and (ExpensesTable.businessId eq b)}.firstOrNull()?.get(ExpensesTable.id),paidAmount=totals.paid,outstandingAmount=totals.outstanding,paymentStatus=totals.status,
+            payments=IngredientPurchasePaymentsTable.select{(IngredientPurchasePaymentsTable.purchaseOrderId eq po[PurchaseOrdersTable.id]) and (IngredientPurchasePaymentsTable.businessId eq b)}.orderBy(IngredientPurchasePaymentsTable.paidAt).map{IngredientPurchasePaymentResponse(it[IngredientPurchasePaymentsTable.id],it[IngredientPurchasePaymentsTable.amount],it[IngredientPurchasePaymentsTable.method],it[IngredientPurchasePaymentsTable.reference],it[IngredientPurchasePaymentsTable.paidAt].toString(),it[IngredientPurchasePaymentsTable.recordedBy],it[IngredientPurchasePaymentsTable.paidFromTill])}) }
     }
     private fun approvals(b:String)=ManagerApprovalsTable.select{ManagerApprovalsTable.businessId eq b}.orderBy(ManagerApprovalsTable.requestedAt,SortOrder.DESC).map{ApprovalResponse(it[ManagerApprovalsTable.id],it[ManagerApprovalsTable.actionType],it[ManagerApprovalsTable.entityType],it[ManagerApprovalsTable.entityId],it[ManagerApprovalsTable.requestedBy],it[ManagerApprovalsTable.approvedBy],it[ManagerApprovalsTable.status],it[ManagerApprovalsTable.reason],it[ManagerApprovalsTable.requestedAt].toString(),runCatching{json.decodeFromString<ApprovalRequest>(it[ManagerApprovalsTable.payload]).amount}.getOrNull(),runCatching{json.decodeFromString<ApprovalRequest>(it[ManagerApprovalsTable.payload]).quantity}.getOrNull(),runCatching{json.decodeFromString<ApprovalRequest>(it[ManagerApprovalsTable.payload]).eventType}.getOrNull())}
     private fun audit(b:String,u:String,a:String,t:String,id:String?,d:String="{}"){AuditEventsTable.insert{it[AuditEventsTable.id]=generateId();it[businessId]=b;it[userId]=u;it[action]=a;it[entityType]=t;it[entityId]=id;it[details]=d;it[occurredAt]=Clock.System.now()}}

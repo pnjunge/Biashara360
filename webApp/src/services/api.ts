@@ -265,7 +265,7 @@ export interface HospitalityOperations {
   ingredients:Array<{id:string;name:string;unit:string;quantity:number;reorderLevel:number;unitCost:number;isLowStock:boolean;purchaseUnit?:string|null;purchaseUnitSize?:number}>
   shifts:Array<{id:string;openedBy:string;openedAt:string;closedAt:string|null;openingFloat:number;expectedCash:number|null;actualCash:number|null;mpesaTotal:number|null;cardTotal:number|null;tipsTotal:number;expensesTotal:number;status:string;variance:number|null;actualMpesa:number|null;actualCard:number|null;mpesaVariance:number|null;cardVariance:number|null;totalVariance:number|null}>
   suppliers:Array<{id:string;name:string;phone:string;email:string|null;address:string|null;isActive:boolean}>
-  purchaseOrders:Array<{id:string;orderNumber:string;supplierId:string;status:string;totalCost:number;orderedAt:string;receivedAt:string|null;items?:PurchaseOrderLine[]}>
+  purchaseOrders:Array<{id:string;orderNumber:string;supplierId:string;status:string;totalCost:number;expenseId?:string|null;paidAmount?:number;outstandingAmount?:number;paymentStatus?:string;payments?:Array<{id:string;amount:number;method:string;reference:string;paidAt:string;recordedBy?:string|null;paidFromTill?:boolean}>;orderedAt:string;receivedAt:string|null;items?:PurchaseOrderLine[]}>
   approvals:Array<{id:string;actionType:string;entityType:string;entityId:string;requestedBy:string;approvedBy:string|null;status:string;reason:string;requestedAt:string;amount?:number|null;quantity?:number|null;eventType?:string|null}>
 }
 export interface PurchaseOrderLine { ingredientId:string;ingredientName:string;stockUnit:string;purchaseQuantity:number;purchaseUnit:string;purchaseUnitCost:number;conversionFactor:number;stockQuantity:number;stockUnitCost:number }
@@ -286,6 +286,7 @@ export interface CustomerResponse {
 }
 
 export interface ExpenseResponse {
+  purchaseOrderId?:string|null;paymentStatus?:string;paidAmount?:number;outstandingAmount?:number;affectsProfit?:boolean;linkedPurchase?:boolean
   id: string; businessId: string; category: string; amount: number; description: string
   expenseDate: string; receiptUrl: string | null
   branchId?: string | null; branchName?: string | null
@@ -303,6 +304,7 @@ export interface ProfitSummaryResponse {
   period: string; totalRevenue: number; totalCostOfGoods: number
   grossProfit: number; grossMargin: number; totalExpenses: number
   netProfit: number; netMargin: number; cashflowIn: number; cashflowOut: number
+  stockPurchases?:number;stockPurchasePayments?:number
   dailyRevenue?: Array<{ date: string; revenue: number }>
 }
 
@@ -810,6 +812,7 @@ export const customerApi = {
 }
 
 export const expenseApi = {
+  update: async (id:string,data:any) => (await client.put<ApiResponse<ExpenseResponse>>(`/expenses/${id}`,data)).data,
   list: async (category?: string, startDate?: string, endDate?: string, branchId?: string) => {
     const params = new URLSearchParams()
     if (category) params.set('category', category)
@@ -1330,7 +1333,8 @@ export const hospitalityOpsApi = {
   closeShift: async (id:string,data:any) => (await client.post(`/hospitality/operations/shifts/${id}/close`,data)).data,
   supplier: async (data:any) => (await client.post('/hospitality/operations/suppliers',data)).data,
   purchaseOrder: async (data:any) => (await client.post('/hospitality/operations/purchase-orders',data)).data,
-  receivePurchaseOrder: async (id:string) => (await client.post(`/hospitality/operations/purchase-orders/${id}/receive`)).data,
+  receivePurchaseOrder: async (id:string,data?:any) => (await client.post(`/hospitality/operations/purchase-orders/${id}/receive`,data||{})).data,
+  payPurchaseOrder: async (id:string,data:{amount:number;method:string;reference:string;clientReference:string;paidFromTill:boolean}) => (await client.post(`/hospitality/operations/purchase-orders/${id}/payments`,data)).data,
   approval: async (data:any) => (await client.post('/hospitality/operations/approvals',data)).data,
   decideApproval: async (id:string,approved:boolean) => (await client.post(`/hospitality/operations/approvals/${id}/decision`,{approved})).data,
   splitBill: async (orderId:string,payments:any[]) => (await client.post(`/hospitality/operations/tabs/${orderId}/split`,{payments})).data,

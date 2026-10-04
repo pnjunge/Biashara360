@@ -211,6 +211,7 @@ class ExpenseService(
     }
 
     fun create(businessId: String, req: ExpenseRequest): ApiResponse<ExpenseResponse> = transaction {
+        require(req.amount.isFinite() && req.amount>0 && req.category.isNotBlank() && req.category.length<=50 && req.description.isNotBlank()) { "Enter a valid expense amount, category and description" }
         val id = generateId()
         val now = Clock.System.now()
         val branchId = req.branchId?.trim()?.takeIf { it.isNotBlank() }
@@ -230,7 +231,20 @@ class ExpenseService(
         ApiResponse(true, data = expense, message = "Expense recorded")
     }
 
+    fun update(id:String,businessId:String,request:ExpenseRequest):ApiResponse<ExpenseResponse> = transaction {
+        val current=ExpensesTable.select{(ExpensesTable.id eq id) and (ExpensesTable.businessId eq businessId)}.forUpdate().firstOrNull()?:return@transaction ApiResponse(false,message="Expense not found")
+        if(current[ExpensesTable.purchaseOrderId]!=null || PurchaseInvoicesTable.select{(PurchaseInvoicesTable.id eq id) and (PurchaseInvoicesTable.businessId eq businessId)}.any())return@transaction ApiResponse(false,message="Linked stock purchases cannot be edited from Expenses")
+        require(request.amount.isFinite() && request.amount>0 && request.category.isNotBlank() && request.category.length<=50 && request.description.isNotBlank()) { "Enter a valid expense amount, category and description" }
+        val date=LocalDate.parse(request.expenseDate)
+        ExpensesTable.update({ExpensesTable.id eq id}){it[category]=request.category;it[amount]=request.amount;it[description]=request.description;it[expenseDate]=date;it[receiptUrl]=request.receiptUrl}
+        auditLogService?.logEvent(businessId,null,null,"UPDATE_EXPENSE",null,"Updated expense $id to KES ${request.amount}")
+        ApiResponse(true,data=ExpensesTable.select{ExpensesTable.id eq id}.first().toResponse(),message="Expense updated")
+    }
+
     fun delete(id: String, businessId: String): ApiResponse<Unit> = transaction {
+        val expense=ExpensesTable.select{(ExpensesTable.id eq id) and (ExpensesTable.businessId eq businessId)}.firstOrNull()
+        if(expense?.get(ExpensesTable.purchaseOrderId)!=null || PurchaseInvoicesTable.select{(PurchaseInvoicesTable.id eq id) and (PurchaseInvoicesTable.businessId eq businessId)}.any())
+            return@transaction ApiResponse(false,message="This entry is linked to a stock purchase and cannot be deleted from Expenses")
         val deleted = ExpensesTable.deleteWhere {
             (ExpensesTable.id eq id) and (ExpensesTable.businessId eq businessId)
         }
@@ -287,9 +301,11 @@ class ExpenseService(
             .select {
                 (ExpensesTable.businessId eq businessId) and
                 (ExpensesTable.expenseDate greaterEq start) and
-                (ExpensesTable.expenseDate lessEq end)
+                (ExpensesTable.expenseDate lessEq end) and (ExpensesTable.category neq "STOCK_PURCHASE")
             }.first()[ExpensesTable.amount.sum()] ?: 0.0
 
+        val stockPurchases=ExpensesTable.select{(ExpensesTable.businessId eq businessId) and (ExpensesTable.category eq "STOCK_PURCHASE") and (ExpensesTable.expenseDate greaterEq start) and (ExpensesTable.expenseDate lessEq end)}.sumOf{it[ExpensesTable.amount]}
+        val purchasePayments=stockPurchaseCashOut(businessId,startInstant,endInstant)
         val grossProfit = totalRevenue - totalCOGS
         val netProfit = grossProfit - totalExpenses
 
@@ -303,12 +319,16 @@ class ExpenseService(
             netProfit = netProfit,
             netMargin = if (totalRevenue > 0) (netProfit / totalRevenue) * 100 else 0.0,
             cashflowIn = totalRevenue,
-            cashflowOut = totalCOGS + totalExpenses,
+            cashflowOut = purchasePayments + totalExpenses,
+            stockPurchases=stockPurchases,stockPurchasePayments=purchasePayments,
             dailyRevenue = dailyRevenue
         )
     }
 
     private fun ResultRow.toResponse(): ExpenseResponse {
+        val payment=expensePaymentTotals(this)
+        val sourceBusiness=this[ExpensesTable.businessId]
+        val linked=this[ExpensesTable.purchaseOrderId]!=null || (this[ExpensesTable.category]=="STOCK_PURCHASE" && PurchaseInvoicesTable.select{(PurchaseInvoicesTable.id eq this@toResponse[ExpensesTable.id]) and (PurchaseInvoicesTable.businessId eq sourceBusiness)}.any())
         val branchId = this[ExpensesTable.branchId]
         val branchName = branchId?.let { bId ->
             BranchesTable.slice(BranchesTable.name)
@@ -316,6 +336,7 @@ class ExpenseService(
                 .firstOrNull()?.get(BranchesTable.name)
         }
         return ExpenseResponse(
+            purchaseOrderId=this[ExpensesTable.purchaseOrderId],paymentStatus=payment.status,paidAmount=payment.paid,outstandingAmount=payment.outstanding,affectsProfit=this[ExpensesTable.category]!="STOCK_PURCHASE",linkedPurchase=linked,
             id = this[ExpensesTable.id],
             businessId = this[ExpensesTable.businessId],
             category = this[ExpensesTable.category],
@@ -447,7 +468,7 @@ class DashboardService(
             .select {
                 (ExpensesTable.businessId eq businessId) and
                 (ExpensesTable.recordedAt greaterEq monthStart) and
-                (ExpensesTable.recordedAt less now)
+                (ExpensesTable.recordedAt less now) and (ExpensesTable.category neq "STOCK_PURCHASE")
             }.first()[ExpensesTable.amount.sum()] ?: 0.0
 
         val netProfitMonth = totalRevenueMonth - totalCogsMonth - totalExpensesMonth

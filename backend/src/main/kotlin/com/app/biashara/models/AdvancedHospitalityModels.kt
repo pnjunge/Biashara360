@@ -20,7 +20,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class SupplierResponse(val id:String,val name:String,val phone:String,val email:String?,val address:String?,val isActive:Boolean)
 @Serializable data class PurchaseOrderLineRequest(val ingredientId:String,val quantity:Double,val unitCost:Double,val purchaseUnit:String?=null)
 @Serializable data class PurchaseOrderRequest(val supplierId:String,val notes:String="",val items:List<PurchaseOrderLineRequest>)
-@Serializable data class PurchaseOrderResponse(val id:String,val orderNumber:String,val supplierId:String,val status:String,val totalCost:Double,val orderedAt:String,val receivedAt:String?,val items:List<PurchaseOrderLineResponse> = emptyList())
+@Serializable data class PurchaseOrderResponse(val id:String,val orderNumber:String,val supplierId:String,val status:String,val totalCost:Double,val orderedAt:String,val receivedAt:String?,val items:List<PurchaseOrderLineResponse> = emptyList(),val expenseId:String?=null,val paidAmount:Double=0.0,val outstandingAmount:Double=0.0,val paymentStatus:String="UNPAID",val payments:List<IngredientPurchasePaymentResponse> = emptyList())
 @Serializable data class ApprovalRequest(val actionType:String,val entityType:String,val entityId:String,val reason:String,val amount:Double?=null,val quantity:Double?=null,val eventType:String?=null)
 @Serializable data class ApprovalDecisionRequest(val approved:Boolean)
 @Serializable data class ApprovalResponse(val id:String,val actionType:String,val entityType:String,val entityId:String,val requestedBy:String,val approvedBy:String?,val status:String,val reason:String,val requestedAt:String,val amount:Double?=null,val quantity:Double?=null,val eventType:String?=null)
@@ -41,3 +41,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class StaffCompletedOrder(val id:String,val orderNumber:String,val amount:Double,val completedAt:String,val involvement:String)
 @Serializable data class StaffShiftSummary(val completedOrderCount:Int=0,val completedOrderTotal:Double=0.0,val servedOrderCount:Int=0,val settledOrderCount:Int=0,val cashTotal:Double=0.0,val mpesaTotal:Double=0.0,val cardTotal:Double=0.0,val otherTotal:Double=0.0,val collectedTotal:Double=0.0,val handedOverCount:Int=0,val receivedBillCount:Int=0,val completedOrders:List<StaffCompletedOrder> = emptyList())
+
+@Serializable data class IngredientPurchasePaymentRequest(val amount:Double,val method:String,val reference:String="",val clientReference:String,val paidFromTill:Boolean=false)
+@Serializable data class ReceiveIngredientPurchaseRequest(val payment:IngredientPurchasePaymentRequest?=null)
+@Serializable data class IngredientPurchasePaymentResponse(val id:String,val amount:Double,val method:String,val reference:String,val paidAt:String,val recordedBy:String?,val paidFromTill:Boolean=false)

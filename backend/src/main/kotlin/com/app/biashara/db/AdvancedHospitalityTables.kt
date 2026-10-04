@@ -37,6 +37,7 @@ object SuppliersTable : Table("suppliers") {
     val id=varchar("id",36); val businessId=varchar("business_id",36); val name=varchar("name",255); val phone=varchar("phone",20); val email=varchar("email",255).nullable(); val address=varchar("address",500).nullable(); val isActive=bool("is_active"); val createdAt=timestamp("created_at"); val updatedAt=timestamp("updated_at"); override val primaryKey=PrimaryKey(id)
 }
 object PurchaseOrdersTable : Table("purchase_orders") {
+    val paymentsKnown=bool("payments_known").default(true)
     val id=varchar("id",36); val businessId=varchar("business_id",36); val supplierId=varchar("supplier_id",36); val orderNumber=varchar("order_number",60); val status=varchar("status",20); val orderedAt=timestamp("ordered_at"); val receivedAt=timestamp("received_at").nullable(); val totalCost=double("total_cost"); val notes=varchar("notes",500); val createdBy=varchar("created_by",36).nullable(); override val primaryKey=PrimaryKey(id)
 }
 object PurchaseOrderItemsTable : Table("purchase_order_items") {
@@ -65,5 +66,13 @@ object HospitalityBillHandoversTable : Table("hospitality_bill_handovers") {
     val fromUserId=varchar("from_user_id",36); val toUserId=varchar("to_user_id",36); val requestedBy=varchar("requested_by",36)
     val status=varchar("status",20); val notes=varchar("notes",500); val balanceAtRequest=double("balance_at_request")
     val requestedAt=timestamp("requested_at"); val decidedAt=timestamp("decided_at").nullable()
+    override val primaryKey=PrimaryKey(id)
+}
+
+object IngredientPurchasePaymentsTable : Table("ingredient_purchase_payments") {
+    val id=varchar("id",36); val businessId=varchar("business_id",36); val purchaseOrderId=varchar("purchase_order_id",36)
+    val paidFromTill=bool("paid_from_till").default(false)
+    val amount=double("amount"); val method=varchar("method",20); val reference=varchar("reference",120).default("")
+    val clientReference=varchar("client_reference",80); val recordedBy=varchar("recorded_by",36).nullable(); val paidAt=timestamp("paid_at")
     override val primaryKey=PrimaryKey(id)
 }
