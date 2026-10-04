@@ -177,6 +177,33 @@ class HospitalityWorkflowTest {
 
  }
 
+ @Test fun `opening tab after shift closure returns actionable validation and retry creates one order`() = testApplication {
+  authorizeDuty();val duty=HospitalityDutyService()
+  duty.startShift("business","staff",StaffShiftRequest());duty.endShift("business","staff",StaffShiftRequest())
+  environment {config=io.ktor.server.config.MapApplicationConfig()}
+  val algorithm=Algorithm.HMAC256("hospitality-tab-test-secret")
+  fun token(user:String)=JWT.create().withSubject(user).withClaim("businessId","business").withClaim("role","ADMIN").sign(algorithm)
+  application {
+   install(Koin){modules(module{single{service};single{ops};single{AccessControlService()}})}
+   install(ContentNegotiation){json()}
+   install(Authentication){jwt{verifier(JWT.require(algorithm).build());validate{JWTPrincipal(it.payload)}}}
+   routing{authenticate{hospitalityRoutes()}}
+  }
+  val body="""{"serviceType":"TAKEAWAY","items":[{"productId":"meal","quantity":1,"unitPrice":100}]}"""
+  val ended=client.post("/hospitality/orders"){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody(body)}
+  assertEquals(HttpStatusCode.BadRequest,ended.status);assertTrue(ended.bodyAsText().contains("Your staff shift has ended"))
+  assertEquals(0,transaction{OrdersTable.selectAll().count()}.toInt())
+  val day=ops.dashboard("business").shifts.single()
+  ops.closeShift("business","manager",day.id,ShiftCloseRequest(actualCash=0.0,actualMpesa=0.0,actualCard=0.0))
+  val closed=client.post("/hospitality/orders"){bearerAuth(token("manager"));contentType(ContentType.Application.Json);setBody(body)}
+  assertEquals(HttpStatusCode.BadRequest,closed.status);assertTrue(closed.bodyAsText().contains("opening a shift"))
+  assertEquals(0,transaction{OrdersTable.selectAll().count()}.toInt())
+  ops.openShift("business","manager",ShiftOpenRequest());duty.startShift("business","staff",StaffShiftRequest())
+  val opened=client.post("/hospitality/orders"){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody(body)}
+  assertEquals(HttpStatusCode.Created,opened.status);assertTrue(opened.bodyAsText().contains("orderNumber"))
+  assertEquals(1,transaction{OrdersTable.selectAll().count()}.toInt());assertEquals(1,service.dashboard("business").tickets.size)
+ }
+
  @Test fun `tables start spaced and merging then unmerging releases the source`() {
   val first=service.createTable("business",CreateHospitalityTableRequest("A"))
   val second=service.createTable("business",CreateHospitalityTableRequest("B"))

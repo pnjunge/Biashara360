@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Btn, Input, Select } from '../components/ui'
 import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, CheckCircle, Store, Smartphone, Printer, UtensilsCrossed, ChevronRight, Clock3, Grid2X2, List, MoreVertical, Utensils, WalletCards, QrCode, Receipt, ExternalLink, Share2 } from 'lucide-react'
-import { orderApi, productApi, customerApi, paymentApi, settingsApi, businessApi, hospitalityApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse, BusinessProfileResponse, HospitalityTable } from '../services/api'
+import { orderApi, productApi, customerApi, paymentApi, settingsApi, businessApi, hospitalityApi, hospitalityDutyApi, ProductResponse, CustomerResponse, MpesaConfigResponse, OrderResponse, BusinessProfileResponse, HospitalityTable } from '../services/api'
 import { printOrderReceipt } from '../utils/receipt'
 import QRCode from 'qrcode'
+import { useAuth } from '../App'
 import EReceiptModal from '../components/pos/EReceiptModal'
 
 interface CartItem {
@@ -14,6 +15,8 @@ interface CartItem {
 
 export function PosPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const [personalShiftEnded,setPersonalShiftEnded] = useState(false)
   const [products, setProducts] = useState<ProductResponse[]>([])
   const [customers, setCustomers] = useState<CustomerResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -111,6 +114,9 @@ export function PosPage() {
       if (profileRes.success && profileRes.data) setReceiptProfile(profileRes.data)
       if (hospRes.success && hospRes.data?.enabled) {
         setHospitalityEnabled(true)
+        hospitalityDutyApi.dashboard().then(r => {
+          if(r.success&&r.data) setPersonalShiftEnded(!r.data.shift && r.data.recentShifts.some(s=>s.userId===user?.id))
+        }).catch(()=>undefined)
         if (typeof hospRes.data.shiftOpen === 'boolean') {
           setShiftOpen(hospRes.data.shiftOpen)
         }
@@ -264,6 +270,8 @@ export function PosPage() {
   const handleOpenHospitalityTab = async () => {
     if (cart.length === 0) { setError('Your shopping cart is empty.'); return }
     if (hospitalityEnabled && serviceType === 'DINE_IN' && !selectedTableId) { setError('Select a table before placing a dine-in order.'); return }
+    if(!shiftOpen){setError('Open the business trading day under Hospitality Operations → Shifts before opening a tab.');return}
+    if(personalShiftEnded){setError('Your staff shift has ended. Start your staff shift under Open Tabs before opening a new tab.');return}
     setIsOpeningTab(true)
     setError('')
     try {
@@ -292,7 +300,7 @@ export function PosPage() {
         setError(res.message || 'Failed to send order to kitchen')
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error opening tab')
+      setError(err.response?.data?.message || err.message || 'Could not open this tab. Please retry.')
     } finally {
       setIsOpeningTab(false)
     }
@@ -378,6 +386,8 @@ export function PosPage() {
         </div>
       </div>
       {hospitalityEnabled && <div className="pos-hospitality-banner"><div><Utensils size={19} /><strong>Hospitality mode active · Unified POS interface</strong></div><button type="button" onClick={() => document.querySelector('.pos-order-context')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>Select a table <ChevronRight size={17} /></button></div>}
+
+      {hospitalityEnabled&&(!shiftOpen||personalShiftEnded)&&<div role="status" style={{padding:12,background:'var(--b360-amber-bg)',borderRadius:8}}>{!shiftOpen&&<p style={{margin:'4px 0'}}>The business trading day is closed. <a href="/hospitality-operations?tab=SHIFTS">Open the trading day</a> or ask your manager to open it.</p>}{personalShiftEnded&&<p style={{margin:'4px 0'}}>Your personal staff shift has ended. <a href="/open-tabs">Start my staff shift</a> before taking new orders.</p>}</div>}
 
       {/* ── Card Payment Link Modal ── */}
       {cardModalOrder && (
