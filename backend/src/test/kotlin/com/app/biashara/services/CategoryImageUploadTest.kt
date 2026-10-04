@@ -37,7 +37,7 @@ class CategoryImageUploadTest {
         val db = Database.connect("jdbc:h2:mem:category-${UUID.randomUUID()};MODE=PostgreSQL;DB_CLOSE_DELAY=-1", driver = "org.h2.Driver")
         TransactionManager.defaultDatabase = db
         transaction(db) {
-            SchemaUtils.create(BusinessesTable, ProductsTable, InventoryCategoriesTable)
+            SchemaUtils.create(BusinessesTable, ProductsTable, InventoryCategoriesTable, com.app.biashara.db.ProductRecipesTable, com.app.biashara.db.InventoryIngredientsTable)
             for (business in listOf("business", "other")) BusinessesTable.insert {
                 it[id] = business; it[name] = business; it[storefrontSlug] = business; it[type] = "RETAIL"
                 it[ownerPhone] = "123"; it[ownerEmail] = "$business@example.com"

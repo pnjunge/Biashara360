@@ -540,7 +540,7 @@ export function InventoryPage() {
       lowStockThreshold:String(p.lowStockThreshold), description:p.description, imageUrl:p.imageUrl || '' })
     setError(''); setEditProduct(p)
   }
-  const openStock = (p: ProductResponse) => { setStockQty(''); setError(''); setStockProduct(p) }
+  const openStock = (p: ProductResponse) => { if(p.stockMode==='INGREDIENTS'){setError('This item uses bulk ingredients. Receive or adjust them in Hospitality Operations → Stock.');return}setStockQty(''); setError(''); setStockProduct(p) }
 
   const handleSaveProduct = async () => {
     if (!form.name || !form.sku || !form.buyingPrice || !form.sellingPrice || !form.currentStock) {
@@ -622,7 +622,7 @@ export function InventoryPage() {
           <Input label="Selling Price (KES) *" value={form.sellingPrice} onChange={f('sellingPrice')} type="number" />
         </div>
         <div className="responsive-grid responsive-grid-2" style={{ gap:12 }}>
-          <Input label="Current Stock *" value={form.currentStock} onChange={f('currentStock')} type="number" />
+          <Input label={editProduct?.stockMode==='INGREDIENTS'?"Available portions (from ingredients)":"Current Stock *"} disabled={editProduct?.stockMode==='INGREDIENTS'} value={form.currentStock} onChange={f('currentStock')} type="number" />
           <Input label="Low Stock Threshold" value={form.lowStockThreshold} onChange={f('lowStockThreshold')} type="number" />
         </div>
         <Input label="Description" value={form.description} onChange={f('description')} />

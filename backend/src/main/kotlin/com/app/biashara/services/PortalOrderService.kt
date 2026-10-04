@@ -26,7 +26,7 @@ data class PortalOrderQueue(val waiting: List<PortalOrderSummary>, val mine: Lis
 class PortalOrderService {
     private val fields = listOf(OrdersTable.id, OrdersTable.orderNumber, OrdersTable.customerName,
         OrdersTable.deliveryLocation, OrdersTable.subtotal, OrdersTable.paymentStatus,
-        OrdersTable.createdAt, OrdersTable.serverUserId)
+        OrdersTable.createdAt, OrdersTable.serverUserId, OrdersTable.responsibleUserId)
 
     private fun eligible(businessId: String): Op<Boolean> = Op.build {
         (OrdersTable.businessId eq businessId) and (OrdersTable.salesChannel eq "ECOMMERCE") and
@@ -43,10 +43,10 @@ class PortalOrderService {
     fun queue(businessId: String, userId: String): PortalOrderQueue = transaction {
         requireMember(businessId, userId)
         val waiting = OrdersTable.slice(fields).select {
-            eligible(businessId) and OrdersTable.serverUserId.isNull()
+            eligible(businessId) and OrdersTable.serverUserId.isNull() and OrdersTable.responsibleUserId.isNull()
         }.orderBy(OrdersTable.createdAt, SortOrder.ASC).limit(100).toList()
         val mine = OrdersTable.slice(fields).select {
-            eligible(businessId) and (OrdersTable.serverUserId eq userId)
+            eligible(businessId) and ((OrdersTable.responsibleUserId eq userId) or (OrdersTable.responsibleUserId.isNull() and (OrdersTable.serverUserId eq userId)))
         }.orderBy(OrdersTable.createdAt, SortOrder.DESC).limit(100).toList()
         val items = itemsFor((waiting + mine).map { it[OrdersTable.id] })
         PortalOrderQueue(waiting.map { summary(it, items) }, mine.map { summary(it, items) })
@@ -61,10 +61,13 @@ class PortalOrderService {
             .firstOrNull()
             ?.let { it[BusinessesTable.hospitalityEnabled] || it[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true) }
             ?: false
+        BusinessesTable.select { BusinessesTable.id eq businessId }.forUpdate().first()
+        if(hospitalityEnabled) requireStaffOnDuty(businessId,userId)
         val updated = OrdersTable.update({
             eligible(businessId) and (OrdersTable.id eq orderId) and OrdersTable.serverUserId.isNull()
         }) {
             it[serverUserId] = userId
+            it[responsibleUserId] = userId
             it[deliveryStatus] = "PROCESSING"
             it[updatedAt] = Clock.System.now()
         }
@@ -95,6 +98,6 @@ class PortalOrderService {
     private fun summary(row: ResultRow, items: Map<String, List<PortalOrderItem>>) = PortalOrderSummary(
         row[OrdersTable.id], row[OrdersTable.orderNumber], row[OrdersTable.customerName],
         row[OrdersTable.deliveryLocation], row[OrdersTable.subtotal], row[OrdersTable.paymentStatus],
-        row[OrdersTable.createdAt].toString(), row[OrdersTable.serverUserId], items[row[OrdersTable.id]].orEmpty()
+        row[OrdersTable.createdAt].toString(), row[OrdersTable.responsibleUserId] ?: row[OrdersTable.serverUserId], items[row[OrdersTable.id]].orEmpty()
     )
 }

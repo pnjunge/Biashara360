@@ -126,7 +126,7 @@ class OrderService(
                             buyingPrice = buy,
                             lineTotal   = lineTotal,
                             lineProfit  = lineTotal - qty * buy,
-                            modifiers = modifiers, itemNote=item[OrderItemsTable.itemNote], discountAmount=item[OrderItemsTable.discountAmount], complimentary=item[OrderItemsTable.complimentary]
+                            modifiers = modifiers, itemNote=item[OrderItemsTable.itemNote], discountAmount=item[OrderItemsTable.discountAmount], complimentary=item[OrderItemsTable.complimentary], preparationStation=item[OrderItemsTable.preparationStation]
                         )
                     }
                 }
@@ -145,13 +145,15 @@ class OrderService(
     fun create(
         businessId: String,
         req: CreateOrderRequest,
-        clientPlatform: String? = null
+        clientPlatform: String? = null,
+        actorUserId: String? = null
     ): ApiResponse<OrderResponse> = try {
         transaction {
+        BusinessesTable.select { BusinessesTable.id eq businessId }.forUpdate().firstOrNull()
         if (req.items.isEmpty()) return@transaction ApiResponse(false, message = "Add at least one item")
         if (req.items.any { item ->
-                item.quantity <= 0 || item.unitPrice < 0 || item.discountAmount < 0 ||
-                    item.modifiers.any { modifier -> modifier.priceDelta < 0 }
+                item.quantity <= 0 || !item.unitPrice.isFinite() || item.unitPrice < 0 || !item.discountAmount.isFinite() || item.discountAmount < 0 ||
+                    item.modifiers.any { modifier -> !modifier.priceDelta.isFinite() || modifier.priceDelta < 0 }
             }) {
             return@transaction ApiResponse(false, message = "Invalid item quantity, price, discount, or modifier")
         }
@@ -174,7 +176,7 @@ class OrderService(
                 val sameTransaction =
                     existingOrder.customerId == req.customerId &&
                     existingOrder.customerName == req.customerName &&
-                    existingOrder.customerPhone == req.customerPhone &&
+                    existingOrder.customerPhone == req.customerPhone.orEmpty() &&
                     existingOrder.paymentMethod == req.paymentMethod &&
                     existingOrder.serviceType == req.serviceType &&
                     existingOrder.hospitalityTableId == req.hospitalityTableId &&
@@ -198,13 +200,36 @@ class OrderService(
             }
         }
 
+        if (req.serviceType.uppercase() in setOf("DINE_IN","TAKEAWAY","DELIVERY")) requireStaffOnDuty(businessId,actorUserId)
+        if(req.serviceType.uppercase() in setOf("DINE_IN","TAKEAWAY","DELIVERY")) {
+            if(!HospitalityShiftsTable.select { (HospitalityShiftsTable.businessId eq businessId) and (HospitalityShiftsTable.status eq "OPEN") }.any())
+                return@transaction ApiResponse(false,message="Open the business trading day before taking hospitality orders")
+            if(req.serviceType.uppercase()=="DINE_IN" && req.hospitalityTableId==null) return@transaction ApiResponse(false,message="Select a table for dine-in service")
+            if(req.hospitalityTableId!=null && !HospitalityTablesTable.select { (HospitalityTablesTable.id eq req.hospitalityTableId) and (HospitalityTablesTable.businessId eq businessId) and (HospitalityTablesTable.isActive eq true) and HospitalityTablesTable.mergedIntoTableId.isNull() }.any())
+                return@transaction ApiResponse(false,message="Table not found")
+        }
+        // Serialize stock, recipe edits and purchase receipts consistently for every sales channel.
+        val recipes = recipeStock(businessId, req.items.map { it.productId }.distinct())
+        val ingredientRequirements = mutableMapOf<String, Double>()
+        req.items.forEach { item -> recipes[item.productId]?.lines?.forEach { (id, quantity) ->
+            ingredientRequirements[id] = (ingredientRequirements[id] ?: 0.0) + quantity * item.quantity
+        } }
+        val remainingIngredients = mutableMapOf<String, Double>()
+        for ((id, needed) in ingredientRequirements) {
+            val ingredient = InventoryIngredientsTable.select {
+                (InventoryIngredientsTable.id eq id) and (InventoryIngredientsTable.businessId eq businessId) and (InventoryIngredientsTable.isActive eq true)
+            }.forUpdate().firstOrNull()
+            if (!needed.isFinite() || needed <= 0 || ingredient == null || ingredient[InventoryIngredientsTable.quantity] + 1e-9 < needed)
+                return@transaction ApiResponse(false, message = "Insufficient bulk ingredients for this order")
+            remainingIngredients[id] = (ingredient[InventoryIngredientsTable.quantity] - needed).coerceAtLeast(0.0)
+        }
         // Validate stock for all items
         for (item in req.items) {
             val product = ProductsTable.select {
                 (ProductsTable.id eq item.productId) and (ProductsTable.businessId eq businessId)
             }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Product ${item.productId} not found")
 
-            if (product[ProductsTable.currentStock] < item.quantity) {
+            if (item.productId !in recipes && product[ProductsTable.currentStock] < item.quantity) {
                 return@transaction ApiResponse(
                     false,
                     message = "Insufficient stock for ${product[ProductsTable.name]}: only ${product[ProductsTable.currentStock]} available"
@@ -248,12 +273,15 @@ class OrderService(
             it[customerPhone] = req.customerPhone.orEmpty()
             it[deliveryLocation] = req.deliveryLocation
             it[paymentStatus] = initialStatuses.payment
+            if(initialStatuses.payment=="PAID") it[completedAt]=now
             it[deliveryStatus] = initialStatuses.delivery
             it[paymentMethod] = req.paymentMethod
             it[OrdersTable.salesChannel] = salesChannel
             it[serviceType] = req.serviceType.trim().uppercase()
             it[hospitalityTableId] = req.hospitalityTableId
             it[serverUserId] = req.serverUserId
+            it[responsibleUserId] = req.serverUserId
+            it[settledByUserId] = actorUserId
             it[guestCount] = req.guestCount.coerceAtLeast(1)
             it[tabStatus] = req.tabStatus.trim().uppercase()
             it[notes] = req.notes
@@ -266,6 +294,8 @@ class OrderService(
             it[updatedAt] = now
         }
 
+        val hospitalityOrder=req.serviceType.uppercase() in setOf("DINE_IN","TAKEAWAY","DELIVERY")
+        val preparationProfiles=if(hospitalityOrder) HospitalityMenuProfilesTable.select { (HospitalityMenuProfilesTable.businessId eq businessId) and (HospitalityMenuProfilesTable.productId inList req.items.map { it.productId }) }.associateBy { it[HospitalityMenuProfilesTable.productId] } else emptyMap()
         // Insert items + deduct stock atomically (conditional UPDATE prevents TOCTOU race)
         for (item in req.items) {
             val product = ProductsTable.select { ProductsTable.id eq item.productId }.first()
@@ -276,12 +306,15 @@ class OrderService(
                 it[productName] = product[ProductsTable.name]
                 it[quantity] = item.quantity
                 it[unitPrice] = item.unitPrice
-                it[buyingPrice] = product[ProductsTable.buyingPrice]
+                it[buyingPrice] = recipes[item.productId]?.cost ?: product[ProductsTable.buyingPrice]
+                it[productStockDeducted] = item.productId !in recipes
+                it[OrderItemsTable.preparationStation] = if(hospitalityOrder) preparationStation(product[ProductsTable.category],preparationProfiles.containsKey(item.productId),preparationProfiles[item.productId]?.get(HospitalityMenuProfilesTable.preparationStation)) else null
                 it[modifiersJson] = Json.encodeToString(item.modifiers)
                 it[itemNote] = item.itemNote.take(500)
                 it[discountAmount] = item.discountAmount.coerceAtLeast(0.0)
                 it[complimentary] = item.complimentary
             }
+            if (item.productId in recipes) continue
             // Atomic conditional deduction: only succeeds if stock is still sufficient
             val deducted = ProductsTable.update({
                 (ProductsTable.id eq item.productId) and
@@ -310,6 +343,21 @@ class OrderService(
         }
 
 
+        ingredientRequirements.forEach { (id, needed) ->
+            val deducted = InventoryIngredientsTable.update({
+                (InventoryIngredientsTable.id eq id) and (InventoryIngredientsTable.businessId eq businessId) and
+                    (InventoryIngredientsTable.quantity greaterEq (needed - 1e-9))
+            }) { it[quantity] = remainingIngredients.getValue(id); it[updatedAt] = now }
+            if (deducted != 1) throw ConcurrentStockException("Insufficient bulk ingredients for this order")
+        }
+
+        if(hospitalityOrder) {
+            if(OrderItemsTable.select { (OrderItemsTable.orderId eq orderId) and (OrderItemsTable.preparationStation eq "KITCHEN") }.any()) KitchenTicketsTable.insert {
+                it[id]=generateId();it[KitchenTicketsTable.businessId]=businessId;it[KitchenTicketsTable.orderId]=orderId;it[station]="KITCHEN";it[status]="NEW";it[notes]=req.notes.take(500);it[createdAt]=now;it[updatedAt]=now
+            }
+            if(req.hospitalityTableId!=null && req.tabStatus in HospitalityService.ACTIVE_TAB_STATUSES && initialStatuses.payment!="PAID") HospitalityTablesTable.update({ HospitalityTablesTable.id eq req.hospitalityTableId }) { it[status]="OCCUPIED";it[updatedAt]=now }
+        }
+
         // Award loyalty points (1 point per 100 KES) — SQL increment avoids lost-update race
         req.customerId?.let { cid ->
             val points = (subtotal / 100).toInt()
@@ -332,6 +380,7 @@ class OrderService(
                 it[id] = generateId()
                 it[PaymentsTable.businessId] = businessId
                 it[PaymentsTable.orderId] = orderId
+                it[collectedByUserId] = actorUserId
                 it[transactionCode] = "$method-$orderNumber"
                 it[amount] = subtotal
                 it[payerPhone] = req.customerPhone.orEmpty()
@@ -353,10 +402,13 @@ class OrderService(
     }
 
     fun updatePaymentStatus(id: String, businessId: String, req: UpdatePaymentStatusRequest): ApiResponse<OrderResponse> = transaction {
+        val existing = OrdersTable.select { (OrdersTable.id eq id) and (OrdersTable.businessId eq businessId) }.forUpdate().firstOrNull()
+            ?: return@transaction ApiResponse(false, message = "Order not found")
         val updated = OrdersTable.update({
             (OrdersTable.id eq id) and (OrdersTable.businessId eq businessId)
         }) {
             it[paymentStatus] = req.status
+            if(req.status=="PAID" && existing[OrdersTable.completedAt]==null) it[completedAt]=Clock.System.now()
             if (req.mpesaTransactionCode != null) it[mpesaTransactionCode] = req.mpesaTransactionCode
             it[updatedAt] = Clock.System.now()
         }
@@ -417,7 +469,7 @@ class OrderService(
             val quantity = item[OrderItemsTable.quantity]
             
             val product = ProductsTable.select { ProductsTable.id eq productId }.firstOrNull()
-            if (product != null) {
+            if (product != null && item[OrderItemsTable.productStockDeducted]) {
                 // SQL increment to avoid read-modify-write race on stock
                 ProductsTable.update({ ProductsTable.id eq productId }) {
                     with(SqlExpressionBuilder) { it.update(currentStock, currentStock + quantity) }
@@ -525,9 +577,11 @@ class OrderService(
                 buyingPrice = buying,
                 lineTotal = lineTotal,
                 lineProfit = lineTotal - qty * buying,
-                modifiers=modifiers, itemNote=item[OrderItemsTable.itemNote], discountAmount=item[OrderItemsTable.discountAmount], complimentary=item[OrderItemsTable.complimentary]
+                modifiers=modifiers, itemNote=item[OrderItemsTable.itemNote], discountAmount=item[OrderItemsTable.discountAmount], complimentary=item[OrderItemsTable.complimentary], preparationStation=item[OrderItemsTable.preparationStation]
             )
         }
+        val orderBusinessId=this[OrdersTable.businessId]
+        val paid=PaymentsTable.select { (PaymentsTable.businessId eq orderBusinessId) and (PaymentsTable.orderId eq orderId) and (PaymentsTable.status eq "SUCCESS") }.sumOf { it[PaymentsTable.amount] }
         return OrderResponse(
             id = orderId,
             orderNumber = this[OrdersTable.orderNumber],
@@ -544,6 +598,8 @@ class OrderService(
             serviceType = this[OrdersTable.serviceType],
             hospitalityTableId = this[OrdersTable.hospitalityTableId],
             serverUserId = this[OrdersTable.serverUserId],
+            responsibleUserId = this[OrdersTable.responsibleUserId],
+            responsibleUserName = this[OrdersTable.responsibleUserId]?.let { userId -> UsersTable.select { (UsersTable.id eq userId) and (UsersTable.businessId eq this@toResponse[OrdersTable.businessId]) }.firstOrNull()?.get(UsersTable.name) },
             guestCount = this[OrdersTable.guestCount],
             tabStatus = this[OrdersTable.tabStatus],
             mpesaTransactionCode = this[OrdersTable.mpesaTransactionCode],
@@ -552,6 +608,8 @@ class OrderService(
             taxRate = this[OrdersTable.taxRate],
             taxAmount = this[OrdersTable.taxAmount],
             subtotal = this[OrdersTable.subtotal],
+            paidAmount = paid,
+            outstandingAmount = if(this[OrdersTable.paymentStatus]=="PAID") 0.0 else (this[OrdersTable.subtotal]-paid).coerceAtLeast(0.0),
             notes = this[OrdersTable.notes],
             branchId = this[OrdersTable.branchId],
             branchName = this[OrdersTable.branchId]?.let { bId ->

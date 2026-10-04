@@ -205,6 +205,7 @@ class SecureAcceptanceService(
                 // Mark order as PAID
                 OrdersTable.update({ OrdersTable.id eq orderId }) {
                     it[OrdersTable.paymentStatus] = "PAID"
+                        if (order?.get(OrdersTable.completedAt)==null) it[OrdersTable.completedAt] = Clock.System.now()
                     it[OrdersTable.tabStatus] = "CLOSED"
                     it[OrdersTable.updatedAt]     = Clock.System.now()
                 }
@@ -214,6 +215,7 @@ class SecureAcceptanceService(
                     it[PaymentsTable.businessId]      = businessId
                     it[PaymentsTable.orderId]         = orderId
                     it[PaymentsTable.billingOwnerUserId] = order?.get(OrdersTable.billingOwnerUserId)
+                it[PaymentsTable.collectedByUserId] = order?.get(OrdersTable.settledByUserId)
                     it[PaymentsTable.transactionCode] = csTransId
                     it[PaymentsTable.amount]          = amount
                     it[PaymentsTable.payerPhone]      = postFields["req_bill_to_phone"] ?: ""

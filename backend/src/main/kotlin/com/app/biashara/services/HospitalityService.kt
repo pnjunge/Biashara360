@@ -108,6 +108,7 @@ class HospitalityService(private val orderService: OrderService) {
             OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.clientReference eq reference) }
                 .firstOrNull()?.get(OrdersTable.id)
         }
+        requireStaffOnDuty(businessId,serverUserId)
         val enabled = isEnabled(businessId)
         if (!enabled) return@transaction ApiResponse(false, message = "Hospitality mode is disabled")
         val serviceType=request.serviceType.trim().uppercase()
@@ -124,36 +125,20 @@ class HospitalityService(private val orderService: OrderService) {
         if(!request.ageVerified&&request.items.any{profiles[it.productId]?.get(HospitalityMenuProfilesTable.ageRestricted)==true}) return@transaction ApiResponse(false,message="Age verification is required for this order")
         val currentTime=Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).time.toString().take(5)
         val pricedItems=request.items.map{item->val product=productRows[item.productId]?:return@transaction ApiResponse(false,message="Product not found");val profile=profiles[item.productId];val happy=profile?.get(HospitalityMenuProfilesTable.happyHourPrice);val start=profile?.get(HospitalityMenuProfilesTable.happyHourStart);val end=profile?.get(HospitalityMenuProfilesTable.happyHourEnd);val active=happy!=null&&start!=null&&end!=null&&if(start<=end)currentTime in start..end else currentTime>=start||currentTime<=end;item.copy(unitPrice=if(active)happy!! else product[ProductsTable.sellingPrice])}
-        val requirements = mutableMapOf<String,Double>()
-        pricedItems.forEach { item -> ProductRecipesTable.select { ProductRecipesTable.productId eq item.productId }.forEach { line ->
-            val id=line[ProductRecipesTable.ingredientId]
-            requirements[id]=(requirements[id]?:0.0)+line[ProductRecipesTable.quantity]*item.quantity
-        } }
-        if(existingId == null && requirements.any { (id,needed) ->
-            (InventoryIngredientsTable.select { (InventoryIngredientsTable.id eq id) and (InventoryIngredientsTable.businessId eq businessId) }.forUpdate().firstOrNull()?.get(InventoryIngredientsTable.quantity)?:0.0)<needed
-        }) return@transaction ApiResponse(false,message="Insufficient ingredients for this order")
         val result=orderService.create(businessId, CreateOrderRequest(
             clientReference=clientReference,
             customerName=request.customerName.trim().ifBlank { "Walk-in Guest" }, customerPhone=request.customerPhone.trim(),
-            deliveryLocation=table?.get(HospitalityTablesTable.name) ?: serviceType.replace('_',' '), items=pricedItems,
+            deliveryLocation=table?.get(HospitalityTablesTable.name) ?: request.deliveryLocation?.trim()?.takeIf { it.isNotEmpty() } ?: serviceType.replace('_',' '), items=pricedItems,
             paymentMethod=paymentMethod, paymentStatus=if(paymentMethod == "COD") "COD" else "PENDING", deliveryStatus="PROCESSING", notes=request.notes.trim().take(1000),
             serviceType=serviceType, hospitalityTableId=table?.get(HospitalityTablesTable.id), serverUserId=serverUserId,
             guestCount=request.guestCount, tabStatus="OPEN"
-        ), clientPlatform)
+        ), clientPlatform, serverUserId)
         val order=result.data ?: return@transaction result
         if (order.id == existingId) return@transaction result
         logger.info("""{"event":"hospitality_tab_opened","business_id":"$businessId","order_id":"${order.id}","service_type":"$serviceType","guest_count":${request.guestCount}}""")
         transaction {
             table?.let { HospitalityTablesTable.update({ HospitalityTablesTable.id eq it[HospitalityTablesTable.id] }) { row -> row[status]="OCCUPIED"; row[updatedAt]=Clock.System.now() } }
-            requirements.forEach { (id,needed) -> InventoryIngredientsTable.update({InventoryIngredientsTable.id eq id}) {
-                with(SqlExpressionBuilder){it.update(quantity,quantity-needed)};it[updatedAt]=Clock.System.now()
-            } }
-            val stations=pricedItems.mapNotNull { item ->
-                if(profiles.containsKey(item.productId)) profiles[item.productId]?.get(HospitalityMenuProfilesTable.preparationStation)
-                else hospitalityStationFor(productRows[item.productId]?.get(ProductsTable.category).orEmpty())
-            }.toSet()
-            val now=Clock.System.now()
-            stations.forEach { station -> KitchenTicketsTable.insert { it[id]=generateId(); it[KitchenTicketsTable.businessId]=businessId; it[orderId]=order.id; it[KitchenTicketsTable.station]=station; it[status]="NEW"; it[notes]=request.notes.take(500); it[createdAt]=now; it[updatedAt]=now } }
+
         }
         return@transaction ApiResponse(true,data=orderService.getById(order.id,businessId),message="Tab ${order.orderNumber} opened")
     }
@@ -166,7 +151,9 @@ class HospitalityService(private val orderService: OrderService) {
         tickets(businessId).first { it.id == ticketId }
     }
 
-    fun closeTab(businessId: String, orderId: String, request: CloseHospitalityTabRequest): OrderResponse = transaction {
+    fun closeTab(businessId: String, orderId: String, request: CloseHospitalityTabRequest, userId: String? = null): OrderResponse = transaction {
+        BusinessesTable.select { BusinessesTable.id eq businessId }.forUpdate().first()
+        requireStaffOnDuty(businessId,userId)
         val method=request.paymentMethod.trim().uppercase(); require(method in setOf("CASH","CARD","MPESA")) { "Payment method must be CASH, CARD, or MPESA" }
         require(HospitalityShiftsTable.select {
             (HospitalityShiftsTable.businessId eq businessId) and (HospitalityShiftsTable.status eq "OPEN")
@@ -176,19 +163,24 @@ class HospitalityService(private val orderService: OrderService) {
                 (OrdersTable.businessId eq businessId) and
                 (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES) and (OrdersTable.paymentStatus notInList listOf("PAID","CANCELLED","REFUNDED"))
         }.forUpdate().firstOrNull() ?: error("Active unpaid tab not found")
+        val previouslyPaid=PaymentsTable.select { (PaymentsTable.businessId eq businessId) and (PaymentsTable.orderId eq orderId) and (PaymentsTable.status eq "SUCCESS") }.sumOf { it[PaymentsTable.amount] }
+        val outstanding=(order[OrdersTable.subtotal]-previouslyPaid).coerceAtLeast(0.0)
+        require(method=="CASH" || previouslyPaid==0.0) { "This bill already has a payment. Settle the remaining balance in cash" }
         require(method != "MPESA" || order[OrdersTable.subtotal] % 1.0 == 0.0) { "M-Pesa requires a whole KES amount; use cash or card for cents" }
         val paid=method == "CASH"; val now=Clock.System.now()
         OrdersTable.update({ OrdersTable.id eq orderId }) {
+            it[settledByUserId]=userId
             it[paymentMethod]=method
             it[paymentStatus]=if(paid) "PAID" else "PENDING"
-            if (paid) it[deliveryStatus]="DELIVERED"
+            if (paid) { it[deliveryStatus]="DELIVERED"; it[completedAt]=now }
             it[tabStatus]=if(paid) "CLOSED" else "AWAITING_PAYMENT"
             it[updatedAt]=now
         }
         logger.info("""{"event":"hospitality_tab_settlement_started","business_id":"$businessId","order_id":"$orderId","payment_method":"$method","paid":$paid}""")
-        if (paid && order[OrdersTable.subtotal]>0.0) PaymentsTable.insert {
+        if (paid && outstanding>0.0) PaymentsTable.insert {
             it[id]=generateId(); it[PaymentsTable.businessId]=businessId; it[PaymentsTable.orderId]=orderId
-            it[transactionCode]="${method}-${order[OrdersTable.orderNumber]}"; it[amount]=order[OrdersTable.subtotal]
+            it[transactionCode]="${method}-${order[OrdersTable.orderNumber]}"; it[amount]=outstanding
+            it[collectedByUserId]=userId
             it[payerPhone]=order[OrdersTable.customerPhone]; it[payerName]=order[OrdersTable.customerName]
             it[PaymentsTable.method]=method; it[status]="SUCCESS"; it[channel]="HOSPITALITY_POS"
             it[reconciled]=true; it[transactionDate]=now
@@ -255,12 +247,7 @@ class HospitalityService(private val orderService: OrderService) {
         return rows.mapNotNull { ticket ->
             val order=orderService.getById(ticket[KitchenTicketsTable.orderId],businessId) ?: return@mapNotNull null
             val tableName=order.hospitalityTableId?.let { id -> HospitalityTablesTable.select { HospitalityTablesTable.id eq id }.firstOrNull()?.get(HospitalityTablesTable.name) }
-            val productCategories=ProductsTable.select { ProductsTable.id inList order.items.map { it.productId } }.associate { it[ProductsTable.id] to it[ProductsTable.category] }
-            val profiles=HospitalityMenuProfilesTable.select { (HospitalityMenuProfilesTable.businessId eq businessId) and (HospitalityMenuProfilesTable.productId inList order.items.map { it.productId }) }.associateBy { it[HospitalityMenuProfilesTable.productId] }
-            val stationItems=order.items.filter { item ->
-                val station=if(profiles.containsKey(item.productId)) profiles[item.productId]?.get(HospitalityMenuProfilesTable.preparationStation) else hospitalityStationFor(productCategories[item.productId].orEmpty())
-                station==ticket[KitchenTicketsTable.station]
-            }
+            val stationItems=order.items.filter { it.preparationStation=="KITCHEN" && ticket[KitchenTicketsTable.station]=="KITCHEN" }
             if (stationItems.isEmpty()) return@mapNotNull null
             KitchenTicketResponse(ticket[KitchenTicketsTable.id],order.id,order.orderNumber,tableName,ticket[KitchenTicketsTable.station],ticket[KitchenTicketsTable.status],ticket[KitchenTicketsTable.notes],stationItems,ticket[KitchenTicketsTable.createdAt].toString())
         }
@@ -271,15 +258,16 @@ class HospitalityService(private val orderService: OrderService) {
 }
 
 internal fun hospitalityStationFor(category: String): String? {
-    val value = category.trim().lowercase()
-    val kitchenKeywords = listOf("food", "meal", "dish", "snack", "bakery", "breakfast", "lunch", "dinner", "restaurant", "kitchen")
-    val barKeywords = listOf("drink", "beverage", "beer", "wine", "spirit", "cocktail", "bar", "juice", "soda", "water")
-    return when {
-        kitchenKeywords.any(value::contains) -> "KITCHEN"
-        barKeywords.any(value::contains) -> "BAR"
-        else -> null
-    }
+    val value=category.trim().lowercase()
+    val food=listOf("food","meal","dish","snack","bakery","breakfast","lunch","dinner","restaurant","kitchen","meat","beef","goat","chicken","fish","seafood","dessert","pastry","ugali","chapati","fries")
+    return if(food.any(value::contains)) "KITCHEN" else null
 }
+internal fun isBeverageCategory(category:String):Boolean {
+    val value=category.trim().lowercase()
+    return listOf("drink","beverage","beer","wine","spirit","cocktail","bar","juice","soda","water").any(value::contains) && hospitalityStationFor(category)==null
+}
+internal fun preparationStation(category:String,profileExists:Boolean,configured:String?):String? =
+    if(hospitalityStationFor(category)!="KITCHEN" || (profileExists && configured!="KITCHEN")) null else "KITCHEN"
 
 // Return a separate preparation list; the complete order remains available for billing.
 internal fun <T> kitchenItems(items: List<T>, categoryOf: (T) -> String): List<T> =

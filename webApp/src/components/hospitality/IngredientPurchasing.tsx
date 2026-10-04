@@ -1,0 +1,40 @@
+import React, { useEffect, useState } from 'react'
+import { Btn, Card, DataTable, Input, Select, StatusBadge } from '../ui'
+import { HospitalityOperations, hospitalityOpsApi } from '../../services/api'
+import { purchaseFactor, purchaseUnits } from '../../utils/purchaseUnits'
+
+type Props = {data:HospitalityOperations;act:(fn:()=>Promise<any>)=>void}
+type Line = {ingredientId:string;quantity:number;unitCost:number;purchaseUnit:string}
+const emptyLine=():Line=>({ingredientId:'',quantity:1,unitCost:0,purchaseUnit:''})
+
+export function IngredientPurchaseUnits({data,act}:Props) {
+  const [id,setId]=useState(''),[unit,setUnit]=useState('BOTTLE'),[size,setSize]=useState('750')
+  const ingredient=data.ingredients.find(i=>i.id===id)
+  useEffect(()=>{setUnit(ingredient?.purchaseUnit||'BOTTLE');setSize(String(ingredient?.purchaseUnitSize||750))},[id])
+  return <Card style={{padding:18}}><h3>Purchase pack sizes</h3><p>Stock stays in grams, millilitres or your chosen base unit. Kilograms and litres convert automatically. Define bottles, packs or cases here.</p>
+    <div className="responsive-grid responsive-grid-3"><Select label="Pack ingredient" value={id} onChange={setId} options={[{value:'',label:'Select ingredient'},...data.ingredients.map(i=>({value:i.id,label:`${i.name} (${i.unit})`}))]}/>
+    <Select label="Pack unit" value={unit} onChange={setUnit} options={['BOTTLE','PACK','CASE'].map(value=>({value,label:value}))}/>
+    <Input label={`Contents per ${unit.toLowerCase()} (${ingredient?.unit||'base units'})`} type="number" value={size} onChange={setSize}/></div>
+    <Btn disabled={!id||!Number.isFinite(Number(size))||Number(size)<=0} onClick={()=>act(()=>hospitalityOpsApi.purchaseUnit(id,{purchaseUnit:unit,purchaseUnitSize:Number(size)}))}>Save pack size</Btn>
+  </Card>
+}
+
+export default function IngredientPurchasing({data,act}:Props) {
+  const [supplier,setSupplier]=useState(''),[name,setName]=useState(''),[phone,setPhone]=useState(''),[lines,setLines]=useState<Line[]>([emptyLine()])
+  const update=(index:number,patch:Partial<Line>)=>setLines(current=>current.map((line,i)=>i===index?{...line,...patch}:line))
+  const valid=lines.every(line=>{const ingredient=data.ingredients.find(i=>i.id===line.ingredientId);return ingredient && purchaseFactor(ingredient,line.purchaseUnit||ingredient.unit)!==null && Number.isFinite(line.quantity)&&line.quantity>0&&Number.isFinite(line.unitCost)&&line.unitCost>=0}) && new Set(lines.map(l=>l.ingredientId)).size===lines.length
+  return <>
+    <Card style={{padding:18}}><h3>Ingredient suppliers</h3><Input label="Supplier name" value={name} onChange={setName}/><Input label="Supplier phone" value={phone} onChange={setPhone}/><Btn disabled={!name.trim()} onClick={()=>act(()=>hospitalityOpsApi.supplier({name,phone}))}>Add supplier</Btn></Card>
+    <Card style={{padding:18}}><h3>New ingredient purchase order</h3><Select label="Purchase supplier" value={supplier} onChange={setSupplier} options={[{value:'',label:'Select supplier'},...data.suppliers.filter(s=>s.isActive).map(s=>({value:s.id,label:s.name}))]}/>
+      {lines.map((line,index)=>{const ingredient=data.ingredients.find(i=>i.id===line.ingredientId),unit=line.purchaseUnit||ingredient?.unit||'',factor=ingredient?purchaseFactor(ingredient,unit):null;return <div key={index} style={{padding:'12px 0',borderBottom:'1px solid var(--b360-border)'}}>
+        <div className="responsive-grid responsive-grid-4"><Select label="Purchase ingredient" value={line.ingredientId} onChange={ingredientId=>{const i=data.ingredients.find(i=>i.id===ingredientId);update(index,{ingredientId,purchaseUnit:i?.purchaseUnit||i?.unit||''})}} options={[{value:'',label:'Select ingredient'},...data.ingredients.map(i=>({value:i.id,label:`${i.name} (${i.unit})`}))]}/>
+        <Select label="Purchase unit" value={unit} onChange={purchaseUnit=>update(index,{purchaseUnit})} options={ingredient?purchaseUnits(ingredient).map(value=>({value,label:value})):[{value:'',label:'Select ingredient first'}]}/>
+        <Input label="Purchase quantity" type="number" value={String(line.quantity)} onChange={v=>update(index,{quantity:Number(v)})}/><Input label={`Cost per ${unit||'purchase unit'} (KES)`} type="number" value={String(line.unitCost)} onChange={v=>update(index,{unitCost:Number(v)})}/></div>
+        {ingredient&&factor!==null&&<p style={{fontSize:12}}>Receive {line.quantity*factor} {ingredient.unit} · Cost per {ingredient.unit}: KES {(line.unitCost/factor).toLocaleString(undefined,{maximumFractionDigits:4})} · Total KES {(line.quantity*line.unitCost).toLocaleString()}</p>}
+        <Btn small variant="secondary" disabled={lines.length===1} onClick={()=>setLines(lines.filter((_,i)=>i!==index))}>Remove</Btn>
+      </div>})}
+      <div style={{display:'flex',gap:8,marginTop:12}}><Btn variant="secondary" onClick={()=>setLines([...lines,emptyLine()])}>Add purchase line</Btn><Btn disabled={!supplier||!valid} onClick={()=>act(async()=>{const r=await hospitalityOpsApi.purchaseOrder({supplierId:supplier,items:lines});if(r.success)setLines([emptyLine()]);return r})}>Create purchase order</Btn></div>
+    </Card>
+    <DataTable headers={['PO','Supplier','Goods / stock conversion','Total','Status','Action']} rows={data.purchaseOrders.map(po=>[po.orderNumber,data.suppliers.find(s=>s.id===po.supplierId)?.name||po.supplierId,<div>{(po.items||[]).map(line=><div key={line.ingredientId}>{line.ingredientName}: {line.purchaseQuantity} {line.purchaseUnit} → {line.stockQuantity} {line.stockUnit}</div>)}</div>,`KES ${po.totalCost.toLocaleString()}`,<StatusBadge status={po.status}/>,po.status==='ORDERED'?<Btn small onClick={()=>act(()=>hospitalityOpsApi.receivePurchaseOrder(po.id))}>Receive goods</Btn>:'—'])}/>
+  </>
+}

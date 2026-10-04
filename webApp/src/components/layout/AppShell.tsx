@@ -18,7 +18,7 @@ const navItems = [
   { key:'HOTEL', to: '/hotel', icon: Building2, label: 'Hotel & Accommodation' },
   { key:'HOSPITALITY_OPS', to: '/hospitality-operations', icon: Building2, label: 'Hospitality Operations' },
   { key:'OPEN_TABS', to: '/open-tabs', icon: ShoppingCart, label: 'Open Tabs' },
-  { key:'HOSPITALITY', to: '/kitchen-display', icon: ChefHat, label: 'Kitchen & Bar Display' },
+  { key:'HOSPITALITY', to: '/kitchen-display', icon: ChefHat, label: 'Kitchen Display' },
   { key:'SERVICES', to: '/services', icon: CalendarClock, label: 'Appointments & Services' },
   { key:'INVENTORY', to: '/inventory',     icon: Package,         label: 'Inventory' },
   { key:'PURCHASES', to: '/purchases',     icon: ShoppingBag,     label: 'Purchases' },

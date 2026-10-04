@@ -26,7 +26,7 @@ management permissions; requesters can ask an approver to apply them instead.
 Recipe quantities use the ingredient's stock unit. Demand is aggregated over the
 entire order and stock is protected from concurrent overdrafts. Opening a bottle
 changes no quantity; consumption, wastage and receipt events update stock.
-Menu preparation routing supports Kitchen, Bar and no preparation ticket.
+Only food categories support Kitchen preparation; drinks and retail items create no preparation ticket. Routing is saved on each order item so later menu edits do not change existing tickets.
 Cancelling a tab closes it, cancels its tickets and releases its table when no
 other tabs remain. Prepared ingredient consumption is not blindly restored;
 operators must account for unused/prepared ingredients through stock controls.
@@ -50,7 +50,7 @@ point `HOTEL_TEST_POSTGRES_URL` at a live database.
 ## Staff sound alerts
 
 The web header's **Enable sound** control starts browser audio after a staff
-click. Distinct tones identify new kitchen/bar tickets, tickets becoming READY,
+click. Distinct tones identify new kitchen tickets, tickets becoming READY,
 and new online orders from the portal queue. Alerts continue across staff pages;
 **Mute alerts** stops sound while visual notices remain available. Hospitality
 polling requires `hospitality.view` and hospitality mode to be enabled.
@@ -59,3 +59,13 @@ remembered for the session so repeat polling and claiming do not replay sounds.
 Polling occurs every five seconds after each response; keep the staff app open.
 After refreshing or signing in again, enable sound again. No sound asset downloads
 or customer notifications are involved.
+
+## Bulk portions and purchases
+
+Recipe products derive available portions from their limiting ingredient and consume ingredients once, without separately deducting product stock. Maintain ingredient stock in its base unit and define recipes in that unit. Use separate products for different portion sizes. Purchasing converts KG/G and L/ML automatically; configure the contents of bottles, packs or cases in Stock. Purchase orders save their conversion so later configuration changes do not alter receipts.
+
+## Personal shifts and bill handover
+
+Start your personal shift from Hospitality or Open Tabs. Select unpaid bills and an incoming staff member who is on duty, then request handover. Responsibility transfers only after the recipient accepts. Original serving attribution and earlier payment collectors remain unchanged. Settle or hand over all your unpaid bills before ending your shift.
+
+End shift saves a tally of completed bills you served, held or settled during that shift. Payment totals include only payments collected by that user, grouped by method. Different staff may have worked on the same bill; do not add their bill values together as business revenue. Closed tallies remain fixed and support CSV download. Managers can review staff tallies in Operations → Shifts. The business day closing and reconciliation remain separate.

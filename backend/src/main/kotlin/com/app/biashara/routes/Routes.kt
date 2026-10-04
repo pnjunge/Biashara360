@@ -191,7 +191,9 @@ fun Route.orderRoutes() {
             }
             val platform = call.request.headers["X-Client-Platform"]
             val effectiveReq = if (req.branchId.isNullOrBlank() && call.branchId() != null) req.copy(branchId = call.branchId()) else req
-            val result = orderService.create(businessId, effectiveReq, platform)
+            val actor=call.principal<JWTPrincipal>()!!.payload.subject
+            val attributedReq=effectiveReq.copy(serverUserId=actor)
+            val result = orderService.create(businessId, attributedReq, platform, actor)
             call.respond(if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest, result)
         }
 
@@ -487,6 +489,7 @@ fun Route.mpesaCallbackRoute() {
                             (OrdersTable.paymentStatus neq "PAID")
                     }) {
                         it[OrdersTable.paymentStatus]        = "PAID"
+                        it[OrdersTable.completedAt] = Clock.System.now()
                         it[OrdersTable.mpesaTransactionCode] = txCode
                         it[OrdersTable.updatedAt]            = now
                     }
@@ -496,6 +499,7 @@ fun Route.mpesaCallbackRoute() {
                             it[PaymentsTable.businessId]      = businessId
                             it[PaymentsTable.orderId]         = orderId
                             it[PaymentsTable.billingOwnerUserId] = orderRow[OrdersTable.billingOwnerUserId]
+                        it[PaymentsTable.collectedByUserId] = orderRow[OrdersTable.settledByUserId]
                             it[PaymentsTable.transactionCode] = txCode
                             it[PaymentsTable.amount]          = amount
                             it[PaymentsTable.payerPhone]      = phone

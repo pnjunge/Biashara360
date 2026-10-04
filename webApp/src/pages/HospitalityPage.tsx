@@ -1,3 +1,4 @@
+import BillHandoverPanel from '../components/hospitality/BillHandoverPanel'
 import { OrderActions } from '../components/OrderActions'
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -101,7 +102,7 @@ export default function HospitalityPage() {
       ]);
       if (dashboard.success && dashboard.data) setData(dashboard.data);
       if (catalog.success && catalog.data)
-        setProducts(catalog.data.filter((p) => p.currentStock > 0));
+        setProducts(catalog.data);
       if (operations?.success && operations.data) setMenuProfiles(operations.data.menuProfiles);
     } catch (e: any) {
       setError(
@@ -117,6 +118,7 @@ export default function HospitalityPage() {
       hospitalityApi.dashboard().then((result) => {
         if (result.success && result.data) setData(result.data)
       }).catch(() => undefined)
+      productApi.list().then(result=>{if(result.success&&result.data)setProducts(result.data)}).catch(()=>undefined)
     }, 5000)
     return () => window.clearInterval(timer)
   }, []);
@@ -373,6 +375,7 @@ export default function HospitalityPage() {
 
       {hubTab === "KDS" && <section className="hub-panel"><div className="hub-panel-heading"><div><h2>Kitchen Display System</h2><p>Track preparation tickets in real time.</p></div><span className="hub-live-dot">● Live</span></div>{data.tickets.filter(ticket => !["SERVED", "CANCELLED"].includes(ticket.status)).length === 0 ? <div className="hub-empty">No active kitchen tickets.</div> : <div className="hub-kds-grid">{data.tickets.filter(ticket => !["SERVED", "CANCELLED"].includes(ticket.status)).map(ticket => <Card key={ticket.id} style={{ padding: 16, border: ticket.status === "PREPARING" ? "2px solid var(--b360-amber)" : "1px solid var(--b360-border)", background: ticket.status === "PREPARING" ? "#FFF9E8" : "white" }}><div className="hub-kds-order"><strong>Order #{ticket.orderNumber}</strong><span>{ticket.station}</span></div><div className="hub-muted">{ticket.tableName || "Takeaway"} <span>·</span> {new Date(ticket.createdAt).toLocaleTimeString('en-KE', { hour:'2-digit', minute:'2-digit' })}</div><div className="hub-divider" />{ticket.items.map(item => <div className="hub-kds-item" key={item.id}><b>{item.quantity}x</b> {item.productName}</div>)}{ticket.notes && <div className="hub-kds-note">Note: {ticket.notes}</div>}<div className="hub-kds-footer"><StatusBadge status={ticket.status} />{ticket.status === "NEW" && <Btn small disabled={!can('kitchen')} onClick={() => advanceTicket(ticket.id, "PREPARING")}>Start preparing</Btn>}{ticket.status === "PREPARING" && <Btn small disabled={!can('kitchen')} onClick={() => advanceTicket(ticket.id, "READY")}>Mark Ready</Btn>}{ticket.status === "READY" && <Btn small disabled={!can('kitchen')} onClick={() => advanceTicket(ticket.id, "SERVED")}>Mark Served</Btn>}</div></Card>)}</div>}</section>}
 
+      <BillHandoverPanel orders={data.openTabs} permissions={permissions} onChanged={()=>load()}/>
       {hubTab === "OPS" && <section className="hub-panel"><div className="hub-panel-heading"><div><h2>Operations &amp; stock</h2><p>Reservations, shifts, menu profiles, purchasing, approvals and reports.</p></div><Btn onClick={() => navigate('/hospitality-operations')}>Open operations</Btn></div><div className="hub-ops-summary"><div><strong>{data.tables.filter(t => t.status === "OCCUPIED").length}</strong><span>Occupied tables</span></div><div><strong>{data.openTabs.length}</strong><span>Open tabs</span></div><div><strong>{data.tickets.filter(t => !["SERVED", "CANCELLED"].includes(t.status)).length}</strong><span>Active tickets</span></div><div><strong>Live</strong><span>Stock monitoring</span></div></div></section>}
 
       <div className="hub-capability-grid">
@@ -637,7 +640,7 @@ export default function HospitalityPage() {
                     }}
                   >
                     {product.imageUrl ? <img src={product.imageUrl} alt="" style={{width:68,height:68,objectFit:'cover',borderRadius:8,background:'var(--b360-bg)'}}/> : <div style={{width:68,height:68,flexShrink:0,borderRadius:8,background:'var(--b360-bg)',display:'grid',placeItems:'center'}}><ShoppingBag size={22} color="var(--b360-text-secondary)"/></div>}
-                    <div style={{flex:1,minWidth:0}}><b style={{fontSize:14,display:'block'}}>{product.name}</b><span style={{fontSize:11,color:'var(--b360-text-secondary)'}}>{product.category || 'Menu'} · Stock {product.currentStock}</span>{(menuProfiles.find(profile=>profile.productId===product.id)?.comboProductIds.length||0)>0&&<span style={{fontSize:10,color:'var(--b360-blue)',display:'block'}}>Combo includes {menuProfiles.find(profile=>profile.productId===product.id)!.comboProductIds.map(id=>products.find(item=>item.id===id)?.name||id).join(', ')}</span>}<strong style={{display:'block',marginTop:7}}>KES {product.sellingPrice.toLocaleString()}</strong></div>
+                    <div style={{flex:1,minWidth:0}}><b style={{fontSize:14,display:'block'}}>{product.name}</b><span style={{fontSize:11,color:'var(--b360-text-secondary)'}}>{product.category || 'Menu'} · {product.stockMode==='INGREDIENTS'?'Portions available':'Stock'} {product.currentStock}</span>{(menuProfiles.find(profile=>profile.productId===product.id)?.comboProductIds.length||0)>0&&<span style={{fontSize:10,color:'var(--b360-blue)',display:'block'}}>Combo includes {menuProfiles.find(profile=>profile.productId===product.id)!.comboProductIds.map(id=>products.find(item=>item.id===id)?.name||id).join(', ')}</span>}<strong style={{display:'block',marginTop:7}}>KES {product.sellingPrice.toLocaleString()}</strong></div>
                     {cart[product.id] ? <div onClick={event=>event.stopPropagation()} style={{display:'flex',alignItems:'center',border:'1px solid var(--b360-border)',borderRadius:8,overflow:'hidden',background:'white'}}><button type="button" onClick={()=>change(product.id,-1)} style={{border:0,background:'white',padding:'8px 10px',color:'var(--b360-green)',cursor:'pointer'}}>−</button><b style={{minWidth:24,textAlign:'center'}}>{cart[product.id]}</b><button type="button" onClick={()=>change(product.id,1)} style={{border:0,background:'white',padding:'8px 10px',color:'var(--b360-green)',cursor:'pointer'}}>+</button></div> : <span style={{border:'1px solid var(--b360-green)',color:'var(--b360-green)',borderRadius:8,padding:'7px 12px',fontWeight:700,whiteSpace:'nowrap'}}>+ Add</span>}
                   </button>
                 ))}

@@ -3,6 +3,7 @@ package com.app.biashara.routes
 import com.app.biashara.models.*
 import com.app.biashara.services.HospitalityService
 import com.app.biashara.services.AdvancedHospitalityService
+import com.app.biashara.services.HospitalityDutyService
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -16,6 +17,7 @@ import org.koin.ktor.ext.inject
 fun Route.hospitalityRoutes() {
     val service: HospitalityService by inject()
     val operations: AdvancedHospitalityService by inject()
+    val duty=HospitalityDutyService()
     route("/hospitality") {
         intercept(ApplicationCallPipeline.Call) {
             val isToggleRequest = call.request.httpMethod == HttpMethod.Put && call.request.path().endsWith("/hospitality/enabled")
@@ -77,7 +79,17 @@ fun Route.hospitalityRoutes() {
         }
         patch("/tickets/{id}") { call.respondHospitality { service.updateTicket(call.businessId(),call.parameters["id"].orEmpty(),call.receive()) } }
         post("/tabs/{orderId}/transfer") { call.respondHospitality { service.transferTab(call.businessId(),call.parameters["orderId"].orEmpty(),call.receive()) } }
-        post("/tabs/{orderId}/close") { call.respondHospitality { service.closeTab(call.businessId(),call.parameters["orderId"].orEmpty(),call.receive()) } }
+        post("/tabs/{orderId}/close") { call.respondHospitality { service.closeTab(call.businessId(),call.parameters["orderId"].orEmpty(),call.receive(),call.principal<JWTPrincipal>()!!.payload.subject) } }
+        route("/duty") {
+            fun ApplicationCall.actor()=principal<JWTPrincipal>()!!.payload.subject
+            get { call.respondHospitality { duty.dashboard(call.businessId(),call.actor(),call.hasPermission("hospitality.shifts")) } }
+            get("/reports") { call.respondHospitality { duty.reports(call.businessId(),call.actor(),call.hasPermission("hospitality.shifts")) } }
+            post("/start") { call.respondHospitality(HttpStatusCode.Created) { duty.startShift(call.businessId(),call.actor(),call.receive()) } }
+            post("/end") { call.respondHospitality { duty.endShift(call.businessId(),call.actor(),call.receive()) } }
+            post("/claim/{orderId}") { call.respondHospitality { duty.claimBill(call.businessId(),call.actor(),call.parameters["orderId"].orEmpty()) } }
+            post("/handovers") { call.respondHospitality(HttpStatusCode.Created) { duty.requestHandover(call.businessId(),call.actor(),call.receive(),call.hasPermission("hospitality.shifts")) } }
+            post("/handovers/{id}/decision") { call.respondHospitality { duty.decide(call.businessId(),call.actor(),call.parameters["id"].orEmpty(),call.receive()) } }
+        }
         route("/operations") {
             intercept(ApplicationCallPipeline.Call) {
                 val isSplitBill = call.request.httpMethod == HttpMethod.Post && call.request.path().contains("/hospitality/operations/tabs/") && call.request.path().endsWith("/split")
@@ -107,6 +119,7 @@ fun Route.hospitalityRoutes() {
             patch("/reservations/{id}/{status}") { call.respondHospitality{operations.updateReservationStatus(call.businessId(),call.userId(),call.parameters["id"].orEmpty(),call.parameters["status"].orEmpty())} }
             put("/tables/{id}") { call.respondHospitality{operations.updateTableOperations(call.businessId(),call.userId(),call.parameters["id"].orEmpty(),call.receive())} }
             put("/menu/{productId}") { call.respondHospitality{operations.saveMenuProfile(call.businessId(),call.userId(),call.parameters["productId"].orEmpty(),call.receive())} }
+            put("/ingredients/{id}/purchase-unit") { call.respondHospitality { operations.configurePurchaseUnit(call.businessId(),call.userId(),call.parameters["id"].orEmpty(),call.receive()) } }
             post("/ingredients") { call.respondHospitality(HttpStatusCode.Created){operations.createIngredient(call.businessId(),call.userId(),call.receive())} }
             put("/recipes/{productId}") { call.respondHospitality{operations.saveRecipe(call.businessId(),call.userId(),call.parameters["productId"].orEmpty(),call.receive())} }
             post("/bar-stock") { call.respondHospitality(HttpStatusCode.Created){operations.recordBarEvent(call.businessId(),call.userId(),call.receive())} }

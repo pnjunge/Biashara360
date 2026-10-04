@@ -37,7 +37,7 @@ class HospitalityWorkflowTest {
   org.jetbrains.exposed.sql.transactions.TransactionManager.defaultDatabase=database
   transaction(database) {
    if(postgres!=null)exec("TRUNCATE TABLE businesses CASCADE")
-   SchemaUtils.create(BusinessesTable,BranchesTable,UsersTable,ProductsTable,CustomersTable,OrdersTable,OrderItemsTable,StockMovementsTable,PaymentsTable,HospitalityTablesTable,KitchenTicketsTable,HospitalityReservationsTable,HospitalityMenuProfilesTable,InventoryIngredientsTable,ProductRecipesTable,BarStockEventsTable,HospitalityShiftsTable,SuppliersTable,PurchaseOrdersTable,PurchaseOrderItemsTable,ManagerApprovalsTable,AuditEventsTable,OrderSplitPaymentsTable,AccessRolesTable,UserAccessRolesTable,AccessGroupsTable,AccessGroupRolesTable,UserAccessGroupsTable,PermissionsTable,RolePermissionsTable)
+   SchemaUtils.create(HospitalityStaffShiftsTable,HospitalityBillHandoversTable,BusinessesTable,BranchesTable,UsersTable,ProductsTable,CustomersTable,OrdersTable,OrderItemsTable,StockMovementsTable,PaymentsTable,HospitalityTablesTable,KitchenTicketsTable,HospitalityReservationsTable,HospitalityMenuProfilesTable,InventoryIngredientsTable,ProductRecipesTable,BarStockEventsTable,HospitalityShiftsTable,SuppliersTable,PurchaseOrdersTable,PurchaseOrderItemsTable,ManagerApprovalsTable,AuditEventsTable,OrderSplitPaymentsTable,AccessRolesTable,UserAccessRolesTable,AccessGroupsTable,AccessGroupRolesTable,UserAccessGroupsTable,PermissionsTable,RolePermissionsTable)
    for(b in listOf("business","other"))BusinessesTable.insert{it[id]=b;it[name]=b;it[storefrontSlug]=b;it[type]="HOSPITALITY";it[hospitalityEnabled]=true;it[ownerEmail]="$b@test.com";it[ownerPhone]="254700000001";it[createdAt]=Clock.System.now();it[updatedAt]=Clock.System.now()}
    for(u in listOf("staff","manager"))UsersTable.insert{it[id]=u;it[businessId]="business";it[name]=u;it[email]="$u@test.com";it[phone]=if(u=="staff")"254700000002" else "254700000003";it[passwordHash]="unused";it[role]="STAFF";it[createdAt]=Clock.System.now();it[updatedAt]=Clock.System.now()}
    for(p in listOf("meal","drink"))ProductsTable.insert{it[id]=p;it[businessId]="business";it[sku]=p;it[name]=p;it[buyingPrice]=10.0;it[sellingPrice]=100.0;it[currentStock]=100;it[category]=if(p=="meal")"Meals" else "Drinks";it[createdAt]=Clock.System.now();it[updatedAt]=Clock.System.now()}
@@ -52,12 +52,13 @@ class HospitalityWorkflowTest {
   assertFalse(r.success)
   assertEquals(10.0,ops.dashboard("business").ingredients.single().quantity)
  }
- @Test fun `routing obeys kitchen bar and no preparation profiles`() {
-  ops.saveMenuProfile("business","manager","meal",MenuProfileRequest(preparationStation=null))
-  ops.saveMenuProfile("business","manager","drink",MenuProfileRequest(preparationStation="BAR"))
+ @Test fun `routing sends only food to kitchen and supports no preparation profiles`() {
+  ops.saveMenuProfile("business","manager","meal",MenuProfileRequest(preparationStation="KITCHEN"))
+  ops.saveMenuProfile("business","manager","drink",MenuProfileRequest(preparationStation=null))
+  assertFails { ops.saveMenuProfile("business","manager","drink",MenuProfileRequest(preparationStation="KITCHEN")) }
   tab("meal","drink")
   val tickets=service.dashboard("business").tickets
-  assertEquals(listOf("BAR"),tickets.map{it.station});assertEquals("drink",tickets.single().items.single().productId)
+  assertEquals(listOf("KITCHEN"),tickets.map{it.station});assertEquals("meal",tickets.single().items.single().productId)
  }
  @Test fun `cancel closes tab cancels tickets and prevents settlement`() {
   val order=tab("meal")
@@ -141,6 +142,7 @@ class HospitalityWorkflowTest {
    routing{authenticate{hospitalityRoutes()}}
   }
   assertEquals(HttpStatusCode.OK,client.get("/hospitality"){bearerAuth(token("staff"))}.status)
+  assertEquals(HttpStatusCode.BadRequest,client.post("/hospitality/duty/start"){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{}")}.status)
   for(path in listOf("/hospitality/operations/menu/meal","/hospitality/operations/shifts/open","/hospitality/operations/ingredients","/hospitality/operations/purchase-orders")) {
    val response=if(path.contains("/menu/"))client.put(path){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{}")}else client.post(path){bearerAuth(token("staff"));contentType(ContentType.Application.Json);setBody("{}")}
    assertEquals(HttpStatusCode.Forbidden,response.status)
@@ -179,6 +181,209 @@ class HospitalityWorkflowTest {
   assertEquals("SPLIT",orders.getById(order.id,"business")!!.paymentMethod)
   assertFails{ops.splitBill("business","manager",order.id,payments)}
   assertEquals(100.0,transaction{PaymentsTable.select{PaymentsTable.orderId eq order.id}.sumOf{it[PaymentsTable.amount]}})
+ }
+ private fun authorizeDuty() { transaction { UsersTable.update({ UsersTable.businessId eq "business" }) { it[role]="ADMIN" } } }
+ private fun stock(product:String)=transaction { ProductsTable.select { ProductsTable.id eq product }.first()[ProductsTable.currentStock] }
+
+ @Test fun `recipe portions sell with zero product stock and cancellation never invents portion stock`() {
+  transaction { ProductsTable.update({ProductsTable.id eq "meal"}) {it[currentStock]=0} }
+  ops.saveRecipe("business","manager","meal",SaveRecipeRequest(listOf(RecipeLine(ingredient,2.0))))
+  val before=ProductService().getById("meal","business")!!
+  assertEquals("INGREDIENTS",before.stockMode); assertEquals(5,before.currentStock)
+  val order=tab("meal")
+  assertEquals(0,stock("meal")); assertEquals(8.0,ops.dashboard("business").ingredients.single().quantity)
+  assertEquals(4.0,order.items.single().buyingPrice)
+  assertTrue(orders.cancel(order.id,"business").success)
+  assertEquals(0,stock("meal")); assertEquals(8.0,ops.dashboard("business").ingredients.single().quantity)
+  assertFalse(ProductService().updateStock("meal","business",StockUpdateRequest("STOCK_IN",5)).success)
+ }
+ @Test fun `POS recipes share bulk stock and retries deduct once`() {
+  ops.saveRecipe("business","manager","meal",SaveRecipeRequest(listOf(RecipeLine(ingredient,3.0))))
+  val request=CreateOrderRequest(customerName="Guest",items=listOf(OrderItemRequest("meal",2,100.0)),paymentMethod="CASH",clientReference="portion-retry")
+  val first=orders.create("business",request,"WEB")
+  assertTrue(first.success);assertEquals(first.data!!.id,orders.create("business",request,"WEB").data!!.id)
+  assertEquals(4.0,ops.dashboard("business").ingredients.single().quantity);assertEquals(100,stock("meal"))
+  assertFalse(orders.create("business",request.copy(clientReference="another"),"WEB").success)
+ }
+ @Test fun `availability uses the limiting ingredient and empty recipe returns to product stock`() {
+  val oil=ops.createIngredient("business","manager",IngredientRequest("Oil","ML",3.0)).id
+  ops.saveRecipe("business","manager","meal",SaveRecipeRequest(listOf(RecipeLine(ingredient,2.0),RecipeLine(oil,1.0))))
+  assertEquals(3,ProductService().getById("meal","business")!!.currentStock)
+  ops.saveRecipe("business","manager","meal",SaveRecipeRequest(emptyList()))
+  assertEquals("PRODUCT",ProductService().getById("meal","business")!!.stockMode)
+  assertEquals(100,ProductService().getById("meal","business")!!.currentStock)
+ }
+ @Test fun `bulk receipts convert kilograms and configured bottles with correct unit costs`() {
+  val spirit=ops.createIngredient("business","manager",IngredientRequest("Spirit","ML",purchaseUnit="BOTTLE",purchaseUnitSize=750.0)).id
+  val supplier=ops.createSupplier("business","manager",SupplierRequest("Bulk supplier")).id
+  val po=ops.createPurchaseOrder("business","manager",PurchaseOrderRequest(supplier,items=listOf(PurchaseOrderLineRequest(ingredient,2.0,1000.0,"KG"),PurchaseOrderLineRequest(spirit,2.0,1500.0,"BOTTLE"))))
+  assertEquals(5000.0,po.totalCost);assertEquals(2000.0,po.items.first{it.ingredientId==ingredient}.stockQuantity)
+  assertEquals(2.0,po.items.first{it.ingredientId==spirit}.stockUnitCost)
+  // Changing configuration after ordering must not change the receipt conversion.
+  ops.configurePurchaseUnit("business","manager",spirit,IngredientPurchaseUnitRequest("BOTTLE",1000.0))
+  ops.receivePurchaseOrder("business","manager",po.id)
+  val rows=ops.dashboard("business").ingredients
+  assertEquals(2010.0,rows.first{it.id==ingredient}.quantity);assertEquals(1.0,rows.first{it.id==ingredient}.unitCost)
+  assertEquals(1500.0,rows.first{it.id==spirit}.quantity);assertEquals(2.0,rows.first{it.id==spirit}.unitCost)
+  assertFails{ops.receivePurchaseOrder("business","manager",po.id)}
+ }
+ @Test fun `incompatible purchase units and foreign ingredients fail before creating purchases`() {
+  val supplier=ops.createSupplier("business","manager",SupplierRequest("Bulk supplier")).id
+  assertFails { ops.createPurchaseOrder("business","manager",PurchaseOrderRequest(supplier,items=listOf(PurchaseOrderLineRequest(ingredient,1.0,10.0,"L")))) }
+  assertFails { ops.createPurchaseOrder("business","manager",PurchaseOrderRequest(supplier,items=listOf(PurchaseOrderLineRequest(ingredient,1.0,10.0,"BOTTLE")))) }
+  assertFails { ops.createPurchaseOrder("other","manager",PurchaseOrderRequest(supplier,items=listOf(PurchaseOrderLineRequest(ingredient,1.0,10.0,"G")))) }
+  assertTrue(ops.dashboard("business").purchaseOrders.isEmpty())
+  assertFails { ops.configurePurchaseUnit("business","manager",ingredient,IngredientPurchaseUnitRequest("PACK",0.0)) }
+ }
+ @Test fun `concurrent POS portions never overspend shared bulk stock`() {
+  ops.saveRecipe("business","manager","meal",SaveRecipeRequest(listOf(RecipeLine(ingredient,6.0))))
+  val executor=java.util.concurrent.Executors.newFixedThreadPool(2);val start=java.util.concurrent.CountDownLatch(1)
+  try {
+   val attempts=(1..2).map{executor.submit<Boolean>{start.await();orders.create("business",CreateOrderRequest(customerName="Guest",items=listOf(OrderItemRequest("meal",1,100.0)),paymentMethod="CASH")).success}}
+   start.countDown();assertEquals(1,attempts.count{it.get(15,java.util.concurrent.TimeUnit.SECONDS)})
+   assertEquals(4.0,ops.dashboard("business").ingredients.single().quantity);assertEquals(100,stock("meal"))
+  } finally {executor.shutdownNow()}
+ }
+ @Test fun `failed mixed stock order does not consume ingredients or persist an order`() {
+  ops.saveRecipe("business","manager","meal",SaveRecipeRequest(listOf(RecipeLine(ingredient,2.0))))
+  transaction {ProductsTable.update({ProductsTable.id eq "drink"}){it[currentStock]=0}}
+  assertFalse(service.createOrder("business","staff",HospitalityOrderRequest(serviceType="TAKEAWAY",items=listOf(OrderItemRequest("meal",1,100.0),OrderItemRequest("drink",1,100.0)))).success)
+  assertEquals(10.0,ops.dashboard("business").ingredients.single().quantity)
+  assertTrue(service.dashboard("business").openTabs.isEmpty())
+ }
+ @Test fun `handover requires receiver acceptance before sender can end shift`() {
+  authorizeDuty();val duty=HospitalityDutyService()
+  duty.startShift("business","staff",StaffShiftRequest());duty.startShift("business","manager",StaffShiftRequest())
+  val first=tab("meal");val second=tab("drink")
+  val handovers=duty.requestHandover("business","staff",BillHandoverRequest(listOf(first.id,second.id),"manager","Table still dining"))
+  assertEquals("staff",orders.getById(first.id,"business")!!.responsibleUserId)
+  assertFails{duty.endShift("business","staff",StaffShiftRequest())}
+  assertFails{duty.decide("business","staff",handovers.first().id,BillHandoverDecisionRequest("ACCEPT"))}
+  handovers.forEach { duty.decide("business","manager",it.id,BillHandoverDecisionRequest("ACCEPT")) }
+  assertEquals("CLOSED",duty.endShift("business","staff",StaffShiftRequest()).status)
+  val received=orders.getById(first.id,"business")!!
+  assertEquals("manager",received.responsibleUserId);assertEquals("staff",received.serverUserId)
+  assertEquals(first.items,received.items);assertEquals(first.subtotal,received.subtotal)
+  assertTrue(service.hasOpenShift("business"));assertEquals(2,service.dashboard("business").openTabs.size)
+  assertFails{duty.decide("business","manager",handovers.first().id,BillHandoverDecisionRequest("ACCEPT"))}
+  assertFails{tab("meal")}
+ }
+ @Test fun `handover enforces tenant owner recipient duty and duplicate protection`() {
+  authorizeDuty();val duty=HospitalityDutyService();val order=tab("meal")
+  assertFails{duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager"))}
+  duty.startShift("business","manager",StaffShiftRequest())
+  assertFails{duty.requestHandover("business","manager",BillHandoverRequest(listOf(order.id),"staff"))}
+  assertFails{duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"staff"))}
+  assertFails{duty.requestHandover("other","staff",BillHandoverRequest(listOf(order.id),"manager"))}
+  val request=duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager")).single()
+  assertFails{duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager"))}
+  assertFails{duty.decide("other","manager",request.id,BillHandoverDecisionRequest("ACCEPT"))}
+  duty.decide("business","manager",request.id,BillHandoverDecisionRequest("REJECT"))
+  assertEquals("staff",orders.getById(order.id,"business")!!.responsibleUserId)
+  val retry=duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager")).single()
+  duty.decide("business","staff",retry.id,BillHandoverDecisionRequest("CANCEL"))
+  assertEquals("staff",orders.getById(order.id,"business")!!.responsibleUserId)
+ }
+ @Test fun `paid bill cannot be accepted and unassigned bills must be claimed`() {
+  authorizeDuty();val duty=HospitalityDutyService();duty.startShift("business","manager",StaffShiftRequest())
+  val order=tab("meal");val request=duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager")).single()
+  service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")
+  assertFails{duty.decide("business","manager",request.id,BillHandoverDecisionRequest("ACCEPT"))}
+  val unassigned=service.createOrder("business",null,HospitalityOrderRequest(serviceType="TAKEAWAY",items=listOf(OrderItemRequest("meal",1,100.0)))).data!!
+  duty.claimBill("business","manager",unassigned.id)
+  assertEquals("manager",orders.getById(unassigned.id,"business")!!.responsibleUserId)
+  assertFails{duty.claimBill("business","manager",unassigned.id)}
+ }
+ @Test fun `handover preserves old payments and attributes remaining cash to the receiving cashier`() {
+  authorizeDuty();val duty=HospitalityDutyService();duty.startShift("business","staff",StaffShiftRequest());duty.startShift("business","manager",StaffShiftRequest())
+  val order=tab("meal")
+  transaction { PaymentsTable.insert { it[id]="deposit";it[businessId]="business";it[orderId]=order.id;it[collectedByUserId]="staff";it[transactionCode]="deposit";it[amount]=20.0;it[payerPhone]="";it[payerName]="Guest";it[method]="CASH";it[status]="SUCCESS";it[channel]="HOSPITALITY_POS";it[reconciled]=true;it[transactionDate]=Clock.System.now() } }
+  val request=duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager")).single()
+  assertEquals(80.0,request.balanceAtRequest)
+  duty.decide("business","manager",request.id,BillHandoverDecisionRequest("ACCEPT"))
+  duty.endShift("business","staff",StaffShiftRequest())
+  assertFails{service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")}
+  service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"manager")
+  val payments=transaction { PaymentsTable.select { PaymentsTable.orderId eq order.id }.map { it[PaymentsTable.collectedByUserId] to it[PaymentsTable.amount] } }
+  assertTrue("staff" to 20.0 in payments);assertTrue("manager" to 80.0 in payments)
+  assertEquals(100.0,payments.sumOf{it.second})
+ }
+ @Test fun `business day close still blocks handed over unpaid bills`() {
+  authorizeDuty();val duty=HospitalityDutyService();duty.startShift("business","manager",StaffShiftRequest())
+  val order=tab("meal");val request=duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager")).single()
+  duty.decide("business","manager",request.id,BillHandoverDecisionRequest("ACCEPT"))
+  val shift=ops.dashboard("business").shifts.single()
+  assertFails{ops.closeShift("business","manager",shift.id,ShiftCloseRequest(0.0,0.0,0.0))}
+  assertEquals("OPEN",duty.dashboard("business","manager").shift!!.status)
+  service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"manager")
+  ops.closeShift("business","manager",shift.id,ShiftCloseRequest(100.0,0.0,0.0))
+  assertNull(duty.dashboard("business","manager").shift)
+ }
+ @Test fun `staff shift tally counts only this users completed orders and freezes on close`() {
+  authorizeDuty();val duty=HospitalityDutyService()
+  val before=tab("meal");service.closeTab("business",before.id,CloseHospitalityTabRequest("CASH"),"staff")
+  duty.startShift("business","staff",StaffShiftRequest());duty.startShift("business","manager",StaffShiftRequest())
+  val completed=tab("meal");service.closeTab("business",completed.id,CloseHospitalityTabRequest("CASH"),"staff")
+  val others=service.createOrder("business","manager",HospitalityOrderRequest(serviceType="TAKEAWAY",items=listOf(OrderItemRequest("drink",2,100.0)))).data!!
+  service.closeTab("business",others.id,CloseHospitalityTabRequest("CASH"),"manager")
+  val unpaid=tab("drink");val handover=duty.requestHandover("business","staff",BillHandoverRequest(listOf(unpaid.id),"manager")).single()
+  duty.decide("business","manager",handover.id,BillHandoverDecisionRequest("ACCEPT"))
+  val preview=duty.dashboard("business","staff").shift!!.summary
+  assertEquals(1,preview.completedOrderCount);assertEquals(100.0,preview.completedOrderTotal);assertEquals(100.0,preview.cashTotal)
+  assertEquals(listOf(completed.id),preview.completedOrders.map{it.id});assertEquals(1,preview.handedOverCount)
+  val ended=duty.endShift("business","staff",StaffShiftRequest("Till handed over"))
+  assertEquals(preview,ended.summary)
+  service.closeTab("business",unpaid.id,CloseHospitalityTabRequest("CASH"),"manager")
+  assertEquals(preview,duty.reports("business","staff").single().summary)
+  assertEquals(300.0,duty.dashboard("business","manager").shift!!.summary.cashTotal)
+  assertEquals(2,duty.reports("business","manager",true).size)
+  assertEquals(listOf("staff"),duty.reports("business","staff",false).map{it.userId})
+ }
+ @Test fun `staff tally tracks cash mpesa card and excludes unpaid or cancelled orders`() {
+  authorizeDuty();val duty=HospitalityDutyService();duty.startShift("business","staff",StaffShiftRequest())
+  val cash=tab("meal");service.closeTab("business",cash.id,CloseHospitalityTabRequest("CASH"),"staff")
+  for(method in listOf("MPESA","CARD")) {
+   val order=tab("drink");service.closeTab("business",order.id,CloseHospitalityTabRequest(method),"staff")
+   transaction {
+    PaymentsTable.insert {it[id]=UUID.randomUUID().toString();it[businessId]="business";it[orderId]=order.id;it[collectedByUserId]="staff";it[transactionCode]=method;it[amount]=100.0;it[payerPhone]="";it[payerName]="Guest";it[PaymentsTable.method]=method;it[status]="SUCCESS";it[channel]="TEST";it[reconciled]=true;it[transactionDate]=Clock.System.now()}
+    OrdersTable.update({OrdersTable.id eq order.id}) {it[paymentStatus]="PAID";it[tabStatus]="CLOSED";it[completedAt]=Clock.System.now()}
+   }
+  }
+  val hotel=tab("meal")
+  transaction {
+   OrdersTable.update({OrdersTable.id eq hotel.id}) {it[serviceType]="HOTEL";it[paymentStatus]="PAID";it[tabStatus]="CLOSED";it[completedAt]=Clock.System.now()}
+   PaymentsTable.insert {it[id]=UUID.randomUUID().toString();it[businessId]="business";it[orderId]=hotel.id;it[collectedByUserId]="staff";it[transactionCode]="hotel";it[amount]=500.0;it[payerPhone]="";it[payerName]="Guest";it[method]="CASH";it[status]="SUCCESS";it[channel]="TEST";it[reconciled]=true;it[transactionDate]=Clock.System.now()}
+  }
+  val original=transaction { OrdersTable.select{OrdersTable.id eq cash.id}.single()[OrdersTable.completedAt] }
+  orders.updatePaymentStatus(cash.id,"business",UpdatePaymentStatusRequest(status="PAID"))
+  assertEquals(original,transaction { OrdersTable.select{OrdersTable.id eq cash.id}.single()[OrdersTable.completedAt] })
+  val cancelled=tab("meal");orders.cancel(cancelled.id,"business")
+  val unpaid=tab("meal")
+  val tally=duty.dashboard("business","staff").shift!!.summary
+  assertEquals(3,tally.completedOrderCount);assertEquals(300.0,tally.completedOrderTotal)
+  assertEquals(100.0,tally.cashTotal);assertEquals(100.0,tally.mpesaTotal);assertEquals(100.0,tally.cardTotal);assertEquals(300.0,tally.collectedTotal)
+  assertFalse(tally.completedOrders.any{it.id==cancelled.id||it.id==unpaid.id})
+  assertFails{duty.endShift("business","staff",StaffShiftRequest())}
+ }
+ @Test fun `food preparation is created once for POS and drinks never enter ticket`() {
+  val req=CreateOrderRequest(customerName="Guest",customerPhone="",serviceType="TAKEAWAY",serverUserId="staff",items=listOf(OrderItemRequest("meal",1,100.0),OrderItemRequest("drink",1,100.0)),paymentMethod="CASH",clientReference="food-pos")
+  assertTrue(orders.create("business",req,"WEB","staff").success)
+  assertTrue(orders.create("business",req,"WEB","staff").success)
+  val tickets=service.dashboard("business").tickets
+  assertEquals(1,tickets.size);assertEquals(listOf("meal"),tickets.single().items.map{it.productId})
+  ops.saveMenuProfile("business","manager","meal",MenuProfileRequest(preparationStation=null))
+  assertEquals(listOf("meal"),service.dashboard("business").tickets.single().items.map{it.productId})
+  assertTrue(service.dashboard("business").tickets.single().items.all{it.preparationStation=="KITCHEN"})
+ }
+ @Test fun `receiver acceptance races cannot transfer a bill twice`() {
+  authorizeDuty();val duty=HospitalityDutyService();duty.startShift("business","manager",StaffShiftRequest())
+  val order=tab("meal");val request=duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager")).single()
+  val executor=java.util.concurrent.Executors.newFixedThreadPool(2);val start=java.util.concurrent.CountDownLatch(1)
+  try {
+   val attempts=(1..2).map{executor.submit<Boolean>{start.await();runCatching{duty.decide("business","manager",request.id,BillHandoverDecisionRequest("ACCEPT"))}.isSuccess}}
+   start.countDown();assertEquals(1,attempts.count{it.get(15,java.util.concurrent.TimeUnit.SECONDS)})
+   assertEquals("manager",orders.getById(order.id,"business")!!.responsibleUserId)
+  } finally {executor.shutdownNow()}
  }
 
 }

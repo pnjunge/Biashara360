@@ -25,10 +25,9 @@ class ProductService(
                 (ProductsTable.sku.lowerCase() like "%${query.lowercase()}%")
             }
         }
-        if (lowStockOnly) {
-            stmt = stmt.andWhere { ProductsTable.currentStock lessEq ProductsTable.lowStockThreshold }
-        }
-        stmt.orderBy(ProductsTable.name).map { it.toResponse() }
+        val rows = stmt.orderBy(ProductsTable.name).toList()
+        val recipes = recipeStock(businessId, rows.map { it[ProductsTable.id] })
+        rows.map { it.toResponse(recipes[it[ProductsTable.id]]) }.filter { !lowStockOnly || it.currentStock <= it.lowStockThreshold }
     }
 
     fun toggleStatus(id: String, businessId: String, isActive: Boolean): ApiResponse<ProductResponse> = transaction {
@@ -108,7 +107,7 @@ class ProductService(
             it[description] = req.description
             it[buyingPrice] = req.buyingPrice
             it[sellingPrice] = req.sellingPrice
-            it[currentStock] = req.currentStock
+            if (recipeStock(businessId, listOf(id))[id] == null) it[currentStock] = req.currentStock
             it[lowStockThreshold] = req.lowStockThreshold
             it[category] = req.category
             it[barcode] = req.barcode?.trim()?.ifBlank { null }
@@ -116,7 +115,7 @@ class ProductService(
             it[updatedAt] = Clock.System.now()
         }
         if (updated == 0) return@transaction ApiResponse(false, message = "Product not found")
-        if (req.currentStock != previousStock) {
+        if (recipeStock(businessId, listOf(id))[id] == null && req.currentStock != previousStock) {
             val diff = req.currentStock - previousStock
             StockMovementsTable.insert {
                 it[StockMovementsTable.id] = generateId()
@@ -138,6 +137,8 @@ class ProductService(
             (ProductsTable.id eq productId) and (ProductsTable.businessId eq businessId)
         }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Product not found")
 
+        if (recipeStock(businessId, listOf(productId))[productId] != null)
+            return@transaction ApiResponse(false, message = "This item uses bulk ingredients. Receive or adjust ingredient stock in Hospitality Operations.")
         val currentStock = product[ProductsTable.currentStock]
         val newStock = when (req.type) {
             "STOCK_IN" -> currentStock + req.quantity
@@ -180,13 +181,15 @@ class ProductService(
         }
     }
 
-    private fun ResultRow.toResponse(): ProductResponse {
-        val buying = this[ProductsTable.buyingPrice]
+    private fun ResultRow.toResponse(recipe: RecipeStock? = recipeStock(this[ProductsTable.businessId], listOf(this[ProductsTable.id]))[this[ProductsTable.id]]): ProductResponse {
+        val buying = recipe?.cost ?: this[ProductsTable.buyingPrice]
         val selling = this[ProductsTable.sellingPrice]
-        val stock = this[ProductsTable.currentStock]
+        val stock = recipe?.available ?: this[ProductsTable.currentStock]
         val threshold = this[ProductsTable.lowStockThreshold]
         val profit = selling - buying
         return ProductResponse(
+            stockMode = if (recipe != null) "INGREDIENTS" else "PRODUCT",
+            productStock = this[ProductsTable.currentStock],
             id = this[ProductsTable.id],
             businessId = this[ProductsTable.businessId],
             sku = this[ProductsTable.sku],

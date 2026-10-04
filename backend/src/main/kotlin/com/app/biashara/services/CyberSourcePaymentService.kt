@@ -373,6 +373,7 @@ class CyberSourcePaymentService(
                 it[PaymentsTable.businessId]      = businessId
                 it[PaymentsTable.orderId]         = orderId
                 it[PaymentsTable.billingOwnerUserId] = order?.get(OrdersTable.billingOwnerUserId)
+                it[PaymentsTable.collectedByUserId] = order?.get(OrdersTable.settledByUserId)
                 it[PaymentsTable.transactionCode] = csId
                 it[PaymentsTable.amount]          = amount
                 it[PaymentsTable.payerPhone]      = ""
@@ -386,6 +387,7 @@ class CyberSourcePaymentService(
             }
             com.app.biashara.db.OrdersTable.update({ com.app.biashara.db.OrdersTable.id eq orderId }) {
                 it[paymentStatus] = "PAID"
+                        if (order?.get(OrdersTable.completedAt)==null) it[OrdersTable.completedAt] = Clock.System.now()
                 it[tabStatus] = "CLOSED"
                 it[updatedAt] = Clock.System.now()
             }

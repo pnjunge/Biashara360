@@ -11,6 +11,8 @@ import com.app.biashara.utils.PaginationParams
 import com.app.biashara.validation.Validator
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -126,7 +128,9 @@ fun Route.orderRoutesValidated() {
             }
             
             val platform = call.request.headers["X-Client-Platform"]
-            val result = orderService.create(businessId, req, platform)
+            val actor=call.principal<JWTPrincipal>()!!.payload.subject
+            val attributedReq=req.copy(serverUserId=actor)
+            val result = orderService.create(businessId, attributedReq, platform, actor)
             call.respond(
                 if (result.success) HttpStatusCode.Created else HttpStatusCode.BadRequest,
                 result

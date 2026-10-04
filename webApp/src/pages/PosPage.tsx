@@ -314,7 +314,8 @@ export function PosPage() {
       const payload = {
         customerName: customerName.trim() || 'Walk-In Customer',
         customerPhone: paymentMethod === 'CASH' ? customerPhone.trim() : customerPhone,
-        deliveryLocation: 'In-Store POS',
+        deliveryLocation: hospitalityEnabled&&serviceType==='DINE_IN' ? (tables.find(t=>t.id===selectedTableId)?.name||'Dine in') : 'In-Store POS',
+        ...(hospitalityEnabled ? {serviceType,hospitalityTableId:serviceType==='DINE_IN'?selectedTableId:null,guestCount,tabStatus:paymentMethod==='CASH'?'CLOSED':'AWAITING_PAYMENT'} : {}),
         paymentMethod,
         ...(paymentMethod === 'CASH' ? { paymentStatus: 'PAID', deliveryStatus: 'DELIVERED' } : {}),
         includeTax,

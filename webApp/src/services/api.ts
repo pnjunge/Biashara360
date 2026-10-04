@@ -125,6 +125,8 @@ export interface SessionTimeoutConfig {
 // ── Domain Models ─────────────────────────────────────────────────────────────
 
 export interface ProductResponse {
+  stockMode?: 'PRODUCT' | 'INGREDIENTS'
+  productStock?: number
   id: string; businessId: string; sku: string; name: string; description: string
   buyingPrice: number; sellingPrice: number; profitPerItem: number; profitMargin: number
   currentStock: number; lowStockThreshold: number; isLowStock: boolean; isOutOfStock: boolean
@@ -190,6 +192,8 @@ export interface OrderResponse {
   baseAmount?: number; taxIncluded?: boolean; taxRate?: number; taxAmount?: number
   salesChannel: string
   serviceType?: string; hospitalityTableId?: string | null; serverUserId?: string | null
+  responsibleUserId?: string | null; responsibleUserName?: string | null
+  paidAmount?: number; outstandingAmount?: number
   guestCount?: number; tabStatus?: string
   branchId?: string | null; branchName?: string | null
   notes: string; createdAt: string; updatedAt: string
@@ -257,12 +261,17 @@ export interface MenuOption { name:string; priceDelta:number }
 export interface HospitalityOperations {
   reservations:Array<{id:string;tableId:string|null;customerName:string;customerPhone:string;guestCount:number;reservedAt:string;durationMinutes:number;status:string;notes:string}>
   menuProfiles:Array<{productId:string;preparationStation:string|null;mealPeriods:string[];sizes:MenuOption[];extras:MenuOption[];variants:MenuOption[];comboProductIds:string[];soldOut:boolean;happyHourPrice:number|null;happyHourStart:string|null;happyHourEnd:string|null;ageRestricted:boolean;minimumAge:number|null}>
-  ingredients:Array<{id:string;name:string;unit:string;quantity:number;reorderLevel:number;unitCost:number;isLowStock:boolean}>
+  ingredients:Array<{id:string;name:string;unit:string;quantity:number;reorderLevel:number;unitCost:number;isLowStock:boolean;purchaseUnit?:string|null;purchaseUnitSize?:number}>
   shifts:Array<{id:string;openedBy:string;openedAt:string;closedAt:string|null;openingFloat:number;expectedCash:number|null;actualCash:number|null;mpesaTotal:number|null;cardTotal:number|null;tipsTotal:number;expensesTotal:number;status:string;variance:number|null;actualMpesa:number|null;actualCard:number|null;mpesaVariance:number|null;cardVariance:number|null;totalVariance:number|null}>
   suppliers:Array<{id:string;name:string;phone:string;email:string|null;address:string|null;isActive:boolean}>
-  purchaseOrders:Array<{id:string;orderNumber:string;supplierId:string;status:string;totalCost:number;orderedAt:string;receivedAt:string|null}>
+  purchaseOrders:Array<{id:string;orderNumber:string;supplierId:string;status:string;totalCost:number;orderedAt:string;receivedAt:string|null;items?:PurchaseOrderLine[]}>
   approvals:Array<{id:string;actionType:string;entityType:string;entityId:string;requestedBy:string;approvedBy:string|null;status:string;reason:string;requestedAt:string;amount?:number|null;quantity?:number|null;eventType?:string|null}>
 }
+export interface PurchaseOrderLine { ingredientId:string;ingredientName:string;stockUnit:string;purchaseQuantity:number;purchaseUnit:string;purchaseUnitCost:number;conversionFactor:number;stockQuantity:number;stockUnitCost:number }
+export interface StaffShiftSummary { completedOrderCount:number;completedOrderTotal:number;servedOrderCount:number;settledOrderCount:number;cashTotal:number;mpesaTotal:number;cardTotal:number;otherTotal:number;collectedTotal:number;handedOverCount:number;receivedBillCount:number;completedOrders:Array<{id:string;orderNumber:string;amount:number;completedAt:string;involvement:string}> }
+export interface StaffShift { id:string;userId:string;userName:string;openedAt:string;closedAt:string|null;status:string;notes:string;summary:StaffShiftSummary }
+export interface BillHandover { id:string;orderId:string;orderNumber:string;fromUserId:string;fromUserName:string;toUserId:string;toUserName:string;requestedBy:string;status:string;notes:string;balanceAtRequest:number;requestedAt:string;decidedAt:string|null }
+export interface HospitalityDuty { shift:StaffShift|null;staff:Array<{id:string;name:string;onDuty:boolean}>;handovers:BillHandover[];ownedOpenOrderIds:string[];recentShifts:StaffShift[] }
 export interface HospitalityDashboard { enabled:boolean; tables:HospitalityTable[]; openTabs:OrderResponse[]; tickets:KitchenTicket[]; shiftOpen?: boolean }
 
 export interface PagedResponse<T> {
@@ -1294,6 +1303,16 @@ export const hospitalityApi = {
   closeTab: async (orderId:string,paymentMethod:string) => (await client.post<ApiResponse<OrderResponse>>(`/hospitality/tabs/${orderId}/close`,{paymentMethod})).data,
 }
 
+export const hospitalityDutyApi = {
+  dashboard: async () => (await client.get<ApiResponse<HospitalityDuty>>('/hospitality/duty')).data,
+  reports: async () => (await client.get<ApiResponse<StaffShift[]>>('/hospitality/duty/reports')).data,
+  start: async (notes='') => (await client.post<ApiResponse<StaffShift>>('/hospitality/duty/start',{notes})).data,
+  end: async (notes='') => (await client.post<ApiResponse<StaffShift>>('/hospitality/duty/end',{notes})).data,
+  claim: async (orderId:string) => (await client.post<ApiResponse<string>>(`/hospitality/duty/claim/${orderId}`)).data,
+  handover: async (orderIds:string[],toUserId:string,notes:string) => (await client.post<ApiResponse<BillHandover[]>>('/hospitality/duty/handovers',{orderIds,toUserId,notes})).data,
+  decide: async (id:string,action:'ACCEPT'|'REJECT'|'CANCEL') => (await client.post<ApiResponse<BillHandover>>(`/hospitality/duty/handovers/${id}/decision`,{action})).data,
+}
+
 export const hospitalityOpsApi = {
   staff: async () => (await client.get(`/hospitality/operations/staff`)).data,
   dashboard: async () => (await client.get<ApiResponse<HospitalityOperations>>('/hospitality/operations')).data,
@@ -1304,6 +1323,7 @@ export const hospitalityOpsApi = {
   ingredient: async (data:any) => (await client.post('/hospitality/operations/ingredients',data)).data,
   getRecipe: async (productId:string) => (await client.get(`/hospitality/operations/recipes/${productId}`)).data,
   recipe: async (productId:string,lines:any[]) => (await client.put(`/hospitality/operations/recipes/${productId}`,{lines})).data,
+  purchaseUnit: async (id:string,data:{purchaseUnit:string|null;purchaseUnitSize:number}) => (await client.put(`/hospitality/operations/ingredients/${id}/purchase-unit`,data)).data,
   barStock: async (data:any) => (await client.post('/hospitality/operations/bar-stock',data)).data,
   openShift: async (data:any) => (await client.post('/hospitality/operations/shifts/open',data)).data,
   closeShift: async (id:string,data:any) => (await client.post(`/hospitality/operations/shifts/${id}/close`,data)).data,

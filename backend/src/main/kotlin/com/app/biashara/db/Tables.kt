@@ -346,6 +346,9 @@ object OrdersTable : Table("orders") {
     val serviceType = varchar("service_type", 20).default("RETAIL")
     val hospitalityTableId = varchar("hospitality_table_id", 36).nullable()
     val serverUserId = varchar("server_user_id", 36).nullable()
+    val responsibleUserId = varchar("responsible_user_id", 36).nullable()
+    val settledByUserId = varchar("settled_by_user_id", 36).nullable()
+    val completedAt = timestamp("completed_at").nullable()
     val guestCount = integer("guest_count").default(1)
     val tabStatus = varchar("tab_status", 20).default("CLOSED")
     val mpesaTransactionCode = varchar("mpesa_transaction_code", 50).nullable()
@@ -377,6 +380,8 @@ object OrderItemsTable : Table("order_items") {
     val itemNote = varchar("item_note", 500).default("")
     val discountAmount = double("discount_amount").default(0.0)
     val complimentary = bool("complimentary").default(false)
+    val productStockDeducted = bool("product_stock_deducted").default(true)
+    val preparationStation = varchar("preparation_station",20).nullable()
     override val primaryKey = PrimaryKey(id)
 }
 
@@ -438,6 +443,7 @@ object ExpensesTable : Table("expenses") {
 // ─── Payments ─────────────────────────────────────────────────────────────────
 
 object PaymentsTable : Table("payments") {
+    val collectedByUserId = varchar("collected_by_user_id", 36).nullable()
     val id = varchar("id", 36)
     val businessId = varchar("business_id", 36).references(BusinessesTable.id)
     val billingOwnerUserId = varchar("billing_owner_user_id", 36).references(UsersTable.id, onDelete = SET_NULL).nullable()

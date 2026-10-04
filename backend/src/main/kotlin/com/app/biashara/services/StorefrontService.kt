@@ -38,20 +38,21 @@ class StorefrontService(
         val businessId = business[BusinessesTable.id]
         val products = ProductsTable.select {
             (ProductsTable.businessId eq businessId) and
-                (ProductsTable.isActive eq true) and
-                (ProductsTable.currentStock greater 0)
-        }.orderBy(ProductsTable.name).map {
+                (ProductsTable.isActive eq true)
+        }.orderBy(ProductsTable.name).toList()
+        val recipes = recipeStock(businessId, products.map { it[ProductsTable.id] })
+        val availableProducts = products.map {
             StorefrontProductResponse(
                 id = it[ProductsTable.id],
                 sku = it[ProductsTable.sku],
                 name = it[ProductsTable.name],
                 description = it[ProductsTable.description],
                 sellingPrice = it[ProductsTable.sellingPrice],
-                availableQuantity = it[ProductsTable.currentStock],
+                availableQuantity = recipes[it[ProductsTable.id]]?.available ?: it[ProductsTable.currentStock],
                 category = it[ProductsTable.category],
                 imageUrl = it[ProductsTable.imageUrl]
             )
-        }
+        }.filter { it.availableQuantity > 0 }
         StorefrontResponse(
             businessId = businessId,
             storefrontSlug = business[BusinessesTable.storefrontSlug],
@@ -82,7 +83,7 @@ class StorefrontService(
                     isActive = it[BusinessServicesTable.isActive], createdAt = it[BusinessServicesTable.createdAt].toString(), updatedAt = it[BusinessServicesTable.updatedAt].toString(),
                 )
             },
-            products = products
+            products = availableProducts
         )
     }
 
@@ -115,9 +116,9 @@ class StorefrontService(
             }
         } ?: return ApiResponse(false, message = "One or more products are unavailable")
 
-        val orderResult = if (req.tableId != null) hospitalityService.createOrder(
+        val orderResult = if (req.tableId != null || hospitalityService.isEnabled(businessId)) hospitalityService.createOrder(
             businessId, null,
-            HospitalityOrderRequest(tableId = req.tableId, guestCount = req.guestCount,
+            HospitalityOrderRequest(tableId = req.tableId, serviceType=if(req.tableId!=null) "DINE_IN" else if(req.deliveryLocation.trim().isEmpty() || req.deliveryLocation.trim().equals("PICKUP",true)) "TAKEAWAY" else "DELIVERY", deliveryLocation=req.deliveryLocation, guestCount = req.guestCount,
                 customerName = req.customerName.trim(), customerPhone = phone, notes = req.notes.trim().take(500), items = pricedItems),
             clientPlatform = "ECOMMERCE", clientReference = req.clientReference, paymentMethod = paymentMethod
         ) else orderService.create(

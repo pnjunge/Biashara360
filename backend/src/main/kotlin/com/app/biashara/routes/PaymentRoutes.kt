@@ -297,6 +297,7 @@ fun Route.mpesaCallbackRouteValidated() {
                         it[PaymentsTable.businessId] = businessId
                         it[PaymentsTable.orderId] = orderId
                         it[PaymentsTable.billingOwnerUserId] = orderRow[OrdersTable.billingOwnerUserId]
+                        it[PaymentsTable.collectedByUserId] = orderRow[OrdersTable.settledByUserId]
                         it[PaymentsTable.transactionCode] = txCode
                         it[PaymentsTable.amount] = amount
                         it[PaymentsTable.payerPhone] = phone
@@ -311,6 +312,7 @@ fun Route.mpesaCallbackRouteValidated() {
                     // Mark order as paid
                     OrdersTable.update({ OrdersTable.id eq orderId }) {
                         it[OrdersTable.paymentStatus] = "PAID"
+                        it[OrdersTable.completedAt] = Clock.System.now()
                         it[OrdersTable.mpesaTransactionCode] = txCode
                         it[OrdersTable.updatedAt] = now
                     }

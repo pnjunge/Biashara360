@@ -132,6 +132,8 @@ data class ProductRequest(
 
 @Serializable
 data class ProductResponse(
+    val stockMode: String = "PRODUCT",
+    val productStock: Int = 0,
     val id: String,
     val businessId: String,
     val sku: String,
@@ -286,6 +288,8 @@ data class OrderResponse(
     val serviceType: String = "RETAIL",
     val hospitalityTableId: String? = null,
     val serverUserId: String? = null,
+    val responsibleUserId: String? = null,
+    val responsibleUserName: String? = null,
     val guestCount: Int = 1,
     val tabStatus: String = "CLOSED",
     val mpesaTransactionCode: String?,
@@ -294,6 +298,8 @@ data class OrderResponse(
     val taxRate: Double = 0.0,
     val taxAmount: Double = 0.0,
     val subtotal: Double,
+    val paidAmount: Double = 0.0,
+    val outstandingAmount: Double = 0.0,
     val notes: String,
     val branchId: String? = null,
     val branchName: String? = null,
@@ -314,7 +320,8 @@ data class OrderItemResponse(
     val modifiers: List<MenuOption> = emptyList(),
     val itemNote: String = "",
     val discountAmount: Double = 0.0,
-    val complimentary: Boolean = false
+    val complimentary: Boolean = false,
+    val preparationStation: String? = null
 )
 
 @Serializable

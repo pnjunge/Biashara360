@@ -10,8 +10,9 @@ export function SettlementModal({ order, onClose, onComplete }: { order: OrderRe
   const [method, setMethod] = useState('CASH')
   const [phone, setPhone] = useState(order.customerPhone || '')
   const [profile, setProfile] = useState<BusinessProfileResponse | null>(null)
-  const half = (order.subtotal / 2).toFixed(2)
-  const [lines, setLines] = useState<SplitLine[]>([{method:'CASH',amount:half,phone:''},{method:'CASH',amount:(order.subtotal-Number(half)).toFixed(2),phone:''}])
+  const outstanding = order.outstandingAmount ?? order.subtotal
+  const half = (outstanding / 2).toFixed(2)
+  const [lines, setLines] = useState<SplitLine[]>([{method:'CASH',amount:half,phone:''},{method:'CASH',amount:(outstanding-Number(half)).toFixed(2),phone:''}])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -19,7 +20,7 @@ export function SettlementModal({ order, onClose, onComplete }: { order: OrderRe
     businessApi.getProfile().then(res => { if (res.success && res.data) setProfile(res.data) }).catch(() => undefined)
   }, [])
   const splitTotal = useMemo(() => lines.reduce((sum,line)=>sum+(Number(line.amount)||0),0),[lines])
-  const methods = [{value:'CASH',label:'Cash'},{value:'MPESA',label:'M-Pesa'},{value:'CARD',label:'Card'}]
+  const methods = [{value:'CASH',label:'Cash'},...((order.paidAmount||0)>0?[]:[{value:'MPESA',label:'M-Pesa'},{value:'CARD',label:'Card'}])]
   const splitMethods = methods.filter(item=>item.value==='CASH')
   const waitForMpesa = async () => {
     for (let attempt = 0; attempt < 30; attempt += 1) {
@@ -38,7 +39,7 @@ export function SettlementModal({ order, onClose, onComplete }: { order: OrderRe
         : method === 'MPESA' ? null : { ...order, paymentStatus: 'PAID', paymentMethod: method }
       if (mode === 'split') {
         if (lines.length < 2 || lines.some(line => !(Number(line.amount)>0))) throw new Error('Enter at least two valid payment amounts.')
-        if (Math.abs(splitTotal-order.subtotal)>0.01) throw new Error(`Split total must equal KES ${order.subtotal.toLocaleString()}.`)
+        if (Math.abs(splitTotal-outstanding)>0.01) throw new Error(`Split total must equal KES ${outstanding.toLocaleString()}.`)
         if (lines.some(line=>line.method==='MPESA'&&!line.phone.trim())) throw new Error('Enter a phone number for every M-Pesa payment.')
         const result = await hospitalityOpsApi.splitBill(order.id,lines.map(line=>({method:line.method,amount:Number(line.amount),phone:line.phone.trim()||null})))
         if (result.success === false) throw new Error(result.message || 'Could not split this bill.')
@@ -72,13 +73,13 @@ export function SettlementModal({ order, onClose, onComplete }: { order: OrderRe
   const update=(index:number,patch:Partial<SplitLine>)=>setLines(current=>current.map((line,i)=>i===index?{...line,...patch}:line))
   return <Modal title={`Settle ${order.orderNumber}`} onClose={onClose} footer={<><Btn variant="secondary" onClick={onClose}>Cancel</Btn><Btn disabled={saving} onClick={submit}>{saving?'Processing…':mode==='split'?'Confirm split':method==='MPESA'?'Send M-Pesa prompt':method==='CARD'?'Continue to card payment':`Confirm ${method}`}</Btn></>}>
     <div style={{display:'grid',gap:14}}>
-      <div style={{padding:16,background:'var(--b360-bg)',borderRadius:10}}><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>Amount due</div><div style={{fontSize:25,fontWeight:800}}>KES {order.subtotal.toLocaleString()}</div></div>
+      <div style={{padding:16,background:'var(--b360-bg)',borderRadius:10}}><div style={{fontSize:12,color:'var(--b360-text-secondary)'}}>Amount due</div><div style={{fontSize:25,fontWeight:800}}>KES {outstanding.toLocaleString()}</div></div>
       {error&&<div role="alert" style={{padding:10,borderRadius:8,background:'var(--b360-red-bg)',color:'var(--b360-red)',fontSize:12}}>{error}</div>}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><Btn variant={mode==='single'?'primary':'secondary'} onClick={()=>setMode('single')}>Single payment</Btn><Btn variant={mode==='split'?'primary':'secondary'} onClick={()=>setMode('split')}>Split bill</Btn></div>
       {mode==='single'?<><Select label="Payment method" value={method} onChange={setMethod} options={methods}/>{method==='MPESA'&&<Input label="M-Pesa phone" value={phone} onChange={setPhone}/>}<p style={{fontSize:12,color:'var(--b360-text-secondary)',margin:0}}>{method==='MPESA'?'The tab remains open until Safaricom confirms payment.':method==='CARD'?'You will continue to the secure hosted card checkout.':'Cash closes the receipt immediately.'}</p></>:<>
         {lines.map((line,index)=><div key={index} style={{display:'grid',gap:8,padding:10,border:'1px solid var(--b360-border)',borderRadius:9}}><Select label={`Payment ${index+1}`} value={line.method} onChange={value=>update(index,{method:value})} options={splitMethods}/><Input label="Amount (KES)" type="number" value={line.amount} onChange={value=>update(index,{amount:value})}/>{line.method==='MPESA'&&<Input label="M-Pesa phone" value={line.phone} onChange={value=>update(index,{phone:value})}/>}</div>)}
         <div style={{display:'flex',gap:8}}><Btn variant="secondary" onClick={()=>setLines(current=>[...current,{method:'CASH',amount:'',phone:''}])}>Add payment</Btn>{lines.length>2&&<Btn variant="danger" onClick={()=>setLines(current=>current.slice(0,-1))}>Remove last</Btn>}</div>
-        <div style={{fontSize:12,fontWeight:700,color:Math.abs(splitTotal-order.subtotal)<=.01?'var(--b360-green)':'var(--b360-red)'}}>Allocated KES {splitTotal.toLocaleString()} of KES {order.subtotal.toLocaleString()}</div><small style={{color:'var(--b360-text-secondary)'}}>Split cash collection is available here. Use separate receipts for mixed M-Pesa or card payments so each gateway payment remains independently traceable.</small>
+        <div style={{fontSize:12,fontWeight:700,color:Math.abs(splitTotal-outstanding)<=.01?'var(--b360-green)':'var(--b360-red)'}}>Allocated KES {splitTotal.toLocaleString()} of KES {outstanding.toLocaleString()}</div><small style={{color:'var(--b360-text-secondary)'}}>Split cash collection is available here. Use separate receipts for mixed M-Pesa or card payments so each gateway payment remains independently traceable.</small>
       </>}
     </div>
   </Modal>

@@ -386,7 +386,8 @@ class PaymentService(
         channel = this[PaymentsTable.channel],
         reconciled = this[PaymentsTable.reconciled],
         notes = this[PaymentsTable.notes],
-        transactionDate = this[PaymentsTable.transactionDate].toString()
+        transactionDate = this[PaymentsTable.transactionDate].toString(),
+        collectedByUserId = this[PaymentsTable.collectedByUserId]
     )
 }
 
@@ -396,7 +397,7 @@ data class PaymentResponse(
     val transactionCode: String, val amount: Double,
     val payerPhone: String, val payerName: String,
     val method: String, val status: String, val channel: String,
-    val reconciled: Boolean, val notes: String, val transactionDate: String
+    val reconciled: Boolean, val notes: String, val transactionDate: String, val collectedByUserId: String? = null
 )
 
 // ─── Dashboard Service ────────────────────────────────────────────────────────

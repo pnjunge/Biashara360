@@ -16,6 +16,7 @@ object HospitalityMenuProfilesTable : Table("hospitality_menu_profiles") {
     val ageRestricted=bool("age_restricted"); val minimumAge=integer("minimum_age").nullable(); val updatedAt=timestamp("updated_at"); override val primaryKey=PrimaryKey(productId)
 }
 object InventoryIngredientsTable : Table("inventory_ingredients") {
+    val purchaseUnit=varchar("purchase_unit",20).nullable(); val purchaseUnitSize=double("purchase_unit_size").default(1.0)
     val id=varchar("id",36); val businessId=varchar("business_id",36); val name=varchar("name",160); val unit=varchar("unit",20)
     val quantity=double("quantity"); val reorderLevel=double("reorder_level"); val unitCost=double("unit_cost"); val isActive=bool("is_active")
     val createdAt=timestamp("created_at"); val updatedAt=timestamp("updated_at"); override val primaryKey=PrimaryKey(id)
@@ -39,6 +40,7 @@ object PurchaseOrdersTable : Table("purchase_orders") {
     val id=varchar("id",36); val businessId=varchar("business_id",36); val supplierId=varchar("supplier_id",36); val orderNumber=varchar("order_number",60); val status=varchar("status",20); val orderedAt=timestamp("ordered_at"); val receivedAt=timestamp("received_at").nullable(); val totalCost=double("total_cost"); val notes=varchar("notes",500); val createdBy=varchar("created_by",36).nullable(); override val primaryKey=PrimaryKey(id)
 }
 object PurchaseOrderItemsTable : Table("purchase_order_items") {
+    val purchaseQuantity=double("purchase_quantity").nullable(); val purchaseUnit=varchar("purchase_unit",20).nullable(); val purchaseUnitCost=double("purchase_unit_cost").nullable(); val conversionFactor=double("conversion_factor").default(1.0)
     val id=varchar("id",36); val purchaseOrderId=varchar("purchase_order_id",36); val ingredientId=varchar("ingredient_id",36); val orderedQuantity=double("ordered_quantity"); val receivedQuantity=double("received_quantity"); val unitCost=double("unit_cost"); override val primaryKey=PrimaryKey(id)
 }
 object ManagerApprovalsTable : Table("manager_approvals") {
@@ -50,4 +52,18 @@ object AuditEventsTable : Table("audit_events") {
 }
 object OrderSplitPaymentsTable : Table("order_split_payments") {
     val id=varchar("id",36);val businessId=varchar("business_id",36);val orderId=varchar("order_id",36);val amount=double("amount");val method=varchar("method",20);val status=varchar("status",20);val transactionCode=varchar("transaction_code",100).nullable();val createdBy=varchar("created_by",36).nullable();val createdAt=timestamp("created_at");override val primaryKey=PrimaryKey(id)
+}
+
+object HospitalityStaffShiftsTable : Table("hospitality_staff_shifts") {
+    val summaryJson=text("summary_json").nullable()
+    val id=varchar("id",36); val businessId=varchar("business_id",36); val userId=varchar("user_id",36)
+    val openedAt=timestamp("opened_at"); val closedAt=timestamp("closed_at").nullable(); val status=varchar("status",20); val notes=varchar("notes",500)
+    override val primaryKey=PrimaryKey(id)
+}
+object HospitalityBillHandoversTable : Table("hospitality_bill_handovers") {
+    val id=varchar("id",36); val businessId=varchar("business_id",36); val orderId=varchar("order_id",36)
+    val fromUserId=varchar("from_user_id",36); val toUserId=varchar("to_user_id",36); val requestedBy=varchar("requested_by",36)
+    val status=varchar("status",20); val notes=varchar("notes",500); val balanceAtRequest=double("balance_at_request")
+    val requestedAt=timestamp("requested_at"); val decidedAt=timestamp("decided_at").nullable()
+    override val primaryKey=PrimaryKey(id)
 }

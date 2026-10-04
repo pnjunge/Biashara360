@@ -41,7 +41,7 @@ export default function OrderSoundAlerts({ hospitalityEnabled }: { hospitalityEn
     const listener = (event: Event) => {
       const type = (event as CustomEvent<OrderAlert>).detail
       if (!(type in melodies)) return
-      setMessage(type === 'placed' ? 'New kitchen or bar order' : type === 'ready' ? 'Kitchen or bar order ready' : 'New online order')
+      setMessage(type === 'placed' ? 'New kitchen order' : type === 'ready' ? 'Kitchen order ready' : 'New online order')
       play(type)
     }
     window.addEventListener('order-sound-alert', listener)
@@ -78,7 +78,7 @@ export default function OrderSoundAlerts({ hospitalityEnabled }: { hospitalityEn
   }
 
   return <div style={{display:'flex',alignItems:'center',gap:8}}>
-    <Btn small variant="secondary" icon={enabled ? <Bell size={14}/> : <BellOff size={14}/>} onClick={toggle} title="Kitchen orders, ready orders and online orders">{enabled ? 'Mute alerts' : 'Enable sound'}</Btn>
+    <Btn small variant="secondary" icon={enabled ? <Bell size={14}/> : <BellOff size={14}/>} onClick={toggle} title="Kitchen orders, ready food orders and online orders">{enabled ? 'Mute alerts' : 'Enable sound'}</Btn>
     <span role="status" aria-live="polite" style={{fontSize:12,maxWidth:160}}>{message}</span>
   </div>
 }

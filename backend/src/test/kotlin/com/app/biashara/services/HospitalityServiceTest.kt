@@ -19,9 +19,9 @@ class HospitalityServiceTest {
     }
 
     @Test
-    fun `food and drink categories use their preparation stations`() {
+    fun `only food categories create preparation tickets`() {
         assertEquals("KITCHEN", hospitalityStationFor("Food & Beverage"))
-        assertEquals("BAR", hospitalityStationFor("Beer & Wine"))
+        assertEquals(null, hospitalityStationFor("Beer & Wine"))
     }
     @Test
     fun `mixed order sends only food to kitchen and preserves full customer tab`() {
