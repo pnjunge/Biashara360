@@ -77,7 +77,7 @@ fun ScreenHeader(
                 color = Color(0xFF64748B)
             )
         }
-        
+
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -117,6 +117,9 @@ fun ScreenHeader(
                 }
 
                 DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                     expanded = showDatePickerDropdown,
                     onDismissRequest = { showDatePickerDropdown = false }
                 ) {
@@ -170,6 +173,9 @@ fun ScreenHeader(
                 }
 
                 DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                     expanded = showFilterDropdown,
                     onDismissRequest = { showFilterDropdown = false }
                 ) {
@@ -240,7 +246,7 @@ fun DonutChart(
             val size = size.minDimension
             val strokeWidth = 24.dp.toPx()
             val radius = (size - strokeWidth) / 2
-            
+
             var startAngle = -90f
             slices.forEach { (value, color) ->
                 val sweepAngle = value * 360f
@@ -416,6 +422,9 @@ fun DesktopDashboardScreen(
                         }
                     }
                     DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                         expanded = periodMenuExpanded,
                         onDismissRequest = { periodMenuExpanded = false }
                     ) {
@@ -482,6 +491,9 @@ fun DesktopDashboardScreen(
                         }
                     }
                     DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                         expanded = filterMenuExpanded,
                         onDismissRequest = { filterMenuExpanded = false }
                     ) {
@@ -1018,6 +1030,9 @@ fun DesktopDashboardScreen(
 
     if (toastMessage != null) {
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { toastMessage = null },
             title = { Text("Feature Notification") },
             text = { Text(toastMessage!!) },
@@ -1354,7 +1369,7 @@ fun DesktopOrderRow(orderNo: String, customer: String, status: String, amount: S
     val isPaid = status == "PAID"
     val badgeBg = if (isPaid) Color(0xFFE6F7F0) else Color(0xFFFEF3C7)
     val badgeText = if (isPaid) B360Green else B360Amber
-    
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1419,19 +1434,7 @@ fun DesktopQuickActionButton(
                 color = color,
                 maxLines = 1
             )
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = Color.White.copy(alpha = 0.8f),
-                border = BorderStroke(1.dp, borderColor)
-            ) {
-                Text(
-                    text = shortcut,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = color.copy(alpha = 0.85f),
-                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                )
-            }
+
         }
     }
 }
@@ -1782,6 +1785,9 @@ fun DesktopInventoryScreen(
         }
 
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = {
                 showAddProductDialog = false
                 editingProduct = null
@@ -1808,12 +1814,12 @@ fun DesktopInventoryScreen(
                 }
             },
             text = {
-                Column(
+                DesktopScrollColumn(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier
                         .width(680.dp)
                         .heightIn(max = 650.dp)
-                        .verticalScroll(rememberScrollState())
+
                         .padding(end = 8.dp)
                         .onPreviewKeyEvent { keyEvent ->
                             if (keyEvent.type == KeyEventType.KeyDown) {
@@ -1900,7 +1906,10 @@ fun DesktopInventoryScreen(
                             shape = RoundedCornerShape(8.dp),
                             colors = productDialogFieldColors()
                         )
-                        DropdownMenu(expanded = categoryMenuOpen, onDismissRequest = { categoryMenuOpen = false }) {
+                        DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,expanded = categoryMenuOpen, onDismissRequest = { categoryMenuOpen = false }) {
                             val categoryOptions = (
                                 listOf(
                                 "ELECTRONICS", "CLOTHING", "FOOD", "BEVERAGES",
@@ -1989,9 +1998,7 @@ fun DesktopInventoryScreen(
                 ) {
                     Text("Cancel", color = Color(0xFF334155), fontWeight = FontWeight.SemiBold)
                 }
-            },
-            shape = RoundedCornerShape(22.dp),
-            containerColor = Color.White
+            }
         )
     }
 
@@ -2155,6 +2162,9 @@ fun DesktopCustomersScreen(
             it.customerId == customer.id || it.customerPhone == customer.phone
         }
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { selectedCustomer = null },
             icon = {
                 Surface(shape = CircleShape, color = Color(0xFFE6F7F0)) {
@@ -2249,10 +2259,10 @@ fun DesktopCustomersScreen(
                         }
                     }
             ) {
-                Column(
+                DesktopScrollColumn(
                     modifier = Modifier
                         .heightIn(max = 760.dp)
-                        .verticalScroll(rememberScrollState())
+
                         .padding(horizontal = 30.dp, vertical = 26.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -2513,6 +2523,9 @@ fun DesktopExpensesScreen(
         var error by remember { mutableStateOf<String?>(null) }
 
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { showAddExpenseDialog = false },
             title = { Text("Add New Expense", fontWeight = FontWeight.Bold) },
             text = {
@@ -2555,6 +2568,9 @@ fun DesktopExpensesScreen(
                             }
                         )
                         DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                             expanded = dropdownExpanded,
                             onDismissRequest = { dropdownExpanded = false },
                             modifier = Modifier.width(360.dp)
@@ -2826,12 +2842,11 @@ fun DesktopSettingsScreen(
                         }
                     }
 
-                    Column(
+                    DesktopScrollColumn(
                         Modifier
                             .fillMaxSize()
-                            .verticalScroll(scrollState),
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
-                    ) {
+                            ,
+                        verticalArrangement = Arrangement.spacedBy(20.dp), scrollState = scrollState) {
                         // Section 1: Business Profile
                         SettingsSection(
                             title = "Business Profile",
@@ -3115,7 +3130,7 @@ fun SettingsField(
                 fontSize = 14.sp
             )
         }
-        
+
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(2f),
@@ -3236,13 +3251,12 @@ fun DesktopCyberSourceSettingsScreen(
 
     val scrollState = rememberScrollState()
 
-    Column(
+    DesktopScrollColumn(
         Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+
             .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
+        verticalArrangement = Arrangement.spacedBy(20.dp), scrollState = scrollState) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -3401,14 +3415,13 @@ fun DesktopReceiptTemplateScreen(
 
     val scrollState = rememberScrollState()
 
-    Column(
+    DesktopScrollColumn(
         Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+
             .background(Color(0xFFF8FAFC))
             .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
+        verticalArrangement = Arrangement.spacedBy(24.dp), scrollState = scrollState) {
         // Header Row
         Row(
             modifier = Modifier.fillMaxWidth(),

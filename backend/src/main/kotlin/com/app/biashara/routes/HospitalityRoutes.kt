@@ -76,7 +76,7 @@ fun Route.hospitalityRoutes() {
             val userId=call.principal<JWTPrincipal>()!!.payload.subject
             val request=call.receive<HospitalityOrderRequest>()
             if(request.items.any{it.complimentary||it.discountAmount>0}) return@post call.respond(HttpStatusCode.Forbidden,ApiResponse<Unit>(false,message="Create the tab at full price, then request a discount or complimentary approval"))
-            val result=runCatching { service.createOrder(call.businessId(),userId,request,call.request.headers["X-Client-Platform"]) }.getOrElse {
+            val result=runCatching { service.createOrder(call.businessId(),userId,request,call.request.headers["X-Client-Platform"],call.request.headers["X-Client-Reference"]) }.getOrElse {
                 call.respond(HttpStatusCode.BadRequest,ApiResponse<Unit>(false,message=it.message?:"Could not open this tab"))
                 return@post
             }

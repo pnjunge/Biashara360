@@ -17,8 +17,10 @@ import kotlinx.serialization.json.Json
 var BASE_URL = "https://api.biashara360.co.ke/v1"
 var CLIENT_PLATFORM = "web"
 
-fun createHttpClient(tokenStorage: TokenStorage): HttpClient {
-    return HttpClient {
+fun createHttpClient(tokenStorage: TokenStorage, offlineStore: com.app.biashara.data.offline.OfflineStore? = null): HttpClient {
+    com.app.biashara.data.offline.NativeOffline.store = offlineStore
+    val engine = com.app.biashara.data.offline.nativeNetworkEngine()
+    val client = HttpClient(if (offlineStore != null) com.app.biashara.data.offline.OfflineEngine(engine, offlineStore) else engine) {
         install(ContentNegotiation) {
             json(Json {
                 prettyPrint = true
@@ -67,6 +69,8 @@ fun createHttpClient(tokenStorage: TokenStorage): HttpClient {
             header("X-Client-Platform", CLIENT_PLATFORM)
         }
     }
+    if (offlineStore != null) com.app.biashara.data.offline.startOfflineReplay(client, offlineStore)
+    return client
 }
 
 interface TokenStorage {

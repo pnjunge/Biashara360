@@ -114,7 +114,7 @@ sealed class AppScreen(
     object Tax : AppScreen("tax", "Tax & eTIMS", Icons.Default.AccountBalance)
     object KRA : AppScreen("kra", "KRA", Icons.Default.Gavel)
     object Social : AppScreen("social", "Social Inbox", Icons.Default.Forum)
-    object OpenTabs : AppScreen("open_tabs", "Open Tabs", Icons.Default.ReceiptLong)
+    object OpenTabs : AppScreen("open_tabs", "Open Tabs & Kitchen", Icons.Default.ReceiptLong)
     object CyberSource : AppScreen("cybersource", "CyberSource Settings", Icons.Default.CreditCard)
     object Mpesa : AppScreen("mpesa", "M-Pesa Settings", Icons.Default.Phone)
     object ReceiptTemplate : AppScreen("receipt_template", "Receipt Customization", Icons.Default.ReceiptLong)
@@ -145,7 +145,7 @@ private val desktopNavGroups = listOf(
     DesktopNavGroup(
         key = "BUSINESS",
         label = "BUSINESS",
-        screens = listOf(AppScreen.HotelRooms, AppScreen.Hospitality, AppScreen.HospitalityOperations, AppScreen.OpenTabs, AppScreen.KitchenDisplay, AppScreen.Appointments)
+        screens = listOf(AppScreen.HotelRooms, AppScreen.Hospitality, AppScreen.Appointments)
     ),
     DesktopNavGroup(
         key = "FINANCE",
@@ -199,6 +199,22 @@ internal fun desktopMenu(screen: AppScreen): String = when (screen) {
             AppScreen.Tax -> "TAX"; AppScreen.KRA -> "KRA"; AppScreen.Social -> "SOCIAL"; AppScreen.OpenTabs -> "OPEN_TABS"
             AppScreen.Settings, AppScreen.CyberSource, AppScreen.Mpesa, AppScreen.ReceiptTemplate -> "SETTINGS"
 }
+
+internal fun desktopAllowsMenu(access: NativeAccess, screen: AppScreen): Boolean =
+    if (screen in hospitalityScreens) desktopHospitalityTabs(access).isNotEmpty()
+    else access.allows(desktopMenu(screen))
+
+internal val hospitalityScreens = setOf(AppScreen.Hospitality, AppScreen.OpenTabs, AppScreen.KitchenDisplay, AppScreen.HospitalityOperations)
+
+internal fun desktopHospitalityTabs(access: NativeAccess?): List<Int> = buildList {
+    if (access?.allows("HOSPITALITY") == true) add(0)
+    if (access?.allows("OPEN_TABS") == true) add(1)
+    if (access?.allows("HOSPITALITY") == true) add(2)
+    if (access?.allows("HOSPITALITY") == true || access?.allows("HOSPITALITY_OPS") == true) add(3)
+}
+
+private fun desktopMenuSelected(screen: AppScreen, current: AppScreen): Boolean =
+    screen == current || (screen == AppScreen.Hospitality && current in hospitalityScreens)
 
 private fun screenShortcut(screen: AppScreen): String? = when (screen) {
     AppScreen.Dashboard -> "1"
@@ -271,18 +287,7 @@ private fun DesktopSidebarItem(
                         color = textColor
                     )
                     Spacer(Modifier.weight(1f))
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = if (isSelected) Color.White.copy(alpha = 0.2f) else Color(0xFFD1FAE5)
-                    ) {
-                        Text(
-                            text = if (isHovered && shortcut != null) "$shortcutModifier+$shortcut" else "F1",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSelected) Color.White else Color(0xFFC4DDE0),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
+
                 }
             }
         }
@@ -328,7 +333,7 @@ private fun DesktopSidebarItem(
                     Spacer(Modifier.weight(1f))
 
                     // Operational count badge (always visible)
-                    if (badge != null && (!isHovered || shortcut == null)) {
+                    if (badge != null) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
                             color = if (isSelected) Color(0xFFD1FAE5) else Color(0xFFF1F5F9)
@@ -343,21 +348,7 @@ private fun DesktopSidebarItem(
                         }
                     }
 
-                    // Shortcut badge - ONLY visible on hover to avoid visual noise!
-                    if (isHovered && shortcut != null) {
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = Color(0xFFE2E8F0).copy(alpha = 0.85f)
-                        ) {
-                            Text(
-                                text = "$shortcutModifier+$shortcut",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF475569),
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
+
                 }
             }
         }
@@ -451,6 +442,9 @@ fun Biashara360DesktopApp(
 
         sessionWarningSeconds?.let { seconds ->
             AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                 onDismissRequest = {},
                 title = { Text("Session Expiring", fontWeight = FontWeight.Bold) },
                 text = { Text("You will be signed out in $seconds seconds due to inactivity.") },
@@ -501,6 +495,7 @@ fun Biashara360DesktopAppContent(
     var hospitalityEnabled by remember { mutableStateOf(false) }
     val access by NativeAccessSession.access.collectAsState()
     val user by UserSession.currentUser.collectAsState()
+    val offlineState by com.app.biashara.data.offline.NativeOffline.state.collectAsState()
     val syncStatus by com.app.biashara.data.remote.NativeSyncStatus.state.collectAsState()
     var accessLoading by remember { mutableStateOf(true) }
     var accessError by remember { mutableStateOf<String?>(null) }
@@ -532,7 +527,7 @@ fun Biashara360DesktopAppContent(
             AppScreen.Pos -> "orders.create"
             else -> null
         }
-        return access?.allows(menu) == true && (permission == null || access?.permits(permission) == true) &&
+        return access?.let { desktopAllowsMenu(it, screen) } == true && (permission == null || access?.permits(permission) == true) &&
             (menu !in setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS") || hospitalityEnabled)
     }
     val visibleScreens = appScreens.filter { canOpen(it) }
@@ -670,7 +665,7 @@ fun Biashara360DesktopAppContent(
                                     DesktopSidebarItem(
                                         screen = screen,
                                         isExpanded = isExpanded,
-                                        isSelected = currentScreen == screen,
+                                        isSelected = desktopMenuSelected(screen, currentScreen),
                                         shortcut = screenShortcut(screen),
                                         badge = null,
                                         isProminentPos = isPos,
@@ -707,7 +702,7 @@ fun Biashara360DesktopAppContent(
                                             DesktopSidebarItem(
                                                 screen = screen,
                                                 isExpanded = isExpanded,
-                                                isSelected = currentScreen == screen,
+                                                isSelected = desktopMenuSelected(screen, currentScreen),
                                                 shortcut = screenShortcut(screen),
                                                 badge = null,
                                                 onClick = { navigationViewModel.navigateTo(screen) }
@@ -813,21 +808,7 @@ fun Biashara360DesktopAppContent(
                                         }
                                         innerTextField()
                                     }
-                                    if (searchQuery.isEmpty()) {
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = Color(0xFFE2E8F0).copy(alpha = 0.8f)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(shortcutModifier, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
-                                                Text("K", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
-                                            }
-                                        }
-                                    } else {
+                                    if (searchQuery.isNotEmpty()) {
                                         Icon(
                                             Icons.Default.Close,
                                             contentDescription = "Clear",
@@ -908,7 +889,10 @@ fun Biashara360DesktopAppContent(
                             )
                         }
 
-                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,expanded = showMenu, onDismissRequest = { showMenu = false }) {
                             DropdownMenuItem(
                                 text = { Text("Sign Out") },
                                 onClick = {
@@ -925,7 +909,7 @@ fun Biashara360DesktopAppContent(
                         NavigationBar {
                             visibleScreens.forEach { screen ->
                                 NavigationBarItem(
-                                    selected = currentScreen == screen,
+                                    selected = desktopMenuSelected(screen, currentScreen),
                                     onClick = { navigationViewModel.navigateTo(screen) },
                                     icon = { Icon(screen.icon, contentDescription = screen.title) },
                                     label = { Text(screen.title, maxLines = 1) }
@@ -997,16 +981,23 @@ fun Biashara360DesktopAppContent(
             }
         }
 
+        DesktopOfflineQueueButton()
+
         // Bottom status bar tailored for desktop operations (no duplicate time/battery!)
         DesktopStatusBar(
             syncState = "Sync status",
             syncSubtitle = when {
+                offlineState.error != null -> "Sync needs review: ${offlineState.error}"
+                offlineState.pending > 0 -> "${if (offlineState.offline) "Offline · " else ""}${offlineState.pending} actions pending sync"
+                offlineState.offline -> "Offline · cached data"
                 syncStatus.active > 0 -> "Syncing…"
                 syncStatus.failures.isNotEmpty() -> "Sync failed: ${syncStatus.failures.sorted().joinToString()}"
                 syncStatus.lastSuccess != null -> "Last synced: ${syncStatus.lastSuccess!!.toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi")).time.toString().take(8)}"
                 else -> "Waiting for sync"
             },
             syncColor = when {
+                offlineState.error != null -> Color(0xFFDC2626)
+                offlineState.offline || offlineState.pending > 0 -> Color(0xFFF59E0B)
                 syncStatus.active > 0 -> Color(0xFFF59E0B)
                 syncStatus.failures.isNotEmpty() -> Color(0xFFDC2626)
                 syncStatus.lastSuccess != null -> Color(0xFF00A676)
@@ -1792,6 +1783,9 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
 
     if (showForgotPassword) {
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { showForgotPassword = false },
             title = { Text("Reset Password", fontWeight = FontWeight.Bold) },
             text = {

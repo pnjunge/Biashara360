@@ -348,12 +348,6 @@ fun DesktopStatusBar(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = "$shortcutModifier+K",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF64748B)
-                )
-                Text(
                     text = "Command palette",
                     fontSize = 11.sp,
                     color = Color(0xFF475569)

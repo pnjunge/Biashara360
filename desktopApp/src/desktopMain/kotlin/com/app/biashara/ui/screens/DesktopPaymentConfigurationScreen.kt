@@ -46,7 +46,7 @@ fun DesktopPaymentConfigurationScreen(
     val credentialsReady = mpesa.configs.count { it.passkeyConfigured } +
         if (cyberSource.config?.secretConfigured == true) 1 else 0
 
-    LazyColumn(
+    DesktopLazyColumn(
         modifier = Modifier.fillMaxSize().background(PaymentSurface),
         contentPadding = PaddingValues(28.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)

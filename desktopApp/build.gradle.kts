@@ -17,6 +17,7 @@ kotlin {
         val desktopTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                implementation(libs.sqldelight.sqlite.driver)
                 implementation("io.ktor:ktor-client-mock:${libs.versions.ktor.get()}")
             }
         }

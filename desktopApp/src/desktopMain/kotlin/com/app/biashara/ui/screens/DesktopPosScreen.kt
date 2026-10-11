@@ -361,15 +361,15 @@ fun DesktopPosScreen(
     val grandTotal = subtotal + tax
 
     Row(
-        modifier = Modifier.fillMaxSize().background(Color(0xFFF4F7FB)).padding(20.dp)
+        modifier = Modifier.fillMaxSize().background(Color(0xFFF4F7FB)).padding(12.dp)
     ) {
         // Left Side: Product Selection Grid
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .padding(end = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(end = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 Column {
@@ -391,14 +391,14 @@ fun DesktopPosScreen(
                     val selected = selectedCategory == category
                     Surface(
                         onClick = { selectedCategory = category },
-                        modifier = Modifier.widthIn(min = 128.dp).height(82.dp),
+                        modifier = Modifier.widthIn(min = 96.dp).height(52.dp),
                         shape = RoundedCornerShape(12.dp),
                         color = if (selected) B360Green else Color.White,
                         border = BorderStroke(1.dp, if (selected) B360Green else Color(0xFFE4EBF3))
                     ) {
                         Column(Modifier.padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                            Icon(if (category == "All") Icons.Default.GridView else Icons.Default.RestaurantMenu, null, tint = if (selected) Color.White else Color(0xFF526580), modifier = Modifier.size(25.dp))
-                            Spacer(Modifier.height(8.dp))
+                            Icon(if (category == "All") Icons.Default.GridView else Icons.Default.RestaurantMenu, null, tint = if (selected) Color.White else Color(0xFF526580), modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.height(4.dp))
                             Text(if (category == "All") "All Items" else category, color = if (selected) Color.White else Color(0xFF526580), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -433,7 +433,7 @@ fun DesktopPosScreen(
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Box(
                             modifier = Modifier
@@ -491,8 +491,8 @@ fun DesktopPosScreen(
                     }
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 220.dp),
+                DesktopLazyGrid(
+                    columns = GridCells.Adaptive(minSize = 170.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth().weight(1f)
@@ -525,7 +525,7 @@ fun DesktopPosScreen(
                                 modifier = Modifier.padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Box(Modifier.fillMaxWidth().height(176.dp).clip(RoundedCornerShape(10.dp))) {
+                                Box(Modifier.fillMaxWidth().height(112.dp).clip(RoundedCornerShape(10.dp))) {
                                     PosProductImage(p, Modifier.fillMaxSize())
                                     if (isOutOfStock) {
                                         Surface(Modifier.align(Alignment.TopStart).padding(8.dp), color = Color(0xFF64748B), shape = RoundedCornerShape(8.dp)) {
@@ -620,19 +620,20 @@ fun DesktopPosScreen(
 
         // Right Side: Shopping Cart Panel
         Card(
-            modifier = Modifier.widthIn(min = 400.dp, max = 480.dp).fillMaxHeight(),
+            modifier = Modifier.widthIn(min = 390.dp, max = 430.dp).fillMaxHeight(),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             border = BorderStroke(1.dp, Color(0xFFE4EBF3))
         ) {
             val cartScrollState = rememberScrollState()
-            Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxWidth().weight(1f)) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(cartScrollState)
-                        .padding(22.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                 // Cart Title Row
                 Row(
@@ -670,7 +671,10 @@ fun DesktopPosScreen(
                             IconButton(onClick = { showCartMenu = true }) {
                                 Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = Color.Gray)
                             }
-                            DropdownMenu(expanded = showCartMenu, onDismissRequest = { showCartMenu = false }) {
+                            DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,expanded = showCartMenu, onDismissRequest = { showCartMenu = false }) {
                                 DropdownMenuItem(
                                     text = { Text("Clear cart") },
                                     onClick = {
@@ -771,6 +775,9 @@ if (isHospitalityActive) {
                                                     trailingIcon = { IconButton(onClick = { tableDropdownExpanded = true }) { Icon(Icons.Default.ArrowDropDown, null) } }
                                                 )
                                                 DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                                                     expanded = tableDropdownExpanded,
                                                     onDismissRequest = { tableDropdownExpanded = false }
                                                 ) {
@@ -867,7 +874,7 @@ if (isHospitalityActive) {
                     ) {
                         if (cart.isEmpty()) {
                             Box(
-                                modifier = Modifier.fillMaxWidth().height(200.dp),
+                                modifier = Modifier.fillMaxWidth().height(92.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(
@@ -996,6 +1003,9 @@ if (isHospitalityActive) {
                             )
 
                             DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                                 expanded = expanded,
                                 onDismissRequest = { expanded = false },
                                 modifier = Modifier.fillMaxWidth(0.9f)
@@ -1161,6 +1171,19 @@ if (isHospitalityActive) {
 
                         Spacer(Modifier.height(4.dp))
 
+                    }
+                }
+                }
+                VerticalScrollbar(
+                    adapter = rememberScrollbarAdapter(cartScrollState),
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .fillMaxHeight()
+                        .padding(horizontal = 4.dp, vertical = 8.dp)
+                )
+                }
+                if (successOrderNumber == null) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         // Checkout calculations
                         Column(
                             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -1350,7 +1373,7 @@ if (isHospitalityActive) {
                         }
 
                         if (isHospitalityActive) {
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(4.dp))
                             Button(
                                 onClick = {
                                     if (isOpeningTab || isCheckingOut) return@Button
@@ -1433,18 +1456,14 @@ if (isHospitalityActive) {
                 }
                 }
 
-                VerticalScrollbar(
-                    adapter = rememberScrollbarAdapter(cartScrollState),
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .fillMaxHeight()
-                        .padding(horizontal = 4.dp, vertical = 8.dp)
-                )
-            }
+
         }
 
         tabActionError?.let { message ->
             AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                 onDismissRequest = { tabActionError = null },
                 title = { Text("Could not open tab") },
                 text = { Text(message) },

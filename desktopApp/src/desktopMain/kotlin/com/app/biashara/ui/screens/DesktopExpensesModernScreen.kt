@@ -223,11 +223,11 @@ fun DesktopExpensesModernScreen(
         }
     }
 
-    Column(
+    DesktopScrollColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(ExpensesBg)
-            .verticalScroll(rememberScrollState())
+
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
@@ -330,6 +330,9 @@ fun DesktopExpensesModernScreen(
                     }
 
                     DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                         expanded = periodDropdownOpen,
                         onDismissRequest = { periodDropdownOpen = false }
                     ) {
@@ -672,6 +675,9 @@ fun DesktopExpensesModernScreen(
                             }
 
                             DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                                 expanded = categoryFilterMenuOpen,
                                 onDismissRequest = { categoryFilterMenuOpen = false }
                             ) {
@@ -713,6 +719,9 @@ fun DesktopExpensesModernScreen(
                             }
 
                             DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                                 expanded = moreMenuOpen,
                                 onDismissRequest = { moreMenuOpen = false }
                             ) {
@@ -863,6 +872,9 @@ fun DesktopExpensesModernScreen(
     // --- Delete Confirmation Dialog ---
     expenseToDelete?.let { item ->
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { expenseToDelete = null },
             title = { Text("Delete Expense", fontWeight = FontWeight.Bold, color = ExpensesNavy) },
             text = { Text("Are you sure you want to delete “${item.description}”? This action cannot be undone.") },
@@ -1425,9 +1437,9 @@ private fun AddOrEditExpenseDialog(
             color = Color.White,
             shadowElevation = 18.dp
         ) {
-            Column(
+            DesktopScrollColumn(
                 modifier = Modifier
-                    .verticalScroll(rememberScrollState())
+
                     .padding(26.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -1508,6 +1520,9 @@ private fun AddOrEditExpenseDialog(
                             shape = RoundedCornerShape(8.dp)
                         )
                         DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                             expanded = categoryMenuOpen,
                             onDismissRequest = { categoryMenuOpen = false },
                             modifier = Modifier.width(300.dp)
@@ -1541,6 +1556,9 @@ private fun AddOrEditExpenseDialog(
                             shape = RoundedCornerShape(8.dp)
                         )
                         DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                             expanded = paymentMenuOpen,
                             onDismissRequest = { paymentMenuOpen = false }
                         ) {

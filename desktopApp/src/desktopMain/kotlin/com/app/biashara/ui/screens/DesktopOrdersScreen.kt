@@ -204,12 +204,12 @@ fun DesktopOrdersScreen(
     val totalCodOrders = state.orders.count { it.paymentStatus == PaymentStatus.COD }
     val totalPaidSales = state.orders.filter { it.paymentStatus == PaymentStatus.PAID }.sumOf { it.subtotal }
 
-    Column(
+    DesktopScrollColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF8FAFC))
             .padding(28.dp)
-            .verticalScroll(rememberScrollState()),
+            ,
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // ── 1. Page Header (Icon box + Title + Breadcrumbs + Right Action Buttons) ──
@@ -400,7 +400,10 @@ fun DesktopOrdersScreen(
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
                     }
                 }
-                DropdownMenu(expanded = showDateDropdown, onDismissRequest = { showDateDropdown = false }) {
+                DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,expanded = showDateDropdown, onDismissRequest = { showDateDropdown = false }) {
                     listOf("All Dates", "Today", "Yesterday", "Last 7 Days", "Last 30 Days", "This Month").forEach { option ->
                         DropdownMenuItem(
                             text = { Text(option) },
@@ -433,7 +436,10 @@ fun DesktopOrdersScreen(
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
                     }
                 }
-                DropdownMenu(expanded = showStatusDropdown, onDismissRequest = { showStatusDropdown = false }) {
+                DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,expanded = showStatusDropdown, onDismissRequest = { showStatusDropdown = false }) {
                     listOf("All Statuses", "Paid", "Pending", "COD", "Cancelled").forEach { option ->
                         DropdownMenuItem(
                             text = { Text(option) },
@@ -466,7 +472,10 @@ fun DesktopOrdersScreen(
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
                     }
                 }
-                DropdownMenu(expanded = showCustomerDropdown, onDismissRequest = { showCustomerDropdown = false }) {
+                DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,expanded = showCustomerDropdown, onDismissRequest = { showCustomerDropdown = false }) {
                     distinctCustomers.forEach { option ->
                         DropdownMenuItem(
                             text = { Text(option) },
@@ -805,7 +814,10 @@ fun DesktopOrdersScreen(
                                         }
                                     }
 
-                                    DropdownMenu(expanded = showRowMenu, onDismissRequest = { showRowMenu = false }) {
+                                    DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,expanded = showRowMenu, onDismissRequest = { showRowMenu = false }) {
                                         DropdownMenuItem(
                                             text = { Text("Amend Order") },
                                             enabled = canAmend,
@@ -965,7 +977,10 @@ fun DesktopOrdersScreen(
                                     Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
                                 }
                             }
-                            DropdownMenu(expanded = showPageSizeDropdown, onDismissRequest = { showPageSizeDropdown = false }) {
+                            DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,expanded = showPageSizeDropdown, onDismissRequest = { showPageSizeDropdown = false }) {
                                 listOf(10, 20, 50, 100).forEach { size ->
                                     DropdownMenuItem(
                                         text = { Text("$size per page") },
@@ -989,7 +1004,7 @@ fun DesktopOrdersScreen(
         val order = selectedOrder!!
         Dialog(onDismissRequest = { selectedOrder = null }) {
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(24.dp),
                 color = Color.White,
                 tonalElevation = 8.dp,
                 modifier = Modifier
@@ -1098,7 +1113,7 @@ fun DesktopOrdersScreen(
                                 Text("Subtotal", Modifier.weight(1.1f), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569))
                             }
                             HorizontalDivider(color = Color(0xFFE2E8F0))
-                            Column(modifier = Modifier.heightIn(max = 200.dp).verticalScroll(rememberScrollState())) {
+                            DesktopScrollColumn(modifier = Modifier.heightIn(max = 200.dp)) {
                                 order.items.forEach { item ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
@@ -1177,6 +1192,9 @@ fun DesktopOrdersScreen(
         var amendedPayment by remember(order.id) { mutableStateOf(order.paymentStatus) }
         var amendedDelivery by remember(order.id) { mutableStateOf(order.deliveryStatus) }
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { orderToAmend = null },
             title = { Text("Amend ${order.orderNumber}") },
             text = {
@@ -1225,6 +1243,9 @@ fun DesktopOrdersScreen(
     // ── 9. Cancel Dialog ──
     orderToCancel?.let { order ->
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { orderToCancel = null },
             title = { Text("Cancel ${order.orderNumber}?") },
             text = {
@@ -1250,6 +1271,9 @@ fun DesktopOrdersScreen(
     // ── 10. Void Dialog ──
     orderToVoid?.let { order ->
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { orderToVoid = null },
             title = { Text("Void ${order.orderNumber}?") },
             text = {

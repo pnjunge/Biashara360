@@ -98,6 +98,7 @@ class AuthRepositoryImpl(
             client.post("$BASE_URL/auth/logout")
         } catch (_: Exception) { /* best-effort */ }
         tokenStorage.clearTokens()
+        com.app.biashara.data.offline.NativeOffline.store?.clearUser()
         UserSession.clearUser()
     }
 
@@ -170,12 +171,19 @@ class AuthRepositoryImpl(
 
     override suspend fun loginWithBiometric(): Result<Unit> = runCatching {
         if (UserSession.isLoggedIn()) return@runCatching
-        if (!tokenStorage.restoreBiometricSession()) {
+        if (tokenStorage.getAccessToken() == null && !tokenStorage.restoreBiometricSession()) {
             throw Exception("No account is linked. Sign in with your password, then enable fingerprint login in Settings.")
         }
         refreshToken().fold(
             onSuccess = { },
-            onFailure = {
+            onFailure = { failure ->
+                val saved = com.app.biashara.data.offline.NativeOffline.store?.savedUser()
+                if (com.app.biashara.data.offline.isOfflineFailure(failure as? Exception ?: Exception(failure)) && saved != null &&
+                    (Clock.System.now() - saved.createdAt).inWholeHours in 0..23 && tokenStorage.getAccessToken() != null) {
+                    UserSession.setUser(saved)
+                    com.app.biashara.data.offline.NativeOffline.update(offline = true)
+                    return@fold
+                }
                 tokenStorage.clearTokens()
                 tokenStorage.clearBiometricSession()
                 throw Exception("Your saved session has expired. Please sign in again.")
@@ -236,6 +244,7 @@ class AuthRepositoryImpl(
                 createdAt = Clock.System.now()
             )
         )
+        UserSession.currentUser.value?.let { com.app.biashara.data.offline.NativeOffline.store?.saveUser(it) }
     }
 
     private suspend fun refreshSessionTimeoutPolicy() {

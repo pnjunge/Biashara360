@@ -101,7 +101,15 @@ fun Biashara360App(
     var sessionWarningSeconds by remember { mutableStateOf<Int?>(null) }
     val networkAvailable = rememberNetworkAvailable()
 
+    val offlineState by com.app.biashara.data.offline.NativeOffline.state.collectAsState()
     val navController = rememberNavController()
+    LaunchedEffect(Unit) {
+        if (tokenStorage.getAccessToken() != null && !UserSession.isLoggedIn()) {
+            authRepository.loginWithBiometric().onSuccess {
+                navController.navigate(Screen.Dashboard.route) { popUpTo(0) { inclusive = true } }
+            }
+        }
+    }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     var hospitalityEnabled by remember { mutableStateOf(false) }
@@ -238,7 +246,9 @@ fun Biashara360App(
     ) {
     Scaffold(
         topBar = {
-            if (!networkAvailable) {
+            Column {
+            DesktopOfflineQueueButton()
+            if (!networkAvailable || offlineState.pending > 0 || offlineState.error != null) {
                 Surface(color = Color(0xFFFEF3C7), modifier = Modifier.fillMaxWidth()) {
                     Row(
                         Modifier.statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -247,13 +257,14 @@ fun Biashara360App(
                     ) {
                         Icon(Icons.Filled.CloudOff, contentDescription = null, tint = Color(0xFF92400E))
                         Text(
-                            "Offline — showing cached data. Saving and payments are unavailable.",
+                            offlineState.error ?: "${if (!networkAvailable) "Offline · " else ""}${offlineState.pending} actions pending sync · Cash/COD available",
                             color = Color(0xFF92400E),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
+            }
             }
         },
         bottomBar = {

@@ -353,7 +353,7 @@ class OrderService(
 
         if(hospitalityOrder) {
             if(OrderItemsTable.select { (OrderItemsTable.orderId eq orderId) and (OrderItemsTable.preparationStation eq "KITCHEN") }.any()) KitchenTicketsTable.insert {
-                it[id]=generateId();it[KitchenTicketsTable.businessId]=businessId;it[KitchenTicketsTable.orderId]=orderId;it[station]="KITCHEN";it[status]="NEW";it[notes]=req.notes.take(500);it[createdAt]=now;it[updatedAt]=now
+                it[id]=generateId();it[KitchenTicketsTable.businessId]=businessId;it[KitchenTicketsTable.orderId]=orderId;it[station]="KITCHEN";it[status]="PREPARING";it[notes]=req.notes.take(500);it[createdAt]=now;it[updatedAt]=now
             }
             if(req.hospitalityTableId!=null && req.tabStatus in HospitalityService.ACTIVE_TAB_STATUSES && initialStatuses.payment!="PAID") HospitalityTablesTable.update({ HospitalityTablesTable.id eq req.hospitalityTableId }) { it[status]="OCCUPIED";it[updatedAt]=now }
         }

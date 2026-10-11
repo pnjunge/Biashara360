@@ -343,7 +343,7 @@ fun DesktopPurchasesScreen(
                         }
                     }
                 } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    DesktopLazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(filteredPurchases) { invoice ->
                             val isPaid = invoice.paymentStatus.equals("PAID", ignoreCase = true)
                             val statusBg = if (isPaid) Color(0xFFE6F7F0) else Color(0xFFFFF3D6)
@@ -534,6 +534,9 @@ private fun PurchaseDraftItemRow(
                 }
             }
             DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                 expanded = rowDropdownExpanded,
                 onDismissRequest = { rowDropdownExpanded = false }
             ) {
@@ -672,11 +675,11 @@ fun RecordPurchaseInvoiceDialog(
             color = Color.White,
             shadowElevation = 16.dp
         ) {
-            Column(
+            DesktopScrollColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(24.dp)
-                    .verticalScroll(rememberScrollState()),
+                    ,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Header matching mockup
@@ -780,6 +783,9 @@ fun RecordPurchaseInvoiceDialog(
                                     supplierName.isBlank() || it.name.contains(supplierName, ignoreCase = true)
                                 }
                                 DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                                     expanded = supplierDropdownExpanded && matchingSuppliers.isNotEmpty(),
                                     onDismissRequest = { supplierDropdownExpanded = false }
                                 ) {

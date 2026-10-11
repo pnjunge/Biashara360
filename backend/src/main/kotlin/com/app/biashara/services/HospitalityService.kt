@@ -108,6 +108,7 @@ class HospitalityService(private val orderService: OrderService) {
             OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.clientReference eq reference) }
                 .firstOrNull()?.get(OrdersTable.id)
         }
+        if (existingId != null) return@transaction ApiResponse(true, data = orderService.getById(existingId, businessId), message = "Order already recorded")
         requireStaffOnDuty(businessId,serverUserId)
         val enabled = isEnabled(businessId)
         if (!enabled) return@transaction ApiResponse(false, message = "Hospitality mode is disabled")
@@ -145,7 +146,9 @@ class HospitalityService(private val orderService: OrderService) {
 
     fun updateTicket(businessId: String, ticketId: String, request: UpdateTicketStatusRequest): KitchenTicketResponse = transaction {
         require(tickets(businessId).any { it.id == ticketId }) { "Kitchen ticket not found" }
-        val status=request.status.trim().uppercase(); require(status in setOf("NEW","PREPARING","READY","SERVED","DELAYED","CANCELLED")) { "Invalid ticket status" }
+        val status=request.status.trim().uppercase(); require(status in setOf("PREPARING","SERVED")) { "Invalid ticket status" }
+        val current = KitchenTicketsTable.select { (KitchenTicketsTable.id eq ticketId) and (KitchenTicketsTable.businessId eq businessId) }.forUpdate().first()
+        require(current[KitchenTicketsTable.status] != "SERVED" || status == "SERVED") { "Served tickets cannot return to preparing" }
         require(KitchenTicketsTable.update({ (KitchenTicketsTable.id eq ticketId) and (KitchenTicketsTable.businessId eq businessId) }) { it[KitchenTicketsTable.status]=status; it[updatedAt]=Clock.System.now() } == 1) { "Ticket not found" }
         logger.info("""{"event":"hospitality_ticket_status_changed","business_id":"$businessId","ticket_id":"$ticketId","status":"$status"}""")
         tickets(businessId).first { it.id == ticketId }
@@ -153,6 +156,10 @@ class HospitalityService(private val orderService: OrderService) {
 
     fun closeTab(businessId: String, orderId: String, request: CloseHospitalityTabRequest, userId: String? = null): OrderResponse = transaction {
         BusinessesTable.select { BusinessesTable.id eq businessId }.forUpdate().first()
+        val existing = OrdersTable.select { (OrdersTable.id eq orderId) and (OrdersTable.businessId eq businessId) }.forUpdate().firstOrNull()
+        if (existing?.get(OrdersTable.paymentStatus) == "PAID" && existing[OrdersTable.tabStatus] == "CLOSED" && existing[OrdersTable.paymentMethod] == request.paymentMethod.trim().uppercase()) {
+            return@transaction requireNotNull(orderService.getById(orderId, businessId))
+        }
         requireStaffOnDuty(businessId,userId)
         val method=request.paymentMethod.trim().uppercase(); require(method in setOf("CASH","CARD","MPESA")) { "Payment method must be CASH, CARD, or MPESA" }
         require(HospitalityShiftsTable.select {
@@ -251,7 +258,7 @@ class HospitalityService(private val orderService: OrderService) {
             val tableName=order.hospitalityTableId?.let { id -> HospitalityTablesTable.select { HospitalityTablesTable.id eq id }.firstOrNull()?.get(HospitalityTablesTable.name) }
             val stationItems=order.items.filter { it.preparationStation=="KITCHEN" && ticket[KitchenTicketsTable.station]=="KITCHEN" }
             if (stationItems.isEmpty()) return@mapNotNull null
-            KitchenTicketResponse(ticket[KitchenTicketsTable.id],order.id,order.orderNumber,tableName,ticket[KitchenTicketsTable.station],ticket[KitchenTicketsTable.status],ticket[KitchenTicketsTable.notes],stationItems,ticket[KitchenTicketsTable.createdAt].toString())
+            KitchenTicketResponse(ticket[KitchenTicketsTable.id],order.id,order.orderNumber,tableName,ticket[KitchenTicketsTable.station],when (val status = ticket[KitchenTicketsTable.status]) { "NEW", "READY", "DELAYED" -> "PREPARING"; else -> status },ticket[KitchenTicketsTable.notes],stationItems,ticket[KitchenTicketsTable.createdAt].toString())
         }
     }
     private fun requireEnabled(businessId: String) {

@@ -1346,7 +1346,7 @@ private fun PosCartSummaryPane(
                                 border = BorderStroke(1.5.dp, Color(0xFF2563EB)),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF2563EB)),
                                 modifier = Modifier.height(48.dp),
-                                enabled = !isCheckingOut && cart.isNotEmpty() && networkAvailable
+                                enabled = !isCheckingOut && cart.isNotEmpty()
                             ) {
                                 Text("Open Tab", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
@@ -1357,7 +1357,7 @@ private fun PosCartSummaryPane(
                             modifier = Modifier.height(48.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                             shape = RoundedCornerShape(24.dp),
-                            enabled = !isCheckingOut && cart.isNotEmpty() && networkAvailable
+                            enabled = !isCheckingOut && cart.isNotEmpty()
                         ) {
                             if (isCheckingOut) {
                                 Row(
@@ -1369,7 +1369,7 @@ private fun PosCartSummaryPane(
                                 }
                             } else {
                                 Text(
-                                    if (hospitalityEnabled) "Pay & Settle" else if (networkAvailable) "Complete Checkout" else "Reconnect",
+                                    if (hospitalityEnabled) "Pay & Settle" else if (networkAvailable) "Complete Checkout" else "Save Offline",
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
@@ -1528,9 +1528,7 @@ fun PosScreen(
     val grandTotal = kotlin.math.round((subtotal + tax) * 100.0) / 100.0
 
     val handleOpenTab: () -> Unit = {
-        if (!networkAvailable) {
-            errorMessage = "You’re offline. Reconnect before opening a tab."
-        } else if (serviceType == "DINE_IN" && (selectedTable == null || tablesLoading || tableError != null)) {
+        if (serviceType == "DINE_IN" && (selectedTable == null || tablesLoading || tableError != null)) {
             errorMessage = "Select a table before opening a tab."
         } else if (serviceType == "DINE_IN" && guestCount.toIntOrNull() !in 1..100) {
             errorMessage = "Enter a guest count from 1 to 100."
@@ -1585,8 +1583,8 @@ fun PosScreen(
     }
 
     val handleCompleteCheckout: () -> Unit = {
-        if (!networkAvailable) {
-            errorMessage = "You’re offline. Reconnect before creating an order or collecting payment."
+        if (!networkAvailable && paymentMethod !in setOf(PaymentMethod.CASH, PaymentMethod.COD)) {
+            errorMessage = "M-Pesa and card authorization require a connection. Select Cash or COD to save offline."
         } else if (hospitalityEnabled && serviceType == "DINE_IN" && (selectedTable == null || tablesLoading || tableError != null)) {
             errorMessage = "Select a table before completing a dine-in order."
         } else if (hospitalityEnabled && serviceType == "DINE_IN" && guestCount.toIntOrNull() !in 1..100) {

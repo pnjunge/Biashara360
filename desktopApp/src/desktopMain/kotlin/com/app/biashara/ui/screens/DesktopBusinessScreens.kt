@@ -192,7 +192,7 @@ fun DesktopProductsScreen(
                         Text("No products found in this category", color = Color(0xFF94A3B8), fontSize = 14.sp)
                     }
                 } else {
-                    LazyColumn(Modifier.fillMaxSize()) {
+                    DesktopLazyColumn(Modifier.fillMaxSize()) {
                         items(filteredProducts) { p ->
                             Row(
                                 modifier = Modifier
@@ -397,7 +397,7 @@ fun DesktopSuppliersScreen(
         } else if (filtered.isEmpty() && error == null) {
             Text(if (effectiveSearch.isBlank()) "No suppliers recorded" else "No matching suppliers", color = Color(0xFF64748B))
         }
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        DesktopLazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(filtered, key = { it.id }) { supplier ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -419,6 +419,9 @@ fun DesktopSuppliersScreen(
         var address by remember { mutableStateOf("") }
         var saveError by remember { mutableStateOf<String?>(null) }
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { if (!saving) showAdd = false },
             title = { Text("Add Supplier") },
             text = {

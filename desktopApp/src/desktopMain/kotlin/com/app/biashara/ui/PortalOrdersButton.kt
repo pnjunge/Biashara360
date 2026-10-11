@@ -115,6 +115,9 @@ fun PortalOrdersButton(client: HttpClient) {
             Text("Portal orders (${queue.waiting.size})${if (error != null) " !" else ""}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
         }
         if (open) AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { open = false },
             title = {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {

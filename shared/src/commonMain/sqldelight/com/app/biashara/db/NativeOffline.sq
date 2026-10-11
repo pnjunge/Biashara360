@@ -1,0 +1,18 @@
+CREATE TABLE IF NOT EXISTS NativeOfflineRecord (
+  key TEXT NOT NULL PRIMARY KEY,
+  owner TEXT NOT NULL,
+  category TEXT NOT NULL,
+  payload TEXT NOT NULL
+);
+
+put:
+INSERT OR REPLACE INTO NativeOfflineRecord(key, owner, category, payload) VALUES (?, ?, ?, ?);
+
+get:
+SELECT payload FROM NativeOfflineRecord WHERE key = ?;
+
+list:
+SELECT * FROM NativeOfflineRecord WHERE owner = ? AND category = ? ORDER BY rowid;
+
+delete:
+DELETE FROM NativeOfflineRecord WHERE key = ?;

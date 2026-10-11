@@ -173,8 +173,11 @@ fun DesktopHospitalityOperationsScreen(client: HttpClient = remember { inject() 
 
 @Composable
 private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
+    val access by NativeAccessSession.access.collectAsState()
+    val visibleTabIndexes = com.app.biashara.ui.desktopHospitalityTabs(access).ifEmpty { listOf(initialTab) }
     val scope = rememberCoroutineScope()
-    var selectedTab by remember { mutableStateOf(initialTab) }
+    var selectedTab by remember { mutableStateOf(if (initialTab in visibleTabIndexes) initialTab else visibleTabIndexes.first()) }
+    LaunchedEffect(visibleTabIndexes) { if (selectedTab !in visibleTabIndexes) selectedTab = visibleTabIndexes.first() }
     var dashboard by remember { mutableStateOf<DesktopFullDashboard?>(null) }
     var operations by remember { mutableStateOf<DesktopOperationsData?>(null) }
     var products by remember { mutableStateOf<List<DesktopProduct>>(emptyList()) }
@@ -381,14 +384,14 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
                     color = Color(0xFF0F1F3A)
                 )
                 Text(
-                    text = "Live floor plan, kitchen display system (KDS), open tabs and settlement controls",
+                    text = "Tables, open tabs, kitchen preparation and settlement in one place",
                     fontSize = 14.sp,
                     color = Color(0xFF64748B)
                 )
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(
+                if (0 in visibleTabIndexes) Button(
                     onClick = { showAddTableDialog = true },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F1F3A))
                 ) {
@@ -449,7 +452,7 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
 
         // Tabs
         TabRow(
-            selectedTabIndex = selectedTab,
+            selectedTabIndex = visibleTabIndexes.indexOf(selectedTab).coerceAtLeast(0),
             containerColor = Color.White,
             contentColor = Color(0xFF00B874),
             modifier = Modifier.clip(RoundedCornerShape(12.dp))
@@ -460,7 +463,8 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
                 "Kitchen KDS (${dashboard?.tickets?.count { it.station == "KITCHEN" && it.status in setOf("NEW", "PREPARING", "READY", "DELAYED") } ?: 0})" to Icons.Default.Restaurant,
                 "Operations & Stock" to Icons.Default.Inventory
             )
-            tabs.forEachIndexed { index, (label, icon) ->
+            visibleTabIndexes.forEach { index ->
+                val (label, icon) = tabs[index]
                 Tab(
                     selected = selectedTab == index,
                     onClick = { selectedTab = index },
@@ -612,7 +616,7 @@ private fun DesktopFloorPlanTab(
                 }
             }
         } else {
-            LazyVerticalGrid(
+            DesktopLazyGrid(
                 columns = GridCells.Adaptive(minSize = 260.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -722,7 +726,7 @@ private fun DesktopOpenTabsTab(
             placeholder = { Text("Search open tabs, order number or table…") },
             leadingIcon = { Icon(Icons.Default.Search, null) }, shape = RoundedCornerShape(12.dp))
         if (filtered.isEmpty()) Text("No active tabs found.", color = Color(0xFF64748B))
-        LazyVerticalGrid(columns = GridCells.Adaptive(240.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().weight(1f)) {
+        DesktopLazyGrid(columns = GridCells.Adaptive(240.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().weight(1f)) {
             items(filtered, key = { it.id }) { tab ->
                 val kitchenPending = tickets.any { it.orderId == tab.id && it.station == "KITCHEN" && it.status != "SERVED" }
                 Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, Color(0xFFE2E8F0))) {
@@ -751,112 +755,111 @@ private fun DesktopKDSTab(
     tickets: List<DesktopKitchenTicket>,
     onUpdateStatus: (ticketId: String, status: String) -> Unit
 ) {
-    val filteredTickets = tickets.filter { it.station == "KITCHEN" }
-
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    var search by remember { mutableStateOf("") }
+    var table by remember { mutableStateOf("All Tables") }
+    var status by remember { mutableStateOf("Active Orders") }
+    val kitchenTickets = tickets.filter { it.station == "KITCHEN" }
+    val filteredTickets = kitchenTickets.filter { ticket ->
+        val tableName = ticket.tableName ?: "Takeaway"
+        (table == "All Tables" || tableName == table) &&
+            (if (status == "Active Orders") ticket.status !in setOf("SERVED", "CANCELLED") else (if (ticket.status in setOf("NEW", "READY", "DELAYED")) "PREPARING" else ticket.status) == status) &&
+            (search.isBlank() || ticket.orderNumber.contains(search, true) || tableName.contains(search, true) ||
+                ticket.items.any { it.productName.contains(search, true) })
+    }
+    var currentTime by remember { mutableStateOf(java.time.Instant.now()) }
+    LaunchedEffect(Unit) {
+        while (isActive) { delay(60_000); currentTime = java.time.Instant.now() }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(search, { search = it }, singleLine = true,
+                placeholder = { Text("Search orders, table or item…") },
+                leadingIcon = { Icon(Icons.Default.Search, null) }, shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f))
+            KitchenFilter(table, listOf("All Tables") + kitchenTickets.map { it.tableName ?: "Takeaway" }.distinct().sorted()) { table = it }
+            KitchenFilter(status, listOf("Active Orders", "PREPARING", "SERVED")) { status = it }
+        }
         if (filteredTickets.isEmpty()) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color.White,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-            ) {
-                Box(Modifier.padding(50.dp), contentAlignment = Alignment.Center) {
-                    Text("No active kitchen order tickets.", color = Color(0xFF64748B))
+            Surface(Modifier.fillMaxWidth(), color = Color.White, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                Column(Modifier.padding(40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Restaurant, null, tint = B360Green, modifier = Modifier.size(36.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text("No kitchen orders match these filters.", color = Color(0xFF64748B))
+                    TextButton(onClick = { search = ""; table = "All Tables"; status = "Active Orders" }) { Text("Reset filters") }
                 }
             }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 300.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+            DesktopLazyGrid(columns = GridCells.Adaptive(340.dp), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 items(filteredTickets, key = { it.id }) { ticket ->
-                    val statusBg = when (ticket.status) {
-                        "NEW" -> Color(0xFFEFF6FF)
-                        "PREPARING" -> Color(0xFFFEF3C7)
-                        "READY" -> Color(0xFFDCFCE7)
-                        else -> Color(0xFFF1F5F9)
-                    }
-                    val statusBorder = when (ticket.status) {
-                        "NEW" -> Color(0xFF93C5FD)
-                        "PREPARING" -> Color(0xFDFCD34D)
-                        "READY" -> Color(0xFF86EFAC)
-                        else -> Color(0xFFCBD5E1)
-                    }
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = statusBg),
-                        border = BorderStroke(1.5.dp, statusBorder),
-                        elevation = CardDefaults.cardElevation(2.dp)
-                    ) {
-                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                                Column {
-                                    Text("Order #${ticket.orderNumber}", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F1F3A))
-                                    Text("Table: ${ticket.tableName ?: "Takeaway"}", fontSize = 13.sp, color = Color(0xFF475569))
+                    val preparing = ticket.status in setOf("NEW", "PREPARING", "READY", "DELAYED")
+                    val accent = if (preparing) Color(0xFFEA7600) else B360Green
+                    val minutes = runCatching { java.time.Duration.between(java.time.Instant.parse(ticket.createdAt), currentTime).toMinutes().coerceAtLeast(0) }.getOrNull()
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)), elevation = CardDefaults.cardElevation(2.dp)) {
+                        Row(Modifier.height(IntrinsicSize.Min)) {
+                            Box(Modifier.width(5.dp).fillMaxHeight().background(B360Green))
+                            Column(Modifier.weight(1f).padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Order #${ticket.orderNumber}", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color(0xFF0F1F3A))
+                                        Text("Table: ${ticket.tableName ?: "Takeaway"}", color = Color(0xFF64748B), fontSize = 14.sp)
+                                    }
+                                    Surface(color = Color(0xFFEFF6FF), shape = RoundedCornerShape(8.dp)) {
+                                        Text("Kitchen", color = Color(0xFF2563EB), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp))
+                                    }
                                 }
-                                Surface(
-                                    color = if (ticket.station == "KITCHEN") Color(0xFF0F1F3A) else Color(0xFF2563EB),
-                                    shape = RoundedCornerShape(14.dp)
-                                ) {
-                                    Text(
-                                        text = ticket.station,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                    )
+                                HorizontalDivider(color = Color(0xFFF1F5F9))
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Schedule, null, tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(minutes?.let { "$it min ago" } ?: "Time unavailable", modifier = Modifier.weight(1f), color = Color(0xFF64748B), fontSize = 13.sp)
+                                    Surface(color = if (preparing) Color(0xFFFFF7DB) else Color(0xFFE7F8F1), shape = RoundedCornerShape(10.dp)) {
+                                        Text((if (preparing) "Preparing" else "Served"), color = accent, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                                    }
                                 }
-                            }
-
-                            Divider(color = statusBorder.copy(alpha = 0.6f))
-
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 ticket.items.forEach { item ->
-                                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                                        Text("${item.quantity}x ${item.productName}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color(0xFF1E293B))
-                                        if (item.notes.isNotBlank()) {
-                                            Text("(${item.notes})", fontSize = 11.sp, color = Color(0xFFDC2626))
+                                    Surface(Modifier.fillMaxWidth(), color = Color(0xFFF0FAF6), shape = RoundedCornerShape(12.dp)) {
+                                        Column(Modifier.padding(14.dp)) {
+                                            Text("${item.quantity} × ${item.productName}", fontWeight = FontWeight.SemiBold, color = Color(0xFF0F1F3A))
+                                            if (item.notes.isNotBlank()) Text(item.notes, fontSize = 12.sp, color = Color(0xFF64748B))
                                         }
                                     }
                                 }
-                            }
-
-                            if (ticket.notes.isNotBlank()) {
-                                Surface(color = Color(0xFFFEF2F2), shape = RoundedCornerShape(6.dp)) {
-                                    Text("Note: ${ticket.notes}", color = Color(0xFFB91C1C), fontSize = 12.sp, modifier = Modifier.padding(8.dp))
+                                if (ticket.notes.isNotBlank()) Text(ticket.notes, color = Color(0xFF64748B), fontSize = 13.sp)
+                                val next = when (ticket.status) {
+                                    "NEW", "PREPARING", "READY", "DELAYED" -> "SERVED" to "Mark Served"
+                                    else -> null
                                 }
-                            }
-
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                when (ticket.status) {
-                                    "NEW" -> Button(
-                                        enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "PREPARING") },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))
-                                    ) {
-                                        Text("Start Preparing")
+                                next?.let { (nextStatus, label) ->
+                                    Button(onClick = { onUpdateStatus(ticket.id, nextStatus) }, enabled = hasNativePermission("hospitality.kitchen"),
+                                        modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = accent)) {
+                                        Icon(Icons.Default.Restaurant, null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(label, fontWeight = FontWeight.Bold)
                                     }
-                                    "PREPARING" -> Button(
-                                        enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "READY") },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669))
-                                    ) {
-                                        Text("Mark Ready")
-                                    }
-                                    "READY" -> Button(
-                                        enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "SERVED") },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF475569))
-                                    ) {
-                                        Text("Mark Served")
-                                    }
-                                    else -> Text("Status: ${ticket.status}", fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun KitchenFilter(value: String, options: List<String>, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { expanded = true }, shape = RoundedCornerShape(12.dp), modifier = Modifier.height(56.dp)) {
+            Text(value.lowercase().split(' ').joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } })
+            Spacer(Modifier.width(10.dp))
+            Icon(Icons.Default.ArrowDropDown, null)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = RoundedCornerShape(12.dp), containerColor = Color.White, tonalElevation = 0.dp) {
+            options.forEach { option -> DropdownMenuItem(text = { Text(option.lowercase().replaceFirstChar { it.uppercase() }) },
+                onClick = { onSelect(option); expanded = false }) }
         }
     }
 }
@@ -907,7 +910,7 @@ private fun DesktopOperationsTab(
 @Composable
 private fun DesktopReservationsSection(reservations: List<DesktopReservation>, onStatus: (String, String) -> Unit) {
     if (reservations.isEmpty()) Text("No reservations recorded.", color = Color(0xFF64748B))
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    DesktopLazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(reservations, key = { it.id }) { reservation ->
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(Color.White), border = BorderStroke(1.dp, Color(0xFFE2E8F0))) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -939,7 +942,10 @@ private fun DesktopMenuSection(profiles: List<DesktopMenuProfile>, products: Lis
         Text("Menu availability and preparation routing", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Box {
             OutlinedButton(onClick = { expanded = true }, enabled = products.isNotEmpty()) { Text(products.firstOrNull { it.id == selectedId }?.name ?: "Select a menu item") }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) { products.forEach { product -> DropdownMenuItem(text = { Text(product.name) }, onClick = { selectedId = product.id; val current = profiles.firstOrNull { it.productId == product.id }; station = current?.preparationStation ?: "KITCHEN"; soldOut = current?.soldOut ?: false; expanded = false }) } }
+            DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,expanded = expanded, onDismissRequest = { expanded = false }) { products.forEach { product -> DropdownMenuItem(text = { Text(product.name) }, onClick = { selectedId = product.id; val current = profiles.firstOrNull { it.productId == product.id }; station = current?.preparationStation ?: "KITCHEN"; soldOut = current?.soldOut ?: false; expanded = false }) } }
         }
         if (selectedId.isNotBlank()) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -985,8 +991,14 @@ private fun DesktopPurchasingSection(suppliers: List<DesktopSupplier>, orders: L
         Text("Suppliers and purchase orders", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { OutlinedTextField(supplierName, { supplierName = it }, label = { Text("Supplier") }, modifier = Modifier.width(180.dp)); OutlinedTextField(supplierPhone, { supplierPhone = it }, label = { Text("Phone") }, modifier = Modifier.width(150.dp)); Button(onClick = { if (supplierName.isNotBlank()) { onSupplier(supplierName.trim(), supplierPhone.trim()); supplierName = ""; supplierPhone = "" } }) { Text("Add supplier") } }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box { OutlinedButton(onClick = { supplierExpanded = true }, enabled = suppliers.isNotEmpty()) { Text(chosenSupplier?.name ?: "Select supplier") }; DropdownMenu(supplierExpanded, { supplierExpanded = false }) { suppliers.forEach { supplier -> DropdownMenuItem(text = { Text(supplier.name) }, onClick = { supplierId = supplier.id; supplierExpanded = false }) } } }
-            Box { OutlinedButton(onClick = { ingredientExpanded = true }, enabled = ingredients.isNotEmpty()) { Text(chosenIngredient?.name ?: "Select ingredient") }; DropdownMenu(ingredientExpanded, { ingredientExpanded = false }) { ingredients.forEach { ingredient -> DropdownMenuItem(text = { Text(ingredient.name) }, onClick = { ingredientId = ingredient.id; ingredientExpanded = false }) } } }
+            Box { OutlinedButton(onClick = { supplierExpanded = true }, enabled = suppliers.isNotEmpty()) { Text(chosenSupplier?.name ?: "Select supplier") }; DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp, expanded = supplierExpanded, onDismissRequest = { supplierExpanded = false }) { suppliers.forEach { supplier -> DropdownMenuItem(text = { Text(supplier.name) }, onClick = { supplierId = supplier.id; supplierExpanded = false }) } } }
+            Box { OutlinedButton(onClick = { ingredientExpanded = true }, enabled = ingredients.isNotEmpty()) { Text(chosenIngredient?.name ?: "Select ingredient") }; DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp, expanded = ingredientExpanded, onDismissRequest = { ingredientExpanded = false }) { ingredients.forEach { ingredient -> DropdownMenuItem(text = { Text(ingredient.name) }, onClick = { ingredientId = ingredient.id; ingredientExpanded = false }) } } }
             OutlinedTextField(quantity, { quantity = it }, label = { Text("Qty") }, modifier = Modifier.width(90.dp)); OutlinedTextField(unitCost, { unitCost = it }, label = { Text("Unit cost") }, modifier = Modifier.width(110.dp)); Button(onClick = { if (chosenSupplier != null && chosenIngredient != null) onCreateOrder(chosenSupplier.id, chosenIngredient.id, quantity.toDoubleOrNull() ?: 0.0, unitCost.toDoubleOrNull() ?: 0.0) }) { Text("Create PO") }
         }
         orders.forEach { order -> Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) { Text("${order.orderNumber} · ${suppliers.firstOrNull { it.id == order.supplierId }?.name ?: order.supplierId} · KES ${String.format("%,.0f", order.totalCost)} · ${order.status}", fontSize = 12.sp); if (order.status != "RECEIVED") Button(onClick = { onReceive(order.id) }) { Text("Receive") } } }
@@ -995,7 +1007,7 @@ private fun DesktopPurchasingSection(suppliers: List<DesktopSupplier>, orders: L
 
 @Composable
 private fun DesktopApprovalsSection(approvals: List<DesktopApproval>, onDecision: (String, Boolean) -> Unit) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(approvals, key = { it.id }) { approval -> Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(Color.White)) { Row(Modifier.fillMaxWidth().padding(12.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("${approval.actionType} · ${approval.entityType}", fontWeight = FontWeight.Bold); Text("${approval.reason} · ${approval.requestedAt}", fontSize = 12.sp, color = Color(0xFF64748B)) }; if (approval.status == "PENDING") { Button(onClick = { onDecision(approval.id, true) }) { Text("Approve") }; Spacer(Modifier.width(6.dp)); OutlinedButton(onClick = { onDecision(approval.id, false) }) { Text("Reject") } } else Text(approval.status, fontWeight = FontWeight.Bold) } } } }
+    DesktopLazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(approvals, key = { it.id }) { approval -> Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(Color.White)) { Row(Modifier.fillMaxWidth().padding(12.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("${approval.actionType} · ${approval.entityType}", fontWeight = FontWeight.Bold); Text("${approval.reason} · ${approval.requestedAt}", fontSize = 12.sp, color = Color(0xFF64748B)) }; if (approval.status == "PENDING") { Button(onClick = { onDecision(approval.id, true) }) { Text("Approve") }; Spacer(Modifier.width(6.dp)); OutlinedButton(onClick = { onDecision(approval.id, false) }) { Text("Reject") } } else Text(approval.status, fontWeight = FontWeight.Bold) } } } }
 }
 
 @Composable
@@ -1036,7 +1048,7 @@ private fun DesktopTableFormModal(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(24.dp),
             color = Color.White,
             modifier = Modifier.width(420.dp)
         ) {
@@ -1099,7 +1111,7 @@ private fun DesktopTransferTabModal(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(24.dp),
             color = Color.White,
             modifier = Modifier.width(450.dp)
         ) {
@@ -1107,7 +1119,7 @@ private fun DesktopTransferTabModal(
                 Text("Transfer Tab #${tab.orderNumber}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A))
                 Text("Select destination table for this customer's active tab:", fontSize = 13.sp, color = Color(0xFF64748B))
 
-                LazyColumn(Modifier.height(200.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                DesktopLazyColumn(Modifier.height(200.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(availableTables, key = { it.id }) { table ->
                         Surface(
                             modifier = Modifier
@@ -1154,7 +1166,7 @@ private fun DesktopSettleModal(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(24.dp),
             color = Color.White,
             modifier = Modifier.width(420.dp)
         ) {
@@ -1210,7 +1222,7 @@ private fun DesktopProFormaModal(
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(24.dp),
             color = Color.White,
             modifier = Modifier.width(420.dp)
         ) {
@@ -1220,7 +1232,7 @@ private fun DesktopProFormaModal(
 
                 Divider()
 
-                LazyColumn(Modifier.height(180.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                DesktopLazyColumn(Modifier.height(180.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(tab.items) { item ->
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                             Text("${item.quantity}x ${item.productName}", fontSize = 13.sp)

@@ -17,7 +17,8 @@ val coreModule = module {
     single { Biashara360Database(get()) }
 
     // HTTP Client
-    single { createHttpClient(get()) }
+    single { com.app.biashara.data.offline.OfflineStore(get(), get()) }
+    single { createHttpClient(get(), get()) }
 
     // Repositories
     single<ProductRepository> { ProductRepositoryImpl(get(), get()) }

@@ -663,9 +663,7 @@ private fun AndroidKDSScreen(
 
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                 when (ticket.status) {
-                                    "NEW" -> Button(enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "PREPARING") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))) { Text("Start Prep", fontSize = 12.sp) }
-                                    "PREPARING" -> Button(enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "READY") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669))) { Text("Mark Ready", fontSize = 12.sp) }
-                                    "READY" -> Button(enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "SERVED") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF475569))) { Text("Mark Served", fontSize = 12.sp) }
+                                    "NEW", "PREPARING", "READY", "DELAYED" -> Button(enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "SERVED") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669))) { Text("Mark Served", fontSize = 12.sp) }
                                 }
                             }
                         }

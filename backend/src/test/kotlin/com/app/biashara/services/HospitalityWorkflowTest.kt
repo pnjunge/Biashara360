@@ -59,6 +59,31 @@ class HospitalityWorkflowTest {
   ops.splitBill(businessId,userId,orderId,request)
  }
  private fun tab(vararg products:String)=service.createOrder("business","staff",HospitalityOrderRequest(serviceType="TAKEAWAY",items=products.map{OrderItemRequest(productId=it,quantity=1,unitPrice=100.0)})).data!!
+ @Test fun `offline reference and cash settlement replay are idempotent`() {
+  ops.saveMenuProfile("business","manager","meal",MenuProfileRequest(preparationStation="KITCHEN"))
+  val request=HospitalityOrderRequest(serviceType="TAKEAWAY",items=listOf(OrderItemRequest("meal",1,100.0)))
+  val first=service.createOrder("business","staff",request,"desktop","offline-reference").data!!
+  val repeated=service.createOrder("business","staff",request,"desktop","offline-reference").data!!
+  assertEquals(first.id,repeated.id)
+  serveKitchen(first.id)
+  val paid=service.closeTab("business",first.id,CloseHospitalityTabRequest("CASH"),"staff")
+  assertEquals(paid.id,service.closeTab("business",first.id,CloseHospitalityTabRequest("CASH"),"staff").id)
+  transaction {
+   assertEquals(1,PaymentsTable.select{PaymentsTable.orderId eq first.id}.count().toInt())
+   assertEquals(99,ProductsTable.select{ProductsTable.id eq "meal"}.single()[ProductsTable.currentStock])
+  }
+ }
+ @Test fun `kitchen workflow has only preparing and served`() {
+  ops.saveMenuProfile("business","manager","meal",MenuProfileRequest(preparationStation="KITCHEN"))
+  val order=tab("meal")
+  val ticket=service.dashboard("business").tickets.single{it.orderId==order.id}
+  assertEquals("PREPARING",ticket.status)
+  for(status in listOf("NEW","READY","DELAYED","CANCELLED")) {
+   assertFailsWith<IllegalArgumentException>{service.updateTicket("business",ticket.id,UpdateTicketStatusRequest(status))}
+  }
+  assertEquals("SERVED",service.updateTicket("business",ticket.id,UpdateTicketStatusRequest("SERVED")).status)
+  assertFailsWith<IllegalArgumentException>{service.updateTicket("business",ticket.id,UpdateTicketStatusRequest("PREPARING"))}
+ }
  @Test fun `kitchen settlement requires served tickets and removes paid tab from active views`() {
   ops.saveMenuProfile("business","manager","meal",MenuProfileRequest(preparationStation="KITCHEN"))
   val order=tab("meal")

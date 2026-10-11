@@ -76,7 +76,8 @@ fun DesktopReportsLiveScreen(
         if (state.isSyncing) "Syncing…" else "Refresh",
         Icons.Default.Refresh,
         { reloadReport() },
-        actionEnabled = !state.isSyncing
+        actionEnabled = !state.isSyncing,
+        scrollContent = true
     ) {
         state.error?.let { ComplianceError(it) }
         Box {
@@ -86,6 +87,9 @@ fun DesktopReportsLiveScreen(
                 Text(selectedPeriod)
             }
             DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
                 expanded = periodMenuExpanded,
                 onDismissRequest = { periodMenuExpanded = false }
             ) {
@@ -300,6 +304,9 @@ fun DesktopTaxModernScreen() {
     }
     selectedTax?.let { tax ->
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { selectedTax = null },
             title = { Text(tax.first, fontWeight = FontWeight.Bold) },
             text = {
@@ -520,7 +527,7 @@ fun DesktopSocialModernScreen(
                         }
                     }
                     HorizontalDivider(color = ModernBorder)
-                    Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
+                    DesktopScrollColumn(Modifier.fillMaxWidth().weight(1f)) {
                     filteredConversations.forEach { conversation ->
                         val platform = conversation.platform.uppercase()
                         Surface(
@@ -576,8 +583,8 @@ fun DesktopSocialModernScreen(
                                 Text(platform, color = colors[platform] ?: ModernGreen, fontWeight = FontWeight.Bold)
                             }
                             HorizontalDivider(color = ModernBorder)
-                            Column(
-                                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(18.dp),
+                            DesktopScrollColumn(
+                                Modifier.weight(1f).fillMaxWidth().padding(18.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 state.messages.forEach { message ->
@@ -650,6 +657,9 @@ fun DesktopSocialModernScreen(
         var amount by remember { mutableStateOf("") }
         var description by remember { mutableStateOf("") }
         AlertDialog(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { showPaymentPrompt = false },
             title = { Text("Send M-Pesa Payment Prompt") },
             text = {
@@ -682,10 +692,13 @@ private fun ModernPage(
     actionIcon: ImageVector,
     onAction: () -> Unit,
     actionEnabled: Boolean = true,
+    scrollContent: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val pageScroll = rememberScrollState()
+    Box(Modifier.fillMaxSize()) {
     Column(
-        Modifier.fillMaxSize().background(ModernBackground).padding(28.dp),
+        Modifier.fillMaxSize().background(ModernBackground).then(if (scrollContent) Modifier.verticalScroll(pageScroll) else Modifier).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -710,6 +723,11 @@ private fun ModernPage(
             }
         }
         content()
+    }
+    if (scrollContent) androidx.compose.foundation.VerticalScrollbar(
+        androidx.compose.foundation.rememberScrollbarAdapter(pageScroll),
+        Modifier.align(Alignment.CenterEnd).fillMaxHeight()
+    )
     }
 }
 
@@ -789,7 +807,7 @@ private fun ColumnScope.ModernTableCard(
                         Text(emptySubtitle, color = ModernMuted, fontSize = 13.sp)
                     }
                 } else {
-                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) { rows() }
+                    DesktopScrollColumn(Modifier.fillMaxWidth()) { rows() }
                 }
             }
             HorizontalDivider(color = ModernBorder)
@@ -823,7 +841,10 @@ private fun PaymentFilter(
             Spacer(Modifier.width(12.dp))
             Icon(Icons.Default.KeyboardArrowDown, null, modifier = Modifier.size(16.dp))
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(option.replace("_", " ")) },
