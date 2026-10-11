@@ -131,6 +131,33 @@ class HotelServiceTest {
         assertEquals("PENDING", service.paymentRequests("business", stay.id).single().paymentStatus)
         assertFailsWith<IllegalArgumentException> { service.transition("business", "actor", stay.id, "CHECK_OUT") }
     }
+    @Test fun `uninitiated hotel request can switch method without crediting payment twice`() {
+        val stay = service.saveReservation("business", "actor", null, booking())
+        val old = service.payment("business", "actor", stay.id, HotelPaymentRequest(20_000, "CARD", key()))
+        assertTrue(service.cancelPayment("business", "actor", stay.id, old.orderId))
+        assertEquals(0L, service.folio("business", "actor", stay.id).totalPaidCents)
+        assertEquals("CANCELLED", service.paymentRequests("business", stay.id).single().paymentStatus)
+        val replacement = HotelPaymentRequest(20_000, "CASH", key())
+        val paid = service.payment("business", "actor", stay.id, replacement)
+        assertEquals("PAID", paid.paymentStatus)
+        assertEquals(paid, service.payment("business", "actor", stay.id, replacement))
+        val folio = service.folio("business", "actor", stay.id)
+        assertEquals(0L, folio.balanceCents)
+        assertEquals(1, folio.entries.count { it.kind == "PAYMENT" })
+    }
+    @Test fun `changing method cannot cancel initiated or paid hotel payments or cross tenant scope`() {
+        val stay = service.saveReservation("business", "actor", null, booking())
+        val pending = service.payment("business", "actor", stay.id, HotelPaymentRequest(20_000, "MPESA", key()))
+        assertFails { service.cancelPayment("other", "actor", stay.id, pending.orderId) }
+        transaction { OrdersTable.update({ OrdersTable.id eq pending.orderId }) { it[stkCheckoutRequestId] = "provider-checkout" } }
+        assertFailsWith<IllegalArgumentException> { service.cancelPayment("business", "actor", stay.id, pending.orderId) }
+        assertEquals("PENDING", service.paymentRequests("business", stay.id).single().paymentStatus)
+        transaction { OrdersTable.update({ OrdersTable.id eq pending.orderId }) { it[stkCheckoutRequestId] = null } }
+        service.cancelPayment("business", "actor", stay.id, pending.orderId)
+        val paid = service.payment("business", "actor", stay.id, HotelPaymentRequest(20_000, "CASH", key()))
+        assertFailsWith<IllegalArgumentException> { service.cancelPayment("business", "actor", stay.id, paid.orderId) }
+        assertEquals(20_000L, service.folio("business", "actor", stay.id).totalPaidCents)
+    }
     @Test fun `cancelled deposits become credit and refund is limited to actual credit`() {
         val r=service.saveReservation("business","actor",null,booking())
         service.payment("business","actor",r.id,HotelPaymentRequest(5_000,"CASH",key()))

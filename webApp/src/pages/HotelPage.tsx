@@ -114,6 +114,7 @@ export default function HotelPage() {
     amount: "",
   });
   const [payment, setPayment] = useState({ method: "CASH", amount: "" });
+  const [paymentMethods, setPaymentMethods] = useState<Record<string, string>>({});
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [report, setReport] = useState<HotelReport | null>(null);
   const [channel, setChannel] = useState({
@@ -1588,7 +1589,7 @@ export default function HotelPage() {
                       folio.reservation.status,
                     ) && (
                       <>
-                        <h4>Collect Payment / Deposit</h4>
+                        <h4 id="hotel-payment-form">Collect Payment / Deposit</h4>
                         {payments.some(p => p.paymentStatus === "PENDING") && (
                           <div role="status">
                             <p>An existing payment request is pending. Complete that payment, or cancel an uninitiated request below before collecting another payment.</p>
@@ -1692,6 +1693,27 @@ export default function HotelPage() {
                         </span>
                         {p.paymentStatus === "PENDING" && (
                           <div className="hotel-actions">
+                            <label className="hotel-field">
+                              <span>New payment method</span>
+                              <select aria-label={`New payment method for ${p.paymentMethod} request`}
+                                disabled={busy}
+                                value={paymentMethods[p.orderId] || "CASH"}
+                                onChange={e => setPaymentMethods({ ...paymentMethods, [p.orderId]: e.target.value })}>
+                                {["CASH", "MPESA", "CARD"].filter(method => method !== p.paymentMethod).map(method => <option key={method}>{method}</option>)}
+                              </select>
+                            </label>
+                            <Btn small variant="secondary" disabled={busy}
+                              onClick={() => run(async () => {
+                                const method = paymentMethods[p.orderId] || "CASH";
+                                await hotelApi.cancelPayment(folio.reservation.id, p.orderId);
+                                setPayment({ method, amount: String(p.amountCents / 100) });
+                                setRequestId(crypto.randomUUID());
+                                await refreshFolio(folio.reservation.id);
+                                await load();
+                                setMessage(`Payment method changed to ${method}. ${method === "CASH" ? "Record cash only after receiving it from the guest." : "Use Request Payment to send the new payment request."}`);
+                                requestAnimationFrame(() => document.getElementById("hotel-payment-form")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+                              })}>Change Payment Method</Btn>
+                            <p>Only requests not yet sent to a payment provider can be changed. This prepares a new payment; it does not collect money.</p>
                             {p.paymentMethod === "CARD" && (
                               <a
                                 target="_blank"
