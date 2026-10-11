@@ -419,6 +419,7 @@ fun Biashara360DesktopApp(
     }
 
     Biashara360DesktopTheme {
+        Box(Modifier.fillMaxSize()) {
         if (userSessionState == null) {
             DesktopAuthFlow(
                 viewModel = authViewModel,
@@ -474,6 +475,8 @@ fun Biashara360DesktopApp(
                     }
                 }
             )
+        }
+        DesktopWorkstationAlerts(client)
         }
     }
 }
@@ -824,6 +827,7 @@ fun Biashara360DesktopAppContent(
 
                         Spacer(Modifier.weight(1f))
 
+                        WorkstationAlertSettingsButton()
                         PortalOrdersButton(client)
 
                         IconButton(onClick = { navigationViewModel.navigateTo(AppScreen.Inventory) }) {

@@ -115,6 +115,7 @@ fun Application.module() {
             socialWebhookRoutes()
             publicReceiptRoutes()
             publicAppReleaseRoutes()
+            workstationAlertPublicRoutes()
             promotionsAndLedgerPublicRoutes()
 
             // Protected routes (JWT required)
@@ -126,6 +127,7 @@ fun Application.module() {
                 supplierRoutes()
                 orderRoutes()
                 portalOrderRoutes()
+                workstationAlertAdminRoutes()
                 receiptRoutes()
                 customerRoutes()
                 expenseRoutes()

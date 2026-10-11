@@ -89,6 +89,7 @@ fun PortalOrdersButton(client: HttpClient) {
             val data = result.data
             check(result.success && data != null) { result.message.ifBlank { "Could not load portal orders." } }
             if (data.waiting.any { it.id !in known }) {
+                if (!WorkstationAlertPreferences.connectionActive || WorkstationAlertPreferences.endpoint != BASE_URL) scope.launch { DesktopAlertSound.play(data.waiting.count { it.id !in known }, data.waiting.first().orderNumber) }
                 open = true; mine = false; message = "New portal orders are waiting to be claimed."
             }
             known.clear(); known.addAll(data.waiting.map { it.id })
