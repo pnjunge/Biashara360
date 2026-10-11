@@ -72,7 +72,7 @@ private fun PortalMeta(icon: ImageVector, text: String) {
 @Composable
 fun PortalOrdersButton(client: HttpClient) {
     val user by UserSession.currentUser.collectAsState()
-    if (user?.businessId.isNullOrBlank()) return
+    if (user?.businessId.isNullOrBlank() || user?.role in setOf(com.app.biashara.domain.model.UserRole.ADMIN, com.app.biashara.domain.model.UserRole.SUPERADMIN)) return
     key(user?.id, user?.businessId) {
         val scope = rememberCoroutineScope()
         val mutex = remember { Mutex() }

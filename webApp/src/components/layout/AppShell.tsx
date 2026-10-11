@@ -314,7 +314,7 @@ export default function AppShell() {
               </div>
             )}
 
-            {user?.businessId && <PortalOrdersInbox key={`${user.businessId}:${user.id}`} />}
+            {user?.businessId && !['ADMIN', 'SUPERADMIN', 'BUSINESS_ADMIN', 'ADMINISTRATOR'].includes((user.role || '').toUpperCase()) && <PortalOrdersInbox key={`${user.businessId}:${user.id}`} />}
             {user?.businessId && <OrderSoundAlerts key={`${user.businessId}:${user.id}`} hospitalityEnabled={hospitalityEnabled === true} />}
 
             <div style={{ position: 'relative' }}>

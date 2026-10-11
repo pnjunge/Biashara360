@@ -194,6 +194,8 @@ private fun AndroidPortalMeta(icon: ImageVector, text: String) {
 fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val sessionUser by com.app.biashara.UserSession.currentUser.collectAsState()
+    val receivesOnlineOrders = sessionUser != null && sessionUser?.role !in setOf(com.app.biashara.domain.model.UserRole.ADMIN, com.app.biashara.domain.model.UserRole.SUPERADMIN)
     val access by NativeAccessSession.access.collectAsState()
     val visibleSegments = buildList {
         if (access?.allows("HOSPITALITY") == true) add(1)
@@ -234,7 +236,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
             runCatching {
                 val dashRes = client.get("$BASE_URL/hospitality").body<ApiResponse<AndroidFullDashboard>>()
                 val opsRes = runCatching { client.get("$BASE_URL/hospitality/operations").body<ApiResponse<AndroidOperationsData>>() }.getOrNull()
-                val portalRes = runCatching { client.get("$BASE_URL/portal-orders").body<ApiResponse<AndroidPortalQueue>>() }.getOrNull()
+                val portalRes = if (receivesOnlineOrders) runCatching { client.get("$BASE_URL/portal-orders").body<ApiResponse<AndroidPortalQueue>>() }.getOrNull() else null
                 val productsRes = runCatching { client.get("$BASE_URL/products").body<ApiResponse<List<AndroidProduct>>>() }.getOrNull()
                 listOf(dashRes, opsRes, portalRes, productsRes)
             }.onSuccess { results ->
@@ -433,7 +435,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
                 Text("Floor plan, open tabs, kitchen and operations", fontSize = 12.sp, color = Color(0xFF64748B))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
+                if (receivesOnlineOrders) OutlinedButton(
                     onClick = { portalOpen = true },
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                     border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
@@ -591,7 +593,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
         )
     }
 
-    if (portalOpen) {
+    if (portalOpen && receivesOnlineOrders) {
         AndroidPortalOrdersDialog(
             queue = portalQueue,
             showingMine = portalMine,

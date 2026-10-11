@@ -2701,6 +2701,7 @@ fun DesktopPaymentsScreen(
 
 enum class SettingsTab(val title: String, val icon: ImageVector) {
     General("General Settings", Icons.Default.Settings),
+    Portal("Portal Items", Icons.Default.Storefront),
     Mpesa("M-Pesa Config", Icons.Default.Phone),
     CyberSource("CyberSource Config", Icons.Default.CreditCard),
     Receipt("Receipt Customization", Icons.Default.ReceiptLong),
@@ -2749,6 +2750,7 @@ fun SettingsTabChip(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DesktopSettingsScreen(
     viewModel: BusinessViewModel = remember { inject() }
@@ -2778,10 +2780,10 @@ fun DesktopSettingsScreen(
         }
 
         // Sub-tabs
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             SettingsTab.values().forEach { tab ->
                 SettingsTabChip(
@@ -2797,6 +2799,7 @@ fun DesktopSettingsScreen(
         // Active Tab Content
         Box(modifier = Modifier.fillMaxSize().weight(1f)) {
             when (activeTab) {
+                SettingsTab.Portal -> DesktopPortalCatalog()
                 SettingsTab.General -> {
                     val scrollState = rememberScrollState()
                     val profileState by viewModel.profileState.collectAsState()

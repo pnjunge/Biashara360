@@ -39,7 +39,7 @@ class AuthRepositoryImpl(
             email = email,
             phone = loginData.user?.phone ?: "",
             name = loginData.user?.name ?: "",
-            role = loginData.user?.let { runCatching { UserRole.valueOf(it.role) }.getOrDefault(UserRole.STAFF) } ?: UserRole.ADMIN,
+            role = loginData.user?.let { runCatching { nativeUserRole(it.role) }.getOrDefault(UserRole.STAFF) } ?: UserRole.ADMIN,
             businessId = resolvedBizId,
             createdAt = Clock.System.now(),
             twoFactorEnabled = loginData.requiresOtp
@@ -219,7 +219,7 @@ class AuthRepositoryImpl(
             email = loginData.user?.email ?: email.orEmpty(),
             phone = loginData.user?.phone ?: "",
             name = loginData.user?.name ?: "",
-            role = loginData.user?.let { runCatching { UserRole.valueOf(it.role) }.getOrDefault(UserRole.STAFF) } ?: UserRole.ADMIN,
+            role = loginData.user?.let { runCatching { nativeUserRole(it.role) }.getOrDefault(UserRole.STAFF) } ?: UserRole.ADMIN,
             businessId = resolvedBizId,
             createdAt = Clock.System.now(),
             twoFactorEnabled = loginData.requiresOtp
@@ -245,7 +245,7 @@ class AuthRepositoryImpl(
                 email = user.email,
                 phone = user.phone,
                 name = user.name,
-                role = runCatching { UserRole.valueOf(user.role) }.getOrDefault(UserRole.STAFF),
+                role = runCatching { nativeUserRole(user.role) }.getOrDefault(UserRole.STAFF),
                 businessId = resolvedBusinessId,
                 createdAt = Clock.System.now()
             )
@@ -258,4 +258,9 @@ class AuthRepositoryImpl(
             refreshSessionIdleTimeout(client)?.let { tokenStorage.saveSessionIdleTimeoutSeconds(it) }
         }
     }
+}
+
+internal fun nativeUserRole(role: String): UserRole = when (role.uppercase()) {
+    "BUSINESS_ADMIN", "ADMINISTRATOR" -> UserRole.ADMIN
+    else -> UserRole.valueOf(role.uppercase())
 }

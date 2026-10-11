@@ -12,6 +12,7 @@ import {
   BusinessProfileRequest, MpesaConfigResponse, SessionTimeoutConfig, BranchRequest, BranchResponse
 } from '../services/api'
 import { useAuth } from '../App'
+import StorefrontCatalogManager from '../components/StorefrontCatalogManager'
 import { hotelApi } from '../services/hotelApi'
 
 type SettingsTab = 'general' | 'storefront' | 'cybersource' | 'kra' | 'mpesa' | 'security' | 'notifications' | 'branches'
@@ -889,6 +890,7 @@ export function SettingsPage() {
           {profileMsg && <div style={{ padding:12, background:profileMsg.ok ? 'var(--b360-green-bg)' : 'var(--b360-red-bg)', color:profileMsg.ok ? 'var(--b360-green)' : 'var(--b360-red)', borderRadius:8, fontSize:13, fontWeight:600 }}>{profileMsg.text}</div>}
           {profileLoading ? <div style={{padding:32,textAlign:'center',color:'var(--b360-text-secondary)'}}>Loading storefront settings…</div> : <>
             {storefrontSlug && <Section title="Customer ordering"><p>Share your online shop or print a QR code for each table. Customers can order without an account.</p><a href={`/shop/${encodeURIComponent(storefrontSlug)}/qr`} target="_blank" rel="noreferrer">Open shop and table QR codes</a></Section>}
+            <Section title="Portal Items & Groups"><StorefrontCatalogManager /></Section>
             <Section title="Storefront Appearance">
               <Input label="Welcome headline" value={profile.storefrontHeadline || ''} onChange={value => setProfile(current => ({...current, storefrontHeadline:value}))} />
               <Input label="Store description" value={profile.storefrontDescription || ''} onChange={value => setProfile(current => ({...current, storefrontDescription:value}))} />

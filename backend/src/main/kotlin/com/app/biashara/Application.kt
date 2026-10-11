@@ -127,6 +127,7 @@ fun Application.module() {
                 supplierRoutes()
                 orderRoutes()
                 portalOrderRoutes()
+                storefrontCatalogRoutes()
                 workstationAlertAdminRoutes()
                 receiptRoutes()
                 customerRoutes()

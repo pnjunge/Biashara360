@@ -12,6 +12,8 @@ type Cart = Record<string, number>
 const money = (currency: string, value: number) =>
   new Intl.NumberFormat('en-KE', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
 
+const portalGroup = (product: StorefrontProduct) => product.group || product.category || 'Other'
+
 const transactionReference = () =>
   `store-${typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`}`
 
@@ -99,15 +101,16 @@ export default function StorefrontPage() {
     return () => window.clearTimeout(timer)
   }, [orderComplete])
 
-  const categories = useMemo(() => ['ALL', ...new Set(store?.products.map(product => product.category).filter(Boolean) || [])], [store])
+  const categories = useMemo(() => ['ALL', ...new Set(store?.products.map(product => portalGroup(product)).filter(Boolean) || [])], [store])
   const visibleProducts = useMemo(() => {
     const term = search.trim().toLowerCase()
     return (store?.products || []).filter(product =>
       (!favoritesOnly || favorites.includes(product.id)) &&
-      (category === 'ALL' || product.category === category) &&
+      (category === 'ALL' || portalGroup(product) === category) &&
       (!term || product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term) || product.sku.toLowerCase().includes(term))
     ).sort((a, b) => sort === 'price-low' ? a.sellingPrice - b.sellingPrice : sort === 'price-high' ? b.sellingPrice - a.sellingPrice : sort === 'name' ? a.name.localeCompare(b.name) : 0)
   }, [store, search, category, favoritesOnly, favorites, sort])
+  const groupedProducts = [...visibleProducts].sort((a, b) => portalGroup(a).localeCompare(portalGroup(b)))
   const cartProducts = useMemo(() => (store?.products || []).filter(product => cart[product.id]), [store, cart])
   const itemCount = Object.values(cart).reduce((sum, quantity) => sum + quantity, 0)
   const total = cartProducts.reduce((sum, product) => sum + product.sellingPrice * cart[product.id], 0)
@@ -241,14 +244,17 @@ export default function StorefrontPage() {
           </div>
           <div className={`store-products ${(view || store.layout) === 'LIST' ? 'list' : ''}`}>
             {!visibleProducts.length && <div className="store-empty">No products match your search.</div>}
-            {visibleProducts.map(product => (
+            {groupedProducts.map((product, index) => (
+              <React.Fragment key={product.id}>
+              {(index === 0 || portalGroup(groupedProducts[index - 1]) !== portalGroup(product)) && <h2 className="store-group-heading">{portalGroup(product)}</h2>}
               <article className="store-product" key={product.id}>
                 <div className="store-product-image"><button className="store-favorite" aria-label={`Favorite ${product.name}`} aria-pressed={favorites.includes(product.id)} onClick={() => toggleFavorite(product.id)}><Heart size={19} fill={favorites.includes(product.id) ? 'currentColor' : 'none'} /></button>{product.imageUrl ? <img src={product.imageUrl} alt="" onError={event => { event.currentTarget.style.display = 'none' }} /> : <ShoppingBag size={34} />}</div>
-                <div className="store-product-body"><span>{product.category || 'Product'}</span><h2>{product.name}</h2><p>{product.description || `SKU ${product.sku}`}</p><strong>{money(store.currency, product.sellingPrice)}</strong></div>
+                <div className="store-product-body"><span>{portalGroup(product)}</span><h2>{product.name}</h2><p>{product.description || `SKU ${product.sku}`}</p><strong>{money(store.currency, product.sellingPrice)}</strong></div>
                 <div className="store-quantity">
                   {cart[product.id] ? <><button aria-label={`Remove one ${product.name}`} onClick={() => changeQuantity(product, -1)}><Minus size={15} /></button><b>{cart[product.id]}</b><button aria-label={`Add one ${product.name}`} disabled={cart[product.id] >= product.availableQuantity} onClick={() => changeQuantity(product, 1)}><Plus size={15} /></button></> : <button className="store-add" disabled={product.availableQuantity <= 0} onClick={() => changeQuantity(product, 1)}><ShoppingCart size={18} />{product.availableQuantity <= 0 ? 'Out of stock' : 'Add to cart'}</button>}
                 </div>
               </article>
+              </React.Fragment>
             ))}
           </div>
         </section>

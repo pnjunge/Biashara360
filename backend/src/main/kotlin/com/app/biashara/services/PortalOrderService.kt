@@ -34,14 +34,9 @@ class PortalOrderService {
             (OrdersTable.deliveryStatus notInList listOf("CANCELLED", "DELIVERED", "RETURNED"))
     }
 
-    private fun requireMember(businessId: String, userId: String) {
-        require(UsersTable.slice(UsersTable.id).select {
-            (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) and (UsersTable.isActive eq true)
-        }.any()) { "Active business membership is required" }
-    }
 
     fun queue(businessId: String, userId: String): PortalOrderQueue = transaction {
-        requireMember(businessId, userId)
+        requireOnlineOrderRecipient(businessId, userId)
         val waiting = OrdersTable.slice(fields).select {
             eligible(businessId) and OrdersTable.serverUserId.isNull() and OrdersTable.responsibleUserId.isNull()
         }.orderBy(OrdersTable.createdAt, SortOrder.ASC).limit(100).toList()
@@ -54,7 +49,7 @@ class PortalOrderService {
 
     // The unclaimed predicate is part of the UPDATE, so competing claims cannot overwrite the winner.
     fun claim(businessId: String, userId: String, orderId: String): PortalOrderSummary? = transaction {
-        requireMember(businessId, userId)
+        requireOnlineOrderRecipient(businessId, userId)
         val hospitalityEnabled = BusinessesTable
             .slice(BusinessesTable.hospitalityEnabled, BusinessesTable.type)
             .select { BusinessesTable.id eq businessId }
@@ -64,7 +59,7 @@ class PortalOrderService {
         BusinessesTable.slice(BusinessesTable.id).select { BusinessesTable.id eq businessId }.forUpdate().first()
         if(hospitalityEnabled) requireStaffOnDuty(businessId,userId)
         val updated = OrdersTable.update({
-            eligible(businessId) and (OrdersTable.id eq orderId) and OrdersTable.serverUserId.isNull()
+            eligible(businessId) and (OrdersTable.id eq orderId) and OrdersTable.serverUserId.isNull() and OrdersTable.responsibleUserId.isNull()
         }) {
             it[serverUserId] = userId
             it[responsibleUserId] = userId
@@ -100,4 +95,14 @@ class PortalOrderService {
         row[OrdersTable.deliveryLocation], row[OrdersTable.subtotal], row[OrdersTable.paymentStatus],
         row[OrdersTable.createdAt].toString(), row[OrdersTable.responsibleUserId] ?: row[OrdersTable.serverUserId], items[row[OrdersTable.id]].orEmpty()
     )
+}
+
+internal fun requireOnlineOrderRecipient(businessId: String, userId: String) {
+    val member = UsersTable.slice(UsersTable.role).select {
+        (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) and (UsersTable.isActive eq true)
+    }.firstOrNull()
+    require(member != null) { "Active business membership is required" }
+    require(member[UsersTable.role].uppercase() !in setOf("ADMIN", "SUPERADMIN", "BUSINESS_ADMIN", "ADMINISTRATOR")) {
+        "Administrators do not receive or claim online orders"
+    }
 }

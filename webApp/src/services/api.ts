@@ -411,6 +411,7 @@ export interface MetaBusinessDiscovery {
 }
 
 export interface StorefrontProduct {
+  group?: string
   id: string
   sku: string
   name: string

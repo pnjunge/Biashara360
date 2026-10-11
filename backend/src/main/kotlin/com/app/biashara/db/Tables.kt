@@ -216,6 +216,8 @@ object RefreshTokensTable : Table("refresh_tokens") {
 // ─── Products ─────────────────────────────────────────────────────────────────
 
 object ProductsTable : Table("products") {
+    val onlineVisible = bool("online_visible").default(true)
+    val onlineGroup = varchar("online_group", 100).default("")
     val id = varchar("id", 36)
     val businessId = varchar("business_id", 36).references(BusinessesTable.id)
     val sku = varchar("sku", 100)

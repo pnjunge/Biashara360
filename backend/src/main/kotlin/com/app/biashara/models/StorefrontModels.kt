@@ -31,7 +31,8 @@ data class StorefrontProductResponse(
     val sellingPrice: Double,
     val availableQuantity: Int,
     val category: String,
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val group: String = "Other"
 )
 
 @Serializable

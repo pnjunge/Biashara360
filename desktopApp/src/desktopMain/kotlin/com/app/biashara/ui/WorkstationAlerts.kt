@@ -38,11 +38,11 @@ private object AlertUi { val settings = MutableStateFlow(false) }
     var merchant by remember { mutableStateOf(WorkstationAlertPreferences.merchant) }
     var status by remember { mutableStateOf<String?>(null) }
     var speechIssue by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(revision) {
+    LaunchedEffect(revision, user?.id, user?.role) {
         popup=emptyList()
         WorkstationAlertPreferences.connectionActive=false
         val key = WorkstationAlertPreferences.token
-        if (key.isBlank() || WorkstationAlertPreferences.endpoint != BASE_URL) return@LaunchedEffect
+        if (key.isBlank() || WorkstationAlertPreferences.endpoint != BASE_URL || user?.role in setOf(com.app.biashara.domain.model.UserRole.ADMIN, com.app.biashara.domain.model.UserRole.SUPERADMIN)) return@LaunchedEffect
         while (isActive) {
             try {
                 val response = client.get("$BASE_URL/workstation-alerts/feed") { header("X-Workstation-Key",key) }

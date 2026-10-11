@@ -38,7 +38,7 @@ class StorefrontService(
         val businessId = business[BusinessesTable.id]
         val products = ProductsTable.select {
             (ProductsTable.businessId eq businessId) and
-                (ProductsTable.isActive eq true)
+                (ProductsTable.isActive eq true) and (ProductsTable.onlineVisible eq true)
         }.orderBy(ProductsTable.name).toList()
         val recipes = recipeStock(businessId, products.map { it[ProductsTable.id] })
         val availableProducts = products.map {
@@ -50,6 +50,7 @@ class StorefrontService(
                 sellingPrice = it[ProductsTable.sellingPrice],
                 availableQuantity = recipes[it[ProductsTable.id]]?.available ?: it[ProductsTable.currentStock],
                 category = it[ProductsTable.category],
+                group = it[ProductsTable.onlineGroup].ifBlank { it[ProductsTable.category].ifBlank { "Other" } },
                 imageUrl = it[ProductsTable.imageUrl]
             )
         }.filter { it.availableQuantity > 0 }
@@ -107,7 +108,7 @@ class StorefrontService(
             val products = ProductsTable.select {
                 (ProductsTable.businessId eq businessId) and
                     (ProductsTable.id inList requestedIds) and
-                    (ProductsTable.isActive eq true)
+                    (ProductsTable.isActive eq true) and (ProductsTable.onlineVisible eq true)
             }.associateBy { it[ProductsTable.id] }
             if (products.size != requestedIds.distinct().size) return@transaction null
             req.items.map { item ->

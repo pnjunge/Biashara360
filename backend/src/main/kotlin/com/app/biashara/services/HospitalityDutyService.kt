@@ -74,6 +74,7 @@ class HospitalityDutyService(private val access: AccessControlService = AccessCo
         lockBusiness(businessId); require(eligible(businessId,userId)) { "Waiter or cashier access is required" }
         require(isPersonalShiftExempt(businessId,userId) || openShift(businessId,userId)!=null) { "Start your staff shift first" }
         val order=activeOrder(businessId,orderId)
+        if (order[OrdersTable.salesChannel] == "ECOMMERCE") requireOnlineOrderRecipient(businessId,userId)
         require(owner(order)==null) { "This bill already has a responsible staff member; request a handover" }
         OrdersTable.update({ OrdersTable.id eq orderId }) { it[responsibleUserId]=userId; it[updatedAt]=Clock.System.now() }
         audit(businessId,userId,"BILL_CLAIMED","ORDER",orderId); orderId
@@ -87,6 +88,7 @@ class HospitalityDutyService(private val access: AccessControlService = AccessCo
         require(isPersonalShiftExempt(businessId,request.toUserId) || openShift(businessId,request.toUserId)!=null) { "The receiving staff member must start their staff shift first" }
         val targets=request.orderIds.map { id ->
             val order=activeOrder(businessId,id)
+            if (order[OrdersTable.salesChannel] == "ECOMMERCE") requireOnlineOrderRecipient(businessId,request.toUserId)
             val from=owner(order) ?: error("Claim an unassigned bill before handing it over")
             require(from!=request.toUserId) { "The receiving staff member already owns this bill" }
             require(from==userId || manage) { "Only the responsible staff member or a shift manager can hand over this bill" }
@@ -117,6 +119,7 @@ class HospitalityDutyService(private val access: AccessControlService = AccessCo
         if(action=="ACCEPT") {
             require(eligible(businessId,userId) && (isPersonalShiftExempt(businessId,userId) || openShift(businessId,userId)!=null)) { "Start your staff shift with waiter or cashier access before accepting" }
             val order=activeOrder(businessId,row[HospitalityBillHandoversTable.orderId])
+            if (order[OrdersTable.salesChannel] == "ECOMMERCE") requireOnlineOrderRecipient(businessId,userId)
             require(owner(order)==row[HospitalityBillHandoversTable.fromUserId]) { "Bill responsibility has changed; cancel and recreate this handover" }
             OrdersTable.update({ OrdersTable.id eq order[OrdersTable.id] }) { it[responsibleUserId]=userId; it[updatedAt]=Clock.System.now() }
         }

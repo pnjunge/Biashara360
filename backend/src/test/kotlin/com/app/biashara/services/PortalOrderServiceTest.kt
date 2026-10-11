@@ -40,6 +40,23 @@ class PortalOrderServiceTest {
     }
 
     @Test
+    fun `claim cannot overwrite a bill already assigned through hospitality`() {
+        transaction { exec("UPDATE orders SET responsible_user_id='u2' WHERE id='o1'") }
+        assertNull(service.claim("a", "u1", "o1"))
+        assertEquals(listOf("o1"), service.queue("a", "u2").mine.map { it.id })
+    }
+
+    @Test
+    fun `administrators cannot receive or claim online orders`() {
+        for (role in listOf("ADMIN", "SUPERADMIN", "BUSINESS_ADMIN", "ADMINISTRATOR")) {
+            transaction { exec("UPDATE users SET role='$role' WHERE id='u1'") }
+            assertFailsWith<IllegalArgumentException> { service.queue("a", "u1") }
+            assertFailsWith<IllegalArgumentException> { service.claim("a", "u1", "o1") }
+            assertEquals(listOf("o1"), service.queue("a", "u2").waiting.map { it.id })
+        }
+    }
+
+    @Test
     fun `queue shows only eligible portal orders from this business including paid orders`() {
         val queue = service.queue("a", "u1")
         assertEquals(listOf("o1"), queue.waiting.map { it.id })

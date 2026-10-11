@@ -9,7 +9,7 @@ import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
-// Registered inside JWT authentication. Every active user of the business may claim portal orders.
+// Registered inside JWT authentication. Eligible non-administrator business users may claim portal orders.
 fun Route.portalOrderRoutes() {
     val service = PortalOrderService()
     route("/portal-orders") {
