@@ -2,7 +2,7 @@ import { unitOptions } from '../utils/unitsOfMeasure'
 import { StaffShiftReports } from '../components/hospitality/StaffShiftTally'
 import { IngredientPurchaseUnits } from '../components/hospitality/IngredientPurchasing'
 import React,{useEffect,useMemo,useState} from 'react'
-import {useNavigate} from 'react-router-dom'
+import {useNavigate,useSearchParams} from 'react-router-dom'
 import {useAuth} from '../App'
 import {AlertTriangle,Calendar,ChefHat,ClipboardCheck,Package,RefreshCw,ShoppingCart,Users} from 'lucide-react'
 import {Btn,Card,DataTable,Input,KpiCard,Modal,PageHeader,Select,StatusBadge} from '../components/ui'
@@ -11,8 +11,10 @@ import {HospitalityOperations,ProductResponse,UserResponse,hospitalityApi,hospit
 type Tab='FLOOR'|'RESERVATIONS'|'MENU'|'STOCK'|'SHIFTS'|'APPROVALS'|'REPORTS'
 const foodCategory=(category:string)=>['food','meal','dish','snack','bakery','breakfast','lunch','dinner','restaurant','kitchen','meat','beef','goat','chicken','fish','seafood','dessert','pastry','ugali','chapati','fries'].some(word=>category.trim().toLowerCase().includes(word))
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())
-export default function HospitalityOperationsPage(){
+export default function HospitalityOperationsPage({embedded=false}:{embedded?:boolean}){
  const navigate = useNavigate()
+ const [searchParams] = useSearchParams()
+ const requestedTab = searchParams.get('tab')
  const [permissions,setPermissions]=useState<string[]>([]),[orders,setOrders]=useState<any[]>([])
  const can=(key:string)=>permissions.includes('hospitality.'+key)
  const [tab,setTab]=useState<Tab>(()=>new URLSearchParams(window.location.search).get('tab')==='APPROVALS'?'APPROVALS':new URLSearchParams(window.location.search).get('tab')==='SHIFTS'?'SHIFTS':'FLOOR'),[data,setData]=useState<HospitalityOperations|null>(null),[tables,setTables]=useState<any[]>([]),[products,setProducts]=useState<ProductResponse[]>([]),[users,setUsers]=useState<UserResponse[]>([]),[loading,setLoading]=useState(true),[message,setMessage]=useState('')
@@ -29,9 +31,10 @@ export default function HospitalityOperationsPage(){
  const runReport=async()=>{if(!reportDates.startDate||!reportDates.endDate||reportDates.startDate>reportDates.endDate){setMessage('Choose a valid report date range.');return}setReportLoading(true);setMessage('');try{const r=await hospitalityOpsApi.report(reportDates.startDate,reportDates.endDate);if(r.success===false)throw new Error(r.message||'Could not load report');setReport(r.data)}catch(e:any){setMessage(e.response?.data?.message||e.message||'Could not load report')}finally{setReportLoading(false)}}
  const openShift=data?.shifts.find(s=>s.status==='OPEN'),low=data?.ingredients.filter(i=>i.isLowStock)||[]
  const allTabs:Tab[]=['FLOOR','RESERVATIONS','MENU','STOCK','SHIFTS','APPROVALS','REPORTS']
+ useEffect(()=>{if(requestedTab&&allTabs.includes(requestedTab as Tab))setTab(requestedTab as Tab)},[requestedTab])
  const tabs=allTabs.filter(t=>t==='APPROVALS'||can(t.toLowerCase()))
  useEffect(()=>{if(permissions.length&&tabs.length&&!tabs.includes(tab))setTab(tabs[0])},[permissions.join(',')])
- return <div className="fade-in" style={{display:'flex',flexDirection:'column',gap:16}}><PageHeader title="Hospitality Operations" action={<div style={{display:'flex',gap:8}}>{can('purchasing')&&<Btn variant="secondary" icon={<ShoppingCart size={14}/>} onClick={()=>navigate('/purchases?type=ingredients')}>Purchases</Btn>}<Btn variant="secondary" icon={<RefreshCw size={14}/>} onClick={load}>Refresh</Btn></div>}/>
+ return <div className="fade-in" style={{display:'flex',flexDirection:'column',gap:16}}>{!embedded&&<PageHeader title="Hospitality Operations" action={<div style={{display:'flex',gap:8}}>{can('purchasing')&&<Btn variant="secondary" icon={<ShoppingCart size={14}/>} onClick={()=>navigate('/purchases?type=ingredients')}>Purchases</Btn>}<Btn variant="secondary" icon={<RefreshCw size={14}/>} onClick={load}>Refresh</Btn></div>}/>}
  {message&&<div style={{padding:11,borderRadius:8,background:'var(--b360-green-bg)',color:'var(--b360-text)',fontSize:13}}>{message}</div>}
  <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:4}}>{tabs.map(value=><button key={value} onClick={()=>setTab(value)} style={{border:'1px solid var(--b360-border)',borderRadius:18,padding:'7px 12px',whiteSpace:'nowrap',background:tab===value?'var(--b360-green)':'white',color:tab===value?'white':'inherit',cursor:'pointer'}}>{value.replace('_',' ')}</button>)}</div>
  {loading?<Card style={{padding:35,textAlign:'center'}}>Loading operations…</Card>:!data?<Card style={{padding:25}}>Operations unavailable.</Card>:<>

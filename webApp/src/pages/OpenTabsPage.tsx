@@ -8,7 +8,7 @@ import { BusinessProfileResponse, HospitalityDashboard, OrderResponse, businessA
 import { SettlementModal } from '../components/hospitality/SettlementModal'
 import { printOrderReceipt } from '../utils/receipt'
 
-export default function OpenTabsPage() {
+export default function OpenTabsPage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const [permissions,setPermissions]=useState<string[]>([])
   useEffect(()=>{accessApi.me().then(r=>setPermissions(r.data?.permissions||[])).catch(()=>setPermissions([]))},[])
@@ -45,7 +45,7 @@ export default function OpenTabsPage() {
 
   return (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:20 }}>
-      <PageHeader title="Open Tabs" action={<div style={{display:'flex',gap:8}}><Btn variant="secondary" icon={<RefreshCw size={14}/>} onClick={load} disabled={loading}>Refresh</Btn><Btn icon={<ExternalLink size={14}/>} onClick={() => navigate('/hospitality')}>Manage Tabs</Btn></div>} />
+      {!embedded && <PageHeader title="Open Tabs" action={<div style={{display:'flex',gap:8}}><Btn variant="secondary" icon={<RefreshCw size={14}/>} onClick={load} disabled={loading}>Refresh</Btn><Btn icon={<ExternalLink size={14}/>} onClick={() => navigate('/hospitality')}>Manage Tabs</Btn></div>} />}
       {error && <Card style={{padding:16,color:'var(--b360-red)'}}>{error}</Card>}
       <BillHandoverPanel orders={data?.openTabs||[]} permissions={permissions} onChanged={()=>load(false)}/>
       <div className="responsive-grid responsive-grid-4">

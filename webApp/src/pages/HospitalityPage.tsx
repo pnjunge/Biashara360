@@ -1,7 +1,9 @@
-import BillHandoverPanel from '../components/hospitality/BillHandoverPanel'
+import KitchenDisplayPage from "./KitchenDisplayPage";
+import OpenTabsPage from "./OpenTabsPage";
+import HospitalityOperationsPage from "./HospitalityOperationsPage";
 import { OrderActions } from '../components/OrderActions'
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChefHat,
   CheckCircle2,
@@ -52,17 +54,23 @@ type Cart = Record<string, number>;
 
 export default function HospitalityPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [enabledMenus, setEnabledMenus] = useState<string[]>([]);
+  const [accessLoading, setAccessLoading] = useState(true);
   const { user } = useAuth();
   const isAdmin = ['ADMIN','BUSINESS_ADMIN','SUPERADMIN'].includes(user?.role||'');
   const [permissions,setPermissions]=useState<string[]>([]);
   const can=(key:string)=>permissions.includes('hospitality.'+key);
-  useEffect(()=>{accessApi.me().then(r=>setPermissions(r.data?.permissions||[])).catch(()=>setPermissions([]))},[]);
+  useEffect(()=>{accessApi.me().then(r=>{setPermissions(r.data?.permissions||[]);setEnabledMenus(r.data?.enabledMenus||[])}).catch(()=>setPermissions([])).finally(()=>setAccessLoading(false))},[]);
   const [data, setData] = useState<HospitalityDashboard | null>(null);
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [hubTab, setHubTab] = useState<"FLOOR" | "TABS" | "KDS" | "OPS">("KDS");
+  const hubTab = searchParams.get('area') || 'FLOOR';
+  const setHubTab = (area: string) => { const query = new URLSearchParams(searchParams); query.set('area', area); setSearchParams(query); };
+  const allowedAreas = ['FLOOR', 'TABS', 'KDS', 'OPS'].filter(area => area === 'TABS' ? enabledMenus.includes('OPEN_TABS') : area === 'OPS' ? enabledMenus.some(menu => ['HOSPITALITY', 'HOSPITALITY_OPS'].includes(menu)) : enabledMenus.includes('HOSPITALITY'));
+  useEffect(() => { if (allowedAreas.length && !allowedAreas.includes(hubTab)) setHubTab(allowedAreas[0]); }, [enabledMenus.join(','), hubTab]);
   const [modalError, setModalError] = useState("");
   const [showTable, setShowTable] = useState(false);
   const [tableDraft, setTableDraft] = useState({
@@ -97,11 +105,11 @@ export default function HospitalityPage() {
     try {
       const [dashboard, catalog, operations] = await Promise.all([
         hospitalityApi.dashboard(),
-        productApi.list(),
+        productApi.list().catch(()=>null),
         hospitalityOpsApi.dashboard().catch(()=>null),
       ]);
       if (dashboard.success && dashboard.data) setData(dashboard.data);
-      if (catalog.success && catalog.data)
+      if (catalog?.success && catalog.data)
         setProducts(catalog.data);
       if (operations?.success && operations.data) setMenuProfiles(operations.data.menuProfiles);
     } catch (e: any) {
@@ -310,10 +318,12 @@ export default function HospitalityPage() {
     }
   };
 
-  if (loading)
+  if (loading || accessLoading)
     return (
       <div style={{ padding: 30 }}>Loading bar and restaurant operations…</div>
     );
+  if (!permissions.includes('hospitality.view') || allowedAreas.length === 0)
+    return <div role="alert">You do not have access to Restaurant &amp; Bar.</div>;
   if (!data)
     return (
       <div style={{ color: "var(--b360-red)" }}>
@@ -342,7 +352,7 @@ export default function HospitalityPage() {
         </div>
         <div className="hub-header-actions">
           <div className="hub-date"><Clock size={17} /><span>{new Date().toLocaleDateString('en-KE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}<strong>{new Date().toLocaleTimeString('en-KE', { hour:'2-digit', minute:'2-digit' })}</strong></span></div>
-          {can('floor') && <Btn icon={<Plus size={15} />} onClick={() => openTableEditor()}>Add Table</Btn>}
+          {allowedAreas.includes("FLOOR") && can('floor') && <Btn icon={<Plus size={15} />} onClick={() => openTableEditor()}>Add Table</Btn>}
           <Btn variant="secondary" icon={<RefreshCw size={14} />} onClick={load}>Refresh</Btn>
         </div>
       </div>
@@ -351,13 +361,13 @@ export default function HospitalityPage() {
       {successMessage && <div className="hub-alert hub-alert-success"><CheckCircle2 size={20} /><div><strong>{successMessage}</strong><span>The update has been applied in the Kitchen Display System.</span></div><button onClick={() => setSuccessMessage("")} aria-label="Dismiss success">×</button></div>}
 
       <div className="hub-tabs" role="tablist" aria-label="Hospitality areas">
-        <button className={hubTab === "FLOOR" ? "active" : ""} onClick={() => setHubTab("FLOOR")}><Users size={18} /><span>Floor Plan &amp; Tables <b>({data.tables.length})</b></span></button>
-        <button className={hubTab === "TABS" ? "active" : ""} onClick={() => setHubTab("TABS")}><ShoppingBag size={18} /><span>Open Tabs <b>({data.openTabs.length})</b></span></button>
-        <button className={hubTab === "KDS" ? "active" : ""} onClick={() => setHubTab("KDS")}><ChefHat size={18} /><span>Kitchen & Bar <b>({data.tickets.filter(t => !["SERVED", "CANCELLED"].includes(t.status)).length})</b></span></button>
-        <button className={hubTab === "OPS" ? "active" : ""} onClick={() => setHubTab("OPS")}><Package size={18} /><span>Operations &amp; Stock</span></button>
+        {allowedAreas.includes('FLOOR') && <button className={hubTab === "FLOOR" ? "active" : ""} onClick={() => setHubTab("FLOOR")}><Users size={18} /><span>Floor Plan &amp; Tables <b>({data.tables.length})</b></span></button>}
+        {allowedAreas.includes('TABS') && <button className={hubTab === "TABS" ? "active" : ""} onClick={() => setHubTab("TABS")}><ShoppingBag size={18} /><span>Open Tabs <b>({data.openTabs.length})</b></span></button>}
+        {allowedAreas.includes('KDS') && <button className={hubTab === "KDS" ? "active" : ""} onClick={() => setHubTab("KDS")}><ChefHat size={18} /><span>Kitchen & Bar <b>({data.tickets.filter(t => !["SERVED", "CANCELLED"].includes(t.status)).length})</b></span></button>}
+        {allowedAreas.includes('OPS') && <button className={hubTab === "OPS" ? "active" : ""} onClick={() => setHubTab("OPS")}><Package size={18} /><span>Operations &amp; Stock</span></button>}
       </div>
 
-      {hubTab === "FLOOR" && <section className="hub-panel">
+      {hubTab === "FLOOR" && allowedAreas.includes("FLOOR") && <section className="hub-panel">
         <div className="hub-panel-heading"><div><h2>Live floor plan</h2><p>Select a table to start a tab, open POS, or manage seating.</p></div><div className="hub-heading-actions"><Btn icon={<UtensilsCrossed size={14} />} disabled={!can('orders')} onClick={() => openOrder()}>Takeaway order</Btn>{receiptProfile?.storefrontSlug && <a className="hub-link-button" href={`/shop/${encodeURIComponent(receiptProfile.storefrontSlug)}/qr`} target="_blank" rel="noreferrer">Print customer QR</a>}</div></div>
         {data.tables.length === 0 ? <div className="hub-empty">No tables configured. Add a table to begin dine-in service.</div> : <div className="hub-table-grid">{data.tables.map(table => {
           const tableTabs = data.openTabs.filter(tab => tab.hospitalityTableId === table.id);
@@ -371,12 +381,12 @@ export default function HospitalityPage() {
         })}</div>}
       </section>}
 
-      {hubTab === "TABS" && <section className="hub-panel"><div className="hub-panel-heading"><div><h2>Open customer tabs</h2><p>Manage active tables, receipts and settlement.</p></div><Btn icon={<UtensilsCrossed size={14} />} disabled={!can('orders')} onClick={() => openOrder()}>New tab</Btn></div>{data.openTabs.length === 0 ? <div className="hub-empty">No open customer tabs currently awaiting settlement.</div> : <div className="hub-tabs-grid">{data.openTabs.map(order => { const table = data.tables.find(item => item.id === order.hospitalityTableId); return <Card key={order.id} style={{ padding: 16 }}><div className="hub-card-row"><strong>#{order.orderNumber}</strong><StatusBadge status={order.tabStatus || "OPEN"} /></div><div className="hub-muted">{table?.name || order.serviceType?.replace("_", " ") || "Takeaway"} · {order.customerName || "Walk-in Guest"}</div><div className="hub-tab-total">KES {order.subtotal.toLocaleString()}</div><div className="hub-muted">{order.items.length} item(s) · {age(order.createdAt)}</div><div className="hub-card-actions"><OrderActions order={order} permissions={permissions} onChanged={()=>load()} /><Btn small disabled={!can('billing')} onClick={() => openSettlement(order)}>Settle</Btn><Btn small variant="secondary" icon={<Printer size={12} />} onClick={() => printOrderReceipt(order, receiptProfile)}>Receipt</Btn></div></Card> })}</div>}</section>}
+      {hubTab === "TABS" && allowedAreas.includes('TABS') && <OpenTabsPage embedded />}
 
-      {hubTab === "KDS" && <section className="hub-panel"><div className="hub-panel-heading"><div><h2>Kitchen Display System</h2><p>Track preparation tickets in real time.</p></div><span className="hub-live-dot">● Live</span></div>{data.tickets.filter(ticket => !["SERVED", "CANCELLED"].includes(ticket.status)).length === 0 ? <div className="hub-empty">No active kitchen tickets.</div> : <div className="hub-kds-grid">{data.tickets.filter(ticket => !["SERVED", "CANCELLED"].includes(ticket.status)).map(ticket => <Card key={ticket.id} style={{ padding: 16, border: ticket.status === "PREPARING" ? "2px solid var(--b360-amber)" : "1px solid var(--b360-border)", background: ticket.status === "PREPARING" ? "#FFF9E8" : "white" }}><div className="hub-kds-order"><strong>Order #{ticket.orderNumber}</strong><span>{ticket.station}</span></div><div className="hub-muted">{ticket.tableName || "Takeaway"} <span>·</span> {new Date(ticket.createdAt).toLocaleTimeString('en-KE', { hour:'2-digit', minute:'2-digit' })}</div><div className="hub-divider" />{ticket.items.map(item => <div className="hub-kds-item" key={item.id}><b>{item.quantity}x</b> {item.productName}</div>)}{ticket.notes && <div className="hub-kds-note">Note: {ticket.notes}</div>}<div className="hub-kds-footer"><StatusBadge status={["NEW", "READY", "DELAYED"].includes(ticket.status) ? "PREPARING" : ticket.status} />{!["SERVED", "CANCELLED"].includes(ticket.status) && <Btn small disabled={!can('kitchen')} onClick={() => advanceTicket(ticket.id, "SERVED")}>Mark Served</Btn>}</div></Card>)}</div>}</section>}
+      {hubTab === "KDS" && allowedAreas.includes('KDS') && <KitchenDisplayPage embedded />}
 
-      <BillHandoverPanel orders={data.openTabs} permissions={permissions} onChanged={()=>load()}/>
-      {hubTab === "OPS" && <section className="hub-panel"><div className="hub-panel-heading"><div><h2>Operations &amp; stock</h2><p>Reservations, shifts, menu profiles, purchasing, approvals and reports.</p></div><Btn onClick={() => navigate('/hospitality-operations')}>Open operations</Btn></div><div className="hub-ops-summary"><div><strong>{data.tables.filter(t => t.status === "OCCUPIED").length}</strong><span>Occupied tables</span></div><div><strong>{data.openTabs.length}</strong><span>Open tabs</span></div><div><strong>{data.tickets.filter(t => !["SERVED", "CANCELLED"].includes(t.status)).length}</strong><span>Active tickets</span></div><div><strong>Live</strong><span>Stock monitoring</span></div></div></section>}
+
+      {hubTab === "OPS" && allowedAreas.includes('OPS') && <HospitalityOperationsPage embedded />}
 
       <div className="hub-capability-grid">
         <button onClick={() => setHubTab("FLOOR")}><span className="hub-capability-icon"><Users size={21} /></span><span><strong>Live Floor Plan</strong><small>View table status and manage seating in real time.</small></span></button>

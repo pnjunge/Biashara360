@@ -194,7 +194,17 @@ private fun AndroidPortalMeta(icon: ImageVector, text: String) {
 fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var selectedSegment by remember { mutableStateOf(0) }
+    val access by NativeAccessSession.access.collectAsState()
+    val visibleSegments = buildList {
+        if (access?.allows("HOSPITALITY") == true) add(1)
+        if (access?.allows("OPEN_TABS") == true) add(2)
+        if (access?.allows("HOSPITALITY") == true) add(0)
+        if (access?.allows("HOSPITALITY") == true || access?.allows("HOSPITALITY_OPS") == true) add(3)
+    }
+    var selectedSegment by remember { mutableStateOf(1) }
+    LaunchedEffect(visibleSegments) {
+        if (selectedSegment !in visibleSegments) selectedSegment = visibleSegments.firstOrNull() ?: 1
+    }
     var dashboard by remember { mutableStateOf<AndroidFullDashboard?>(null) }
     var operations by remember { mutableStateOf<AndroidOperationsData?>(null) }
     var products by remember { mutableStateOf<List<AndroidProduct>>(emptyList()) }
@@ -223,18 +233,18 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
             error = null
             runCatching {
                 val dashRes = client.get("$BASE_URL/hospitality").body<ApiResponse<AndroidFullDashboard>>()
-                val opsRes = client.get("$BASE_URL/hospitality/operations").body<ApiResponse<AndroidOperationsData>>()
+                val opsRes = runCatching { client.get("$BASE_URL/hospitality/operations").body<ApiResponse<AndroidOperationsData>>() }.getOrNull()
                 val portalRes = runCatching { client.get("$BASE_URL/portal-orders").body<ApiResponse<AndroidPortalQueue>>() }.getOrNull()
                 val productsRes = runCatching { client.get("$BASE_URL/products").body<ApiResponse<List<AndroidProduct>>>() }.getOrNull()
                 listOf(dashRes, opsRes, portalRes, productsRes)
             }.onSuccess { results ->
                 val dashRes = results[0] as ApiResponse<AndroidFullDashboard>
-                val opsRes = results[1] as ApiResponse<AndroidOperationsData>
+                @Suppress("UNCHECKED_CAST") val opsRes = results[1] as ApiResponse<AndroidOperationsData>?
                 @Suppress("UNCHECKED_CAST") val portalRes = results[2] as ApiResponse<AndroidPortalQueue>?
                 @Suppress("UNCHECKED_CAST") val productsRes = results[3] as ApiResponse<List<AndroidProduct>>?
                 if (dashRes.success && dashRes.data != null) dashboard = dashRes.data
                 else error = dashRes.message.ifBlank { "Could not load hospitality operations." }
-                if (opsRes.success && opsRes.data != null) operations = opsRes.data
+                if (opsRes?.success == true && opsRes.data != null) operations = opsRes.data
                 val portalData = portalRes?.data
                 if (portalRes?.success == true && portalData != null) {
                     val waiting = portalData.waiting
@@ -419,8 +429,8 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Hospitality Operations", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A))
-                Text("KDS, floor plan, open tabs and inventory", fontSize = 12.sp, color = Color(0xFF64748B))
+                Text("Restaurant & Bar", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F1F3A))
+                Text("Floor plan, open tabs, kitchen and operations", fontSize = 12.sp, color = Color(0xFF64748B))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
@@ -480,20 +490,21 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
         }
 
         // Segmented Tab Selector Row
-        ScrollableTabRow(
-            selectedTabIndex = selectedSegment,
+        if (visibleSegments.isNotEmpty()) ScrollableTabRow(
+            selectedTabIndex = visibleSegments.indexOf(selectedSegment).coerceAtLeast(0),
             containerColor = Color.White,
             contentColor = Color(0xFF00B874),
             edgePadding = 0.dp,
             modifier = Modifier.clip(RoundedCornerShape(10.dp))
         ) {
             val tabs = listOf(
-                "KDS Display (${dashboard?.tickets?.count { it.status in setOf("NEW", "PREPARING", "READY") } ?: 0})" to Icons.Default.Restaurant,
+                "Kitchen (${dashboard?.tickets?.count { it.status !in setOf("SERVED", "CANCELLED") } ?: 0})" to Icons.Default.Restaurant,
                 "Floor Plan (${dashboard?.tables?.size ?: 0})" to Icons.Default.TableRestaurant,
                 "Open Tabs (${dashboard?.openTabs?.size ?: 0})" to Icons.Default.Receipt,
-                "Stock & Bookings" to Icons.Default.Inventory
+                "Operations & Stock" to Icons.Default.Inventory
             )
-            tabs.forEachIndexed { index, (label, icon) ->
+            visibleSegments.forEach { index ->
+                val (label, icon) = tabs[index]
                 Tab(
                     selected = selectedSegment == index,
                     onClick = { selectedSegment = index },
@@ -511,7 +522,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Color(0xFF00B874))
 
         dashboard?.let { dash ->
-            when (selectedSegment) {
+            when (selectedSegment.takeIf { it in visibleSegments }) {
                 0 -> AndroidKDSScreen(
                     tickets = dash.tickets,
                     onUpdateStatus = ::updateTicketStatus

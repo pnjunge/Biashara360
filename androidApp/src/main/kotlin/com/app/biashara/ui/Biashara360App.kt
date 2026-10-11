@@ -204,7 +204,7 @@ fun Biashara360App(
         }
         // Android combines the restaurant and operations views in one screen.
         val menuAllowed = access?.allows(menu) == true ||
-            (screen == Screen.HospitalityOperations && access?.allows("HOSPITALITY") == true)
+            (screen == Screen.HospitalityOperations && (access?.allows("HOSPITALITY") == true || access?.allows("OPEN_TABS") == true))
         return menuAllowed && (required == null || access?.permits(required) == true) &&
             (screen != Screen.HospitalityOperations || hospitalityEnabled)
     }

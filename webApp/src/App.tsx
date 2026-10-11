@@ -1,5 +1,5 @@
 import React, { Suspense, createContext, lazy, useContext, useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
 import MenuAccess from './components/access/MenuAccess'
 import { hospitalityApi, settingsApi, servicesApi } from './services/api'
@@ -35,9 +35,6 @@ const OrderingQrPage = lazy(() => import('./pages/OrderingQrPage'))
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage'))
 const HospitalityPage = lazy(() => import('./pages/HospitalityPage'))
 const HotelPage = lazy(() => import('./pages/HotelPage'))
-const HospitalityOperationsPage = lazy(() => import('./pages/HospitalityOperationsPage'))
-const OpenTabsPage = lazy(() => import('./pages/OpenTabsPage'))
-const KitchenDisplayPage = lazy(() => import('./pages/KitchenDisplayPage'))
 const ServicesPage = lazy(() => import('./pages/ServicesPage'))
 const EReceiptPage = lazy(() => import('./pages/EReceiptPage'))
 const MarketingPage = lazy(() => import('./pages/MarketingPage'))
@@ -75,6 +72,13 @@ function RoleProtectedRoute({ children, blockedRoles }: { children: React.ReactN
 function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   return (user?.role || '').toUpperCase() === 'SUPERADMIN' ? <>{children}</> : <Navigate to="/dashboard" replace />
+}
+
+function HospitalityLegacyRoute({ area }: { area: 'TABS' | 'KDS' | 'OPS' }) {
+  const location = useLocation()
+  const query = new URLSearchParams(location.search)
+  query.set('area', area)
+  return <Navigate to={`/hospitality?${query.toString()}`} replace />
 }
 
 function HospitalityProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -229,9 +233,9 @@ export default function App() {
             <Route path="/pos"        element={<PosPage />} />
             <Route path="/hospitality" element={<HospitalityProtectedRoute><HospitalityPage /></HospitalityProtectedRoute>} />
             <Route path="/hotel" element={<HotelPage />} />
-            <Route path="/hospitality-operations" element={<HospitalityProtectedRoute><HospitalityOperationsPage /></HospitalityProtectedRoute>} />
-            <Route path="/open-tabs" element={<HospitalityProtectedRoute><OpenTabsPage /></HospitalityProtectedRoute>} />
-            <Route path="/kitchen-display" element={<HospitalityProtectedRoute><KitchenDisplayPage /></HospitalityProtectedRoute>} />
+            <Route path="/hospitality-operations" element={<HospitalityProtectedRoute><HospitalityLegacyRoute area="OPS" /></HospitalityProtectedRoute>} />
+            <Route path="/open-tabs" element={<HospitalityProtectedRoute><HospitalityLegacyRoute area="TABS" /></HospitalityProtectedRoute>} />
+            <Route path="/kitchen-display" element={<HospitalityProtectedRoute><HospitalityLegacyRoute area="KDS" /></HospitalityProtectedRoute>} />
             <Route path="/services" element={<ServicesProtectedRoute><ServicesPage /></ServicesProtectedRoute>} />
             <Route path="/orders"     element={<OrdersPage />} />
             <Route path="/customers"  element={<CustomersPage />} />

@@ -327,11 +327,11 @@ private fun PosCatalogSearchFilterHeader(
                 Text(
                     text = "Point of Sale",
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 22.sp,
+                    fontSize = 20.sp,
                     color = Color(0xFF0F172A)
                 )
                 Text(
-                    text = if (hospitalityEnabled) "Hospitality mode active · Unified POS interface" else "Find and select products to start a sale",
+                    text = if (hospitalityEnabled) "Hospitality · $itemCount items" else "$itemCount products",
                     fontSize = 13.sp,
                     color = if (hospitalityEnabled) B360Green else Color(0xFF64748B)
                 )
@@ -364,7 +364,7 @@ private fun PosCatalogSearchFilterHeader(
                 }
             }
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(8.dp))
 
         // Search Bar
         OutlinedTextField(
@@ -391,7 +391,7 @@ private fun PosCatalogSearchFilterHeader(
             )
         )
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
 
         if (!isCompact) {
             // ── Category Tabs for Split-Pane POS Screen ───────────────────────
@@ -414,7 +414,7 @@ private fun PosCatalogSearchFilterHeader(
                     border = if (isAllSelected) null else BorderStroke(1.dp, Color(0xFFE2E8F0))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -446,7 +446,7 @@ private fun PosCatalogSearchFilterHeader(
                         border = if (isCatSelected) null else BorderStroke(1.dp, Color(0xFFE2E8F0))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
@@ -475,7 +475,7 @@ private fun PosCatalogSearchFilterHeader(
                     border = if (isFavSelected) null else BorderStroke(1.dp, Color(0xFFE2E8F0))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -503,7 +503,7 @@ private fun PosCatalogSearchFilterHeader(
                     border = if (isRecentSelected) null else BorderStroke(1.dp, Color(0xFFE2E8F0))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -537,7 +537,7 @@ private fun PosCatalogSearchFilterHeader(
                         border = if (isSelected) null else BorderStroke(1.dp, Color(0xFFE2E8F0))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
@@ -608,12 +608,12 @@ private fun PosProductListItem(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
-            modifier = Modifier.padding(14.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(10.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFE8F5EE)),
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFE8F5EE)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -630,8 +630,10 @@ private fun PosProductListItem(
                 ) {
                     Text(
                         product.name,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         color = Color(0xFF0F172A),
                         modifier = Modifier.weight(1f, fill = false)
                     )
@@ -909,7 +911,7 @@ private fun PosCartSummaryPane(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -960,8 +962,8 @@ private fun PosCartSummaryPane(
                 .fillMaxWidth()
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // Cart Items
             if (cart.isEmpty()) {
@@ -1091,7 +1093,7 @@ private fun PosCartSummaryPane(
                         .background(Color(0xFFF0FDF4), RoundedCornerShape(12.dp))
                         .border(1.dp, Color(0xFFBBF7D0), RoundedCornerShape(12.dp))
                         .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text("🍽️ Hospitality Service & Table", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF166534))
 
@@ -1308,8 +1310,8 @@ private fun PosCartSummaryPane(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 errorMessage?.let { msg ->
                     Surface(
@@ -1683,8 +1685,8 @@ fun PosScreen(
                         isCompact = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .padding(top = 12.dp, bottom = 4.dp)
+                            .padding(horizontal = 12.dp)
+                            .padding(top = 8.dp, bottom = 0.dp)
                     )
                 }
             },
@@ -1699,7 +1701,7 @@ fun PosScreen(
                         Icon(Icons.Filled.ShoppingCart, null)
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (hospitalityEnabled) "Checkout / Order (${cart.sumOf { it.qty }}) • KES ${"%,.2f".format(grandTotal)}"
+                            if (hospitalityEnabled) "Order (${cart.sumOf { it.qty }}) · KES ${"%,.2f".format(grandTotal)}"
                             else "Checkout (${cart.sumOf { it.qty }}) • KES ${"%,.2f".format(grandTotal)}",
                             fontWeight = FontWeight.Bold
                         )
@@ -1726,8 +1728,8 @@ fun PosScreen(
                     else -> {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            contentPadding = PaddingValues(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(filteredProducts, key = { it.id }) { p ->
                                 PosProductListItem(
@@ -1854,7 +1856,7 @@ fun PosScreen(
                     isCompact = false,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
                 )
 
                 HorizontalDivider(color = Color(0xFFF1F5F9))
@@ -1879,11 +1881,11 @@ fun PosScreen(
                         }
                         else -> {
                             LazyVerticalGrid(
-                                columns = GridCells.Adaptive(minSize = 160.dp),
+                                columns = GridCells.Adaptive(minSize = 140.dp),
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                contentPadding = PaddingValues(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(filteredProducts, key = { it.id }) { product ->
                                     PosProductGridCard(

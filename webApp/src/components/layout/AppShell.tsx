@@ -15,11 +15,8 @@ import { accessApi, hospitalityApi, servicesApi, branchApi, BranchResponse } fro
 const navItems = [
   { key:'DASHBOARD', to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
   { key:'POS', to: '/pos',           icon: Store,           label: 'Point of Sale' },
-  { key:'HOSPITALITY', to: '/hospitality', icon: Receipt, label: 'Bar & Restaurant' },
+  { key:'HOSPITALITY', to: '/hospitality', icon: Receipt, label: 'Restaurant & Bar' },
   { key:'HOTEL', to: '/hotel', icon: Building2, label: 'Hotel & Accommodation' },
-  { key:'HOSPITALITY_OPS', to: '/hospitality-operations', icon: Building2, label: 'Hospitality Operations' },
-  { key:'OPEN_TABS', to: '/open-tabs', icon: ShoppingCart, label: 'Open Tabs' },
-  { key:'HOSPITALITY', to: '/kitchen-display', icon: ChefHat, label: 'Kitchen Display' },
   { key:'SERVICES', to: '/services', icon: CalendarClock, label: 'Appointments & Services' },
   { key:'INVENTORY', to: '/inventory',     icon: Package,         label: 'Inventory' },
   { key:'PURCHASES', to: '/purchases',     icon: ShoppingBag,     label: 'Purchases' },
@@ -120,7 +117,7 @@ export default function AppShell() {
   const isStaff = (user?.role || '').toUpperCase() === 'STAFF'
   const visibleNavItems = navItems.filter(item => {
     if (item.key === 'SERVICES' && !servicesEnabled) return false
-    const accessKeys = [item.key]
+    const accessKeys = item.key === 'HOSPITALITY' ? ['HOSPITALITY', 'OPEN_TABS', 'HOSPITALITY_OPS'] : [item.key]
     if (item.key === 'PURCHASES') return !!((allowedMenus?.has('PURCHASES') && allowedPermissions.has('purchases.view')) || (hospitalityEnabled && allowedMenus?.has('HOSPITALITY_OPS') && allowedPermissions.has('hospitality.view') && allowedPermissions.has('hospitality.purchasing')))
     if (allowedMenus && !accessKeys.some(key => allowedMenus.has(key) || (key === 'PAYMENTS' && allowedMenus.has('CARD_PAYMENTS')))) return false
     const isHospitalityNav = item.key === 'HOSPITALITY' || item.key === 'HOSPITALITY_OPS' || item.key === 'OPEN_TABS' || item.to === '/kitchen-display'

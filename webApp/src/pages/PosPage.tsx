@@ -380,7 +380,7 @@ export function PosPage() {
   }
 
   return (
-    <div className="fade-in pos-page-layout" style={{ display: 'flex', flexDirection: 'column', gap: 20, height: 'calc(100vh - 120px)' }}>
+    <div className="fade-in pos-page-layout" style={{ display: 'flex', flexDirection: 'column', gap: 10, height: 'calc(100dvh - 120px)' }}>
       <div className="pos-page-heading">
         <div>
           <div className="pos-breadcrumb"><Store size={16} /> <span>Point of Sale</span></div>
@@ -706,9 +706,9 @@ export function PosPage() {
         <div className="split-layout pos-workspace" style={{ flex: 1, minHeight: 0 }}>
           
           {/* Left Column: Product Catalog */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
             
-            <Card style={{ padding: 16 }}>
+            <Card style={{ padding: 10 }}>
               <div className="pos-catalog-toolbar-main" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
                   <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'gray' }} />
@@ -829,7 +829,7 @@ export function PosPage() {
 
           {/* Right Column: Checkout Cart */}
           <div className="pos-order-column" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <Card style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 20, gap: 16 }}>
+            <Card style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 12, gap: 8 }}>
               <div className="pos-order-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--b360-border)', paddingBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700, color: 'var(--b360-sidebar-bg)', fontSize: 17 }}>
                   <span className="pos-order-icon"><ShoppingCart size={18} /></span>
@@ -838,6 +838,7 @@ export function PosPage() {
                 <button className="pos-more-button" type="button" aria-label={cart.length ? 'Clear order' : 'Order actions'} disabled={!cart.length} onClick={cart.length ? clearCart : undefined}><MoreVertical size={19} /></button>
               </div>
 
+              <div className="pos-order-details">
               {error && (
                 <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5', color: '#B91C1C', padding: 10, borderRadius: 8, fontSize: 12, fontWeight: 500 }}>
                   {error}
@@ -992,6 +993,8 @@ export function PosPage() {
                 </label>
               </div>
 
+              </div>
+              <div className="pos-checkout-footer">
               <div style={{ borderTop: '1px solid var(--b360-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--b360-text-secondary)' }}>
                   <span>Subtotal</span>
@@ -1053,6 +1056,7 @@ export function PosPage() {
                       ? '📱 M-Pesa'
                       : 'Complete Sale'}
                 </button>
+              </div>
               </div>
             </Card>
           </div>
