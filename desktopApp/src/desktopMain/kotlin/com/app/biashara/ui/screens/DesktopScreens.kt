@@ -40,6 +40,7 @@ import kotlinx.datetime.minus
 import kotlinx.datetime.toLocalDateTime
 import com.app.biashara.ui.AppScreen
 import com.app.biashara.ui.DesktopNavigationViewModel
+import com.app.biashara.ui.data.DesktopDemoData
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.input.key.*
@@ -615,7 +616,7 @@ fun DesktopDashboardScreen(
                         expanded = filterMenuExpanded,
                         onDismissRequest = { filterMenuExpanded = false }
                     ) {
-                        listOf("All Activity", "Paid Orders Only", "Pending / Unpaid", "Low Stock Alerts").forEach { opt ->
+                        DesktopDemoData.dashboardFilterOptions.forEach { opt ->
                             val isSelected = dashboardFilter == opt
                             DropdownMenuItem(
                                 text = {

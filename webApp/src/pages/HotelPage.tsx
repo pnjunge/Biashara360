@@ -257,10 +257,9 @@ export default function HotelPage() {
     setModal("ROOM");
   }
   async function refreshFolio(id: string) {
-    const [f, p] = await Promise.all([
-      hotelApi.folio(id),
-      hotelApi.payments(id),
-    ]);
+    // Reading the folio synchronizes provider settlements before reading requests.
+    const f = await hotelApi.folio(id);
+    const p = await hotelApi.payments(id);
     setFolio(f);
     setPayments(p);
     return f;
@@ -1572,6 +1571,20 @@ export default function HotelPage() {
                     ) && (
                       <>
                         <h4>Collect Payment / Deposit</h4>
+                        {payments.some(p => p.paymentStatus === "PENDING") && (
+                          <div role="status">
+                            <p>An existing payment request is pending. Complete that payment, or cancel an uninitiated request below before collecting another payment.</p>
+                            {payments.filter(p => p.paymentStatus === "PENDING").map(p => (
+                              <p key={p.orderId}>{p.paymentMethod} · {money(p.amountCents)} · Pending</p>
+                            ))}
+                            <Btn variant="secondary" disabled={busy}
+                              onClick={() => run(async () => {
+                                await refreshFolio(folio.reservation.id);
+                                await load();
+                              })}>Check Payment Status</Btn>
+                            <a href="#hotel-payment-requests">Manage existing payment request</a>
+                          </div>
+                        )}
                         {label(
                           "Method",
                           <select
@@ -1607,7 +1620,7 @@ export default function HotelPage() {
                         )}
                         <Btn
                           disabled={
-                            busy || !payment.amount || folio.balanceCents <= 0
+                            busy || !payment.amount || folio.balanceCents <= 0 || payments.some(p => p.paymentStatus === "PENDING")
                           }
                           onClick={() =>
                             run(async () => {
@@ -1652,7 +1665,7 @@ export default function HotelPage() {
                 )}
                 {payments.length > 0 && (
                   <>
-                    <h4>Payment Requests</h4>
+                    <h4 id="hotel-payment-requests">Payment Requests</h4>
                     {payments.map((p) => (
                       <div key={p.orderId} className="hotel-payment">
                         <span>
@@ -1704,6 +1717,8 @@ export default function HotelPage() {
                                     p.orderId,
                                   );
                                   await refreshFolio(folio.reservation.id);
+                                  await load();
+                                  setMessage("Payment request cancelled. You can now collect payment using the chosen method.");
                                 })
                               }
                             >
