@@ -108,3 +108,22 @@ the repository, and schedule:
 
 Test a restore before cutover. Keep AWS available as rollback for at least 48
 hours and do not delete RDS until the final backup is independently verified.
+
+## Password reset delivery
+
+Forgot password can send a single-use link by SMTP email or Meta WhatsApp.
+Links expire after 10 minutes; requesting a replacement is limited to once per
+minute per account. `PASSWORD_RESET_URL` defaults to
+`https://biashara360.co.ke/login`. Use a trusted HTTPS frontend login URL;
+the secret is passed in the `#token=` fragment and removed when the page opens.
+
+Email uses the existing SMTP settings (system settings override environment).
+For WhatsApp, set `WHATSAPP_OTP_TOKEN`, `WHATSAPP_OTP_PHONE_NUMBER_ID`,
+`WHATSAPP_RESET_TEMPLATE_NAME` and optionally `WHATSAPP_RESET_TEMPLATE_LANGUAGE`
+(defaults to the OTP language or `en_US`). The reset template must be approved
+in Meta and accept one text body parameter containing the complete reset URL.
+This is a separate template from the six-digit login OTP template. WhatsApp
+sends to the phone registered on the account, never a caller-supplied number.
+Restart the API after changing environment configuration. If a channel is not
+configured, the login screen reports that it is unavailable; provider failures
+are logged without the reset secret and any undelivered link is revoked.

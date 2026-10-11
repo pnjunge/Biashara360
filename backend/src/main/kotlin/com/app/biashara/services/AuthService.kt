@@ -534,7 +534,18 @@ class AuthService(
         return ApiResponse(success = true, message = "OTP resent via ${req.channel}")
     }
 
-    fun requestPasswordReset(email: String, invitation: Boolean = false): ApiResponse<Unit> {
+    private val passwordResetLinks = PasswordResetLinkService(emailService.passwordResetUrl) { email, phone, name, link, channel ->
+        if (channel == "WHATSAPP") runBlocking { whatsappOtpService.sendPasswordResetLink(phone, link) }
+        else emailService.sendPasswordResetEmail(email, link, name)
+    }
+
+    fun requestPasswordReset(email: String, invitation: Boolean = false, channel: String = "EMAIL"): ApiResponse<Unit> {
+        if (!invitation) {
+            if (channel !in setOf("EMAIL", "WHATSAPP")) return ApiResponse(false, message = "Choose Email or WhatsApp")
+            val configured = if (channel == "WHATSAPP") whatsappOtpService.isPasswordResetConfigured() else emailService.isConfigured()
+            if (!configured) return ApiResponse(false, message = "${if (channel == "WHATSAPP") "WhatsApp" else "Email"} password reset is unavailable. Try another channel or contact your administrator.")
+            return passwordResetLinks.request(email, channel)
+        }
         data class ResetDispatch(val email: String, val name: String, val code: String)
         val dispatch = transaction {
             val user = UsersTable.select { UsersTable.email eq email.trim() }.firstOrNull()
@@ -548,7 +559,7 @@ class AuthService(
                 it[id] = generateId()
                 it[OtpTable.userId] = user[UsersTable.id]
                 it[OtpTable.code] = code
-                it[channel] = "PASSWORD_RESET"
+                it[OtpTable.channel] = "PASSWORD_RESET"
                 it[used] = false
                 it[expiresAt] = now + 600.seconds
                 it[createdAt] = now
@@ -574,22 +585,30 @@ class AuthService(
         )
     }
 
-    fun confirmPasswordReset(token: String, newPassword: String): ApiResponse<Unit> = transaction {
-        val now = Clock.System.now()
-        val reset = OtpTable.select {
-            (OtpTable.code eq token) and
-                (OtpTable.channel eq "PASSWORD_RESET") and
-                (OtpTable.used eq false) and
-                (OtpTable.expiresAt greaterEq now)
-        }.firstOrNull() ?: return@transaction ApiResponse(false, message = "Invalid or expired reset code")
-        val userId = reset[OtpTable.userId]
-        UsersTable.update({ UsersTable.id eq userId }) {
-            it[passwordHash] = PasswordUtils.hash(newPassword)
-            it[updatedAt] = now
+    fun confirmPasswordReset(token: String, newPassword: String): ApiResponse<Unit> {
+        if (newPassword.length < 8 || !com.app.biashara.utils.ValidationUtils.isValidPassword(newPassword))
+            return ApiResponse(false, message = "Use at least 8 characters with a letter, digit and special character")
+        if (token.length == 64) return passwordResetLinks.confirm(token, newPassword)
+        return transaction {
+            val now = Clock.System.now()
+            val reset = OtpTable.select {
+                (OtpTable.code eq token) and
+                    (OtpTable.channel eq "PASSWORD_RESET") and
+                    (OtpTable.used eq false) and
+                    (OtpTable.expiresAt greater now)
+            }.forUpdate().firstOrNull() ?: return@transaction ApiResponse(false, message = "Invalid or expired reset code")
+            val userId = reset[OtpTable.userId]
+            UsersTable.update({ UsersTable.id eq userId }) {
+                it[passwordHash] = PasswordUtils.hash(newPassword)
+                it[updatedAt] = now
+                it[tokenValidAfter] = now
+            }
+            OtpTable.deleteWhere { (OtpTable.userId eq userId) and (OtpTable.channel eq "PASSWORD_RESET") }
+            PasswordResetLinksTable.deleteWhere { PasswordResetLinksTable.userId eq userId }
+            RefreshTokensTable.deleteWhere { RefreshTokensTable.userId eq userId }
+            ApiResponse(success = true, message = "Password reset successfully. Sign in with your new password.")
         }
-        OtpTable.update({ OtpTable.id eq reset[OtpTable.id] }) { it[used] = true }
-        RefreshTokensTable.deleteWhere { RefreshTokensTable.userId eq userId }
-        ApiResponse(success = true, message = "Password reset successfully. Sign in with your new password.")
+
     }
 
     fun changePassword(userId: String, req: ChangePasswordRequest): ApiResponse<Unit> = transaction {

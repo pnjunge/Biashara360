@@ -366,6 +366,7 @@ fun LoginScreen(
     var showPasswordReset by remember { mutableStateOf(false) }
     var resetEmail by remember { mutableStateOf("") }
     var resetCode by remember { mutableStateOf("") }
+    var resetChannel by remember { mutableStateOf("EMAIL") }
     var newPassword by remember { mutableStateOf("") }
 
     if (showPasswordReset) {
@@ -380,7 +381,7 @@ fun LoginScreen(
                 Text(
                     when {
                         state.passwordResetCompleted -> "Password Reset"
-                        state.passwordResetRequested -> "Enter Reset Code"
+                        state.passwordResetRequested -> "Choose New Password"
                         else -> "Forgot Password"
                     },
                     fontWeight = FontWeight.Bold
@@ -393,12 +394,12 @@ fun LoginScreen(
                             Text("Your password was changed. Sign in using your new password.")
                         }
                         state.passwordResetRequested -> {
-                            Text("Enter the 6-digit code sent to your email.")
+                            Text("Open the reset link in your browser, or paste it here to choose a new password.")
                             OutlinedTextField(
                                 value = resetCode,
-                                onValueChange = { resetCode = it.filter(Char::isDigit).take(6) },
-                                label = { Text("Reset code") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                onValueChange = { resetCode = it },
+                                label = { Text("Reset link or invitation code") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                                 singleLine = true,
                                 enabled = !state.isLoading
                             )
@@ -410,10 +411,15 @@ fun LoginScreen(
                                 singleLine = true,
                                 enabled = !state.isLoading
                             )
-                            Text("Use at least 8 characters.", color = Color(0xFF64748B), fontSize = 12.sp)
+                            Text("Use at least 8 characters with a letter, digit and special character.", color = Color(0xFF64748B), fontSize = 12.sp)
                         }
                         else -> {
-                            Text("Enter your account email. If it exists, we’ll send a reset code.")
+                            Text("Enter your account email. WhatsApp uses the phone saved on your account.")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("EMAIL" to "Email", "WHATSAPP" to "WhatsApp").forEach { (channel, label) ->
+                                    FilterChip(selected = resetChannel == channel, onClick = { resetChannel = channel }, label = { Text(label) }, enabled = !state.isLoading)
+                                }
+                            }
                             OutlinedTextField(
                                 value = resetEmail,
                                 onValueChange = { resetEmail = it },
@@ -440,7 +446,7 @@ fun LoginScreen(
                             }
                             state.passwordResetRequested ->
                                 viewModel.confirmPasswordReset(resetCode, newPassword)
-                            else -> viewModel.requestPasswordReset(resetEmail)
+                            else -> viewModel.requestPasswordReset(resetEmail, resetChannel)
                         }
                     }
                 ) {
@@ -451,7 +457,7 @@ fun LoginScreen(
                             when {
                                 state.passwordResetCompleted -> "Back to Login"
                                 state.passwordResetRequested -> "Reset Password"
-                                else -> "Send Code"
+                                else -> "Send Link"
                             }
                         )
                     }

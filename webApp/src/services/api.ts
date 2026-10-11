@@ -1440,8 +1440,8 @@ export const authApi = {
     return res.data
   },
 
-  forgotPassword: async (email: string) => {
-    const res = await client.post<ApiResponse<null>>('/auth/forgot-password', { email })
+  forgotPassword: async (email: string, channel: 'EMAIL' | 'WHATSAPP' = 'EMAIL') => {
+    const res = await client.post<ApiResponse<null>>('/auth/forgot-password', { email, channel })
     return res.data
   },
 

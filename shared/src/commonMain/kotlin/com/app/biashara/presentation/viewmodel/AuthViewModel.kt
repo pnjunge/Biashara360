@@ -200,14 +200,14 @@ class AuthViewModel(
         }
     }
 
-    fun requestPasswordReset(email: String) {
+    fun requestPasswordReset(email: String, channel: String = "EMAIL") {
         if (email.isBlank()) {
             _state.update { it.copy(error = "Email is required") }
             return
         }
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            requestPasswordResetUseCase(email).fold(
+            requestPasswordResetUseCase(email, channel).fold(
                 onSuccess = { _state.update { it.copy(isLoading = false, passwordResetRequested = true) } },
                 onFailure = { error ->
                     _state.update { it.copy(isLoading = false, error = error.message) }
@@ -217,13 +217,14 @@ class AuthViewModel(
     }
 
     fun confirmPasswordReset(token: String, newPassword: String) {
-        if (token.length != 6 || newPassword.length < 8) {
-            _state.update { it.copy(error = "Enter the 6-digit code and a password of at least 8 characters") }
+        val resetToken = token.trim().substringAfter("#token=").substringBefore("&")
+        if (!resetToken.matches(Regex("(?:[a-f0-9]{64}|[0-9]{6})")) || newPassword.length < 8) {
+            _state.update { it.copy(error = "Paste the reset link (or invitation code) and use a password of at least 8 characters") }
             return
         }
         scope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            confirmPasswordResetUseCase(token, newPassword).fold(
+            confirmPasswordResetUseCase(resetToken, newPassword).fold(
                 onSuccess = {
                     _state.update {
                         it.copy(isLoading = false, passwordResetCompleted = true, passwordResetRequested = false)

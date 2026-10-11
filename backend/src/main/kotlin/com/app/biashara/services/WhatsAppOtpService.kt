@@ -7,6 +7,8 @@ import io.ktor.server.config.ApplicationConfig
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.addJsonObject
 
 /** Global Meta WhatsApp Cloud API sender for authentication OTPs. */
 class WhatsAppOtpService(
@@ -42,6 +44,42 @@ class WhatsAppOtpService(
             else Result.failure(IllegalStateException("WhatsApp API error (${response.status.value})"))
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private val resetTemplateName = config.propertyOrNull("whatsapp.resetTemplateName")?.getString()?.trim().orEmpty()
+    private val resetTemplateLanguage = config.propertyOrNull("whatsapp.resetTemplateLanguage")?.getString()?.trim()
+        ?.takeIf { it.isNotBlank() } ?: templateLanguage
+
+    fun isPasswordResetConfigured() = token.isNotBlank() && phoneNumberId.isNotBlank() && resetTemplateName.isNotBlank()
+
+    /** The configured approved template has one body parameter: the complete reset URL. */
+    suspend fun sendPasswordResetLink(to: String, link: String): Result<Unit> {
+        if (!isPasswordResetConfigured()) return Result.failure(IllegalStateException("WhatsApp password reset is not configured"))
+        return runCatching {
+            val payload = buildJsonObject {
+                put("messaging_product", "whatsapp")
+                put("to", normalizePhone(to))
+                put("type", "template")
+                put("template", buildJsonObject {
+                    put("name", resetTemplateName)
+                    put("language", buildJsonObject { put("code", resetTemplateLanguage) })
+                    put("components", buildJsonArray {
+                        addJsonObject {
+                            put("type", "body")
+                            put("parameters", buildJsonArray {
+                                addJsonObject { put("type", "text"); put("text", link) }
+                            })
+                        }
+                    })
+                })
+            }
+            val response = httpClient.post("https://graph.facebook.com/v20.0/$phoneNumberId/messages") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(payload.toString())
+            }
+            check(response.status.isSuccess()) { "WhatsApp reset delivery failed (${response.status.value})" }
         }
     }
 

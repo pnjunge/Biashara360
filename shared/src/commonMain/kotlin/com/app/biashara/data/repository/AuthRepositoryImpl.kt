@@ -77,10 +77,10 @@ class AuthRepositoryImpl(
         if (!response.success) throw Exception(response.message.ifBlank { "Could not resend OTP" })
     }
 
-    override suspend fun requestPasswordReset(email: String): Result<Unit> = runCatching {
+    override suspend fun requestPasswordReset(email: String, channel: String): Result<Unit> = runCatching {
         val response: ApiResponse<Unit> = client.post("$BASE_URL/auth/forgot-password") {
             contentType(ContentType.Application.Json)
-            setBody(PasswordResetRequest(email.trim()))
+            setBody(PasswordResetRequest(email.trim(), channel))
         }.body()
         if (!response.success) throw Exception(response.message.ifBlank { "Could not request password reset" })
     }

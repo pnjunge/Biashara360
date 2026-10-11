@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../App'
 import { authApi } from '../services/api'
@@ -120,8 +120,12 @@ export default function LoginPage() {
   const [loginMode, setLoginMode] = useState<'PASSWORD'|'PIN'>('PASSWORD')
   const [otp, setOtp] = useState('')
   const [userId, setUserId] = useState('')
-  const [step, setStep] = useState<'login' | 'otp' | 'forgot' | 'reset'>('login')
-  const [resetToken, setResetToken] = useState('')
+  const [step, setStep] = useState<'login' | 'otp' | 'forgot' | 'reset'>(() => window.location.hash.startsWith('#token=') ? 'reset' : 'login')
+  const [resetChannel, setResetChannel] = useState<'EMAIL' | 'WHATSAPP'>('EMAIL')
+  const [resetToken, setResetToken] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('token') || '')
+  useEffect(() => {
+    if (window.location.hash.startsWith('#token=')) window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  }, [])
   const [newPassword, setNewPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -197,9 +201,9 @@ export default function LoginPage() {
     setError('')
     setSuccessMsg('')
     try {
-      const result = await authApi.forgotPassword(email.trim())
+      const result = await authApi.forgotPassword(email.trim(), resetChannel)
       if (result.success) {
-        setSuccessMsg(result.message || 'Reset code sent to your registered contact! Check your SMS/Email.')
+        setSuccessMsg(result.message || 'If your account is eligible, check your selected channel for a reset link.')
         setStep('reset')
       } else {
         setError(result.message || 'Could not request password reset')
@@ -213,13 +217,13 @@ export default function LoginPage() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!resetToken.trim() || resetToken.trim().length !== 6) { setError('Enter the 6-digit reset code'); return }
-    if (!newPassword.trim() || newPassword.trim().length < 6) { setError('New password must be at least 6 characters'); return }
+    if (!/^(?:[a-f0-9]{64}|[0-9]{6})$/.test(resetToken.trim())) { setError('Paste a valid reset link or invitation code'); return }
+    if (newPassword.length < 8) { setError('New password must be at least 8 characters'); return }
     setLoading(true)
     setError('')
     setSuccessMsg('')
     try {
-      const result = await authApi.resetPassword({ token: resetToken.trim(), newPassword: newPassword.trim() })
+      const result = await authApi.resetPassword({ token: resetToken.trim(), newPassword: newPassword })
       if (result.success) {
         setSuccessMsg('Password reset successfully! Please sign in with your new password.')
         setPassword('')
@@ -604,7 +608,7 @@ export default function LoginPage() {
               <div style={{ textAlign: 'center', marginBottom: 12 }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>🔑</div>
                 <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Reset your password</h2>
-                <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>Enter your registered email address to receive a 6-digit reset code.</p>
+                <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>Enter your account email and choose where to receive a reset link. WhatsApp uses the phone saved on your account.</p>
               </div>
 
               <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -618,6 +622,11 @@ export default function LoginPage() {
                   }
                 />
 
+                <label style={{ fontSize: 14 }}>Send link via
+                  <select aria-label="Reset link channel" value={resetChannel} disabled={loading} onChange={e => setResetChannel(e.target.value as 'EMAIL' | 'WHATSAPP')} style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0', marginTop: 6 }}>
+                    <option value="EMAIL">Email</option><option value="WHATSAPP">WhatsApp</option>
+                  </select>
+                </label>
                 <button
                   type="submit"
                   disabled={loading || !email.trim()}
@@ -634,7 +643,7 @@ export default function LoginPage() {
                     width: '100%'
                   }}
                 >
-                  {loading ? 'Sending Code...' : 'Send Reset Code'}
+                  {loading ? 'Sending Link...' : 'Send Reset Link'}
                 </button>
 
                 <div style={{ textAlign: 'center', marginTop: 4 }}>
@@ -654,15 +663,15 @@ export default function LoginPage() {
             <>
               <div style={{ textAlign: 'center', marginBottom: 12 }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>🔒</div>
-                <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Enter Reset Code</h2>
-                <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>Enter the 6-digit code and choose a new password.</p>
+                <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Choose a new password</h2>
+                <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>Open the link from Email or WhatsApp, or paste it below. Use at least 8 characters with a letter, digit and special character.</p>
               </div>
 
               <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <CustomLoginTextField
                   value={resetToken}
-                  onChange={v => { setResetToken(v.replace(/\D/g, '').slice(0, 6)); setError(''); setSuccessMsg('') }}
-                  ariaLabel="6-digit Reset Code"
+                  onChange={v => { setResetToken(v.trim().split('#token=').pop()?.split('&')[0] || ''); setError(''); setSuccessMsg('') }}
+                  ariaLabel="Reset link or invitation code"
                   disabled={loading}
                   icon={<span style={{ fontWeight: 900, color: 'var(--b360-green)' }}>#</span>}
                 />
@@ -680,7 +689,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || resetToken.length !== 6 || newPassword.length < 6}
+                  disabled={loading || !/^(?:[a-f0-9]{64}|[0-9]{6})$/.test(resetToken) || newPassword.length < 8}
                   style={{
                     height: 48,
                     background: 'var(--b360-green)',
@@ -689,8 +698,8 @@ export default function LoginPage() {
                     borderRadius: 8,
                     fontSize: 14,
                     fontWeight: 'bold',
-                    cursor: (loading || resetToken.length !== 6 || newPassword.length < 6) ? 'not-allowed' : 'pointer',
-                    opacity: (loading || resetToken.length !== 6 || newPassword.length < 6) ? 0.6 : 1,
+                    cursor: (loading || !/^(?:[a-f0-9]{64}|[0-9]{6})$/.test(resetToken) || newPassword.length < 8) ? 'not-allowed' : 'pointer',
+                    opacity: (loading || !/^(?:[a-f0-9]{64}|[0-9]{6})$/.test(resetToken) || newPassword.length < 8) ? 0.6 : 1,
                     width: '100%'
                   }}
                 >

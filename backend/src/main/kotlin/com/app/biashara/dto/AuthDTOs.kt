@@ -116,7 +116,8 @@ data class ChangePasswordRequestDTO(
 
 @Serializable
 data class ResetPasswordRequestDTO(
-    val email: String
+    val email: String,
+    val channel: String = "EMAIL"
 )
 
 @Serializable

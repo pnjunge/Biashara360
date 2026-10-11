@@ -267,7 +267,7 @@ class ResendOtpUseCase(private val repo: AuthRepository) {
 }
 
 class RequestPasswordResetUseCase(private val repo: AuthRepository) {
-    suspend operator fun invoke(email: String) = repo.requestPasswordReset(email)
+    suspend operator fun invoke(email: String, channel: String = "EMAIL") = repo.requestPasswordReset(email, channel)
 }
 
 class ConfirmPasswordResetUseCase(private val repo: AuthRepository) {

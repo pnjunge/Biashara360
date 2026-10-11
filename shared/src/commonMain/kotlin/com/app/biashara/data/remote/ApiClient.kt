@@ -145,7 +145,7 @@ data class OtpVerifyRequest(val userId: String, val otp: String, val channel: St
 data class ResendOtpRequest(val userId: String, val channel: String)
 
 @Serializable
-data class PasswordResetRequest(val email: String)
+data class PasswordResetRequest(val email: String, val channel: String = "EMAIL")
 
 @Serializable
 data class PasswordResetConfirmRequest(val token: String, val newPassword: String)

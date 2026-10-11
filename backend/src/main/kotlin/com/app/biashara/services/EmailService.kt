@@ -103,6 +103,30 @@ class EmailService(
         )
     }
 
+    val passwordResetUrl: String
+        get() = config.propertyOrNull("auth.passwordResetUrl")?.getString()?.trim()?.takeIf { it.isNotBlank() }
+            ?: "https://biashara360.co.ke/login"
+
+    fun sendPasswordResetEmail(to: String, link: String, userName: String): Result<Unit> = sendHtmlEmail(
+        to, "Reset your Biashara360 password", buildPasswordResetEmailHtml(link, userName)
+    )
+
+    internal fun buildPasswordResetEmailHtml(link: String, userName: String): String {
+        fun escape(value: String) = value.replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
+        val safeLink = escape(link)
+        return """
+            <html><body style="font-family:Arial,sans-serif;background:#f4f7fa;padding:24px">
+            <div style="max-width:480px;margin:auto;background:white;padding:32px;border-radius:16px">
+            <h2>Reset your password</h2><p>Hello ${escape(userName)},</p>
+            <p>Choose a new password using the button below. This link expires in 10 minutes and can be used once.</p>
+            <p><a href="$safeLink" style="display:inline-block;background:#059669;color:white;padding:14px 24px;border-radius:8px;text-decoration:none">Reset password</a></p>
+            <p>If the button does not work, copy this link into your browser:</p><p style="word-break:break-all">$safeLink</p>
+            <p>If you did not request this, ignore this message. Your password has not changed.</p>
+            </div></body></html>
+        """.trimIndent()
+    }
+
     fun sendInvitationEmail(to: String, code: String, userName: String): Result<Unit> {
         return sendHtmlEmail(
             to = to,

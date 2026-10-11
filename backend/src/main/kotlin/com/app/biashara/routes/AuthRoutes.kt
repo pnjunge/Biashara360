@@ -243,7 +243,8 @@ fun Route.authRoutesValidated() {
                 Validator.validate {
                     field("email", req.email) { required(); email() }
                 }
-                call.respond(HttpStatusCode.OK, authService.requestPasswordReset(req.email))
+                val result = authService.requestPasswordReset(req.email, channel = req.channel.uppercase())
+                call.respond(if (result.success) HttpStatusCode.OK else HttpStatusCode.BadRequest, result)
             }
 
             /**
@@ -256,8 +257,8 @@ fun Route.authRoutesValidated() {
                 Validator.validate {
                     field("token", req.token) {
                         required()
-                        custom("Reset code must be 6 digits", "INVALID_RESET_CODE") {
-                            it is String && it.matches(Regex("^\\d{6}\$"))
+                        custom("Use a reset link or 6-digit invitation code", "INVALID_RESET_CODE") {
+                            it is String && it.matches(Regex("^(?:\\d{6}|[a-f0-9]{64})\$"))
                         }
                     }
                     field("newPassword", req.newPassword) { required(); password() }

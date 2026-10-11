@@ -1447,6 +1447,10 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(true) }
     var showForgotPassword by remember { mutableStateOf(false) }
+    var resetEmail by remember { mutableStateOf("") }
+    var resetChannel by remember { mutableStateOf("EMAIL") }
+    var resetLink by remember { mutableStateOf("") }
+    var resetPassword by remember { mutableStateOf("") }
 
     Card(
         modifier = Modifier
@@ -1666,7 +1670,7 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
                                 fontSize = 13.sp,
                                 color = Color(0xFF00A36C),
                                 fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.clickable { showForgotPassword = true }
+                                modifier = Modifier.clickable { viewModel.clearPasswordResetState(); resetEmail = email; resetLink = ""; resetPassword = ""; showForgotPassword = true }
                             )
                         }
 
@@ -1786,25 +1790,50 @@ fun DesktopLoginCard(viewModel: AuthViewModel, state: com.app.biashara.presentat
     }
 
     if (showForgotPassword) {
+        fun dismissReset() {
+            if (!state.isLoading) { showForgotPassword = false; viewModel.clearPasswordResetState() }
+        }
         AlertDialog(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(24.dp),
             containerColor = Color.White,
             tonalElevation = 0.dp,
-            onDismissRequest = { showForgotPassword = false },
-            title = { Text("Reset Password", fontWeight = FontWeight.Bold) },
+            onDismissRequest = { dismissReset() },
+            title = { Text(if (state.passwordResetCompleted) "Password Changed" else "Reset Password", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("To reset your password, contact your system administrator or visit your account portal to initiate a password reset via email.")
-                    Text("Your administrator can access the user management section in the backend admin panel.", color = Color(0xFF64748B), fontSize = 13.sp)
+                Column(Modifier.width(400.dp).heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    when {
+                        state.passwordResetCompleted -> Text("Sign in using your new password.")
+                        state.passwordResetRequested -> {
+                            Text("If your account is eligible, a link will be sent via ${if (resetChannel == "WHATSAPP") "WhatsApp" else "email"}. Open it in your browser or paste it below. The link expires in 10 minutes.")
+                            OutlinedTextField(value = resetLink, onValueChange = { resetLink = it }, label = { Text("Reset link or invitation code") }, enabled = !state.isLoading, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = resetPassword, onValueChange = { resetPassword = it }, label = { Text("New password") }, visualTransformation = PasswordVisualTransformation(), enabled = !state.isLoading, modifier = Modifier.fillMaxWidth())
+                            Text("Use at least 8 characters with a letter, digit and special character.", fontSize = 12.sp)
+                            TextButton(onClick = { viewModel.clearPasswordResetState() }, enabled = !state.isLoading) { Text("Send another link") }
+                        }
+                        else -> {
+                            Text("Enter your account email. WhatsApp sends to the phone saved on your account.")
+                            OutlinedTextField(value = resetEmail, onValueChange = { resetEmail = it }, label = { Text("Account email") }, singleLine = true, enabled = !state.isLoading, modifier = Modifier.fillMaxWidth())
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("EMAIL" to "Email", "WHATSAPP" to "WhatsApp").forEach { (channel, label) ->
+                                    FilterChip(selected = resetChannel == channel, onClick = { resetChannel = channel }, label = { Text(label) }, enabled = !state.isLoading)
+                                }
+                            }
+                            TextButton(onClick = { resetLink = ""; viewModel.requestPasswordReset(resetEmail, resetChannel) }, enabled = !state.isLoading && resetEmail.isNotBlank()) { Text("Send reset link") }
+                        }
+                    }
+                    state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    if (state.isLoading) CircularProgressIndicator(Modifier.size(22.dp))
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = { showForgotPassword = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = B360Green),
-                    shape = RoundedCornerShape(8.dp)
-                ) { Text("Got it", color = Color.White) }
-            }
+                Button(onClick = {
+                    if (state.passwordResetRequested) viewModel.confirmPasswordReset(resetLink, resetPassword)
+                    else dismissReset()
+                }, enabled = !state.isLoading, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
+                    Text(if (state.passwordResetRequested) "Reset Password" else "Back to Login")
+                }
+            },
+            dismissButton = { if (state.passwordResetRequested) TextButton(onClick = { dismissReset() }, enabled = !state.isLoading) { Text("Cancel") } }
         )
     }
 }
