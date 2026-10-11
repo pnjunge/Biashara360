@@ -3,13 +3,14 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.androidApplication)
-    alias(libs.plugins.kotlinMultiplatform)
+    alias(libs.plugins.composeMultiplatform)
+    alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
 }
 
 android {
     namespace = "com.app.biashara"
-    compileSdk = 34
+    compileSdk = 37
 
     val keystorePropertiesFile = rootProject.file("androidApp/keystore.properties")
     val keystoreProperties = Properties()
@@ -63,6 +64,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -72,40 +74,27 @@ android {
         buildConfig = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
-}
-
-kotlin {
-    androidTarget {
-        compilations.all { kotlinOptions { jvmTarget = "17" } }
-    }
-    sourceSets {
-        androidMain.dependencies {
-            implementation(project(":shared"))
-            // No platform() here — BOM must go in the dependencies {} block below
-            implementation(libs.androidx.compose.ui)
-            implementation(libs.androidx.compose.ui.tooling.preview)
-            implementation(libs.androidx.compose.material3)
-            implementation(libs.androidx.compose.material3.window.size)
-            implementation(libs.androidx.compose.material.icons)
-            implementation(libs.androidx.activity.compose)
-            implementation(libs.androidx.navigation.compose)
-            implementation(libs.androidx.lifecycle.viewmodel.compose)
-            implementation(libs.androidx.datastore.preferences)
-            implementation(libs.androidx.biometric)
-            implementation(libs.kotlinx.coroutines.android)
-            implementation(libs.kotlinx.datetime)
-            implementation(libs.koin.android)
-            implementation(libs.koin.compose)
-            implementation(libs.coil.compose)
-            implementation(libs.ktor.client.core)
-            implementation(libs.kotlinx.serialization.json)
-        }
-    }
 }
 
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    implementation(project(":shared"))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material3.window.size)
+    implementation(libs.androidx.compose.material.icons)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.biometric)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.datetime)
+    implementation(libs.koin.android)
+    implementation(libs.koin.compose)
+    implementation(libs.coil.compose)
+    implementation(libs.ktor.client.core)
+    implementation(libs.kotlinx.serialization.json)
 }

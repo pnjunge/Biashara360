@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Use the system Java 17 runtime that matches the project target.
-export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+# Use the project JDK 25 runtime.
+export JAVA_HOME="${JAVA_HOME:-$HOME/.local/share/jdks/temurin-25}"
 export PATH="$JAVA_HOME/bin:$PATH"
 
 # Strip environment variables injected by VS Code / Snap that break the native GTK/JVM runtime.

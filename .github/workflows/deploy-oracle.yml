@@ -32,18 +32,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java 21
+      - name: Set up Java 25
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25'
           cache: gradle
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build backend FatJar
-        run: ./gradlew :backend:buildFatJar -x test --no-daemon
+      - name: Build backend application distribution
+        run: ./gradlew :backend:installDist -x test --no-daemon
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -80,17 +80,21 @@ jobs:
             git reset --hard origin/main
           EOF
 
-      - name: Upload prebuilt FatJar to Oracle VM
+      - name: Upload backend distribution to Oracle VM
         run: |
+          tar -czf /tmp/backend-dist.tar.gz -C backend/build/install backend
           scp -i ~/.ssh/oracle_key -o StrictHostKeyChecking=accept-new \
-            backend/build/libs/backend-all.jar \
-            "$ORACLE_USER@$ORACLE_HOST:/opt/biashara360/backend/app.jar"
+            /tmp/backend-dist.tar.gz \
+            "$ORACLE_USER@$ORACLE_HOST:/opt/biashara360/backend/backend-dist.tar.gz"
 
       - name: Run container build and deploy on Oracle VM
         run: |
           ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=accept-new "$ORACLE_USER@$ORACLE_HOST" "bash -s" << 'EOF'
             set -Eeuo pipefail
             cd /opt/biashara360/deploy/oracle
+            mkdir -p ../../backend/build/install
+            tar -xzf ../../backend/backend-dist.tar.gz -C ../../backend/build/install
+            rm ../../backend/backend-dist.tar.gz
             sudo ./deploy.sh
           EOF
 

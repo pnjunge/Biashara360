@@ -5,6 +5,11 @@
 .kotlin
 .vscode
 **/build
+!backend/build
+backend/build/*
+!backend/build/install
+backend/build/install/*
+!backend/build/install/backend
 **/dist
 **/node_modules
 infra/cdk.out

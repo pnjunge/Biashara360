@@ -1,5 +1,3 @@
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-
 val ktor_version: String by project
 val kotlin_version: String by project
 val logback_version: String by project
@@ -14,22 +12,28 @@ val koin_version: String by project
 //}
 
 plugins {
-    kotlin("jvm") version "1.9.22" // example
-    id("io.ktor.plugin") version "2.3.8"
-    kotlin("plugin.serialization") version "1.9.22"
+    application
+    kotlin("jvm") version "2.4.21"
+    kotlin("plugin.serialization") version "2.4.21"
 }
 
 group = "com.app.biashara"
 version = "1.0.0"
 
 application {
+    applicationName = "backend"
     mainClass.set("com.app.biashara.ApplicationKt")
     val isDevelopment: Boolean = project.ext.has("development")
-    applicationDefaultJvmArgs = listOf("-Dio.ktor.development=$isDevelopment")
+    applicationDefaultJvmArgs = listOf(
+        "--enable-native-access=ALL-UNNAMED",
+        "-Dio.ktor.development=$isDevelopment"
+    )
 }
 
-tasks.named<ShadowJar>("shadowJar") {
-    mergeServiceFiles()
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+    }
 }
 
 repositories {

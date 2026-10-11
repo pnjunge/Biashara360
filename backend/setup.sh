@@ -10,12 +10,16 @@ echo "────────────────────────�
 
 # ── 1. Check Java ─────────────────────────────────────────────────────────────
 if ! command -v java &> /dev/null; then
-  echo "❌ Java not found. Please install Java 17+:"
-  echo "   Ubuntu/Debian: sudo apt install openjdk-17-jdk"
-  echo "   macOS:         brew install openjdk@17"
+  echo "❌ Java not found. Please install Java 25+:"
+  echo "   Ubuntu/Debian: sudo apt install openjdk-25-jdk"
+  echo "   macOS:         brew install openjdk@25"
   exit 1
 fi
 JAVA_VER=$(java -version 2>&1 | awk -F'"' '/version/ {print $2}' | cut -d'.' -f1)
+if [ "$JAVA_VER" -lt 25 ]; then
+  echo "❌ Java 25 or newer is required; found Java $JAVA_VER."
+  exit 1
+fi
 echo "✅ Java $JAVA_VER found"
 
 # ── 2. Download Gradle Wrapper JAR ────────────────────────────────────────────
@@ -25,13 +29,13 @@ if [ ! -f "$WRAPPER_JAR" ]; then
   mkdir -p gradle/wrapper
   # Official Gradle wrapper JAR from Maven Central
   curl -fsSL \
-    "https://repo1.maven.org/maven2/org/gradle/gradle-wrapper/8.2/gradle-wrapper-8.2.jar" \
+    "https://repo1.maven.org/maven2/org/gradle/gradle-wrapper/9.6.0/gradle-wrapper-9.6.0.jar" \
     -o "$WRAPPER_JAR" 2>/dev/null || \
   # Fallback: download full Gradle and extract the jar
   (
     echo "   Trying fallback download..."
     TMP_ZIP=$(mktemp /tmp/gradle-XXXX.zip)
-    curl -fsSL "https://services.gradle.org/distributions/gradle-8.2-bin.zip" -o "$TMP_ZIP"
+    curl -fsSL "https://services.gradle.org/distributions/gradle-9.6.0-bin.zip" -o "$TMP_ZIP"
     unzip -j "$TMP_ZIP" "*/gradle-wrapper.jar" -d gradle/wrapper/
     rm "$TMP_ZIP"
   )

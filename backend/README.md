@@ -13,7 +13,7 @@ The API container listens on `http://localhost:8080` for internal Docker traffic
 In production, expose it only through Caddy, which terminates HTTPS on port 443.
 Do not publish port 8080 directly to the internet.
 
-### Option 2 — Run directly (requires Java 17+)
+### Option 2 — Run directly (requires Java 25+)
 
 **Step 1: Run the setup script (first time only)**
 ```bash
@@ -61,7 +61,7 @@ cd backend/
 mkdir -p gradle/wrapper
 
 # Download gradle-wrapper.jar
-curl -fsSL "https://services.gradle.org/distributions/gradle-8.2-bin.zip" -o /tmp/gradle.zip
+curl -fsSL "https://services.gradle.org/distributions/gradle-9.6.0-bin.zip" -o /tmp/gradle.zip
 unzip -j /tmp/gradle.zip "*/gradle-wrapper.jar" -d gradle/wrapper/
 
 # Make gradlew executable
@@ -78,7 +78,7 @@ export $(cat .env | grep -v '#' | xargs)
 cd backend
 gradlew.bat run
 ```
-If `gradle-wrapper.jar` is missing, download Gradle 8.2 from https://gradle.org/releases/ and extract `gradle-wrapper.jar` to `gradle/wrapper/`.
+If `gradle-wrapper.jar` is missing, download Gradle 9.6.0 from https://gradle.org/releases/ and extract `gradle-wrapper.jar` to `gradle/wrapper/`.
 
 ## Environment Variables
 

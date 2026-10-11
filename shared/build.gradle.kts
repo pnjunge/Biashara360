@@ -1,30 +1,25 @@
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.sqlDelight)
 }
 
-android {
-    namespace = "com.app.biashara.shared"
-    compileSdk = 34
-    defaultConfig { minSdk = 24 }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-    // buildFeatures { // Commented out for debugging
-    //     compose = true
-    // }
-}
-
 kotlin {
-    androidTarget {
-        compilations.all { kotlinOptions { jvmTarget = "17" } }
+    android {
+        namespace = "com.app.biashara.shared"
+        compileSdk = 37
+        minSdk = 24
+        withHostTest {}
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
 
     jvm("desktop") {
-        compilations.all { kotlinOptions { jvmTarget = "17" } }
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+        }
     }
 
     iosX64()
@@ -50,7 +45,7 @@ kotlin {
             implementation(libs.sqldelight.android.driver)
             implementation(libs.androidx.security.crypto)
         }
-        getByName("androidUnitTest").dependencies {
+        getByName("androidHostTest").dependencies {
             implementation(libs.sqldelight.sqlite.driver)
             implementation("io.ktor:ktor-client-mock:${libs.versions.ktor.get()}")
         }

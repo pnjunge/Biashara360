@@ -9,12 +9,17 @@ echo "────────────────────────�
 
 # Check Java
 if ! command -v java &>/dev/null; then
-  echo "❌ Java not found. Install Java 17+:"
-  echo "   Ubuntu: sudo apt install openjdk-17-jdk"
-  echo "   macOS:  brew install openjdk@17"
+  echo "❌ Java not found. Install Java 25+:"
+  echo "   Ubuntu: sudo apt install openjdk-25-jdk"
+  echo "   macOS:  brew install openjdk@25"
   exit 1
 fi
-echo "✅ Java $(java -version 2>&1 | awk -F'"' '/version/{print $2}') found"
+JAVA_VERSION=$(java -version 2>&1 | awk -F'"' '/version/{split($2, version, "."); print version[1]; exit}')
+if (( JAVA_VERSION < 25 )); then
+  echo "❌ Java 25 or newer is required; found Java $JAVA_VERSION."
+  exit 1
+fi
+echo "✅ Java $JAVA_VERSION found"
 
 # Download gradle-wrapper.jar for ROOT and BACKEND
 download_wrapper_jar() {
@@ -27,7 +32,7 @@ download_wrapper_jar() {
   echo "⬇️  Downloading gradle-wrapper.jar for $TARGET_DIR..."
   mkdir -p "$TARGET_DIR/gradle/wrapper"
   TMP=$(mktemp /tmp/gradle-XXXX.zip)
-  curl -fsSL "https://services.gradle.org/distributions/gradle-8.2-bin.zip" -o "$TMP"
+  curl -fsSL "https://services.gradle.org/distributions/gradle-9.6.0-bin.zip" -o "$TMP"
   unzip -j "$TMP" "*/gradle-wrapper.jar" -d "$TARGET_DIR/gradle/wrapper/"
   rm "$TMP"
   echo "✅ Done: $JAR"

@@ -6,7 +6,7 @@
 **Status:** Build SUCCESS
 - No compilation errors detected
 - All Kotlin files compile successfully
-- Fat JAR created: `backend-all.jar` (28M)
+- Backend application distribution created in `build/install/backend/`.
 
 **Build Output:**
 ```
@@ -80,7 +80,7 @@ WARN[0000] ...docker-compose.yml: the attribute `version` is obsolete
 ```
 ✅ Gradle Build:  SUCCESS
 ✅ Kotlin Compilation: 0 errors
-✅ JAR Creation: backend-all.jar (28M)
+✅ Backend distribution: `build/install/backend/`
 ✅ Configuration Files: All validated
 ✅ Environment Variables: Complete
 ```

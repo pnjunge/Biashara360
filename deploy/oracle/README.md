@@ -27,10 +27,10 @@ TCP 80 and 443 from anywhere, and UDP 443 from anywhere. Do not expose 5432 or
 ### 2.1 Automated CI/CD (GitHub Actions)
 
 When commits are pushed to `main` impacting backend, webApp, or deploy configs, `.github/workflows/deploy-oracle.yml` automatically:
-1. Compiles the FatJar (`backend-all.jar`) on the GitHub runner.
+1. Builds the backend application distribution with Java 25 on the GitHub runner.
 2. Validates the frontend build (`webApp`).
 3. Updates code on the Oracle VM (`git reset --hard origin/main`).
-4. Transfers `app.jar` to `/opt/biashara360/backend/app.jar`.
+4. Transfers the application distribution to `/opt/biashara360/backend/build/install/backend`.
 5. Executes `deploy.sh` to build containers and verify health checks.
 
 Required GitHub repository secret:

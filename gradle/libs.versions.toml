@@ -1,8 +1,8 @@
 [versions]
-agp = "8.3.0"
-kotlin = "1.9.22"
-compose-multiplatform = "1.6.1"
-composeBom = "2024.02.00"
+agp = "9.3.3"
+kotlin = "2.4.21"
+compose-multiplatform = "1.12.1"
+composeBom = "2026.09.00"
 composeActivity = "1.8.2"
 composeNavigation = "2.7.7"
 composeViewModel = "2.7.0"
@@ -77,8 +77,9 @@ androidx-test-ext = { group = "androidx.test.ext", name = "junit", version.ref =
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 androidApplication = { id = "com.android.application", version.ref = "agp" }
-androidLibrary = { id = "com.android.library", version.ref = "agp" }
+androidMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 sqlDelight = { id = "app.cash.sqldelight", version.ref = "sqlDelight" }
 ktor = { id = "io.ktor.plugin", version.ref = "ktor" }

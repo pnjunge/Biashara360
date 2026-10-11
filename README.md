@@ -6,7 +6,7 @@ All-in-one SaaS platform for Kenyan traders. Inventory, sales, CRM, expenses, Mp
 
 ## Quick Start
 
-### Backend
+### Backend (Java 25)
 ```bash
 cd backend && ./gradlew run   # http://localhost:8080
 ```

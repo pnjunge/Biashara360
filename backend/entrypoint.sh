@@ -17,9 +17,6 @@ sleep 5
 
 echo "Connecting to database..."
 
-# Run the application (HikariCP will handle connection retries)
-exec java \
-  -XX:+UseContainerSupport \
-  -XX:MaxRAMPercentage=75.0 \
-  -Dconfig.file=/app/application.conf \
-  -jar app.jar
+# Run the Gradle application distribution (HikariCP handles connection retries).
+export JAVA_OPTS="${JAVA_OPTS:-} -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Dconfig.file=/app/application.conf"
+exec /app/bin/backend
