@@ -244,7 +244,7 @@ class ProductRepositoryImpl(
             }
 
     /** Sync products from API and update local cache **/
-    suspend fun syncProductsFromApi(businessId: String): Result<List<Product>> = runCatching {
+    suspend fun syncProductsFromApi(businessId: String): Result<List<Product>> = com.app.biashara.data.remote.NativeSyncStatus.track("Products") {
         val effectiveId = businessId.ifBlank { UserSession.getBusinessId() }
         val response: ApiResponse<List<ProductDto>> = client.get("$BASE_URL/products") {
             url {

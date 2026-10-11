@@ -69,6 +69,7 @@ fun DesktopOrdersScreen(
     val activeSearch = searchQuery.ifBlank { localSearchQuery }
 
     // Dropdown filter states
+    var dateRange by remember { mutableStateOf(DesktopDateRange()) }
     var selectedDateFilter by remember { mutableStateOf("All Dates") }
     var showDateDropdown by remember { mutableStateOf(false) }
 
@@ -104,7 +105,7 @@ fun DesktopOrdersScreen(
     // Filter computation
     val filteredOrders = remember(
         state.orders, activeSearch, selectedDateFilter, selectedStatusFilter,
-        selectedCustomerFilter, selectedTab
+        selectedCustomerFilter, selectedTab, dateRange
     ) {
         state.orders.filter { order ->
             // Search query
@@ -114,41 +115,41 @@ fun DesktopOrdersScreen(
                 order.customerPhone.contains(activeSearch, ignoreCase = true)
 
             // Date filter dropdown
-            val matchesDate = when (selectedDateFilter) {
+            val matchesDate = if (dateRange.active) dateRange.contains(order.createdAt) else when (selectedDateFilter) {
                 "Today" -> {
                     try {
-                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+                        val today = Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
                         orderDate == today
                     } catch (_: Exception) { true }
                 }
                 "Yesterday" -> {
                     try {
-                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+                        val today = Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
                         orderDate == today.minus(1, DateTimeUnit.DAY)
                     } catch (_: Exception) { true }
                 }
                 "Last 7 Days" -> {
                     try {
-                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-                        val sevenDaysAgo = today.minus(7, DateTimeUnit.DAY)
+                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+                        val today = Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+                        val sevenDaysAgo = today.minus(6, DateTimeUnit.DAY)
                         orderDate in sevenDaysAgo..today
                     } catch (_: Exception) { true }
                 }
                 "Last 30 Days" -> {
                     try {
-                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-                        val thirtyDaysAgo = today.minus(30, DateTimeUnit.DAY)
+                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+                        val today = Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+                        val thirtyDaysAgo = today.minus(29, DateTimeUnit.DAY)
                         orderDate in thirtyDaysAgo..today
                     } catch (_: Exception) { true }
                 }
                 "This Month" -> {
                     try {
-                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        val orderDate = order.createdAt.toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
+                        val today = Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
                         orderDate.year == today.year && orderDate.month == today.month
                     } catch (_: Exception) { true }
                 }
@@ -167,7 +168,7 @@ fun DesktopOrdersScreen(
             // Customer dropdown
             val matchesCustomer = when (selectedCustomerFilter) {
                 "All Customers" -> true
-                else -> order.customerName.equals(selectedCustomerFilter, ignoreCase = true)
+                else -> order.customerName.ifBlank { "Walk-In Customer" }.equals(selectedCustomerFilter, ignoreCase = true)
             }
 
             // Tab pill filter
@@ -405,6 +406,7 @@ fun DesktopOrdersScreen(
                             text = { Text(option) },
                             onClick = {
                                 selectedDateFilter = option
+                                dateRange = DesktopDateRange()
                                 showDateDropdown = false
                                 currentPage = 1
                             }
@@ -437,6 +439,7 @@ fun DesktopOrdersScreen(
                             text = { Text(option) },
                             onClick = {
                                 selectedStatusFilter = option
+                                selectedTab = null
                                 showStatusDropdown = false
                                 currentPage = 1
                             }
@@ -464,7 +467,7 @@ fun DesktopOrdersScreen(
                     }
                 }
                 DropdownMenu(expanded = showCustomerDropdown, onDismissRequest = { showCustomerDropdown = false }) {
-                    distinctCustomers.take(15).forEach { option ->
+                    distinctCustomers.forEach { option ->
                         DropdownMenuItem(
                             text = { Text(option) },
                             onClick = {
@@ -481,9 +484,11 @@ fun DesktopOrdersScreen(
             OutlinedButton(
                 onClick = {
                     localSearchQuery = ""
+                    dateRange = DesktopDateRange()
                     selectedDateFilter = "All Dates"
                     selectedStatusFilter = "All Statuses"
                     selectedCustomerFilter = "All Customers"
+                    selectedStatusFilter = "All Statuses"
                     selectedTab = null
                     currentPage = 1
                 },
@@ -502,6 +507,8 @@ fun DesktopOrdersScreen(
             }
         }
 
+        DesktopDateFilter(dateRange) { dateRange = it; currentPage = 1 }
+
         // ── 4. Filter Row 2: Status Pill Tabs (All, Paid, Pending, COD) ──
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -510,51 +517,55 @@ fun DesktopOrdersScreen(
         ) {
             OrderTabPill(
                 label = "All",
-                count = if (totalAllOrders > 0) totalAllOrders else 100,
+                count = totalAllOrders,
                 selected = selectedTab == null,
                 activeColor = Color(0xFF059669),
                 activeBg = Color(0xFFD1FAE5),
                 activeBorder = Color(0xFF86EFAC),
                 onClick = {
+                    selectedStatusFilter = "All Statuses"
                     selectedTab = null
                     currentPage = 1
                 }
             )
             OrderTabPill(
                 label = "Paid",
-                count = if (totalPaidOrders > 0) totalPaidOrders else 66,
+                count = totalPaidOrders,
                 icon = Icons.Default.Check,
                 selected = selectedTab == PaymentStatus.PAID,
                 activeColor = Color(0xFF059669),
                 activeBg = Color(0xFFD1FAE5),
                 activeBorder = Color(0xFF86EFAC),
                 onClick = {
+                    selectedStatusFilter = "All Statuses"
                     selectedTab = PaymentStatus.PAID
                     currentPage = 1
                 }
             )
             OrderTabPill(
                 label = "Pending",
-                count = if (totalPendingOrders > 0) totalPendingOrders else 21,
+                count = totalPendingOrders,
                 icon = Icons.Default.Schedule,
                 selected = selectedTab == PaymentStatus.PENDING,
                 activeColor = Color(0xFFD97706),
                 activeBg = Color(0xFFFEF3C7),
                 activeBorder = Color(0xFFFDE68A),
                 onClick = {
+                    selectedStatusFilter = "All Statuses"
                     selectedTab = PaymentStatus.PENDING
                     currentPage = 1
                 }
             )
             OrderTabPill(
                 label = "COD",
-                count = if (totalCodOrders > 0) totalCodOrders else 13,
+                count = totalCodOrders,
                 icon = Icons.Default.LocalShipping,
                 selected = selectedTab == PaymentStatus.COD,
                 activeColor = Color(0xFF2563EB),
                 activeBg = Color(0xFFDBEAFE),
                 activeBorder = Color(0xFFBFDBFE),
                 onClick = {
+                    selectedStatusFilter = "All Statuses"
                     selectedTab = PaymentStatus.COD
                     currentPage = 1
                 }
@@ -717,7 +728,7 @@ fun DesktopOrdersScreen(
                             // Date formatted as YYYY-MM-DD HH:MM
                             val dateStr = remember(order.createdAt) {
                                 try {
-                                    val local = order.createdAt.toLocalDateTime(TimeZone.currentSystemDefault())
+                                    val local = order.createdAt.toLocalDateTime(TimeZone.of("Africa/Nairobi"))
                                     "${local.year}-${local.monthNumber.toString().padStart(2, '0')}-${local.dayOfMonth.toString().padStart(2, '0')} ${local.hour.toString().padStart(2, '0')}:${local.minute.toString().padStart(2, '0')}"
                                 } catch (e: Exception) {
                                     order.createdAt.toString().take(16).replace("T", " ")

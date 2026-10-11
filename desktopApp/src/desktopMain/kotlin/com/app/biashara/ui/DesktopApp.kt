@@ -36,6 +36,7 @@ import com.app.biashara.UserSession
 import com.app.biashara.domain.model.User
 import com.app.biashara.domain.model.UserRole
 import kotlinx.datetime.Clock
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -500,6 +501,7 @@ fun Biashara360DesktopAppContent(
     var hospitalityEnabled by remember { mutableStateOf(false) }
     val access by NativeAccessSession.access.collectAsState()
     val user by UserSession.currentUser.collectAsState()
+    val syncStatus by com.app.biashara.data.remote.NativeSyncStatus.state.collectAsState()
     var accessLoading by remember { mutableStateOf(true) }
     var accessError by remember { mutableStateOf<String?>(null) }
     var accessReload by remember { mutableStateOf(0) }
@@ -998,7 +1000,18 @@ fun Biashara360DesktopAppContent(
         // Bottom status bar tailored for desktop operations (no duplicate time/battery!)
         DesktopStatusBar(
             syncState = "Sync status",
-            syncSubtitle = "Status unavailable",
+            syncSubtitle = when {
+                syncStatus.active > 0 -> "Syncing…"
+                syncStatus.failures.isNotEmpty() -> "Sync failed: ${syncStatus.failures.sorted().joinToString()}"
+                syncStatus.lastSuccess != null -> "Last synced: ${syncStatus.lastSuccess!!.toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi")).time.toString().take(8)}"
+                else -> "Waiting for sync"
+            },
+            syncColor = when {
+                syncStatus.active > 0 -> Color(0xFFF59E0B)
+                syncStatus.failures.isNotEmpty() -> Color(0xFFDC2626)
+                syncStatus.lastSuccess != null -> Color(0xFF00A676)
+                else -> Color(0xFF94A3B8)
+            },
             terminalInfo = "Desktop",
             userInfo = user?.let { "User: ${it.name} · ${it.role.name.lowercase().replaceFirstChar { char -> char.uppercase() }}" }.orEmpty(),
             onOpenCommandPalette = { focusRequester.requestFocus() }

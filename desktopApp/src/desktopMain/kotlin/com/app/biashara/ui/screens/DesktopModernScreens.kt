@@ -1,5 +1,7 @@
 package com.app.biashara.ui.screens
 
+import kotlinx.datetime.toLocalDateTime
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -55,6 +57,14 @@ fun DesktopReportsLiveScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var selectedPeriod by remember { mutableStateOf("This Month") }
+    var reportDates by remember { mutableStateOf(DesktopDateRange()) }
+    var appliedReportDates by remember { mutableStateOf(DesktopDateRange()) }
+    fun reloadReport() {
+        val start = appliedReportDates.startDate
+        val end = appliedReportDates.endDate
+        viewModel.loadReport(selectedPeriod, if (start != null && end != null)
+            com.app.biashara.domain.model.ReportPeriod(start, end, "Custom dates") else null)
+    }
     var periodMenuExpanded by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { viewModel.loadReport(selectedPeriod) }
     val summary = state.profitSummary
@@ -65,7 +75,7 @@ fun DesktopReportsLiveScreen(
         "Reports",
         if (state.isSyncing) "Syncing…" else "Refresh",
         Icons.Default.Refresh,
-        { viewModel.loadReport(selectedPeriod) },
+        { reloadReport() },
         actionEnabled = !state.isSyncing
     ) {
         state.error?.let { ComplianceError(it) }
@@ -84,12 +94,20 @@ fun DesktopReportsLiveScreen(
                         text = { Text(period) },
                         onClick = {
                             selectedPeriod = period
+                            reportDates = DesktopDateRange()
+                            appliedReportDates = DesktopDateRange()
                             periodMenuExpanded = false
                             viewModel.loadReport(period)
                         }
                     )
                 }
             }
+        }
+
+        DesktopDateFilter(reportDates) { reportDates = it }
+        Button(enabled = reportDates.error == null && reportDates.startDate != null && reportDates.endDate != null,
+            onClick = { appliedReportDates = reportDates; selectedPeriod = "Custom dates"; reloadReport() }) {
+            Text("Apply date range")
         }
 
         if (summary != null) {
@@ -129,15 +147,16 @@ fun DesktopPaymentsModernScreen(
     LaunchedEffect(Unit) { viewModel.loadPayments() }
     var selectedChannel by remember { mutableStateOf<PaymentChannel?>(null) }
     var selectedStatus by remember { mutableStateOf<TransactionStatus?>(null) }
+    var dateRange by remember { mutableStateOf(DesktopDateRange()) }
     var thisMonthOnly by remember { mutableStateOf(true) }
-    val currentMonth = remember { kotlinx.datetime.Clock.System.now().toString().take(7) }
+    val currentMonth = remember { kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi")).date.toString().take(7) }
     val visiblePayments = state.payments.filter {
-        (!thisMonthOnly || it.transactionDate.toString().startsWith(currentMonth)) &&
+        (if (dateRange.active) dateRange.contains(it.transactionDate) else (!thisMonthOnly || it.transactionDate.toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi")).date.toString().startsWith(currentMonth))) &&
             (selectedChannel == null || it.channel == selectedChannel) &&
             (selectedStatus == null || it.status == selectedStatus)
     }
-    val mpesaCount = state.payments.count { it.channel.name.startsWith("MPESA") }
-    val failedCount = state.payments.count { it.status == TransactionStatus.FAILED || it.status == TransactionStatus.CANCELLED }
+    val mpesaCount = visiblePayments.count { it.channel.name.startsWith("MPESA") }
+    val failedCount = visiblePayments.count { it.status == TransactionStatus.FAILED || it.status == TransactionStatus.CANCELLED }
 
     ModernPage("Payments", "Dashboard", "Payments", if (state.isSyncing) "Syncing…" else "Sync Backend", Icons.Default.Sync, viewModel::refreshPayments, actionEnabled = !state.isSyncing) {
         state.error?.let {
@@ -146,16 +165,19 @@ fun DesktopPaymentsModernScreen(
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            ModernSummary(Modifier.weight(1f), "Total Collected", state.totalReconciled, "Successful payments", Icons.Default.AccountBalanceWallet, ModernGreen, Color(0xFFE1F8EF))
-            ModernSummary(Modifier.weight(1f), "Unreconciled", state.totalUnmatched, "Requires matching", Icons.Default.Schedule, Color(0xFFF59E0B), Color(0xFFFFF3D6))
+            ModernSummary(Modifier.weight(1f), "Total Collected", visiblePayments.filter { it.status == TransactionStatus.SUCCESS }.sumOf { it.amount }, "Successful payments", Icons.Default.AccountBalanceWallet, ModernGreen, Color(0xFFE1F8EF))
+            ModernSummary(Modifier.weight(1f), "Unreconciled", visiblePayments.filter { it.status == TransactionStatus.SUCCESS && !it.reconciled }.sumOf { it.amount }, "Requires matching", Icons.Default.Schedule, Color(0xFFF59E0B), Color(0xFFFFF3D6))
             ModernSummary(Modifier.weight(1f), "M-Pesa Transactions", mpesaCount.toDouble(), "M-Pesa channels only", Icons.Default.PhoneAndroid, Color(0xFF2563EB), Color(0xFFE8F1FF), money = false)
             ModernSummary(Modifier.weight(1f), "Failed Payments", failedCount.toDouble(), "Failed or cancelled", Icons.Default.ErrorOutline, Color(0xFFEF4444), Color(0xFFFEECEC), money = false)
         }
+
+        DesktopDateFilter(dateRange) { dateRange = it }
 
         ModernTableCard(
             toolbar = {
                 PaymentFilter(if (thisMonthOnly) "This Month" else "All Dates", Icons.Default.CalendarMonth, listOf("This Month", "All Dates")) {
                     thisMonthOnly = it == "This Month"
+                    dateRange = DesktopDateRange()
                 }
                 PaymentFilter(selectedChannel?.name?.replace("_", " ") ?: "All Channels", Icons.Default.Payments, listOf("All Channels") + PaymentChannel.entries.map { it.name.replace("_", " ") }) { label ->
                     selectedChannel = PaymentChannel.entries.firstOrNull { it.name.replace("_", " ") == label }

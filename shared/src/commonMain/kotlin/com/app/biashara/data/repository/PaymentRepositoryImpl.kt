@@ -151,7 +151,7 @@ class PaymentRepositoryImpl(
      }
 
     /** Sync payments from API and update local cache **/
-    suspend fun syncPaymentsFromApi(businessId: String): Result<List<Payment>> = runCatching {
+    suspend fun syncPaymentsFromApi(businessId: String): Result<List<Payment>> = com.app.biashara.data.remote.NativeSyncStatus.track("Payments") {
         val response: ApiResponse<List<PaymentDto>> = client.get("$BASE_URL/payments") {
             url { parameters.append("businessId", businessId) }
         }.body()

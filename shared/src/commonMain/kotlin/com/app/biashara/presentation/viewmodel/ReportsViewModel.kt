@@ -29,10 +29,10 @@ class ReportsViewModel(
     private val _state = MutableStateFlow(ReportsState(isLoading = true))
     val state: StateFlow<ReportsState> = _state.asStateFlow()
 
-    fun loadReport(periodLabel: String = "This Month") {
+    fun loadReport(periodLabel: String = "This Month", customPeriod: ReportPeriod? = null) {
         val businessId = UserSession.getBusinessId()
         // Load immediately from current local cache
-        loadLocalReport(businessId, periodLabel)
+        loadLocalReport(businessId, periodLabel, customPeriod = customPeriod)
         
         // Sync in background
         scope.launch {
@@ -52,15 +52,15 @@ class ReportsViewModel(
             
             _state.update { it.copy(isSyncing = false) }
             // Reload report with updated synced data
-            loadLocalReport(businessId, periodLabel, syncError)
+            loadLocalReport(businessId, periodLabel, syncError, customPeriod)
         }
     }
 
-    private fun loadLocalReport(businessId: String, periodLabel: String, syncError: String? = null) {
+    private fun loadLocalReport(businessId: String, periodLabel: String, syncError: String? = null, customPeriod: ReportPeriod? = null) {
         scope.launch {
             _state.update { it.copy(isLoading = true, error = syncError, selectedPeriodLabel = periodLabel) }
             try {
-                val period = buildPeriod(periodLabel)
+                val period = customPeriod ?: buildPeriod(periodLabel)
                 val summary = getProfitSummaryUseCase(businessId, period)
                 _state.update { it.copy(isLoading = false, profitSummary = summary) }
             } catch (e: Exception) {

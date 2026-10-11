@@ -214,7 +214,7 @@ class CustomerRepositoryImpl(
         Result.success(Unit) // Handled by messaging service layer
 
     /** Sync customers from API and update local cache **/
-    suspend fun syncCustomersFromApi(businessId: String): Result<List<Customer>> = runCatching {
+    suspend fun syncCustomersFromApi(businessId: String): Result<List<Customer>> = com.app.biashara.data.remote.NativeSyncStatus.track("Customers") {
         val effectiveId = resolveBusinessId(businessId)
         val response: ApiResponse<List<CustomerDto>> = client.get("$BASE_URL/customers") {
             url { parameters.append("businessId", effectiveId) }

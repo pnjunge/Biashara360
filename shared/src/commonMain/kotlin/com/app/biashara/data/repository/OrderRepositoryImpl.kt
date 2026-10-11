@@ -301,7 +301,7 @@ class OrderRepositoryImpl(
      }
 
     /** Sync orders from API and update local cache **/
-    suspend fun syncOrdersFromApi(businessId: String): Result<List<Order>> = runCatching {
+    suspend fun syncOrdersFromApi(businessId: String): Result<List<Order>> = com.app.biashara.data.remote.NativeSyncStatus.track("Orders") {
         val effectiveId = businessId.ifBlank { UserSession.getBusinessId() }
         val remoteOrders = mutableListOf<OrderDto>()
         var page = 1

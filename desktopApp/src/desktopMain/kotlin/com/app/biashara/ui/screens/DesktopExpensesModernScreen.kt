@@ -56,6 +56,7 @@ fun DesktopExpensesModernScreen(
     var expenseToView by remember { mutableStateOf<Expense?>(null) }
     var expenseToDelete by remember { mutableStateOf<Expense?>(null) }
 
+    var dateRange by remember { mutableStateOf(DesktopDateRange()) }
     var selectedPeriod by remember { mutableStateOf("This Month") }
     var periodDropdownOpen by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -120,8 +121,8 @@ fun DesktopExpensesModernScreen(
     val activeExpenses = state.expenses
 
     // Filter by period dynamically
-    val periodExpenses = remember(activeExpenses, selectedPeriod, currentYear, currentMonth) {
-        when (selectedPeriod) {
+    val periodExpenses = remember(activeExpenses, selectedPeriod, currentYear, currentMonth, dateRange) {
+        if (dateRange.active) activeExpenses.filter { dateRange.contains(it.expenseDate) } else when (selectedPeriod) {
             "This Month" -> activeExpenses.filter { it.expenseDate.year == currentYear && it.expenseDate.monthNumber == currentMonth }
             "Last Month" -> {
                 val lmNum = if (currentMonth == 1) 12 else currentMonth - 1
@@ -337,6 +338,7 @@ fun DesktopExpensesModernScreen(
                                 text = { Text(period) },
                                 onClick = {
                                     selectedPeriod = period
+                                    dateRange = DesktopDateRange()
                                     periodDropdownOpen = false
                                 }
                             )
@@ -361,6 +363,8 @@ fun DesktopExpensesModernScreen(
                 }
             }
         }
+
+        DesktopDateFilter(dateRange) { dateRange = it }
 
         // --- 2. Four KPI Metric Cards (Computed Dynamically) ---
         Row(

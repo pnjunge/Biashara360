@@ -327,8 +327,6 @@ fun DesktopPosScreen(
             val matchesSearch = p.name.contains(searchQuery, ignoreCase = true) || p.sku.contains(searchQuery, ignoreCase = true) || p.category.contains(searchQuery, ignoreCase = true) || p.barcode?.contains(searchQuery, ignoreCase = true) == true
             val matchesCategory = when {
                 selectedCategory == "All" -> true
-                selectedCategory == "Popular" -> true
-                selectedCategory == "Recent" -> true
                 else -> p.posGroup() == selectedCategory
             }
             matchesSearch && matchesCategory

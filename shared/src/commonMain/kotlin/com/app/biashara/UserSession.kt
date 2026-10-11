@@ -17,12 +17,14 @@ object UserSession {
 
     fun setUser(user: User) {
         com.app.biashara.data.remote.NativeAccessSession.reset()
+        com.app.biashara.data.remote.NativeSyncStatus.reset()
         val effectiveBusinessId = user.businessId?.ifBlank { null } ?: DEFAULT_BUSINESS_ID
         _currentUser.value = user.copy(businessId = effectiveBusinessId)
     }
 
     fun clearUser() {
         com.app.biashara.data.remote.NativeAccessSession.reset()
+        com.app.biashara.data.remote.NativeSyncStatus.reset()
         _currentUser.value = null
     }
 

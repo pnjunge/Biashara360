@@ -271,7 +271,8 @@ private fun WindowsControlButton(
 @Composable
 fun DesktopStatusBar(
     syncState: String = "Desktop",
-    syncSubtitle: String = "Sync status unavailable",
+    syncSubtitle: String = "Waiting for sync",
+    syncColor: Color = Color(0xFF94A3B8),
     terminalInfo: String = "",
     userInfo: String = "",
     modifier: Modifier = Modifier,
@@ -296,7 +297,7 @@ fun DesktopStatusBar(
                 modifier = Modifier
                     .size(7.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF94A3B8))
+                    .background(syncColor)
             )
             Text(
                 text = syncState,

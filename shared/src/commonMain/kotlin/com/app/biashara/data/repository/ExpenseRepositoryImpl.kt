@@ -160,7 +160,7 @@ class ExpenseRepositoryImpl(
      }
 
     /** Sync expenses from API and update local cache **/
-    suspend fun syncExpensesFromApi(businessId: String): Result<List<Expense>> = runCatching {
+    suspend fun syncExpensesFromApi(businessId: String): Result<List<Expense>> = com.app.biashara.data.remote.NativeSyncStatus.track("Expenses") {
         if (client == null) throw IllegalStateException("HTTP client not configured")
 
         val response: ApiResponse<List<ExpenseDto>> = client.get("$BASE_URL/expenses") {
