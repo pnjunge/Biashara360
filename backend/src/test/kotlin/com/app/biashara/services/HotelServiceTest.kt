@@ -96,6 +96,41 @@ class HotelServiceTest {
         assertEquals("DIRTY",service.dashboard("business","actor",date(0),date(3)).rooms.single().housekeepingStatus)
         assertFailsWith<IllegalArgumentException> { service.postEntry("business","actor",r.id,HotelFolioRequest("CHARGE","Late charge",100,requestId=key())) }
     }
+    @Test fun `cash paid at arrival is retained when guest checks in without duplicate collection`() {
+        val stay = service.saveReservation("business", "actor", null, booking())
+        val request = HotelPaymentRequest(20_000, "CASH", key())
+        val payment = service.payment("business", "actor", stay.id, request)
+        assertEquals("PAID", payment.paymentStatus)
+        assertEquals("CONFIRMED", service.folio("business", "actor", stay.id).reservation.status)
+        val checkedIn = service.transition("business", "actor", stay.id, "CHECK_IN")
+        assertEquals("CHECKED_IN", checkedIn.reservation.status)
+        assertEquals(20_000L, checkedIn.totalPaidCents)
+        assertEquals(0L, checkedIn.balanceCents)
+        assertEquals(payment, service.payment("business", "actor", stay.id, request))
+        assertEquals(1, service.folio("business", "actor", stay.id).entries.count { it.kind == "PAYMENT" })
+        assertEquals("CHECKED_OUT", service.transition("business", "actor", stay.id, "CHECK_OUT").reservation.status)
+    }
+    @Test fun `arrival deposit allows checkin and leaves only remainder due at checkout`() {
+        val stay = service.saveReservation("business", "actor", null, booking())
+        service.payment("business", "actor", stay.id, HotelPaymentRequest(5_000, "CASH", key()))
+        val checkedIn = service.transition("business", "actor", stay.id, "CHECK_IN")
+        assertEquals(5_000L, checkedIn.totalPaidCents)
+        assertEquals(15_000L, checkedIn.balanceCents)
+        assertFailsWith<IllegalArgumentException> { service.transition("business", "actor", stay.id, "CHECK_OUT") }
+        service.payment("business", "actor", stay.id, HotelPaymentRequest(15_000, "CASH", key()))
+        assertEquals(0L, service.transition("business", "actor", stay.id, "CHECK_OUT").balanceCents)
+    }
+    @Test fun `checkin never credits an unconfirmed electronic arrival payment`() {
+        val stay = service.saveReservation("business", "actor", null, booking())
+        val pending = service.payment("business", "actor", stay.id, HotelPaymentRequest(20_000, "CARD", key()))
+        assertEquals("PENDING", pending.paymentStatus)
+        val checkedIn = service.transition("business", "actor", stay.id, "CHECK_IN")
+        assertEquals("CHECKED_IN", checkedIn.reservation.status)
+        assertEquals(0L, checkedIn.totalPaidCents)
+        assertEquals(20_000L, checkedIn.balanceCents)
+        assertEquals("PENDING", service.paymentRequests("business", stay.id).single().paymentStatus)
+        assertFailsWith<IllegalArgumentException> { service.transition("business", "actor", stay.id, "CHECK_OUT") }
+    }
     @Test fun `cancelled deposits become credit and refund is limited to actual credit`() {
         val r=service.saveReservation("business","actor",null,booking())
         service.payment("business","actor",r.id,HotelPaymentRequest(5_000,"CASH",key()))

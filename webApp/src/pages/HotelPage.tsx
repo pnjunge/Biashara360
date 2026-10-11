@@ -106,6 +106,7 @@ export default function HotelPage() {
     reason: "",
   });
   const [folio, setFolio] = useState<Folio | null>(null);
+  const [folioAction, setFolioAction] = useState<"check-in" | "check-out" | null>(null);
   const [payments, setPayments] = useState<HotelPayment[]>([]);
   const [entry, setEntry] = useState({
     kind: "CHARGE",
@@ -264,13 +265,15 @@ export default function HotelPage() {
     setPayments(p);
     return f;
   }
-  function openFolio(r: Reservation, checkout = false) {
+  function openFolio(r: Reservation, action: "check-in" | "check-out" | null = null) {
     run(async () => {
       const f = await refreshFolio(r.id);
+      setFolioAction(action);
+      const checkout = action === "check-out";
       setEntry(checkout && f.balanceCents < 0 && can("refunds")
         ? { kind: "CASH_REFUND", description: "Guest credit refunded before checkout", amount: String(-f.balanceCents / 100) }
         : { kind: "CHARGE", description: "", amount: "" });
-      setPayment({ method: "CASH", amount: checkout && f.balanceCents > 0 ? String(f.balanceCents / 100) : "" });
+      setPayment({ method: "CASH", amount: action !== null && f.balanceCents > 0 ? String(f.balanceCents / 100) : "" });
       setRequestId(crypto.randomUUID());
       setModal("FOLIO");
     });
@@ -537,13 +540,10 @@ export default function HotelPage() {
                             <Btn
                               small
                               disabled={busy}
-                              onClick={() =>
-                                setConfirmation({
-                                  id: r.id,
-                                  action: "check-in",
-                                  name: r.guestName,
-                                })
-                              }
+                              onClick={() => {
+                                if (can("billing")) openFolio(r, "check-in");
+                                else setConfirmation({ id: r.id, action: "check-in", name: r.guestName });
+                              }}
                             >
                               Check In
                             </Btn>
@@ -553,7 +553,7 @@ export default function HotelPage() {
                               small
                               disabled={busy}
                               onClick={() => {
-                                if (can("billing")) openFolio(r, true);
+                                if (can("billing")) openFolio(r, "check-out");
                                 else setConfirmation({ id: r.id, action: "check-out", name: r.guestName });
                               }}
                             >
@@ -1035,7 +1035,7 @@ export default function HotelPage() {
                     ? "Housekeeping"
                     : modal === "BLOCK"
                       ? "Block Room Dates"
-                      : "Guest Folio"
+                      : folioAction === "check-in" ? "Check-In & Payment" : "Guest Folio"
           }
           onClose={close}
           footer={
@@ -1416,6 +1416,22 @@ export default function HotelPage() {
                     {money(folio.totalPaidCents)} ·{" "}
                     <strong>Balance: {money(folio.balanceCents)}</strong>
                   </p>
+                  {folio.reservation.status === "CONFIRMED" && can("frontdesk") && (
+                    <div role="status">
+                      <p>{folio.balanceCents > 0
+                        ? `Collect ${money(folio.balanceCents)} or a smaller deposit using the payment form below, then complete check-in. You can also collect payment later.`
+                        : "There is no outstanding balance. Complete check-in when the guest arrives."}</p>
+                      {payments.some(p => p.paymentStatus === "PENDING") && <p>Payment is pending and has not been received yet. Check payment status below; check-in does not mark it paid.</p>}
+                      <Btn disabled={busy} onClick={() => run(async () => {
+                        await hotelApi.transition(folio.reservation.id, "check-in");
+                        setModal("");
+                        setFolio(null);
+                        setFolioAction(null);
+                        await load();
+                        setMessage("Guest checked in. Recorded payments remain on the guest folio.");
+                      })}>Complete Check-In</Btn>
+                    </div>
+                  )}
                   {folio.reservation.status === "CHECKED_IN" && (
                     <>
                       <p role="status">
@@ -1491,6 +1507,7 @@ export default function HotelPage() {
                 />
                 {folio.reservation.status !== "CHECKED_OUT" && (
                   <>
+                    {folioAction !== "check-in" && (<>
                     <h4>Charges & Adjustments</h4>
                     {label(
                       "Entry type",
@@ -1566,6 +1583,7 @@ export default function HotelPage() {
                         reverse a card or M-Pesa transaction.
                       </p>
                     )}
+                    </>)}
                     {["CONFIRMED", "CHECKED_IN"].includes(
                       folio.reservation.status,
                     ) && (
