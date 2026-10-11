@@ -61,7 +61,7 @@ class PortalOrderService {
             .firstOrNull()
             ?.let { it[BusinessesTable.hospitalityEnabled] || it[BusinessesTable.type].equals("HOSPITALITY", ignoreCase = true) }
             ?: false
-        BusinessesTable.select { BusinessesTable.id eq businessId }.forUpdate().first()
+        BusinessesTable.slice(BusinessesTable.id).select { BusinessesTable.id eq businessId }.forUpdate().first()
         if(hospitalityEnabled) requireStaffOnDuty(businessId,userId)
         val updated = OrdersTable.update({
             eligible(businessId) and (OrdersTable.id eq orderId) and OrdersTable.serverUserId.isNull()

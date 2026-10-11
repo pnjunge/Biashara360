@@ -19,7 +19,7 @@ class HospitalityDutyService(private val access: AccessControlService = AccessCo
             (HospitalityStaffShiftsTable.businessId eq businessId) and (HospitalityStaffShiftsTable.status eq "OPEN")
         }.map { it[HospitalityStaffShiftsTable.userId] }.toSet()
         val staff = UsersTable.select { (UsersTable.businessId eq businessId) and (UsersTable.isActive eq true) }
-            .filter { eligible(businessId, it[UsersTable.id]) }.map { HandoverStaffResponse(it[UsersTable.id],it[UsersTable.name],it[UsersTable.id] in activeStaff) }
+            .filter { eligible(businessId, it[UsersTable.id]) }.map { HandoverStaffResponse(it[UsersTable.id],it[UsersTable.name],it[UsersTable.id] in activeStaff || isPersonalShiftExempt(businessId,it[UsersTable.id])) }
         val history = HospitalityBillHandoversTable.select { HospitalityBillHandoversTable.businessId eq businessId }
             .orderBy(HospitalityBillHandoversTable.requestedAt,SortOrder.DESC).filter { manage || it[HospitalityBillHandoversTable.fromUserId]==userId || it[HospitalityBillHandoversTable.toUserId]==userId || it[HospitalityBillHandoversTable.requestedBy]==userId }.take(200).map { handoverResponse(it) }
         HospitalityDutyResponse(openShift(businessId,userId)?.let { shiftResponse(it) },staff,history,activeOrders(businessId).filter { owner(it)==userId }.map { it[OrdersTable.id] },reports(businessId,userId,false).filter { it.status=="CLOSED" }.take(10))
@@ -72,7 +72,7 @@ class HospitalityDutyService(private val access: AccessControlService = AccessCo
 
     fun claimBill(businessId:String,userId:String,orderId:String):String = transaction {
         lockBusiness(businessId); require(eligible(businessId,userId)) { "Waiter or cashier access is required" }
-        require(openShift(businessId,userId)!=null) { "Start your staff shift first" }
+        require(isPersonalShiftExempt(businessId,userId) || openShift(businessId,userId)!=null) { "Start your staff shift first" }
         val order=activeOrder(businessId,orderId)
         require(owner(order)==null) { "This bill already has a responsible staff member; request a handover" }
         OrdersTable.update({ OrdersTable.id eq orderId }) { it[responsibleUserId]=userId; it[updatedAt]=Clock.System.now() }
@@ -84,7 +84,7 @@ class HospitalityDutyService(private val access: AccessControlService = AccessCo
         require(eligible(businessId,userId)) { "Waiter or cashier access is required" }
         require(request.orderIds.isNotEmpty() && request.orderIds.size<=100 && request.orderIds.distinct().size==request.orderIds.size) { "Select distinct open bills (maximum 100)" }
         require(request.toUserId!=userId && eligible(businessId,request.toUserId)) { "Choose another active waiter or cashier in this business" }
-        require(openShift(businessId,request.toUserId)!=null) { "The receiving staff member must start their staff shift first" }
+        require(isPersonalShiftExempt(businessId,request.toUserId) || openShift(businessId,request.toUserId)!=null) { "The receiving staff member must start their staff shift first" }
         val targets=request.orderIds.map { id ->
             val order=activeOrder(businessId,id)
             val from=owner(order) ?: error("Claim an unassigned bill before handing it over")
@@ -115,7 +115,7 @@ class HospitalityDutyService(private val access: AccessControlService = AccessCo
         if(action=="CANCEL") require(userId==row[HospitalityBillHandoversTable.fromUserId] || userId==row[HospitalityBillHandoversTable.requestedBy]) { "Only the sender can cancel this handover" }
         else require(userId==row[HospitalityBillHandoversTable.toUserId]) { "Only the receiving staff member can accept or reject this handover" }
         if(action=="ACCEPT") {
-            require(eligible(businessId,userId) && openShift(businessId,userId)!=null) { "Start your staff shift with waiter or cashier access before accepting" }
+            require(eligible(businessId,userId) && (isPersonalShiftExempt(businessId,userId) || openShift(businessId,userId)!=null)) { "Start your staff shift with waiter or cashier access before accepting" }
             val order=activeOrder(businessId,row[HospitalityBillHandoversTable.orderId])
             require(owner(order)==row[HospitalityBillHandoversTable.fromUserId]) { "Bill responsibility has changed; cancel and recreate this handover" }
             OrdersTable.update({ OrdersTable.id eq order[OrdersTable.id] }) { it[responsibleUserId]=userId; it[updatedAt]=Clock.System.now() }
@@ -181,8 +181,12 @@ class HospitalityDutyService(private val access: AccessControlService = AccessCo
     }
 }
 
+internal fun isPersonalShiftExempt(businessId:String,userId:String):Boolean =
+    UsersTable.slice(UsersTable.role).select { (UsersTable.id eq userId) and (UsersTable.businessId eq businessId) }
+        .firstOrNull()?.get(UsersTable.role) in setOf("ADMIN", "BUSINESS_ADMIN", "SUPERADMIN")
+
 internal fun requireStaffOnDuty(businessId:String,userId:String?) {
-    if(userId==null) return
+    if(userId==null || isPersonalShiftExempt(businessId,userId)) return
     val shifts=HospitalityStaffShiftsTable.select { (HospitalityStaffShiftsTable.businessId eq businessId) and (HospitalityStaffShiftsTable.userId eq userId) }.toList()
     // Existing installations continue operating until staff first adopt personal shifts.
     require(shifts.isEmpty() || shifts.any { it[HospitalityStaffShiftsTable.status]=="OPEN" }) { "Your staff shift has ended. Start another staff shift before taking or settling bills" }

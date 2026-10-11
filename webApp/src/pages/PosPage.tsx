@@ -16,6 +16,7 @@ interface CartItem {
 export function PosPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const needsPersonalShift=!['ADMIN','BUSINESS_ADMIN','SUPERADMIN'].includes(user?.role||'')
   const [personalShiftEnded,setPersonalShiftEnded] = useState(false)
   const [products, setProducts] = useState<ProductResponse[]>([])
   const [customers, setCustomers] = useState<CustomerResponse[]>([])
@@ -72,7 +73,7 @@ export function PosPage() {
   useEffect(() => {
     const refreshShifts=()=>{
       hospitalityApi.status().then(r=>{if(r.success&&r.data)setShiftOpen(r.data.shiftOpen===true)}).catch(()=>undefined)
-      hospitalityDutyApi.dashboard().then(r=>{if(r.success&&r.data)setPersonalShiftEnded(!r.data.shift&&r.data.recentShifts.some(s=>s.userId===user?.id))}).catch(()=>undefined)
+      hospitalityDutyApi.dashboard().then(r=>{if(r.success&&r.data)setPersonalShiftEnded(needsPersonalShift && !r.data.shift&&r.data.recentShifts.some(s=>s.userId===user?.id))}).catch(()=>undefined)
     }
     window.addEventListener('hospitality-shift-updated',refreshShifts)
     return()=>window.removeEventListener('hospitality-shift-updated',refreshShifts)
@@ -124,7 +125,7 @@ export function PosPage() {
       if (hospRes.success && hospRes.data?.enabled) {
         setHospitalityEnabled(true)
         hospitalityDutyApi.dashboard().then(r => {
-          if(r.success&&r.data) setPersonalShiftEnded(!r.data.shift && r.data.recentShifts.some(s=>s.userId===user?.id))
+          if(r.success&&r.data) setPersonalShiftEnded(needsPersonalShift && !r.data.shift && r.data.recentShifts.some(s=>s.userId===user?.id))
         }).catch(()=>undefined)
         if (typeof hospRes.data.shiftOpen === 'boolean') {
           setShiftOpen(hospRes.data.shiftOpen)
@@ -396,7 +397,7 @@ export function PosPage() {
       </div>
       {hospitalityEnabled && <div className="pos-hospitality-banner"><div><Utensils size={19} /><strong>Hospitality mode active · Unified POS interface</strong></div><button type="button" onClick={() => document.querySelector('.pos-order-context')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>Select a table <ChevronRight size={17} /></button></div>}
 
-      {hospitalityEnabled&&(!shiftOpen||personalShiftEnded)&&<div role="status" style={{padding:12,background:'var(--b360-amber-bg)',borderRadius:8}}>{!shiftOpen&&<p style={{margin:'4px 0'}}>The business trading day is closed. <a href="/open-tabs">Start your own shift</a> to begin with zero cash float. Managers can <a href="/hospitality-operations?tab=SHIFTS">Open the trading day</a> with an opening float.</p>}{personalShiftEnded&&<p style={{margin:'4px 0'}}>Your personal staff shift has ended. <a href="/open-tabs">Start my staff shift</a> before taking new orders.</p>}</div>}
+      {hospitalityEnabled&&(!shiftOpen||personalShiftEnded)&&<div role="status" style={{padding:12,background:'var(--b360-amber-bg)',borderRadius:8}}>{!shiftOpen&&<p style={{margin:'4px 0'}}>The business trading day is closed. {needsPersonalShift&&<><a href="/open-tabs">Start your own shift</a> to begin with zero cash float. </>}Managers can <a href="/hospitality-operations?tab=SHIFTS">Open the trading day</a> with an opening float.</p>}{personalShiftEnded&&<p style={{margin:'4px 0'}}>Your personal staff shift has ended. <a href="/open-tabs">Start my staff shift</a> before taking new orders.</p>}</div>}
 
       {/* ── Card Payment Link Modal ── */}
       {cardModalOrder && (

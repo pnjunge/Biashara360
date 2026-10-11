@@ -19,15 +19,16 @@ class PortalOrderServiceTest {
         val db = Database.connect("jdbc:h2:mem:portal-${UUID.randomUUID()};MODE=PostgreSQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000", driver = "org.h2.Driver")
         TransactionManager.defaultDatabase = db
         transaction(db) {
-            exec("CREATE TABLE users(id VARCHAR(36) PRIMARY KEY, business_id VARCHAR(36), is_active BOOLEAN)")
-            exec("INSERT INTO users VALUES ('u1','a',true),('u2','a',true),('u3','b',true),('inactive','a',false)")
+            exec("CREATE TABLE users(id VARCHAR(36) PRIMARY KEY, business_id VARCHAR(36), is_active BOOLEAN, role VARCHAR(30) DEFAULT 'STAFF')")
+            exec("INSERT INTO users(id,business_id,is_active) VALUES ('u1','a',true),('u2','a',true),('u3','b',true),('inactive','a',false)")
             exec("CREATE TABLE businesses(id VARCHAR(36) PRIMARY KEY, hospitality_enabled BOOLEAN, type VARCHAR(30))")
             exec("INSERT INTO businesses VALUES ('a',true,'RESTAURANT'),('b',false,'RETAIL')")
             exec("""CREATE TABLE orders(id VARCHAR(36) PRIMARY KEY, order_number VARCHAR(20), business_id VARCHAR(36),
                 customer_name VARCHAR(255), delivery_location TEXT, subtotal DOUBLE PRECISION,
                 payment_status VARCHAR(20), delivery_status VARCHAR(20), sales_channel VARCHAR(30),
-                server_user_id VARCHAR(36), tab_status VARCHAR(20) DEFAULT 'CLOSED',
+                server_user_id VARCHAR(36), responsible_user_id VARCHAR(36), tab_status VARCHAR(20) DEFAULT 'CLOSED',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+            org.jetbrains.exposed.sql.SchemaUtils.create(com.app.biashara.db.HospitalityStaffShiftsTable)
             exec("CREATE TABLE order_items(order_id VARCHAR(36), product_name VARCHAR(255), quantity INT)")
             exec("""INSERT INTO orders(id,order_number,business_id,customer_name,delivery_location,subtotal,payment_status,delivery_status,sales_channel)
                 VALUES ('o1','B360-ECOM-1','a','Guest','Table 1',500,'PAID','PROCESSING','ECOMMERCE'),

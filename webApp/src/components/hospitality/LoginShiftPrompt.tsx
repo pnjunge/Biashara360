@@ -19,6 +19,7 @@ export default function LoginShiftPrompt() {
     window.dispatchEvent(new Event('hospitality-shift-updated'))
   }
   useEffect(() => {
+    if (['ADMIN','BUSINESS_ADMIN','SUPERADMIN'].includes(user?.role || '')) { sessionStorage.removeItem(promptKey); setState(null); return }
     if (!user?.businessId || sessionStorage.getItem(promptKey)!==user.id) return
     let active = true
     let timer:ReturnType<typeof setTimeout>

@@ -20,6 +20,15 @@ class NativeShiftClientTest {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         defaultRequest { contentType(ContentType.Application.Json) }
     }
+    @Test fun administratorsDoNotRequestOrShowShiftPrompts() = runBlocking<Unit> {
+        val client=client { error("Administrators must not request login shift data") }
+        try {
+            for (role in listOf(com.app.biashara.domain.model.UserRole.ADMIN,com.app.biashara.domain.model.UserRole.SUPERADMIN)) {
+                com.app.biashara.UserSession.setUser(com.app.biashara.domain.model.User("admin","admin@test","","Admin",role,"business",kotlinx.datetime.Clock.System.now()))
+                assertNull(NativeShiftClient(client).check(access))
+            }
+        } finally { com.app.biashara.UserSession.clearUser();client.close() }
+    }
     @Test fun nonHospitalityUsersDoNotRequestShiftData() = runBlocking<Unit> {
         val client = client { error("Unexpected request") }
         try { assertNull(NativeShiftClient(client).check(NativeAccess())) } finally { client.close() }

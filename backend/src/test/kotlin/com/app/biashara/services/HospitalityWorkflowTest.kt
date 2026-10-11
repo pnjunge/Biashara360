@@ -245,7 +245,7 @@ class HospitalityWorkflowTest {
  }
 
  @Test fun `opening tab after shift closure returns actionable validation and retry creates one order`() = testApplication {
-  authorizeDuty();val duty=HospitalityDutyService()
+  authorizeShiftStaff();val duty=HospitalityDutyService()
   duty.startShift("business","staff",StaffShiftRequest());duty.endShift("business","staff",StaffShiftRequest())
   environment {config=io.ktor.server.config.MapApplicationConfig()}
   val algorithm=Algorithm.HMAC256("hospitality-tab-test-secret")
@@ -291,6 +291,17 @@ class HospitalityWorkflowTest {
   assertEquals("SPLIT",orders.getById(order.id,"business")!!.paymentMethod)
   assertFails{splitServedBill("business","manager",order.id,payments)}
   assertEquals(100.0,transaction{PaymentsTable.select{PaymentsTable.orderId eq order.id}.sumOf{it[PaymentsTable.amount]}})
+ }
+ private fun authorizeShiftStaff() {
+  val codes=listOf("hospitality.view","hospitality.orders","hospitality.billing","hospitality.shifts")
+  transaction {
+   for(code in codes) PermissionsTable.insert { it[id]=UUID.randomUUID().toString();it[PermissionsTable.code]=code;it[module]="hospitality";it[action]=code.substringAfter('.');it[name]=code;it[createdAt]=Clock.System.now() }
+  }
+  val role=AccessControlService().createRole("business",SaveAccessRoleRequest("Shift staff",allowedMenus=listOf("HOSPITALITY","OPEN_TABS","HOSPITALITY_OPS"),permissions=codes))
+  transaction {
+   UsersTable.update({UsersTable.businessId eq "business"}){it[UsersTable.role]="STAFF"}
+   for(user in listOf("staff","manager"))UserAccessRolesTable.insert{it[userId]=user;it[roleId]=role.id}
+  }
  }
  private fun authorizeDuty() { transaction { UsersTable.update({ UsersTable.businessId eq "business" }) { it[role]="ADMIN" } } }
  private fun stock(product:String)=transaction { ProductsTable.select { ProductsTable.id eq product }.first()[ProductsTable.currentStock] }
@@ -362,7 +373,7 @@ class HospitalityWorkflowTest {
   assertTrue(service.dashboard("business").openTabs.isEmpty())
  }
  @Test fun `handover requires receiver acceptance before sender can end shift`() {
-  authorizeDuty();val duty=HospitalityDutyService()
+  authorizeShiftStaff();val duty=HospitalityDutyService()
   duty.startShift("business","staff",StaffShiftRequest());duty.startShift("business","manager",StaffShiftRequest())
   val first=tab("meal");val second=tab("drink")
   val handovers=duty.requestHandover("business","staff",BillHandoverRequest(listOf(first.id,second.id),"manager","Table still dining"))
@@ -379,7 +390,7 @@ class HospitalityWorkflowTest {
   assertFails{tab("meal")}
  }
  @Test fun `handover enforces tenant owner recipient duty and duplicate protection`() {
-  authorizeDuty();val duty=HospitalityDutyService();val order=tab("meal")
+  authorizeShiftStaff();val duty=HospitalityDutyService();val order=tab("meal")
   assertFails{duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager"))}
   duty.startShift("business","manager",StaffShiftRequest())
   assertFails{duty.requestHandover("business","manager",BillHandoverRequest(listOf(order.id),"staff"))}
@@ -405,7 +416,7 @@ class HospitalityWorkflowTest {
   assertFails{duty.claimBill("business","manager",unassigned.id)}
  }
  @Test fun `handover preserves old payments and attributes remaining cash to the receiving cashier`() {
-  authorizeDuty();val duty=HospitalityDutyService();duty.startShift("business","staff",StaffShiftRequest());duty.startShift("business","manager",StaffShiftRequest())
+  authorizeShiftStaff();val duty=HospitalityDutyService();duty.startShift("business","staff",StaffShiftRequest());duty.startShift("business","manager",StaffShiftRequest())
   val order=tab("meal")
   transaction { PaymentsTable.insert { it[id]="deposit";it[businessId]="business";it[orderId]=order.id;it[collectedByUserId]="staff";it[transactionCode]="deposit";it[amount]=20.0;it[payerPhone]="";it[payerName]="Guest";it[method]="CASH";it[status]="SUCCESS";it[channel]="HOSPITALITY_POS";it[reconciled]=true;it[transactionDate]=Clock.System.now() } }
   val request=duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager")).single()
@@ -698,6 +709,28 @@ class HospitalityWorkflowTest {
   assertEquals(33.3,po.totalCost)
   val result=ops.receivePurchaseOrder("business","manager",po.id,ReceiveIngredientPurchaseRequest(IngredientPurchasePaymentRequest(33.3,"CASH",clientReference="fractional-purchase")))
   assertEquals("PAID",result.paymentStatus);assertEquals(0.0,result.outstandingAmount)
+ }
+
+ @Test fun `administrators can create and settle orders after a personal shift has ended`() {
+  authorizeDuty()
+  val duty=HospitalityDutyService()
+  duty.startShift("business","manager",StaffShiftRequest())
+  duty.endShift("business","manager",StaffShiftRequest())
+  for(role in listOf("ADMIN","BUSINESS_ADMIN","SUPERADMIN")) {
+   transaction { UsersTable.update({UsersTable.id eq "manager"}){it[UsersTable.role]=role} }
+   val order=service.createOrder("business","manager",HospitalityOrderRequest(serviceType="TAKEAWAY",items=listOf(OrderItemRequest("meal",1,100.0)))).data!!
+   serveKitchen(order.id)
+   assertEquals("PAID",service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"manager").paymentStatus)
+  }
+ }
+ @Test fun `administrator can claim and receive bill handovers without a personal shift`() {
+  authorizeDuty()
+  val duty=HospitalityDutyService()
+  val order=service.createOrder("business","staff",HospitalityOrderRequest(serviceType="TAKEAWAY",items=listOf(OrderItemRequest("meal",1,100.0)))).data!!
+  transaction { OrdersTable.update({OrdersTable.id eq order.id}){it[serverUserId]=null;it[responsibleUserId]=null} }
+  assertEquals(order.id,duty.claimBill("business","staff",order.id))
+  val handover=duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager")).single()
+  assertEquals("ACCEPTED",duty.decide("business","manager",handover.id,BillHandoverDecisionRequest("ACCEPT")).status)
  }
 
 }

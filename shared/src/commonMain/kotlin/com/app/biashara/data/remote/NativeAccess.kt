@@ -47,6 +47,7 @@ data class LoginShiftStatus(val dayOpen: Boolean, val personalOpen: Boolean, val
 
 class NativeShiftClient(private val client: HttpClient) {
     suspend fun check(access: NativeAccess): LoginShiftStatus? {
+        if (UserSession.currentUser.value?.role in setOf(UserRole.ADMIN, UserRole.SUPERADMIN)) return null
         if (!access.permits("hospitality.view") || access.enabledMenus.none {
                 it in setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS") }) return null
         val status = client.get("$BASE_URL/hospitality/status").body<ApiResponse<NativeHospitalityStatus>>()
