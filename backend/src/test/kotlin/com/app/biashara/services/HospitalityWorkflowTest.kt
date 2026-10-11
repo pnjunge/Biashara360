@@ -47,7 +47,48 @@ class HospitalityWorkflowTest {
   ops.openShift("business","manager",ShiftOpenRequest())
   ingredient=ops.createIngredient("business","staff",IngredientRequest("Flour","G",10.0,unitCost=2.0)).id
  }
+ private fun serveKitchen(orderId:String) = transaction {
+  KitchenTicketsTable.update({(KitchenTicketsTable.orderId eq orderId) and (KitchenTicketsTable.status neq "CANCELLED")}){it[KitchenTicketsTable.status]="SERVED"}
+ }
+ private fun closeServedTab(businessId:String,orderId:String,request:CloseHospitalityTabRequest,userId:String?=null):OrderResponse {
+  serveKitchen(orderId)
+  return service.closeTab(businessId,orderId,request,userId)
+ }
+ private fun splitServedBill(businessId:String,userId:String,orderId:String,request:SplitBillRequest)=run {
+  serveKitchen(orderId)
+  ops.splitBill(businessId,userId,orderId,request)
+ }
  private fun tab(vararg products:String)=service.createOrder("business","staff",HospitalityOrderRequest(serviceType="TAKEAWAY",items=products.map{OrderItemRequest(productId=it,quantity=1,unitPrice=100.0)})).data!!
+ @Test fun `kitchen settlement requires served tickets and removes paid tab from active views`() {
+  ops.saveMenuProfile("business","manager","meal",MenuProfileRequest(preparationStation="KITCHEN"))
+  val order=tab("meal")
+  val ticket=service.dashboard("business").tickets.single{it.orderId==order.id}
+  for(status in listOf("NEW","PREPARING","READY","DELAYED")) {
+   transaction { KitchenTicketsTable.update({KitchenTicketsTable.id eq ticket.id}){it[KitchenTicketsTable.status]=status} }
+   val error=assertFailsWith<IllegalArgumentException>{service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")}
+   assertEquals("Serve all kitchen orders before settling this tab",error.message)
+  }
+  transaction { KitchenTicketsTable.update({KitchenTicketsTable.id eq ticket.id}){it[KitchenTicketsTable.status]="SERVED"} }
+  service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")
+  assertTrue(service.dashboard("business").openTabs.none{it.id==order.id})
+  assertTrue(service.dashboard("business").tickets.none{it.orderId==order.id})
+ }
+ @Test fun `kitchen settlement blocks split payments until served`() {
+  ops.saveMenuProfile("business","manager","meal",MenuProfileRequest(preparationStation="KITCHEN"))
+  val order=tab("meal")
+  val split=SplitBillRequest(listOf(SplitPaymentLine(amount=50.0,method="CASH"),SplitPaymentLine(amount=50.0,method="CASH")))
+  assertFailsWith<IllegalArgumentException>{ops.splitBill("business","staff",order.id,split)}
+  transaction { KitchenTicketsTable.update({KitchenTicketsTable.orderId eq order.id}){it[KitchenTicketsTable.status]="SERVED"} }
+  ops.splitBill("business","staff",order.id,split)
+  assertTrue(service.dashboard("business").openTabs.none{it.id==order.id})
+  assertTrue(service.dashboard("business").tickets.none{it.orderId==order.id})
+ }
+ @Test fun `kitchen settlement allows drinks without a kitchen ticket`() {
+  ops.saveMenuProfile("business","manager","drink",MenuProfileRequest(preparationStation=null))
+  val order=tab("drink")
+  service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")
+  assertTrue(service.dashboard("business").openTabs.none{it.id==order.id})
+ }
  @Test fun `ingredient demand is combined across the whole order`() {
   for(p in listOf("meal","drink"))ops.saveRecipe("business","manager",p,SaveRecipeRequest(listOf(RecipeLine(ingredient,6.0))))
   val r=service.createOrder("business","staff",HospitalityOrderRequest(serviceType="TAKEAWAY",items=listOf("meal","drink").map{OrderItemRequest(it,1,100.0)}))
@@ -66,8 +107,9 @@ class HospitalityWorkflowTest {
   val order=tab("meal")
   assertTrue(orders.cancel(order.id,"business").success)
   assertTrue(service.dashboard("business").openTabs.isEmpty())
-  assertEquals("CANCELLED",service.dashboard("business").tickets.single().status)
-  assertFails{service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"))}
+  assertTrue(service.dashboard("business").tickets.isEmpty())
+  assertEquals("CANCELLED",transaction{KitchenTicketsTable.select{KitchenTicketsTable.orderId eq order.id}.single()[KitchenTicketsTable.status]})
+  assertFails{closeServedTab("business",order.id,CloseHospitalityTabRequest("CASH"))}
  }
  @Test fun `approval applies discount once rejects self decision and foreign targets`() {
   val order=tab("meal")
@@ -101,7 +143,7 @@ class HospitalityWorkflowTest {
  @Test fun `financial reports exclude unpaid cancelled and hotel orders and include modifiers`() {
   val unpaid=tab("meal")
   val paid=service.createOrder("business","staff",HospitalityOrderRequest(serviceType="TAKEAWAY",items=listOf(OrderItemRequest("drink",1,100.0,modifiers=listOf(MenuOption("Large",20.0)))))).data!!
-  service.closeTab("business",paid.id,CloseHospitalityTabRequest("CASH"))
+  closeServedTab("business",paid.id,CloseHospitalityTabRequest("CASH"))
   val hotel=tab("meal");transaction{OrdersTable.update({OrdersTable.id eq hotel.id}){it[serviceType]="HOTEL";it[paymentStatus]="PAID"}}
   val report=ops.report("business","2000-01-01","2100-01-01")
   assertEquals(120.0,report.byItem.sumOf{it.amount});assertEquals(1,report.byWaiter.sumOf{it.count})
@@ -122,7 +164,7 @@ class HospitalityWorkflowTest {
   val request=ops.requestApproval("business","staff",ApprovalRequest("COMPLIMENTARY_ORDER","ORDER",order.id,"Service recovery"))
   ops.decideApproval("business","manager",request.id,true)
   assertEquals(0.0,orders.getById(order.id,"business")!!.subtotal)
-  service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"))
+  closeServedTab("business",order.id,CloseHospitalityTabRequest("CASH"))
   assertTrue(service.dashboard("business").openTabs.isEmpty())
   assertEquals(0,transaction{PaymentsTable.select{PaymentsTable.orderId eq order.id}.count()}.toInt())
  }
@@ -219,10 +261,10 @@ class HospitalityWorkflowTest {
  @Test fun `cash split settles exactly once and releases the table`() {
   val order=tab("meal")
   val payments=SplitBillRequest(listOf(SplitPaymentLine(40.0,"CASH"),SplitPaymentLine(60.0,"CASH")))
-  ops.splitBill("business","manager",order.id,payments)
+  splitServedBill("business","manager",order.id,payments)
   assertEquals("PAID",orders.getById(order.id,"business")!!.paymentStatus)
   assertEquals("SPLIT",orders.getById(order.id,"business")!!.paymentMethod)
-  assertFails{ops.splitBill("business","manager",order.id,payments)}
+  assertFails{splitServedBill("business","manager",order.id,payments)}
   assertEquals(100.0,transaction{PaymentsTable.select{PaymentsTable.orderId eq order.id}.sumOf{it[PaymentsTable.amount]}})
  }
  private fun authorizeDuty() { transaction { UsersTable.update({ UsersTable.businessId eq "business" }) { it[role]="ADMIN" } } }
@@ -330,7 +372,7 @@ class HospitalityWorkflowTest {
  @Test fun `paid bill cannot be accepted and unassigned bills must be claimed`() {
   authorizeDuty();val duty=HospitalityDutyService();duty.startShift("business","manager",StaffShiftRequest())
   val order=tab("meal");val request=duty.requestHandover("business","staff",BillHandoverRequest(listOf(order.id),"manager")).single()
-  service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")
+  closeServedTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")
   assertFails{duty.decide("business","manager",request.id,BillHandoverDecisionRequest("ACCEPT"))}
   val unassigned=service.createOrder("business",null,HospitalityOrderRequest(serviceType="TAKEAWAY",items=listOf(OrderItemRequest("meal",1,100.0)))).data!!
   duty.claimBill("business","manager",unassigned.id)
@@ -345,8 +387,8 @@ class HospitalityWorkflowTest {
   assertEquals(80.0,request.balanceAtRequest)
   duty.decide("business","manager",request.id,BillHandoverDecisionRequest("ACCEPT"))
   duty.endShift("business","staff",StaffShiftRequest())
-  assertFails{service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")}
-  service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"manager")
+  assertFails{closeServedTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")}
+  closeServedTab("business",order.id,CloseHospitalityTabRequest("CASH"),"manager")
   val payments=transaction { PaymentsTable.select { PaymentsTable.orderId eq order.id }.map { it[PaymentsTable.collectedByUserId] to it[PaymentsTable.amount] } }
   assertTrue("staff" to 20.0 in payments);assertTrue("manager" to 80.0 in payments)
   assertEquals(100.0,payments.sumOf{it.second})
@@ -358,7 +400,7 @@ class HospitalityWorkflowTest {
   val shift=ops.dashboard("business").shifts.single()
   assertFails{ops.closeShift("business","manager",shift.id,ShiftCloseRequest(0.0,0.0,0.0))}
   assertEquals("OPEN",duty.dashboard("business","manager").shift!!.status)
-  service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"manager")
+  closeServedTab("business",order.id,CloseHospitalityTabRequest("CASH"),"manager")
   ops.closeShift("business","manager",shift.id,ShiftCloseRequest(100.0,0.0,0.0))
   assertNull(duty.dashboard("business","manager").shift)
  }
@@ -383,18 +425,18 @@ class HospitalityWorkflowTest {
   assertFails{duty.startShift("business","staff",StaffShiftRequest())};assertFails{duty.startShift("other","staff",StaffShiftRequest())}
   assertTrue(tab("meal").items.isNotEmpty())
   assertFails{duty.endShift("business","staff",StaffShiftRequest())}
-  val order=service.dashboard("business").openTabs.single();service.closeTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")
+  val order=service.dashboard("business").openTabs.single();closeServedTab("business",order.id,CloseHospitalityTabRequest("CASH"),"staff")
   duty.endShift("business","staff",StaffShiftRequest())
   assertNull(duty.dashboard("business","staff").shift);assertNotNull(duty.dashboard("business","manager").shift);assertTrue(ops.dashboard("business").tradingDayOpen)
  }
 
  @Test fun `staff shift tally counts only this users completed orders and freezes on close`() {
   authorizeDuty();val duty=HospitalityDutyService()
-  val before=tab("meal");service.closeTab("business",before.id,CloseHospitalityTabRequest("CASH"),"staff")
+  val before=tab("meal");closeServedTab("business",before.id,CloseHospitalityTabRequest("CASH"),"staff")
   duty.startShift("business","staff",StaffShiftRequest());duty.startShift("business","manager",StaffShiftRequest())
-  val completed=tab("meal");service.closeTab("business",completed.id,CloseHospitalityTabRequest("CASH"),"staff")
+  val completed=tab("meal");closeServedTab("business",completed.id,CloseHospitalityTabRequest("CASH"),"staff")
   val others=service.createOrder("business","manager",HospitalityOrderRequest(serviceType="TAKEAWAY",items=listOf(OrderItemRequest("drink",2,100.0)))).data!!
-  service.closeTab("business",others.id,CloseHospitalityTabRequest("CASH"),"manager")
+  closeServedTab("business",others.id,CloseHospitalityTabRequest("CASH"),"manager")
   val unpaid=tab("drink");val handover=duty.requestHandover("business","staff",BillHandoverRequest(listOf(unpaid.id),"manager")).single()
   duty.decide("business","manager",handover.id,BillHandoverDecisionRequest("ACCEPT"))
   val preview=duty.dashboard("business","staff").shift!!.summary
@@ -402,7 +444,7 @@ class HospitalityWorkflowTest {
   assertEquals(listOf(completed.id),preview.completedOrders.map{it.id});assertEquals(1,preview.handedOverCount)
   val ended=duty.endShift("business","staff",StaffShiftRequest("Till handed over"))
   assertEquals(preview,ended.summary)
-  service.closeTab("business",unpaid.id,CloseHospitalityTabRequest("CASH"),"manager")
+  closeServedTab("business",unpaid.id,CloseHospitalityTabRequest("CASH"),"manager")
   assertEquals(preview,duty.reports("business","staff").single().summary)
   assertEquals(300.0,duty.dashboard("business","manager").shift!!.summary.cashTotal)
   assertEquals(2,duty.reports("business","manager",true).size)
@@ -410,9 +452,9 @@ class HospitalityWorkflowTest {
  }
  @Test fun `staff tally tracks cash mpesa card and excludes unpaid or cancelled orders`() {
   authorizeDuty();val duty=HospitalityDutyService();duty.startShift("business","staff",StaffShiftRequest())
-  val cash=tab("meal");service.closeTab("business",cash.id,CloseHospitalityTabRequest("CASH"),"staff")
+  val cash=tab("meal");closeServedTab("business",cash.id,CloseHospitalityTabRequest("CASH"),"staff")
   for(method in listOf("MPESA","CARD")) {
-   val order=tab("drink");service.closeTab("business",order.id,CloseHospitalityTabRequest(method),"staff")
+   val order=tab("drink");closeServedTab("business",order.id,CloseHospitalityTabRequest(method),"staff")
    transaction {
     PaymentsTable.insert {it[id]=UUID.randomUUID().toString();it[businessId]="business";it[orderId]=order.id;it[collectedByUserId]="staff";it[transactionCode]=method;it[amount]=100.0;it[payerPhone]="";it[payerName]="Guest";it[PaymentsTable.method]=method;it[status]="SUCCESS";it[channel]="TEST";it[reconciled]=true;it[transactionDate]=Clock.System.now()}
     OrdersTable.update({OrdersTable.id eq order.id}) {it[paymentStatus]="PAID";it[tabStatus]="CLOSED";it[completedAt]=Clock.System.now()}
@@ -438,11 +480,12 @@ class HospitalityWorkflowTest {
   val req=CreateOrderRequest(customerName="Guest",customerPhone="",serviceType="TAKEAWAY",serverUserId="staff",items=listOf(OrderItemRequest("meal",1,100.0),OrderItemRequest("drink",1,100.0)),paymentMethod="CASH",clientReference="food-pos")
   assertTrue(orders.create("business",req,"WEB","staff").success)
   assertTrue(orders.create("business",req,"WEB","staff").success)
-  val tickets=service.dashboard("business").tickets
-  assertEquals(1,tickets.size);assertEquals(listOf("meal"),tickets.single().items.map{it.productId})
+  assertEquals(1,transaction{KitchenTicketsTable.selectAll().count()}.toInt())
+  assertEquals(listOf("meal"),transaction{OrderItemsTable.select{OrderItemsTable.preparationStation eq "KITCHEN"}.map{it[OrderItemsTable.productId]}})
+  assertTrue(service.dashboard("business").tickets.isEmpty())
   ops.saveMenuProfile("business","manager","meal",MenuProfileRequest(preparationStation=null))
-  assertEquals(listOf("meal"),service.dashboard("business").tickets.single().items.map{it.productId})
-  assertTrue(service.dashboard("business").tickets.single().items.all{it.preparationStation=="KITCHEN"})
+  assertEquals(listOf("meal"),transaction{OrderItemsTable.select{OrderItemsTable.preparationStation eq "KITCHEN"}.map{it[OrderItemsTable.productId]}})
+
  }
  @Test fun `receiver acceptance races cannot transfer a bill twice`() {
   authorizeDuty();val duty=HospitalityDutyService();duty.startShift("business","manager",StaffShiftRequest())
@@ -517,7 +560,7 @@ class HospitalityWorkflowTest {
   assertFalse(ExpenseService().update(expense.id,"business",ExpenseRequest("RENT",1.0,"Changed",expense.expenseDate)).success)
   ops.saveRecipe("business","manager","meal",SaveRecipeRequest(listOf(RecipeLine(goat,1000.0))))
   transaction{ProductsTable.update({ProductsTable.id eq "meal"}){it[sellingPrice]=1000.0}}
-  val sale=tab("meal");service.closeTab("business",sale.id,CloseHospitalityTabRequest("CASH"),"staff")
+  val sale=tab("meal");closeServedTab("business",sale.id,CloseHospitalityTabRequest("CASH"),"staff")
   val date=Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi")).date.toString()
   ExpenseService().create("business",ExpenseRequest("RENT",100.0,"Rent",date))
   val summary=ExpenseService().getProfitSummary("business",date,date)
@@ -562,7 +605,7 @@ class HospitalityWorkflowTest {
  @Test fun `cash drawer supplier payout reduces business closing cash once`() {
   val (_,po)=goatPurchase(1.0,100.0)
   ops.receivePurchaseOrder("business","manager",po.id,ReceiveIngredientPurchaseRequest(IngredientPurchasePaymentRequest(100.0,"CASH",clientReference="drawer-goat-pay",paidFromTill=true)))
-  val sale=tab("meal");service.closeTab("business",sale.id,CloseHospitalityTabRequest("CASH"),"staff")
+  val sale=tab("meal");closeServedTab("business",sale.id,CloseHospitalityTabRequest("CASH"),"staff")
   val shift=ops.dashboard("business").shifts.single()
   val closed=ops.closeShift("business","manager",shift.id,ShiftCloseRequest(actualCash=0.0,actualMpesa=0.0,actualCard=0.0))
   assertEquals(0.0,closed.expectedCash);assertEquals(100.0,closed.expensesTotal);assertEquals(0.0,closed.variance)
@@ -607,7 +650,7 @@ class HospitalityWorkflowTest {
  @Test fun `ingredient receipts average the cost of remaining stock without repricing past sales`() {
   val (goat,po)=goatPurchase(2.0,500.0);ops.receivePurchaseOrder("business","manager",po.id)
   ops.saveRecipe("business","manager","meal",SaveRecipeRequest(listOf(RecipeLine(goat,1000.0))))
-  val first=tab("meal");service.closeTab("business",first.id,CloseHospitalityTabRequest("CASH"))
+  val first=tab("meal");closeServedTab("business",first.id,CloseHospitalityTabRequest("CASH"))
   val second=ops.createPurchaseOrder("business","manager",PurchaseOrderRequest(po.supplierId,items=listOf(PurchaseOrderLineRequest(goat,1.0,1000.0,"KG"))))
   ops.receivePurchaseOrder("business","manager",second.id)
   val ingredient=ops.dashboard("business").ingredients.first{it.id==goat}

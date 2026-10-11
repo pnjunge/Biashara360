@@ -1,5 +1,7 @@
 package com.app.biashara.ui.screens.inventory
 
+import com.app.biashara.data.remote.NativeAccessSession
+import com.app.biashara.ui.hasNativePermission
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -50,7 +52,7 @@ fun InventoryScreen(
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
+            if (hasNativePermission("products.create")) ExtendedFloatingActionButton(
                 onClick = onAddProduct,
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 text = { Text("Add Product", fontWeight = FontWeight.Bold) },
@@ -139,7 +141,7 @@ fun InventoryScreen(
                         Icon(Icons.Filled.Inventory2, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
                         Text("No products found", color = Color.Gray)
                         if (state.searchQuery.isBlank()) {
-                            Button(onClick = onAddProduct, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
+                            Button(enabled = hasNativePermission("products.create"), onClick = onAddProduct, colors = ButtonDefaults.buttonColors(containerColor = B360Green)) {
                                 Text("Add your first product")
                             }
                         }
@@ -218,7 +220,7 @@ fun ProductCard(product: Product, onEdit: () -> Unit) {
                 )
                 Text("in stock", fontSize = 11.sp, color = Color.Gray)
                 Spacer(Modifier.height(8.dp))
-                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                IconButton(enabled = hasNativePermission("products.update"), onClick = onEdit, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = B360Green, modifier = Modifier.size(18.dp))
                 }
             }
@@ -322,7 +324,10 @@ fun AddProductScreen(
                                 createdAt = existingProduct?.createdAt ?: now,
                                 updatedAt = now
                             )
-                            viewModel.saveProduct(product)
+                            if (NativeAccessSession.permits(if (existingProduct == null) "products.create" else "products.update") &&
+                                (existingProduct == null || product.currentStock == existingProduct.currentStock || NativeAccessSession.permits("inventory.adjust"))) {
+                                viewModel.saveProduct(product)
+                            }
                         }
                     }
                 },
@@ -408,6 +413,7 @@ fun AddProductScreen(
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
+                        enabled = existingProduct == null || hasNativePermission("inventory.adjust"),
                         value = stock, onValueChange = { stock = it },
                         label = { Text("Stock Qty") }, modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

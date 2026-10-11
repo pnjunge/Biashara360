@@ -16,6 +16,43 @@ import kotlin.test.*
 
 class DesktopCheckoutTest {
     @Test
+    fun `opening tab sends table and items and reads created order`() = runBlocking<Unit> {
+        val client = HttpClient(MockEngine { request ->
+            assertEquals("/v1/hospitality/orders", request.url.encodedPath)
+            val body = Json.parseToJsonElement((request.body as TextContent).text).jsonObject
+            assertEquals("table-1", body["tableId"]?.jsonPrimitive?.content)
+            assertTrue(body.containsKey("items"))
+            respond("""{"success":true,"data":{"id":"tab-1","orderNumber":"ORDER-1"}}""", headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        }) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+        try {
+            val response = openDesktopTab(client, PosCreateHospitalityOrderReq(tableId = "table-1", items = listOf(PosHospitalityOrderItemReq("product-1", "Tea", 1, 100.0))), "https://test/v1")
+            assertEquals("ORDER-1", response.data?.orderNumber)
+        } finally { client.close() }
+    }
+
+    @Test
+    fun `opening tab surfaces backend shift failure`() = runBlocking<Unit> {
+        val client = HttpClient(MockEngine {
+            respond("""{"success":false,"message":"Start the day by opening a shift"}""", headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        }) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+        try {
+            val error = assertFailsWith<IllegalStateException> {
+                openDesktopTab(client, PosCreateHospitalityOrderReq(serviceType = "TAKEAWAY", items = listOf(PosHospitalityOrderItemReq("product-1", "Tea", 1, 100.0))), "https://test/v1")
+            }
+            assertEquals("Start the day by opening a shift", error.message)
+        } finally { client.close() }
+    }
+
+    @Test
+    fun `invalid tab cannot send a request`() = runBlocking<Unit> {
+        val client = HttpClient(MockEngine { error("Unexpected request") })
+        try {
+            assertFailsWith<IllegalArgumentException> { openDesktopTab(client, PosCreateHospitalityOrderReq()) }
+            assertFailsWith<IllegalArgumentException> { openDesktopTab(client, PosCreateHospitalityOrderReq(serviceType = "TAKEAWAY")) }
+        } finally { client.close() }
+    }
+
+    @Test
     fun `dine in requires table before placement`() {
         assertFailsWith<IllegalArgumentException> { requireDesktopTable(true, "DINE_IN", null) }
         assertFailsWith<IllegalArgumentException> { requireDesktopTable(true, "DINE_IN", "") }

@@ -270,9 +270,10 @@ private fun WindowsControlButton(
  */
 @Composable
 fun DesktopStatusBar(
-    syncState: String = "Local • Synced",
-    syncSubtitle: String = "All changes saved",
-    terminalInfo: String = "Counter 01 • Main Store • eTIMS: Online",
+    syncState: String = "Desktop",
+    syncSubtitle: String = "Sync status unavailable",
+    terminalInfo: String = "",
+    userInfo: String = "",
     modifier: Modifier = Modifier,
     onOpenCommandPalette: () -> Unit = {},
     onOpenShortcuts: () -> Unit = {}
@@ -286,27 +287,7 @@ fun DesktopStatusBar(
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val infiniteTransition = rememberInfiniteTransition(label = "syncPulse")
-        val pulseScale by infiniteTransition.animateFloat(
-            initialValue = 0.82f,
-            targetValue = 1.25f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1200, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "pulseScale"
-        )
-        val pulseAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.65f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1200, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "pulseAlpha"
-        )
-
-        // Left: Local • Synced with pulsing green indicator
+        // Display only status supplied by the caller.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -314,9 +295,8 @@ fun DesktopStatusBar(
             Box(
                 modifier = Modifier
                     .size(7.dp)
-                    .graphicsLayer(scaleX = pulseScale, scaleY = pulseScale, alpha = pulseAlpha)
                     .clip(CircleShape)
-                    .background(Color(0xFF10B981))
+                    .background(Color(0xFF94A3B8))
             )
             Text(
                 text = syncState,
@@ -347,6 +327,11 @@ fun DesktopStatusBar(
         )
 
         Spacer(modifier = Modifier.weight(1f))
+
+        if (userInfo.isNotBlank()) {
+            Text(userInfo, fontSize = 11.sp, color = Color(0xFF475569), fontWeight = FontWeight.Medium)
+            Spacer(Modifier.width(16.dp))
+        }
 
         // Right: Keyboard shortcuts triggers
         Row(

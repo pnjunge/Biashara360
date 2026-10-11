@@ -23,6 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.app.biashara.ui.hasNativePermission
+import com.app.biashara.data.remote.NativeAccessSession
 import com.app.biashara.UserSession
 import com.app.biashara.domain.model.*
 import com.app.biashara.presentation.viewmodel.OrdersViewModel
@@ -44,6 +46,9 @@ fun DesktopOrdersScreen(
     viewModel: OrdersViewModel = remember { inject() },
     navigationViewModel: DesktopNavigationViewModel = remember { inject() }
 ) {
+    val canCancel = hasNativePermission("orders.cancel")
+    val canRefund = hasNativePermission("orders.refund")
+    val canAmend = hasNativePermission("orders.update")
     val state by viewModel.state.collectAsState()
     val currentUserSession by UserSession.currentUser.collectAsState()
 
@@ -308,46 +313,46 @@ fun DesktopOrdersScreen(
             OrderMetricCard(
                 modifier = Modifier.weight(1f),
                 title = "Total Orders",
-                value = if (totalAllOrders > 0) totalAllOrders.toString() else "100",
+                value = totalAllOrders.toString(),
                 subtext = "All orders placed",
                 subtextColor = Color(0xFF0EA5E9),
                 icon = Icons.Default.ShoppingCart,
                 iconColor = Color(0xFF7C3AED),
                 iconBg = Color(0xFFEDE9FE),
-                trendText = "↑ 12%"
+                trendText = ""
             )
             OrderMetricCard(
                 modifier = Modifier.weight(1f),
                 title = "Paid Orders",
-                value = if (totalPaidOrders > 0) totalPaidOrders.toString() else "66",
+                value = totalPaidOrders.toString(),
                 subtext = "Completed payments",
                 subtextColor = Color(0xFF10B981),
                 icon = Icons.Default.CheckCircle,
                 iconColor = Color(0xFF10B981),
                 iconBg = Color(0xFFDCFCE7),
-                trendText = "↑ 8%"
+                trendText = ""
             )
             OrderMetricCard(
                 modifier = Modifier.weight(1f),
                 title = "Pending Orders",
-                value = if (totalPendingOrders > 0) totalPendingOrders.toString() else "21",
+                value = totalPendingOrders.toString(),
                 subtext = "Awaiting payment",
                 subtextColor = Color(0xFFF59E0B),
                 icon = Icons.Default.Schedule,
                 iconColor = Color(0xFFF59E0B),
                 iconBg = Color(0xFFFEF3C7),
-                trendText = "↑ 5%"
+                trendText = ""
             )
             OrderMetricCard(
                 modifier = Modifier.weight(1f),
                 title = "Total Sales",
-                value = if (totalPaidSales > 0) "KES ${String.format("%,.0f", totalPaidSales)}" else "KES 179,850",
+                value = "KES ${String.format("%,.0f", totalPaidSales)}",
                 subtext = "Paid order value",
                 subtextColor = Color(0xFF3B82F6),
                 icon = Icons.Default.MonetizationOn,
                 iconColor = Color(0xFF3B82F6),
                 iconBg = Color(0xFFDBEAFE),
-                trendText = "↑ 18%"
+                trendText = ""
             )
         }
 
@@ -792,6 +797,7 @@ fun DesktopOrdersScreen(
                                     DropdownMenu(expanded = showRowMenu, onDismissRequest = { showRowMenu = false }) {
                                         DropdownMenuItem(
                                             text = { Text("Amend Order") },
+                                            enabled = canAmend,
                                             leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFF2563EB)) },
                                             onClick = {
                                                 showRowMenu = false
@@ -800,6 +806,7 @@ fun DesktopOrdersScreen(
                                         )
                                         DropdownMenuItem(
                                             text = { Text("Cancel Order") },
+                                            enabled = canCancel,
                                             leadingIcon = { Icon(Icons.Default.Cancel, contentDescription = null, tint = B360Amber) },
                                             onClick = {
                                                 showRowMenu = false
@@ -808,6 +815,7 @@ fun DesktopOrdersScreen(
                                         )
                                         DropdownMenuItem(
                                             text = { Text("Void Order") },
+                                            enabled = canRefund,
                                             leadingIcon = { Icon(Icons.Default.Block, contentDescription = null, tint = B360Red) },
                                             onClick = {
                                                 showRowMenu = false
@@ -1116,7 +1124,7 @@ fun DesktopOrdersScreen(
                     ) {
                         OutlinedButton(
                             onClick = { orderToAmend = order },
-                            enabled = order.deliveryStatus != DeliveryStatus.CANCELLED
+                            enabled = canAmend && order.deliveryStatus != DeliveryStatus.CANCELLED
                         ) {
                             Icon(Icons.Default.Edit, null, Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
@@ -1124,7 +1132,7 @@ fun DesktopOrdersScreen(
                         }
                         OutlinedButton(
                             onClick = { orderToCancel = order },
-                            enabled = order.deliveryStatus != DeliveryStatus.CANCELLED,
+                            enabled = canCancel && order.deliveryStatus != DeliveryStatus.CANCELLED,
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFD97706))
                         ) {
                             Icon(Icons.Default.Cancel, null, Modifier.size(16.dp))
@@ -1133,7 +1141,7 @@ fun DesktopOrdersScreen(
                         }
                         OutlinedButton(
                             onClick = { orderToVoid = order },
-                            enabled = order.deliveryStatus != DeliveryStatus.CANCELLED,
+                            enabled = canRefund && order.deliveryStatus != DeliveryStatus.CANCELLED,
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626))
                         ) {
                             Icon(Icons.Default.Block, null, Modifier.size(16.dp))
@@ -1189,7 +1197,7 @@ fun DesktopOrdersScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.amendOrder(order.id, amendedPayment, amendedDelivery)
+                        if (NativeAccessSession.permits("orders.update")) viewModel.amendOrder(order.id, amendedPayment, amendedDelivery)
                     },
                     enabled = !state.isLoading &&
                         (amendedPayment != order.paymentStatus || amendedDelivery != order.deliveryStatus),
@@ -1216,7 +1224,7 @@ fun DesktopOrdersScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { viewModel.cancelOrder(order.id) },
+                    onClick = { if (NativeAccessSession.permits("orders.cancel")) viewModel.cancelOrder(order.id) },
                     enabled = !state.isLoading,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))
                 ) {
@@ -1241,7 +1249,7 @@ fun DesktopOrdersScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { viewModel.voidOrder(order.id) },
+                    onClick = { if (NativeAccessSession.permits("orders.refund")) viewModel.voidOrder(order.id) },
                     enabled = !state.isLoading,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
                 ) {

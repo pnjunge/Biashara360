@@ -1,5 +1,6 @@
 package com.app.biashara.ui.screens.dashboard
 
+import com.app.biashara.ui.hasNativePermission
 import androidx.compose.animation.core.*
 
 import androidx.compose.foundation.BorderStroke
@@ -54,6 +55,7 @@ fun DashboardScreen(
     onLogout: () -> Unit = {},
     viewModel: DashboardViewModel = kmpViewModel()
 ) {
+    val canViewFinancialReports = hasNativePermission("reports.financial")
     val state by viewModel.state.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
 
@@ -255,7 +257,7 @@ fun DashboardScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Icon(Icons.Filled.CalendarToday, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
                         Text(
-                            "Last updated ${state.lastUpdatedAt?.toString()?.substring(11, 16) ?: "12:25"}",
+                            "Last updated ${state.lastUpdatedAt?.toString()?.substring(11, 16) ?: "not yet updated"}",
                             color = Color(0xFF94A3B8),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
@@ -270,7 +272,7 @@ fun DashboardScreen(
                     KpiCard(
                         modifier = Modifier.weight(1f),
                         title = "${state.selectedPeriod.label} Revenue",
-                        value = "KES ${"%,.0f".format(state.monthRevenue)}",
+                        value = if (canViewFinancialReports) "KES ${"%,.0f".format(state.monthRevenue)}" else "Restricted",
                         change = "",
                         icon = Icons.AutoMirrored.Filled.TrendingUp,
                         color = Color(0xFF00B074),
@@ -281,7 +283,7 @@ fun DashboardScreen(
                     KpiCard(
                         modifier = Modifier.weight(1f),
                         title = "Net Profit",
-                        value = "KES ${"%,.0f".format(state.netProfit)}",
+                        value = if (canViewFinancialReports) "KES ${"%,.0f".format(state.netProfit)}" else "Restricted",
                         change = "",
                         icon = Icons.Filled.Business,
                         color = Color(0xFF2563EB),
@@ -322,7 +324,8 @@ fun DashboardScreen(
 
             // Revenue Trend Smooth Line Chart
             item {
-                RevenueBarChart(weeklyRevenue = state.weeklyRevenue)
+                if (canViewFinancialReports) RevenueBarChart(weeklyRevenue = state.weeklyRevenue)
+                else Text("Financial report access required", color = Color(0xFF64748B))
             }
 
             // Quick Nav Tiles (POS, Orders, Stock, Customers, Reports)
@@ -1047,7 +1050,7 @@ fun TopCustomersSection(
                                 Text("$orders ${if (orders == 1) "order" else "orders"}", fontSize = 11.sp, color = Color.Gray)
                             }
                         }
-                        Text("KES ${"%,.0f".format(spent)}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(if (hasNativePermission("reports.financial")) "KES ${"%,.0f".format(spent)}" else "Restricted", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                     if (index < customers.size - 1 && index < 3) {
                         Divider(color = Color(0xFFF1F5F9))

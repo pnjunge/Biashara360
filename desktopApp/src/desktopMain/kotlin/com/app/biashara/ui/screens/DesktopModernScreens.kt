@@ -40,7 +40,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import com.app.biashara.data.remote.ApiResponse
 import com.app.biashara.data.remote.BASE_URL
-import com.app.biashara.ui.data.DesktopDemoData
+import com.app.biashara.ui.data.DesktopOptions
 import kotlinx.coroutines.launch
 
 private val ModernGreen = Color(0xFF00B874)
@@ -79,7 +79,7 @@ fun DesktopReportsLiveScreen(
                 expanded = periodMenuExpanded,
                 onDismissRequest = { periodMenuExpanded = false }
             ) {
-                DesktopDemoData.reportPeriods.forEach { period ->
+                DesktopOptions.reportPeriods.forEach { period ->
                     DropdownMenuItem(
                         text = { Text(period) },
                         onClick = {

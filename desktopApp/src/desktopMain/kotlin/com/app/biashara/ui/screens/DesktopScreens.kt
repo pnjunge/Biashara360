@@ -1,5 +1,7 @@
 package com.app.biashara.ui.screens
 
+import com.app.biashara.ui.hasNativePermission
+import com.app.biashara.data.remote.NativeAccessSession
 import androidx.compose.foundation.*
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -40,7 +42,7 @@ import kotlinx.datetime.minus
 import kotlinx.datetime.toLocalDateTime
 import com.app.biashara.ui.AppScreen
 import com.app.biashara.ui.DesktopNavigationViewModel
-import com.app.biashara.ui.data.DesktopDemoData
+import com.app.biashara.ui.data.DesktopOptions
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.input.key.*
@@ -52,7 +54,7 @@ fun ScreenHeader(
     title: String,
     subtitle: String
 ) {
-    var dateRangeLabel by remember { mutableStateOf("Mar 1 – Mar 31, 2025") }
+    var dateRangeLabel by remember { mutableStateOf(Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date.toString()) }
     var showDatePickerDropdown by remember { mutableStateOf(false) }
 
     var filterLabel by remember { mutableStateOf("Filter") }
@@ -298,140 +300,6 @@ fun DonutLegendRow(
     }
 }
 
-@Composable
-fun RevenueExpenseLineChart(
-    modifier: Modifier = Modifier
-) {
-    // Sample revenue data (rising trend) and expense data
-    val revenuePoints = listOf(0.55f, 0.60f, 0.58f, 0.72f, 0.80f, 0.75f, 0.90f, 0.85f, 0.78f, 0.88f,
-        0.92f, 0.87f, 0.95f, 0.90f, 0.82f, 0.78f, 0.72f, 0.80f, 0.76f, 0.70f,
-        0.65f, 0.68f, 0.74f, 0.78f, 0.72f, 0.65f, 0.60f, 0.72f, 0.82f, 0.88f)
-    Canvas(modifier = modifier) {
-        val width = size.width
-        val height = size.height
-        val paddingLeft = 40.dp.toPx()
-        val paddingBottom = 24.dp.toPx()
-        val paddingTop = 12.dp.toPx()
-        val paddingRight = 12.dp.toPx()
-        
-        val chartWidth = width - paddingLeft - paddingRight
-        val chartHeight = height - paddingTop - paddingBottom
-        
-        // Draw grid lines
-        val yLines = 6
-        for (i in 0 until yLines) {
-            val y = paddingTop + chartHeight * i / (yLines - 1)
-            drawLine(
-                color = Color(0xFFF1F5F9),
-                start = androidx.compose.ui.geometry.Offset(paddingLeft, y),
-                end = androidx.compose.ui.geometry.Offset(width, y),
-                strokeWidth = 1.dp.toPx()
-            )
-        }
-        
-        // Data points (Expenses)
-        val expensePoints = listOf(0.2f, 0.25f, 0.22f, 0.35f, 0.45f, 0.42f, 0.58f, 0.52f, 0.48f, 0.65f,
-            0.72f, 0.68f, 0.92f, 0.85f, 0.78f, 0.65f, 0.55f, 0.60f, 0.52f, 0.48f,
-            0.42f, 0.38f, 0.45f, 0.52f, 0.48f, 0.38f, 0.32f, 0.45f, 0.58f, 0.52f)
-        val xStep = chartWidth / (expensePoints.size - 1)
-        
-        // ── Draw Revenue line (Green) ──
-        val revPath = androidx.compose.ui.graphics.Path()
-        val revFillPath = androidx.compose.ui.graphics.Path()
-        revenuePoints.forEachIndexed { index, value ->
-            val x = paddingLeft + index * xStep
-            val y = paddingTop + chartHeight * (1f - value * 0.9f)
-            if (index == 0) {
-                revPath.moveTo(x, y)
-                revFillPath.moveTo(x, paddingTop + chartHeight)
-                revFillPath.lineTo(x, y)
-            } else {
-                revPath.lineTo(x, y)
-                revFillPath.lineTo(x, y)
-            }
-            if (index == revenuePoints.size - 1) {
-                revFillPath.lineTo(x, paddingTop + chartHeight)
-                revFillPath.close()
-            }
-        }
-        drawPath(
-            path = revFillPath,
-            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                colors = listOf(B360Green.copy(alpha = 0.12f), Color.Transparent),
-                startY = paddingTop,
-                endY = paddingTop + chartHeight
-            )
-        )
-        drawPath(
-            path = revPath,
-            color = B360Green,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(
-                width = 2.dp.toPx(),
-                cap = androidx.compose.ui.graphics.StrokeCap.Round
-            )
-        )
-        // Revenue dot markers
-        listOf(0, 5, 10, 15, 20, 25, 29).forEach { index ->
-            val x = paddingLeft + index * xStep
-            val y = paddingTop + chartHeight * (1f - revenuePoints[index] * 0.9f)
-            drawCircle(color = Color.White, radius = 4.dp.toPx(), center = androidx.compose.ui.geometry.Offset(x, y))
-            drawCircle(color = B360Green, radius = 2.5.dp.toPx(), center = androidx.compose.ui.geometry.Offset(x, y))
-        }
-        
-        // ── Draw Expenses line (Red) ──
-        val path = androidx.compose.ui.graphics.Path()
-        val fillPath = androidx.compose.ui.graphics.Path()
-        
-        expensePoints.forEachIndexed { index, value ->
-            val x = paddingLeft + index * xStep
-            val y = paddingTop + chartHeight * (1f - value * 0.9f)
-            
-            if (index == 0) {
-                path.moveTo(x, y)
-                fillPath.moveTo(x, paddingTop + chartHeight)
-                fillPath.lineTo(x, y)
-            } else {
-                path.lineTo(x, y)
-                fillPath.lineTo(x, y)
-            }
-            if (index == expensePoints.size - 1) {
-                fillPath.lineTo(x, paddingTop + chartHeight)
-                fillPath.close()
-            }
-        }
-        
-        // Draw fill under Expenses
-        drawPath(
-            path = fillPath,
-            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                colors = listOf(B360Red.copy(alpha = 0.15f), Color.Transparent),
-                startY = paddingTop,
-                endY = paddingTop + chartHeight
-            )
-        )
-        
-        // Draw expense line
-        drawPath(
-            path = path,
-            color = B360Red,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(
-                width = 2.dp.toPx(),
-                cap = androidx.compose.ui.graphics.StrokeCap.Round
-            )
-        )
-        
-        // Expense dot markers (every 5th point)
-        expensePoints.forEachIndexed { index, value ->
-            if (index % 5 == 0 || index == expensePoints.size - 1) {
-                val x = paddingLeft + index * xStep
-                val y = paddingTop + chartHeight * (1f - value * 0.9f)
-                drawCircle(color = Color.White, radius = 4.dp.toPx(), center = androidx.compose.ui.geometry.Offset(x, y))
-                drawCircle(color = B360Red, radius = 2.5.dp.toPx(), center = androidx.compose.ui.geometry.Offset(x, y))
-            }
-        }
-    }
-}
-
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 
@@ -441,6 +309,7 @@ fun DesktopDashboardScreen(
     navigationViewModel: com.app.biashara.ui.DesktopNavigationViewModel = remember { inject() },
     businessViewModel: BusinessViewModel = remember { inject() }
 ) {
+    val canViewFinancialReports = hasNativePermission("reports.financial")
     val state by viewModel.state.collectAsState()
     val businessState by businessViewModel.profileState.collectAsState()
     LaunchedEffect(Unit) {
@@ -456,7 +325,7 @@ fun DesktopDashboardScreen(
     val currentHour = remember {
         try {
             Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).hour
-        } catch (_: Exception) { 14 }
+        } catch (_: Exception) { java.time.ZonedDateTime.now(java.time.ZoneId.of("Africa/Nairobi")).hour }
     }
     val greeting = when {
         currentHour < 12 -> "Good morning,"
@@ -468,7 +337,7 @@ fun DesktopDashboardScreen(
         try {
             Clock.System.now().toLocalDateTime(TimeZone.of("Africa/Nairobi")).date
         } catch (_: Exception) {
-            LocalDate(2026, 10, 3)
+            java.time.LocalDate.now(java.time.ZoneId.of("Africa/Nairobi")).let { LocalDate(it.year, it.monthValue, it.dayOfMonth) }
         }
     }
     val dateDisplayString = remember(state.selectedPeriod, todayDate) {
@@ -507,7 +376,7 @@ fun DesktopDashboardScreen(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 val userName = businessState.profile?.name?.substringBefore(" ")
-                    ?: UserSession.getUserName().substringBefore(" ").ifBlank { "kamau" }
+                    ?: UserSession.getUserName().substringBefore(" ").ifBlank { "" }
                 Text(
                     text = greeting,
                     fontSize = 14.sp,
@@ -616,7 +485,7 @@ fun DesktopDashboardScreen(
                         expanded = filterMenuExpanded,
                         onDismissRequest = { filterMenuExpanded = false }
                     ) {
-                        DesktopDemoData.dashboardFilterOptions.forEach { opt ->
+                        DesktopOptions.dashboardFilterOptions.forEach { opt ->
                             val isSelected = dashboardFilter == opt
                             DropdownMenuItem(
                                 text = {
@@ -680,8 +549,8 @@ fun DesktopDashboardScreen(
             KpiCard(
                 modifier = Modifier.weight(1f),
                 title = "REVENUE",
-                value = "KES ${String.format("%,.0f", state.monthRevenue.takeIf { it > 0 } ?: 8000.0)}",
-                change = "+12.5% vs last month",
+                value = if (canViewFinancialReports) "KES ${String.format("%,.0f", state.monthRevenue)}" else "Restricted",
+                change = state.selectedPeriod.label,
                 icon = Icons.Default.TrendingUp,
                 color = B360Green,
                 bgColor = Color(0xFFE6F7F0),
@@ -690,8 +559,8 @@ fun DesktopDashboardScreen(
             KpiCard(
                 modifier = Modifier.weight(1f),
                 title = "NET PROFIT",
-                value = "KES ${String.format("%,.0f", state.netProfit.takeIf { it > 0 } ?: 5000.0)}",
-                change = "+8.2% vs last month",
+                value = if (canViewFinancialReports) "KES ${String.format("%,.0f", state.netProfit)}" else "Restricted",
+                change = state.selectedPeriod.label,
                 icon = Icons.Default.AccountBalance,
                 color = B360Blue,
                 bgColor = Color(0xFFE0F2FE),
@@ -700,8 +569,8 @@ fun DesktopDashboardScreen(
             KpiCard(
                 modifier = Modifier.weight(1f),
                 title = "ORDERS",
-                value = (state.totalOrders.takeIf { it > 0 } ?: 110).toString(),
-                change = "18 pending fulfillment",
+                value = state.totalOrders.toString(),
+                change = "${state.pendingOrders} awaiting payment",
                 icon = Icons.Default.ShoppingCart,
                 color = B360Amber,
                 bgColor = Color(0xFFFEF3C7),
@@ -710,8 +579,8 @@ fun DesktopDashboardScreen(
             KpiCard(
                 modifier = Modifier.weight(1f),
                 title = "PENDING PAYMENTS",
-                value = (state.pendingOrders.takeIf { it > 0 } ?: 22).toString(),
-                change = "KES 42,300 awaiting",
+                value = state.pendingOrders.toString(),
+                change = "Awaiting payment",
                 icon = Icons.Default.Pending,
                 color = B360Red,
                 bgColor = Color(0xFFFEE2E2),
@@ -793,7 +662,8 @@ fun DesktopDashboardScreen(
                         val dayRevenue = remember(state.weeklyRevenue) {
                             state.weeklyRevenue.map { (_, revenue) -> revenue.toFloat() }
                         }
-                        RevenueBarChart(data = dayRevenue)
+                        if (canViewFinancialReports) RevenueBarChart(data = dayRevenue, labels = state.weeklyRevenue.map { it.first })
+                        else Text("Financial report access required", color = Color(0xFF64748B))
                     }
                 }
 
@@ -843,7 +713,7 @@ fun DesktopDashboardScreen(
 
                         data class DashboardOrderRowData(val orderNo: String, val customer: String, val status: String, val amount: String, val date: String)
 
-                        val rawOrders = if (state.recentOrders.isNotEmpty()) {
+                        val rawOrders = run {
                             state.recentOrders.map { order ->
                                 DashboardOrderRowData(
                                     orderNo = order.orderNumber,
@@ -857,17 +727,10 @@ fun DesktopDashboardScreen(
                                     date = try {
                                         val ldt = order.createdAt.toLocalDateTime(kotlinx.datetime.TimeZone.of("Africa/Nairobi"))
                                         "${ldt.date}, ${ldt.hour.toString().padStart(2, '0')}:${ldt.minute.toString().padStart(2, '0')}"
-                                    } catch (_: Exception) { "2026-10-03, 14:22" }
+                                    } catch (_: Exception) { order.createdAt.toString() }
                                 )
                             }
-                        } else {
-                            listOf(
-                                DashboardOrderRowData("B360-ANDR-064E89F6", "Walk-In Customer", "Paid", "KES 4,000", "2026-10-03, 15:39"),
-                                DashboardOrderRowData("B360-F498D2C1", "John Doe", "Pending", "KES 2,500", "2026-10-03, 14:22"),
-                                DashboardOrderRowData("B360-73A0D1E9", "Mary Wanjiku", "Processing", "KES 1,800", "2026-10-03, 13:10"),
-                                DashboardOrderRowData("B360-1C9B8A7D", "Walk-In Customer", "Paid", "KES 3,200", "2026-10-03, 11:45"),
-                                DashboardOrderRowData("B360-6D2F4E11", "Peter Mwangi", "Pending", "KES 1,200", "2026-10-03, 10:32")
-                            )
+
                         }
 
                         val ordersToShow = rawOrders.filter { o ->
@@ -878,6 +741,9 @@ fun DesktopDashboardScreen(
                             }
                         }.take(5)
 
+                        if (ordersToShow.isEmpty()) {
+                            Text("No orders for this filter", modifier = Modifier.padding(vertical = 16.dp), color = Color(0xFF64748B))
+                        }
                         ordersToShow.forEach { order ->
                             DesktopOrderRow(
                                 orderNo = order.orderNo,
@@ -1017,9 +883,9 @@ fun DesktopDashboardScreen(
                         }
                         val healthPct = if (totalOrders > 0) {
                             val paidRate = (totalOrders - pendingCount).toFloat() / totalOrders.toFloat()
-                            (paidRate * 100).toInt().coerceIn(20, 100)
+                            (paidRate * 100).toInt().coerceIn(0, 100)
                         } else {
-                            100
+                            0
                         }
                         val animatedHealth by animateFloatAsState(
                             targetValue = if (healthTrigger) (healthPct / 100f) else 0f,
@@ -1032,8 +898,8 @@ fun DesktopDashboardScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Store health", fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-                                Text("$healthPct%", fontSize = 12.sp, color = if (healthPct >= 70) Color(0xFF10B981) else B360Amber, fontWeight = FontWeight.Bold)
+                                Text("Paid order rate", fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                Text(if (totalOrders > 0) "$healthPct%" else "No orders", fontSize = 12.sp, color = if (healthPct >= 70) Color(0xFF10B981) else B360Amber, fontWeight = FontWeight.Bold)
                             }
                             LinearProgressIndicator(
                                 progress = { animatedHealth },
@@ -1073,11 +939,18 @@ fun DesktopDashboardScreen(
                         }
                         Spacer(Modifier.height(14.dp))
 
-                        TopCustomerRow("Sifuna sifuna", "5 orders", "KES 80,400", progress = 0.85f, avatarBg = Color(0xFFDBEAFE), avatarText = Color(0xFF1D4ED8))
-                        TopCustomerRow("John Wanjiru", "4 orders", "KES 52,300", progress = 0.65f, avatarBg = Color(0xFFFEF3C7), avatarText = Color(0xFFB45309))
-                        TopCustomerRow("Mary K", "3 orders", "KES 35,600", progress = 0.48f, avatarBg = Color(0xFFFCE7F3), avatarText = Color(0xFFBE185D))
-                        TopCustomerRow("Peter Njunge", "3 orders", "KES 28,900", progress = 0.40f, avatarBg = Color(0xFFDCFCE7), avatarText = Color(0xFF15803D))
-                        TopCustomerRow("Alice Maina", "2 orders", "KES 21,450", progress = 0.28f, avatarBg = Color(0xFFEDE9FE), avatarText = Color(0xFF6D28D9))
+                        if (state.topCustomers.isEmpty()) {
+                            Text("No customer purchases recorded", color = Color(0xFF64748B), fontSize = 13.sp)
+                        }
+                        val maxSpent = state.topCustomers.maxOfOrNull { it.second.totalSpent } ?: 0.0
+                        state.topCustomers.take(5).forEach { (customer, stats) ->
+                            TopCustomerRow(
+                                customer.name, "${stats.totalOrders} orders",
+                                if (canViewFinancialReports) "KES ${String.format("%,.0f", stats.totalSpent)}" else "Restricted",
+                                progress = if (canViewFinancialReports && maxSpent > 0) (stats.totalSpent / maxSpent).toFloat().coerceIn(0f, 1f) else 0f,
+                                avatarBg = Color(0xFFDBEAFE), avatarText = Color(0xFF1D4ED8)
+                            )
+                        }
                     }
                 }
             }
@@ -1091,11 +964,11 @@ fun DesktopDashboardScreen(
                 subtitle = "Download as PDF",
                 icon = Icons.Default.Description
             ) {
-                exportDesktopFile(
+                if (NativeAccessSession.permits("reports.financial")) exportDesktopFile(
                     "biashara360-dashboard-report.txt",
                     "Biashara360 Dashboard Report\nMonthly Revenue: KES ${state.monthRevenue}\nNet Profit: KES ${state.netProfit}\nTotal Orders: ${state.totalOrders}\nPending Orders: ${state.pendingOrders}"
                 )
-                toastMessage = "Dashboard report saved to Downloads."
+                toastMessage = if (canViewFinancialReports) "Dashboard report saved to Downloads." else "Financial report access required"
             }
             BottomActionCard(
                 modifier = Modifier.weight(1f),
@@ -1307,16 +1180,10 @@ fun KpiCard(
 
 @Composable
 fun RevenueBarChart(
-    data: List<Float>
+    data: List<Float>,
+    labels: List<String> = emptyList()
 ) {
-    val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-    val displayData = remember(data) {
-        if (data.isEmpty() || data.all { it == 0f }) {
-            listOf(6200f, 0f, 13200f, 450f, 350f, 0f, 8100f)
-        } else {
-            data
-        }
-    }
+    val displayData = data
     val max = (displayData.maxOrNull() ?: 1000f).coerceAtLeast(1000f)
 
     Column(Modifier.fillMaxSize()) {
@@ -1347,7 +1214,7 @@ fun RevenueBarChart(
                 displayData.forEachIndexed { i, value ->
                     val interactionSource = remember { MutableInteractionSource() }
                     val isHovered by interactionSource.collectIsHoveredAsState()
-                    val day = days.getOrElse(i) { "D$i" }
+                    val day = labels.getOrElse(i) { "${i + 1}" }
                     val isNearZero = value in 1f..500f
                     val isZero = value <= 0f
 
@@ -1367,7 +1234,7 @@ fun RevenueBarChart(
                                 modifier = Modifier.padding(bottom = 4.dp)
                             ) {
                                 Text(
-                                    text = if (isZero) "$day: KES 0 (Closed)" else "$day: KES ${String.format("%,.0f", value)}",
+                                    text = if (isZero) "$day: KES 0" else "$day: KES ${String.format("%,.0f", value)}",
                                     color = Color.White,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1708,7 +1575,7 @@ fun DesktopInventoryScreen(
                     Text(if (state.isSyncing) "Syncing…" else "Sync Backend", color = B360Green, fontWeight = FontWeight.Bold)
                 }
                 Button(
-                    onClick = { showRecordPurchaseDialog = true },
+                    enabled = hasNativePermission("purchases.create"), onClick = { showRecordPurchaseDialog = true },
                     colors = ButtonDefaults.buttonColors(containerColor = B360Blue),
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 18.dp, vertical = 13.dp)
@@ -1718,6 +1585,7 @@ fun DesktopInventoryScreen(
                     Text("Record Purchase", fontWeight = FontWeight.Bold)
                 }
                 Button(
+                    enabled = hasNativePermission("products.create"),
                     onClick = { showAddProductDialog = true },
                     colors = ButtonDefaults.buttonColors(containerColor = B360Green),
                     shape = RoundedCornerShape(10.dp),
@@ -1850,8 +1718,8 @@ fun DesktopInventoryScreen(
                                     Text(statusText, color = statusColor, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                                 }
                                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    IconButton(onClick = { editingProduct = product }, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Edit, null, tint = B360Blue, modifier = Modifier.size(16.dp)) }
-                                    IconButton(onClick = { editingProduct = product }, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.AddBox, null, tint = B360Green, modifier = Modifier.size(16.dp)) }
+                                    IconButton(enabled = hasNativePermission("products.update"), onClick = { editingProduct = product }, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Edit, null, tint = B360Blue, modifier = Modifier.size(16.dp)) }
+                                    IconButton(enabled = hasNativePermission("products.update") && hasNativePermission("inventory.adjust"), onClick = { editingProduct = product }, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.AddBox, null, tint = B360Green, modifier = Modifier.size(16.dp)) }
                                 }
                             }
                             HorizontalDivider(color = Color(0xFFF5F5F5))
@@ -1883,7 +1751,11 @@ fun DesktopInventoryScreen(
             val stock = currentStock.toIntOrNull()
             val minimumStock = lowStockThreshold.toIntOrNull()
 
-            if (cost == null || sell == null || stock == null || minimumStock == null) {
+            if (!NativeAccessSession.permits(if (isEdit) "products.update" else "products.create")) {
+                error = "You do not have permission to save this product."
+            } else if (isEdit && stock != editingProduct?.currentStock && !NativeAccessSession.permits("inventory.adjust")) {
+                error = "Inventory adjustment permission required."
+            } else if (cost == null || sell == null || stock == null || minimumStock == null) {
                 error = "Please enter valid numeric values for prices and stock."
             } else if (name.isBlank() || sku.isBlank()) {
                 error = "Product Name and SKU are required."
@@ -2069,6 +1941,7 @@ fun DesktopInventoryScreen(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(
                             value = currentStock,
+                            enabled = !isEdit || hasNativePermission("inventory.adjust"),
                             onValueChange = { currentStock = it },
                             label = { Text("Stock Quantity *") },
                             leadingIcon = { Icon(Icons.Default.Inventory2, null, tint = B360Green) },
@@ -2807,335 +2680,6 @@ fun DesktopPaymentsScreen(
 }
 
 // ─── Reports ──────────────────────────────────────────────────────────────────
-
-@Composable
-@Deprecated("Legacy prototype with synthetic chart data; use DesktopReportsLiveScreen", level = DeprecationLevel.ERROR)
-fun DesktopReportsScreen(
-    viewModel: ReportsViewModel = remember { inject() }
-) {
-    val state by viewModel.state.collectAsState()
-    LaunchedEffect(Unit) {
-        viewModel.loadReport("This Month")
-    }
-    var toastMessage by remember { mutableStateOf<String?>(null) }
-    var reportPeriodMenuExpanded by remember { mutableStateOf(false) }
-    var chartPeriodMenuExpanded by remember { mutableStateOf(false) }
-    val periodOptions = remember { listOf("Today", "This Week", "This Month", "This Quarter", "This Year") }
-
-    val summary = state.profitSummary
-    val scrollState = rememberScrollState()
-
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .background(Color(0xFFF8FAFC))
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        // Screen Header with Period Filter
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ScreenHeader(
-                title = "Reports",
-                subtitle = "Overview of business performance for ${state.selectedPeriodLabel}."
-            )
-            Box {
-                Button(
-                    onClick = { reportPeriodMenuExpanded = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF1E293B)),
-                    border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.size(16.dp), tint = B360Green)
-                    Spacer(Modifier.width(8.dp))
-                    Text(state.selectedPeriodLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.width(4.dp))
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF64748B))
-                }
-                DropdownMenu(
-                    expanded = reportPeriodMenuExpanded,
-                    onDismissRequest = { reportPeriodMenuExpanded = false }
-                ) {
-                    periodOptions.forEach { period ->
-                        DropdownMenuItem(
-                            text = { Text(period, fontSize = 13.sp, fontWeight = if (period == state.selectedPeriodLabel) FontWeight.Bold else FontWeight.Normal) },
-                            onClick = {
-                                reportPeriodMenuExpanded = false
-                                viewModel.loadReport(period)
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
-        // KPI cards row
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            KpiCard(
-                modifier = Modifier.weight(1f),
-                title = "Total Revenue",
-                value = "KES ${String.format("%,.0f", summary?.totalRevenue ?: 0.0)}",
-                change = "Period: ${state.selectedPeriodLabel}",
-                icon = Icons.Default.MonetizationOn,
-                color = B360Green,
-                bgColor = Color(0xFFE6F7F0)
-            )
-            KpiCard(
-                modifier = Modifier.weight(1f),
-                title = "Total Expenses",
-                value = "KES ${String.format("%,.0f", summary?.totalExpenses ?: 0.0)}",
-                change = "Period: ${state.selectedPeriodLabel}",
-                icon = Icons.Default.ShoppingBag,
-                color = B360Red,
-                bgColor = Color(0xFFFEE2E2),
-                changeColor = B360Red
-            )
-            KpiCard(
-                modifier = Modifier.weight(1f),
-                title = "Net Profit",
-                value = "KES ${String.format("%,.0f", summary?.netProfit ?: 0.0)}",
-                change = "Period: ${state.selectedPeriodLabel}",
-                icon = Icons.Default.TrendingUp,
-                color = B360Blue,
-                bgColor = Color(0xFFE0F2FE)
-            )
-            KpiCard(
-                modifier = Modifier.weight(1f),
-                title = "Gross Profit Margin",
-                value = "${String.format("%.1f", (summary?.netMargin ?: 0.0) * 100)}%",
-                change = "Period: ${state.selectedPeriodLabel}",
-                icon = Icons.Default.PieChart,
-                color = B360Amber,
-                bgColor = Color(0xFFFEF3C7)
-            )
-        }
-
-        // Charts + lists row
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.height(380.dp)) {
-            // Revenue vs Expenses chart card
-            Card(
-                modifier = Modifier.weight(1.6f).fillMaxHeight(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-            ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Revenue vs Expenses",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFF1E293B)
-                        )
-                        
-                        Box {
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                color = Color.White,
-                                modifier = Modifier.clickable { chartPeriodMenuExpanded = true }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(state.selectedPeriodLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = B360Green)
-                                    Icon(Icons.Default.ArrowDropDown, null, tint = B360Green, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                            DropdownMenu(
-                                expanded = chartPeriodMenuExpanded,
-                                onDismissRequest = { chartPeriodMenuExpanded = false }
-                            ) {
-                                periodOptions.forEach { period ->
-                                    DropdownMenuItem(
-                                        text = { Text(period, fontSize = 13.sp) },
-                                        onClick = {
-                                            chartPeriodMenuExpanded = false
-                                            viewModel.loadReport(period)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Legend
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(B360Green))
-                            Text("Revenue (KES)", fontSize = 12.sp, color = Color(0xFF64748B))
-                        }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(B360Red))
-                            Text("Expenses (KES)", fontSize = 12.sp, color = Color(0xFF64748B))
-                        }
-                    }
-                    
-                    Spacer(Modifier.height(8.dp))
-                    
-                    // Line Chart component
-                    Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                        // Y-Axis labels
-                        Column(
-                            modifier = Modifier.fillMaxHeight().padding(bottom = 20.dp),
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            horizontalAlignment = Alignment.End
-                        ) {
-                            Text("2.5K", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                            Text("2K", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                            Text("1.5K", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                            Text("1K", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                            Text("500", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                            Text("0", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                        }
-                        
-                        Spacer(Modifier.width(8.dp))
-                        
-                        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                            RevenueExpenseLineChart(modifier = Modifier.weight(1f).fillMaxWidth())
-                            Spacer(Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Mar 1", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                                Text("Mar 6", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                                Text("Mar 11", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                                Text("Mar 16", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                                Text("Mar 21", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                                Text("Mar 26", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                                Text("Mar 31", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Expense Breakdown card
-            Card(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-            ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(
-                        "Expense Breakdown",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color(0xFF1E293B)
-                    )
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Donut Chart on the left
-                        DonutChart(
-                            modifier = Modifier.size(140.dp),
-                            slices = listOf(
-                                0.617f to Color(0xFF10B981),
-                                0.206f to Color(0xFF3B82F6),
-                                0.117f to Color(0xFF8B5CF6),
-                                0.044f to Color(0xFFF59E0B),
-                                0.016f to Color(0xFF14B8A6)
-                            ),
-                            centerText = "KES 100",
-                            centerSubtext = "Total Expenses"
-                        )
-                        
-                        // Legend List on the right
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            DonutLegendRow(Color(0xFF10B981), "Stock Purchase", "45%", "KES 45,000")
-                            DonutLegendRow(Color(0xFF3B82F6), "Rent", "15%", "KES 15,000")
-                            DonutLegendRow(Color(0xFF8B5CF6), "Advertising", "8.5%", "KES 8,500")
-                            DonutLegendRow(Color(0xFFF59E0B), "Delivery", "3.2%", "KES 3,200")
-                            DonutLegendRow(Color(0xFF14B8A6), "Packaging", "1.2%", "KES 1,200")
-                        }
-                    }
-                }
-            }
-        }
-
-        // Bottom Actions Row
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-            BottomActionCard(
-                modifier = Modifier.weight(1f),
-                title = "Export PDF",
-                subtitle = "Download as PDF",
-                icon = Icons.Default.Description
-            ) {
-                exportDesktopFile(
-                    "biashara360-profit-report.txt",
-                    "Biashara360 Profit Report\nRevenue: KES ${summary?.totalRevenue ?: 0.0}\nExpenses: KES ${summary?.totalExpenses ?: 0.0}\nNet Profit: KES ${summary?.netProfit ?: 0.0}\nNet Margin: ${summary?.netMargin ?: 0.0}%"
-                )
-                toastMessage = "Profit report saved to Downloads."
-            }
-            BottomActionCard(
-                modifier = Modifier.weight(1f),
-                title = "Export Excel",
-                subtitle = "Download as Excel",
-                icon = Icons.Default.GridView
-            ) {
-                exportDesktopFile(
-                    "biashara360-profit-report.csv",
-                    "Metric,Value\nRevenue,${summary?.totalRevenue ?: 0.0}\nExpenses,${summary?.totalExpenses ?: 0.0}\nNet Profit,${summary?.netProfit ?: 0.0}\nNet Margin,${summary?.netMargin ?: 0.0}"
-                )
-                toastMessage = "Profit CSV saved to Downloads."
-            }
-            BottomActionCard(
-                modifier = Modifier.weight(1f),
-                title = "Share via WhatsApp",
-                subtitle = "Send report to WhatsApp",
-                icon = Icons.Default.Share
-            ) {
-                try {
-                    if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
-                        java.awt.Desktop.getDesktop().browse(java.net.URI("https://wa.me/?text=Check%20out%20my%20Biashara360%20report!"))
-                    } else {
-                        toastMessage = "WhatsApp sharing is coming soon!"
-                    }
-                } catch (e: Exception) {
-                    toastMessage = "WhatsApp sharing is coming soon!"
-                }
-            }
-        }
-    }
-
-    if (toastMessage != null) {
-        AlertDialog(
-            onDismissRequest = { toastMessage = null },
-            title = { Text("Feature Notification") },
-            text = { Text(toastMessage!!) },
-            confirmButton = {
-                TextButton(onClick = { toastMessage = null }) {
-                    Text("OK", color = B360Green)
-                }
-            }
-        )
-    }
-}
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
@@ -4185,7 +3729,7 @@ fun DesktopReceiptTemplateScreen(
                         ) {
                             // Header business details
                             Text(
-                                text = profile?.name?.uppercase() ?: "BIASHARA STORE",
+                                text = profile?.name?.uppercase().orEmpty(),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
@@ -4196,19 +3740,19 @@ fun DesktopReceiptTemplateScreen(
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
-                                    text = profile?.address ?: "123 Tom Mboya St",
+                                    text = profile?.address.orEmpty(),
                                     fontSize = 11.sp,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     color = Color.DarkGray
                                 )
                                 Text(
-                                    text = "${profile?.county ?: "Nairobi"}, Kenya",
+                                    text = profile?.county.orEmpty(),
                                     fontSize = 11.sp,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     color = Color.DarkGray
                                 )
                                 Text(
-                                    text = "Tel: ${profile?.phone ?: "+254 700 000 000"}",
+                                    text = profile?.phone?.takeIf { it.isNotBlank() }?.let { "Tel: $it" }.orEmpty(),
                                     fontSize = 11.sp,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     color = Color.DarkGray
@@ -4238,13 +3782,13 @@ fun DesktopReceiptTemplateScreen(
                                     verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
                                     Text(
-                                        text = "CUSTOMER: John Doe",
+                                        text = "CUSTOMER: —",
                                         fontSize = 10.sp,
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                         color = Color.DarkGray
                                     )
                                     Text(
-                                        text = "PHONE: +254 712 222 333",
+                                        text = "PHONE: —",
                                         fontSize = 10.sp,
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                         color = Color.DarkGray
@@ -4286,53 +3830,7 @@ fun DesktopReceiptTemplateScreen(
                                 color = Color.Gray
                             )
 
-                            // Sample Items
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "Men's Slim Fit Jeans",
-                                        fontSize = 11.sp,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        color = Color.Black
-                                    )
-                                    Text(
-                                        text = "1  •  2,500.00  •  2,500.00",
-                                        fontSize = 11.sp,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        color = Color.Black
-                                    )
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "Casual Cotton Shirt",
-                                        fontSize = 11.sp,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        color = Color.Black
-                                    )
-                                    Text(
-                                        text = "2  •  1,200.00  •  2,400.00",
-                                        fontSize = 11.sp,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        color = Color.Black
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = "------------------------------------------",
-                                fontSize = 11.sp,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                color = Color.Gray
-                            )
+                            Text("No transaction selected", fontSize = 11.sp, color = Color.Gray)
 
                             // Calculation totals
                             Column(
@@ -4350,14 +3848,14 @@ fun DesktopReceiptTemplateScreen(
                                         color = Color.Black
                                     )
                                     Text(
-                                        text = "KES 4,900.00",
+                                        text = "KES 0.00",
                                         fontSize = 11.sp,
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                         color = Color.Black
                                     )
                                 }
 
-                                val subtotalVal = 4900.0
+                                val subtotalVal = 0.0
                                 val vatVal = subtotalVal * 0.16
                                 val totalVal = if (showTax) subtotalVal + vatVal else subtotalVal
 
@@ -4439,7 +3937,7 @@ fun DesktopReceiptTemplateScreen(
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
-                                    text = "eTIMS Invoice: #INV-2026-0091",
+                                    text = "eTIMS Invoice: —",
                                     fontSize = 9.sp,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     color = Color.DarkGray

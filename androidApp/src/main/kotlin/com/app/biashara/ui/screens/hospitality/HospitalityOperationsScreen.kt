@@ -1,5 +1,7 @@
 package com.app.biashara.ui.screens.hospitality
 
+import com.app.biashara.ui.hasNativePermission
+import com.app.biashara.data.remote.NativeAccessSession
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -148,6 +150,7 @@ private data class AndroidOperationsData(
     val shifts: List<AndroidShift> = emptyList(),
     val suppliers: List<AndroidSupplier> = emptyList(),
     val purchaseOrders: List<AndroidPurchaseOrder> = emptyList(),
+    val tradingDayOpen: Boolean = false,
     val approvals: List<AndroidApproval> = emptyList()
 )
 
@@ -257,6 +260,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     }
 
     fun updateTicketStatus(ticketId: String, newStatus: String) {
+        if (!NativeAccessSession.permits("hospitality.kitchen")) { error = "Permission required: hospitality.kitchen"; return }
         scope.launch {
             runCatching {
                 client.patch("$BASE_URL/hospitality/tickets/$ticketId") {
@@ -273,6 +277,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     }
 
     fun handleSaveTable(name: String, area: String, capacity: Int, id: String? = null) {
+        if (!NativeAccessSession.permits("hospitality.floor")) { error = "Permission required: hospitality.floor"; return }
         scope.launch {
             runCatching {
                 if (id == null) {
@@ -298,6 +303,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     }
 
     fun handleTransferTab(orderId: String, targetTableId: String) {
+        if (!NativeAccessSession.permits("hospitality.orders")) { error = "Permission required: hospitality.orders"; return }
         scope.launch {
             runCatching {
                 client.post("$BASE_URL/hospitality/tabs/$orderId/transfer") {
@@ -315,6 +321,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     }
 
     fun handleSettleTab(orderId: String, method: String, phone: String) {
+        if (!NativeAccessSession.permits("hospitality.billing")) { error = "Permission required: hospitality.billing"; return }
         scope.launch {
             settlementBusy = true
             error = null
@@ -358,7 +365,8 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
         }
     }
 
-    fun operationAction(successText: String, block: suspend () -> ApiResponse<*>) {
+    fun operationAction(permission: String, successText: String, block: suspend () -> ApiResponse<*>) {
+        if (!NativeAccessSession.permits(permission)) { error = "Permission required: $permission"; return }
         scope.launch {
             runCatching { block() }.onSuccess {
                 if (it.success) { successMsg = successText; loadData() } else error = it.message
@@ -366,14 +374,15 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
         }
     }
 
-    fun updateReservationStatus(id: String, status: String) = operationAction("Reservation updated.") { client.patch("$BASE_URL/hospitality/operations/reservations/$id/$status").body<ApiResponse<AndroidReservation>>() }
-    fun receivePurchaseOrder(id: String) = operationAction("Purchase order received.") { client.post("$BASE_URL/hospitality/operations/purchase-orders/$id/receive").body<ApiResponse<AndroidPurchaseOrder>>() }
-    fun decideApproval(id: String, approved: Boolean) = operationAction(if (approved) "Approval granted." else "Approval rejected.") { client.post("$BASE_URL/hospitality/operations/approvals/$id/decision") { contentType(ContentType.Application.Json); setBody(AndroidApprovalDecisionReq(approved)) }.body<ApiResponse<AndroidApproval>>() }
-    fun openShift(openingFloat: Double) = operationAction("Shift opened.") { client.post("$BASE_URL/hospitality/operations/shifts/open") { contentType(ContentType.Application.Json); setBody(AndroidShiftOpenReq(openingFloat)) }.body<ApiResponse<AndroidShift>>() }
-    fun closeShift(id: String, actualCash: Double, actualMpesa: Double, actualCard: Double, tips: Double, expenses: Double) = operationAction("Day closed and payments reconciled.") { client.post("$BASE_URL/hospitality/operations/shifts/$id/close") { contentType(ContentType.Application.Json); setBody(AndroidShiftCloseReq(actualCash, actualMpesa, actualCard, tips, expenses)) }.body<ApiResponse<AndroidShift>>() }
-    fun saveMenuProfile(profile: AndroidMenuProfile, station: String, soldOut: Boolean) = operationAction("Menu controls saved.") { client.put("$BASE_URL/hospitality/operations/menu/${profile.productId}") { contentType(ContentType.Application.Json); setBody(AndroidMenuProfileReq(station.takeUnless { it == "NONE" }, profile.mealPeriods, profile.sizes, profile.extras, profile.variants, profile.comboProductIds, soldOut, profile.happyHourPrice, profile.happyHourStart, profile.happyHourEnd, profile.ageRestricted, profile.minimumAge)) }.body<ApiResponse<AndroidMenuProfile>>() }
-    fun createSupplier(name: String, phone: String, email: String) = operationAction("Supplier created.") { client.post("$BASE_URL/hospitality/operations/suppliers") { contentType(ContentType.Application.Json); setBody(AndroidSupplierReq(name, phone, email.takeIf { it.isNotBlank() })) }.body<ApiResponse<AndroidSupplier>>() }
+    fun updateReservationStatus(id: String, status: String) = operationAction("hospitality.reservations", "Reservation updated.") { client.patch("$BASE_URL/hospitality/operations/reservations/$id/$status").body<ApiResponse<AndroidReservation>>() }
+    fun receivePurchaseOrder(id: String) = operationAction("hospitality.purchasing", "Purchase order received.") { client.post("$BASE_URL/hospitality/operations/purchase-orders/$id/receive").body<ApiResponse<AndroidPurchaseOrder>>() }
+    fun decideApproval(id: String, approved: Boolean) = operationAction("hospitality.approvals", if (approved) "Approval granted." else "Approval rejected.") { client.post("$BASE_URL/hospitality/operations/approvals/$id/decision") { contentType(ContentType.Application.Json); setBody(AndroidApprovalDecisionReq(approved)) }.body<ApiResponse<AndroidApproval>>() }
+    fun openShift(openingFloat: Double) = operationAction("hospitality.shifts", "Shift opened.") { client.post("$BASE_URL/hospitality/operations/shifts/open") { contentType(ContentType.Application.Json); setBody(AndroidShiftOpenReq(openingFloat)) }.body<ApiResponse<AndroidShift>>() }
+    fun closeShift(id: String, actualCash: Double, actualMpesa: Double, actualCard: Double, tips: Double, expenses: Double) = operationAction("hospitality.shifts", "Day closed and payments reconciled.") { client.post("$BASE_URL/hospitality/operations/shifts/$id/close") { contentType(ContentType.Application.Json); setBody(AndroidShiftCloseReq(actualCash, actualMpesa, actualCard, tips, expenses)) }.body<ApiResponse<AndroidShift>>() }
+    fun saveMenuProfile(profile: AndroidMenuProfile, station: String, soldOut: Boolean) = operationAction("hospitality.menu", "Menu controls saved.") { client.put("$BASE_URL/hospitality/operations/menu/${profile.productId}") { contentType(ContentType.Application.Json); setBody(AndroidMenuProfileReq(station.takeUnless { it == "NONE" }, profile.mealPeriods, profile.sizes, profile.extras, profile.variants, profile.comboProductIds, soldOut, profile.happyHourPrice, profile.happyHourStart, profile.happyHourEnd, profile.ageRestricted, profile.minimumAge)) }.body<ApiResponse<AndroidMenuProfile>>() }
+    fun createSupplier(name: String, phone: String, email: String) = operationAction("hospitality.purchasing", "Supplier created.") { client.post("$BASE_URL/hospitality/operations/suppliers") { contentType(ContentType.Application.Json); setBody(AndroidSupplierReq(name, phone, email.takeIf { it.isNotBlank() })) }.body<ApiResponse<AndroidSupplier>>() }
     fun loadReport(startDate: String, endDate: String) {
+        if (!NativeAccessSession.permits("hospitality.reports")) { error = "Permission required: hospitality.reports"; return }
         scope.launch {
             runCatching { client.get("$BASE_URL/hospitality/operations/report?startDate=$startDate&endDate=$endDate").body<ApiResponse<AndroidReport>>() }
                 .onSuccess { response -> if (response.success && response.data != null) { report = response.data; successMsg = "Operations report loaded." } else error = response.message }
@@ -382,6 +391,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
     }
 
     fun claimPortalOrder(order: AndroidPortalOrder) {
+        if (!NativeAccessSession.permits("hospitality.orders")) { error = "Permission required: hospitality.orders"; return }
         if (portalBusy != null) return
         portalBusy = order.id
         portalMessage = null
@@ -423,7 +433,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
                     Spacer(Modifier.width(5.dp))
                     Text("Portal orders${if (portalQueue.waiting.isNotEmpty()) " (${portalQueue.waiting.size})" else ""}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                 }
-                IconButton(onClick = { showAddTableDialog = true }) {
+                IconButton(enabled = hasNativePermission("hospitality.floor"), onClick = { showAddTableDialog = true }) {
                     Icon(Icons.Default.AddCircle, "Add Table", tint = Color(0xFF0F1F3A))
                 }
                 IconButton(onClick = ::loadData, enabled = !loading) {
@@ -459,7 +469,7 @@ fun HospitalityOperationsScreen(client: HttpClient = koinInject()) {
             }
         }
 
-        if (operations != null && operations?.shifts?.none { it.status == "OPEN" } == true) {
+        if (operations?.tradingDayOpen == false) {
             Surface(color = Color(0xFFFFF7ED), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFFFCD34D))) {
                 Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Schedule, null, tint = Color(0xFFB45309), modifier = Modifier.size(16.dp))
@@ -653,9 +663,9 @@ private fun AndroidKDSScreen(
 
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                 when (ticket.status) {
-                                    "NEW" -> Button(onClick = { onUpdateStatus(ticket.id, "PREPARING") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))) { Text("Start Prep", fontSize = 12.sp) }
-                                    "PREPARING" -> Button(onClick = { onUpdateStatus(ticket.id, "READY") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669))) { Text("Mark Ready", fontSize = 12.sp) }
-                                    "READY" -> Button(onClick = { onUpdateStatus(ticket.id, "SERVED") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF475569))) { Text("Mark Served", fontSize = 12.sp) }
+                                    "NEW" -> Button(enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "PREPARING") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))) { Text("Start Prep", fontSize = 12.sp) }
+                                    "PREPARING" -> Button(enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "READY") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669))) { Text("Mark Ready", fontSize = 12.sp) }
+                                    "READY" -> Button(enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "SERVED") }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF475569))) { Text("Mark Served", fontSize = 12.sp) }
                                 }
                             }
                         }
@@ -721,11 +731,11 @@ private fun AndroidFloorPlanScreen(
                             }
 
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { onEditTable(table) }, modifier = Modifier.weight(1f)) {
+                                OutlinedButton(enabled = hasNativePermission("hospitality.floor"), onClick = { onEditTable(table) }, modifier = Modifier.weight(1f)) {
                                     Text("Edit", fontSize = 11.sp)
                                 }
                                 if (isOccupied) {
-                                    Button(onClick = { onTransferTab(table) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF475569))) {
+                                    Button(enabled = hasNativePermission("hospitality.orders"), onClick = { onTransferTab(table) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF475569))) {
                                         Text("Transfer", fontSize = 11.sp)
                                     }
                                 }
@@ -766,8 +776,8 @@ private fun AndroidOpenTabsScreen(
 
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             OutlinedButton(onClick = { onProForma(tab) }, modifier = Modifier.weight(1f)) { Text("Bill", fontSize = 11.sp) }
-                            OutlinedButton(onClick = { onTransfer(tab) }, modifier = Modifier.weight(1f)) { Text("Transfer", fontSize = 11.sp) }
-                            Button(onClick = { onSettle(tab) }, modifier = Modifier.weight(1.2f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00B874))) { Text("Settle", fontSize = 11.sp) }
+                            OutlinedButton(enabled = hasNativePermission("hospitality.orders"), onClick = { onTransfer(tab) }, modifier = Modifier.weight(1f)) { Text("Transfer", fontSize = 11.sp) }
+                            Button(enabled = hasNativePermission("hospitality.billing"), onClick = { onSettle(tab) }, modifier = Modifier.weight(1.2f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00B874))) { Text("Settle", fontSize = 11.sp) }
                         }
                     }
                 }
@@ -792,6 +802,9 @@ private fun AndroidOperationsSection(
 ) {
     var section by remember { mutableStateOf("RESERVATIONS") }
     val sections = listOf("RESERVATIONS", "MENU", "SHIFTS", "PURCHASING", "APPROVALS", "REPORTS")
+        .filter { hasNativePermission("hospitality.${it.lowercase()}") }
+    if (sections.isEmpty()) { Text("No operations permissions assigned."); return }
+    if (section !in sections) section = sections.first()
     val data = operations ?: AndroidOperationsData()
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {

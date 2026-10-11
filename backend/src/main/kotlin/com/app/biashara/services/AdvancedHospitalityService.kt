@@ -260,6 +260,7 @@ class AdvancedHospitalityService(private val orderService: OrderService) {
             (OrdersTable.id eq orderId) and (OrdersTable.businessId eq businessId) and
                 (OrdersTable.serviceType inList listOf("DINE_IN","TAKEAWAY","DELIVERY")) and (OrdersTable.tabStatus inList HospitalityService.ACTIVE_TAB_STATUSES)
         }.forUpdate().firstOrNull()?:error("Active hospitality tab not found")
+        requireKitchenServed(businessId, orderId)
         require(OrderSplitPaymentsTable.select{OrderSplitPaymentsTable.orderId eq orderId}.none()){"This tab has already been split"}
         require(r.payments.size>=2){"At least two payment lines are required"}
         require(r.payments.all{it.amount.isFinite()&&it.amount>0&&it.method.equals("CASH",true)}){"Only verified cash split payments are currently supported"}

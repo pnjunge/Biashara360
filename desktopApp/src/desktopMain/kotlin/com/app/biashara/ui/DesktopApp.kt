@@ -30,6 +30,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.app.biashara.data.remote.NativeAccess
+import com.app.biashara.data.remote.NativeAccessSession
 import com.app.biashara.UserSession
 import com.app.biashara.domain.model.User
 import com.app.biashara.domain.model.UserRole
@@ -63,8 +65,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 private data class HospitalityStatus(val enabled: Boolean = false)
-@Serializable
-private data class MenuAccess(val enabledMenus: List<String> = emptyList())
 
 // --- ViewModel-driven Navigation State ---
 class DesktopNavigationViewModel : com.app.biashara.presentation.viewmodel.KmpViewModel() {
@@ -99,6 +99,8 @@ sealed class AppScreen(
     object HotelRooms : AppScreen("hotel_rooms", "Hotel & Rooms", Icons.Default.Hotel)
     object Hospitality : AppScreen("hospitality", "Restaurant & Bar", Icons.Default.Restaurant)
     object Appointments : AppScreen("appointments", "Appointments", Icons.Default.CalendarToday)
+    object KitchenDisplay : AppScreen("kitchen-display", "Kitchen Display", Icons.Default.RestaurantMenu)
+    object HospitalityOperations : AppScreen("hospitality-operations", "Hospitality Operations", Icons.Default.Business)
     object Bookings : AppScreen("bookings", "Bookings", Icons.Default.ConfirmationNumber)
 
     // FINANCE
@@ -110,7 +112,7 @@ sealed class AppScreen(
     object Settings : AppScreen("settings", "Settings", Icons.Default.Settings)
     object Tax : AppScreen("tax", "Tax & eTIMS", Icons.Default.AccountBalance)
     object KRA : AppScreen("kra", "KRA", Icons.Default.Gavel)
-    object Social : AppScreen("social", "Social", Icons.Default.Forum)
+    object Social : AppScreen("social", "Social Inbox", Icons.Default.Forum)
     object OpenTabs : AppScreen("open_tabs", "Open Tabs", Icons.Default.ReceiptLong)
     object CyberSource : AppScreen("cybersource", "CyberSource Settings", Icons.Default.CreditCard)
     object Mpesa : AppScreen("mpesa", "M-Pesa Settings", Icons.Default.Phone)
@@ -142,7 +144,7 @@ private val desktopNavGroups = listOf(
     DesktopNavGroup(
         key = "BUSINESS",
         label = "BUSINESS",
-        screens = listOf(AppScreen.HotelRooms, AppScreen.Hospitality, AppScreen.Appointments, AppScreen.Bookings)
+        screens = listOf(AppScreen.HotelRooms, AppScreen.Hospitality, AppScreen.HospitalityOperations, AppScreen.OpenTabs, AppScreen.KitchenDisplay, AppScreen.Appointments)
     ),
     DesktopNavGroup(
         key = "FINANCE",
@@ -152,11 +154,11 @@ private val desktopNavGroups = listOf(
     DesktopNavGroup(
         key = "ADMINISTRATION",
         label = "ADMINISTRATION",
-        screens = listOf(AppScreen.Settings)
+        screens = listOf(AppScreen.Social, AppScreen.Tax, AppScreen.KRA, AppScreen.Settings)
     ),
 )
 
-private val appScreens = topNavScreens + desktopNavGroups.flatMap { it.screens }
+internal val appScreens = topNavScreens + desktopNavGroups.flatMap { it.screens }
 
 private fun isDesktopFingerprintAvailable(): Boolean {
     val osName = System.getProperty("os.name").lowercase()
@@ -187,6 +189,16 @@ private fun isDesktopFingerprintAvailable(): Boolean {
     }
 }
 
+internal fun desktopMenu(screen: AppScreen): String = when (screen) {
+            AppScreen.Dashboard -> "DASHBOARD"; AppScreen.Pos -> "POS"; AppScreen.Orders -> "ORDERS"
+            AppScreen.Customers -> "CUSTOMERS"; AppScreen.Products, AppScreen.Inventory, AppScreen.Suppliers -> "INVENTORY"
+            AppScreen.Purchases -> "PURCHASES"; AppScreen.HotelRooms -> "HOTEL"
+            AppScreen.Hospitality, AppScreen.KitchenDisplay -> "HOSPITALITY"; AppScreen.HospitalityOperations -> "HOSPITALITY_OPS"; AppScreen.Appointments -> "SERVICES"; AppScreen.Bookings -> "HOSPITALITY_OPS"
+            AppScreen.Expenses -> "EXPENSES"; AppScreen.Payments -> "PAYMENTS"; AppScreen.Reports -> "REPORTS"
+            AppScreen.Tax -> "TAX"; AppScreen.KRA -> "KRA"; AppScreen.Social -> "SOCIAL"; AppScreen.OpenTabs -> "OPEN_TABS"
+            AppScreen.Settings, AppScreen.CyberSource, AppScreen.Mpesa, AppScreen.ReceiptTemplate -> "SETTINGS"
+}
+
 private fun screenShortcut(screen: AppScreen): String? = when (screen) {
     AppScreen.Dashboard -> "1"
     AppScreen.Pos -> "P"
@@ -207,12 +219,6 @@ private fun screenShortcut(screen: AppScreen): String? = when (screen) {
     else -> null
 }
 
-private fun screenBadge(screen: AppScreen): String? = when (screen) {
-    AppScreen.Inventory -> "2"
-    AppScreen.Orders -> "22"
-    else -> null
-}
-
 @Composable
 private fun DesktopSidebarItem(
     screen: AppScreen,
@@ -227,10 +233,10 @@ private fun DesktopSidebarItem(
     val isHovered by interactionSource.collectIsHoveredAsState()
 
     if (isProminentPos) {
-        val bg = if (isSelected) B360Green else Color(0xFFECFDF5)
-        val iconColor = if (isSelected) Color.White else Color(0xFF047857)
-        val textColor = if (isSelected) Color.White else Color(0xFF047857)
-        val border = if (isSelected) null else BorderStroke(1.dp, Color(0xFFA7F3D0))
+        val bg = if (isSelected) B360Green else Color(0xFF173D40)
+        val iconColor = if (isSelected) Color.White else Color(0xFFC4DDE0)
+        val textColor = if (isSelected) Color.White else Color(0xFFC4DDE0)
+        val border = if (isSelected) null else BorderStroke(1.dp, Color(0xFF315557))
 
         Box(
             modifier = Modifier
@@ -272,7 +278,7 @@ private fun DesktopSidebarItem(
                             text = if (isHovered && shortcut != null) "$shortcutModifier+$shortcut" else "F1",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSelected) Color.White else Color(0xFF047857),
+                            color = if (isSelected) Color.White else Color(0xFFC4DDE0),
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -281,12 +287,12 @@ private fun DesktopSidebarItem(
         }
     } else {
         val bg = when {
-            isSelected -> Color(0xFFE6F9F0)
-            isHovered -> Color(0xFFF1F5F9)
+            isSelected -> B360Green
+            isHovered -> Color(0xFF23494B)
             else -> Color.Transparent
         }
-        val iconColor = if (isSelected) Color(0xFF059669) else Color(0xFF64748B)
-        val textColor = if (isSelected) Color(0xFF059669) else Color(0xFF334155)
+        val iconColor = if (isSelected) Color.White else Color(0xFFBBD0D4)
+        val textColor = if (isSelected) Color.White else Color(0xFFD7E5E8)
 
         Box(
             modifier = Modifier
@@ -492,30 +498,43 @@ fun Biashara360DesktopAppContent(
     val currentScreen by navigationViewModel.currentScreen.collectAsState()
     val dashboardState by dashboardViewModel.state.collectAsState()
     var hospitalityEnabled by remember { mutableStateOf(false) }
-    var enabledMenus by remember { mutableStateOf<Set<String>?>(null) }
-    LaunchedEffect(Unit) {
-        dashboardViewModel.loadDashboard()
+    val access by NativeAccessSession.access.collectAsState()
+    val user by UserSession.currentUser.collectAsState()
+    var accessLoading by remember { mutableStateOf(true) }
+    var accessError by remember { mutableStateOf<String?>(null) }
+    var accessReload by remember { mutableStateOf(0) }
+    LaunchedEffect(user?.id, user?.businessId, accessReload) {
+        NativeAccessSession.reset()
+        accessLoading = true
+        accessError = null
+        runCatching {
+            val result = client.get("$BASE_URL/access/me").body<ApiResponse<NativeAccess>>()
+            check(result.success && result.data != null) { result.message.ifBlank { "Unable to load access rights" } }
+            NativeAccessSession.set(requireNotNull(result.data))
+        }.onFailure { accessError = it.message ?: "Unable to load access rights" }
+        accessLoading = false
         runCatching { client.get("$BASE_URL/hospitality/status").body<ApiResponse<HospitalityStatus>>() }
             .onSuccess { hospitalityEnabled = it.success && it.data?.enabled == true }
-        runCatching { client.get("$BASE_URL/access/me").body<ApiResponse<MenuAccess>>() }
-            .onSuccess { if (it.success) enabledMenus = it.data?.enabledMenus?.toSet() }
-        runCatching {
-            refreshSessionIdleTimeout(client)?.let { tokenStorage.saveSessionIdleTimeoutSeconds(it) }
-        }
+        if (access?.allows("DASHBOARD") == true) dashboardViewModel.loadDashboard()
+        runCatching { refreshSessionIdleTimeout(client)?.let { tokenStorage.saveSessionIdleTimeoutSeconds(it) } }
     }
-    val visibleScreens = appScreens.filter { screen ->
-        val menu = when (screen) {
-            AppScreen.Dashboard -> "DASHBOARD"; AppScreen.Pos -> "POS"; AppScreen.Orders -> "ORDERS"
-            AppScreen.Customers -> "CUSTOMERS"; AppScreen.Products -> "INVENTORY"; AppScreen.Inventory -> "INVENTORY"
-            AppScreen.Purchases -> "INVENTORY"; AppScreen.Suppliers -> "INVENTORY"
-            AppScreen.HotelRooms -> "HOSPITALITY"; AppScreen.Hospitality -> "HOSPITALITY"
-            AppScreen.Appointments -> "SERVICES"; AppScreen.Bookings -> "HOSPITALITY"
-            AppScreen.Expenses -> "EXPENSES"; AppScreen.Payments -> "PAYMENTS"
-            AppScreen.Reports -> "REPORTS"; AppScreen.Tax -> "TAX"; AppScreen.KRA -> "KRA"; AppScreen.Social -> "SOCIAL"
-            AppScreen.Settings -> "SETTINGS"; AppScreen.OpenTabs -> "OPEN_TABS"; else -> null
+    fun canOpen(screen: AppScreen): Boolean {
+        val menu = desktopMenu(screen)
+        val permission = when (screen) {
+            AppScreen.Reports -> "reports.financial"
+            AppScreen.Inventory -> "inventory.view"
+            AppScreen.Suppliers -> "inventory.suppliers"
+            AppScreen.Purchases -> "purchases.view"
+            AppScreen.HotelRooms -> "hotel.view"
+            AppScreen.Hospitality, AppScreen.HospitalityOperations, AppScreen.KitchenDisplay, AppScreen.Bookings, AppScreen.OpenTabs -> "hospitality.view"
+            AppScreen.Pos -> "orders.create"
+            else -> null
         }
-        menu == null || enabledMenus == null || enabledMenus?.contains(menu) == true
+        return access?.allows(menu) == true && (permission == null || access?.permits(permission) == true) &&
+            (menu !in setOf("HOSPITALITY", "HOSPITALITY_OPS", "OPEN_TABS") || hospitalityEnabled)
     }
+    val visibleScreens = appScreens.filter { canOpen(it) }
+    key(user?.id, user?.businessId) { NativeLoginShiftPrompt(client, access) }
     val visibleTopScreens = topNavScreens.filter { it in visibleScreens }
     val visibleNavGroups = desktopNavGroups.map { group ->
         group.copy(screens = group.screens.filter { it in visibleScreens })
@@ -589,13 +608,12 @@ fun Biashara360DesktopAppContent(
                     animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow),
                     label = "sidebarWidth"
                 )
-                val sidebarUser by UserSession.currentUser.collectAsState()
                 Row(modifier = Modifier.width(sidebarWidth).fillMaxHeight()) {
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .background(Color.White)
+                            .background(Color(0xFF103438))
                             .padding(horizontal = 12.dp, vertical = 16.dp)
                     ) {
                         // Brand logo / title
@@ -625,68 +643,18 @@ fun Biashara360DesktopAppContent(
                                         text = "Biashara360",
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1E293B)
+                                        color = Color(0xFFEDF6F6)
                                     )
                                     Text(
                                         text = "Business Management",
                                         fontSize = 11.sp,
-                                        color = Color(0xFF64748B)
+                                        color = Color(0xFFB1C9CC)
                                     )
                                 }
                             }
                         }
 
-                        // User profile card
-                        if (isExpanded) {
-                            val displayName = sidebarUser?.name?.ifBlank { null } ?: UserSession.getUserName().ifBlank { null } ?: "kamau Admin"
-                            val businessName = "kamau-supplies"
-                            val userInitial = displayName.firstOrNull()?.toString()?.uppercase() ?: "K"
-
-                            Surface(
-                                modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 10.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFFF8FAFC),
-                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFF86EFAC)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = userInitial,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF065F46)
-                                        )
-                                    }
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = displayName,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF1E293B),
-                                            maxLines = 1
-                                        )
-                                        Text(
-                                            text = "Owner • $businessName",
-                                            fontSize = 10.sp,
-                                            color = Color(0xFF64748B),
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            Spacer(Modifier.height(8.dp))
-                        }
+                        Spacer(Modifier.height(12.dp))
 
                         // Menu items
                         Box(modifier = Modifier.weight(1f)) {
@@ -702,7 +670,7 @@ fun Biashara360DesktopAppContent(
                                         isExpanded = isExpanded,
                                         isSelected = currentScreen == screen,
                                         shortcut = screenShortcut(screen),
-                                        badge = screenBadge(screen),
+                                        badge = null,
                                         isProminentPos = isPos,
                                         onClick = { navigationViewModel.navigateTo(screen) }
                                     )
@@ -739,80 +707,13 @@ fun Biashara360DesktopAppContent(
                                                 isExpanded = isExpanded,
                                                 isSelected = currentScreen == screen,
                                                 shortcut = screenShortcut(screen),
-                                                badge = screenBadge(screen),
+                                                badge = null,
                                                 onClick = { navigationViewModel.navigateTo(screen) }
                                             )
                                         }
                                     }
                                 }
                             }
-                        }
-
-                        // Sync status card at bottom of sidebar
-                        if (isExpanded) {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp, vertical = 6.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFFF8FAFC),
-                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFFECFDF5)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Bolt,
-                                            contentDescription = null,
-                                            tint = Color(0xFF10B981),
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                    Column {
-                                        Text(
-                                            text = "Sync status",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF1E293B)
-                                        )
-                                        Text(
-                                            text = "• All changes saved",
-                                            fontSize = 10.sp,
-                                            color = Color(0xFF059669)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "v2.4.1 • ${System.getProperty("os.arch", "x64")}",
-                                    fontSize = 10.sp,
-                                    color = Color(0xFF94A3B8)
-                                )
-                                Text(
-                                    text = "Desktop",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF94A3B8)
-                                )
-                            }
-                            Spacer(Modifier.height(6.dp))
                         }
 
                         // Bottom Sign Out button
@@ -940,32 +841,6 @@ fun Biashara360DesktopAppContent(
 
                         Spacer(Modifier.weight(1f))
 
-                        if (currentScreen == AppScreen.Pos && isWideScreen) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(color = Color(0xFFECFDF5), shape = RoundedCornerShape(16.dp)) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Box(Modifier.size(7.dp).clip(CircleShape).background(B360Green))
-                                        Text("Shift active", color = Color(0xFF047857), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                                Surface(color = Color(0xFFF1F5F9), shape = RoundedCornerShape(16.dp)) {
-                                    Text("Terminal 01", modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = Color(0xFF475569), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                }
-                                Surface(color = Color(0xFFECFDF5), shape = RoundedCornerShape(16.dp)) {
-                                    Text("eTIMS ready", modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = Color(0xFF047857), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            Spacer(Modifier.width(12.dp))
-                        }
-
                         PortalOrdersButton(client)
 
                         IconButton(onClick = { navigationViewModel.navigateTo(AppScreen.Inventory) }) {
@@ -1075,6 +950,9 @@ fun Biashara360DesktopAppContent(
                         },
                         label = "desktopScreenTransition"
                     ) { screen ->
+                        NativeAccessGate(canOpen(screen), accessLoading, accessError,
+                            onRetry = { accessReload++ },
+                            onBack = { visibleScreens.firstOrNull()?.let { navigationViewModel.navigateTo(it) } ?: onSignOut() }) {
                         when (screen) {
                             AppScreen.Dashboard -> DesktopDashboardScreen()
                             AppScreen.Pos -> DesktopPosScreen()
@@ -1095,6 +973,8 @@ fun Biashara360DesktopAppContent(
                             AppScreen.Suppliers -> DesktopSuppliersScreen(searchQuery = searchQuery)
                             AppScreen.HotelRooms -> DesktopHotelRoomsScreen()
                             AppScreen.Hospitality -> DesktopHospitalityScreen()
+                            AppScreen.KitchenDisplay -> DesktopKitchenDisplayScreen()
+                            AppScreen.HospitalityOperations -> DesktopHospitalityOperationsScreen()
                             AppScreen.Appointments -> DesktopAppointmentsScreen()
                             AppScreen.Bookings -> DesktopBookingsScreen()
                             AppScreen.Expenses -> DesktopExpensesModernScreen()
@@ -1109,6 +989,7 @@ fun Biashara360DesktopAppContent(
                             AppScreen.Mpesa -> DesktopPaymentConfigurationScreen()
                             AppScreen.ReceiptTemplate -> DesktopReceiptTemplateScreen()
                         }
+                        }
                     }
                 }
             }
@@ -1116,9 +997,10 @@ fun Biashara360DesktopAppContent(
 
         // Bottom status bar tailored for desktop operations (no duplicate time/battery!)
         DesktopStatusBar(
-            syncState = "Local • Synced",
-            syncSubtitle = "All changes saved",
-            terminalInfo = "Counter 01 • Main Store • eTIMS: Online",
+            syncState = "Sync status",
+            syncSubtitle = "Status unavailable",
+            terminalInfo = "Desktop",
+            userInfo = user?.let { "User: ${it.name} · ${it.role.name.lowercase().replaceFirstChar { char -> char.uppercase() }}" }.orEmpty(),
             onOpenCommandPalette = { focusRequester.requestFocus() }
         )
     }

@@ -79,48 +79,6 @@ fun DesktopExpensesModernScreen(
         currentUser?.role?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Admin"
     }
 
-    // Default sample expenses if the database has 0 expenses initially
-    val sampleExpenses = remember(currentYear, currentMonth) {
-        listOf(
-            Expense(
-                id = "demo-1",
-                businessId = UserSession.getBusinessId(),
-                category = ExpenseCategory.SALARIES,
-                amount = 100000.0,
-                description = "August [Cash]",
-                recordedAt = Clock.System.now(),
-                expenseDate = LocalDate(currentYear, currentMonth, 27.coerceAtMost(28))
-            ),
-            Expense(
-                id = "demo-2",
-                businessId = UserSession.getBusinessId(),
-                category = ExpenseCategory.STOCK_PURCHASE,
-                amount = 10000.0,
-                description = "Tusker",
-                recordedAt = Clock.System.now(),
-                expenseDate = LocalDate(currentYear, currentMonth, 27.coerceAtMost(28))
-            ),
-            Expense(
-                id = "demo-3",
-                businessId = UserSession.getBusinessId(),
-                category = ExpenseCategory.RENT,
-                amount = 10000.0,
-                description = "Rent July",
-                recordedAt = Clock.System.now(),
-                expenseDate = LocalDate(currentYear, currentMonth, 26.coerceAtMost(28))
-            ),
-            Expense(
-                id = "demo-4",
-                businessId = UserSession.getBusinessId(),
-                category = ExpenseCategory.ADVERTISING,
-                amount = 10000.0,
-                description = "Facebook",
-                recordedAt = Clock.System.now(),
-                expenseDate = LocalDate(currentYear, currentMonth, 26.coerceAtMost(28))
-            )
-        )
-    }
-
     LaunchedEffect(Unit) {
         viewModel.loadExpenses()
         while (true) {
@@ -158,8 +116,8 @@ fun DesktopExpensesModernScreen(
         }
     }
 
-    // Dynamic expenses: use DB state if populated, otherwise sampleExpenses
-    val activeExpenses = if (state.expenses.isNotEmpty()) state.expenses else sampleExpenses
+    // Show only recorded expenses.
+    val activeExpenses = state.expenses
 
     // Filter by period dynamically
     val periodExpenses = remember(activeExpenses, selectedPeriod, currentYear, currentMonth) {
@@ -172,7 +130,7 @@ fun DesktopExpensesModernScreen(
             }
             "This Year" -> activeExpenses.filter { it.expenseDate.year == currentYear }
             else -> activeExpenses
-        }.ifEmpty { activeExpenses }
+        }
     }
 
     // Filter by search & category

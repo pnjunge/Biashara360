@@ -1,13 +1,16 @@
 package com.app.biashara.ui.screens
 
+import com.app.biashara.ui.theme.B360Green
+import com.app.biashara.ui.hasNativePermission
+import com.app.biashara.data.remote.NativeAccessSession
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -134,7 +137,7 @@ private data class DesktopMenuOption(val name: String = "", val priceDelta: Doub
 @Serializable private data class DesktopProduct(val id: String = "", val name: String = "", val category: String = "", val sellingPrice: Double = 0.0)
 @Serializable private data class DesktopReportBreakdown(val label: String = "", val count: Int = 0, val amount: Double = 0.0)
 @Serializable private data class DesktopReport(val byWaiter: List<DesktopReportBreakdown> = emptyList(), val byTable: List<DesktopReportBreakdown> = emptyList(), val byItem: List<DesktopReportBreakdown> = emptyList(), val byCategory: List<DesktopReportBreakdown> = emptyList(), val byHour: List<DesktopReportBreakdown> = emptyList(), val byPaymentMethod: List<DesktopReportBreakdown> = emptyList(), val byChannel: List<DesktopReportBreakdown> = emptyList(), val byShift: List<DesktopReportBreakdown> = emptyList(), val byLocation: List<DesktopReportBreakdown> = emptyList(), val foodCost: Double = 0.0, val beverageCost: Double = 0.0, val wastageCost: Double = 0.0, val grossMargin: Double = 0.0, val averageTableTurnoverMinutes: Double = 0.0)
-@Serializable private data class DesktopOperationsData(val reservations: List<DesktopReservation> = emptyList(), val menuProfiles: List<DesktopMenuProfile> = emptyList(), val ingredients: List<DesktopIngredient> = emptyList(), val shifts: List<DesktopShift> = emptyList(), val suppliers: List<DesktopSupplier> = emptyList(), val purchaseOrders: List<DesktopPurchaseOrder> = emptyList(), val approvals: List<DesktopApproval> = emptyList())
+@Serializable private data class DesktopOperationsData(val reservations: List<DesktopReservation> = emptyList(), val menuProfiles: List<DesktopMenuProfile> = emptyList(), val ingredients: List<DesktopIngredient> = emptyList(), val shifts: List<DesktopShift> = emptyList(), val suppliers: List<DesktopSupplier> = emptyList(), val purchaseOrders: List<DesktopPurchaseOrder> = emptyList(), val approvals: List<DesktopApproval> = emptyList(), val tradingDayOpen: Boolean = false)
 
 @Serializable private data class UpdateTicketReq(val status: String)
 @Serializable private data class CreateTableReq(val name: String, val area: String = "Main Floor", val capacity: Int = 4)
@@ -156,6 +159,16 @@ fun DesktopHospitalityScreen(client: HttpClient = remember { inject() }) {
 @Composable
 fun DesktopOpenTabsScreen(client: HttpClient = remember { inject() }) {
     DesktopHospitalityMainLayout(client, initialTab = 1)
+}
+
+@Composable
+fun DesktopKitchenDisplayScreen(client: HttpClient = remember { inject() }) {
+    DesktopHospitalityMainLayout(client, initialTab = 2)
+}
+
+@Composable
+fun DesktopHospitalityOperationsScreen(client: HttpClient = remember { inject() }) {
+    DesktopHospitalityMainLayout(client, initialTab = 3)
 }
 
 @Composable
@@ -188,7 +201,7 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
                 val productsRes = runCatching { client.get("$BASE_URL/products").body<ApiResponse<List<DesktopProduct>>>() }.getOrNull()
                 Triple(dashRes, opsRes, productsRes)
             }.onSuccess { (dashRes, opsRes, productsRes) ->
-                if (dashRes.success && dashRes.data != null) dashboard = dashRes.data
+                if (dashRes.success && dashRes.data != null) dashboard = dashRes.data?.let { data -> data.copy(tickets = data.tickets.filter { ticket -> data.openTabs.any { it.id == ticket.orderId } }) }
                 else error = dashRes.message.ifBlank { "Could not load hospitality status." }
                 if (opsRes.success && opsRes.data != null) operations = opsRes.data
                 val productData = productsRes?.data
@@ -208,6 +221,7 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
     }
 
     fun updateTicketStatus(ticketId: String, newStatus: String) {
+        if (!NativeAccessSession.permits("hospitality.kitchen")) { error = "Permission required: hospitality.kitchen"; return }
         scope.launch {
             runCatching {
                 client.patch("$BASE_URL/hospitality/tickets/$ticketId") {
@@ -224,6 +238,7 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
     }
 
     fun handleSaveTable(name: String, area: String, capacity: Int, id: String? = null) {
+        if (!NativeAccessSession.permits("hospitality.floor")) { error = "Permission required: hospitality.floor"; return }
         scope.launch {
             runCatching {
                 if (id == null) {
@@ -249,6 +264,7 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
     }
 
     fun handleTransferTab(orderId: String, targetTableId: String) {
+        if (!NativeAccessSession.permits("hospitality.orders")) { error = "Permission required: hospitality.orders"; return }
         scope.launch {
             runCatching {
                 client.post("$BASE_URL/hospitality/tabs/$orderId/transfer") {
@@ -266,6 +282,7 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
     }
 
     fun handleSettleTab(orderId: String, method: String, phone: String) {
+        if (!NativeAccessSession.permits("hospitality.billing")) { error = "Permission required: hospitality.billing"; return }
         if (settlingTab) return
         settlingTab = true
         settlementError = null
@@ -276,6 +293,7 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
                     java.awt.Desktop.getDesktop().browse(java.net.URI("https://biashara360.co.ke/card-payments?orderId=$orderId"))
                 }
                 successMsg = result.message
+                if (result.paid) dashboard = dashboard?.let { it.copy(openTabs = it.openTabs.filterNot { tab -> tab.id == orderId }, tickets = it.tickets.filterNot { ticket -> ticket.orderId == orderId }) }
                 tabToSettle = null
                 loadData()
             } catch (e: Exception) {
@@ -286,7 +304,8 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
         }
     }
 
-    fun operationAction(successText: String, block: suspend () -> ApiResponse<*>) {
+    fun operationAction(permission: String, successText: String, block: suspend () -> ApiResponse<*>) {
+        if (!NativeAccessSession.permits(permission)) { error = "Permission required: $permission"; return }
         scope.launch {
             runCatching { block() }.onSuccess {
                 if (it.success) { successMsg = successText; loadData() } else error = it.message
@@ -294,50 +313,50 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
         }
     }
 
-    fun updateReservationStatus(id: String, status: String) = operationAction("Reservation updated.") {
+    fun updateReservationStatus(id: String, status: String) = operationAction("hospitality.reservations", "Reservation updated.") {
         client.patch("$BASE_URL/hospitality/operations/reservations/$id/$status").body()
     }
 
-    fun receivePurchaseOrder(id: String) = operationAction("Purchase order received.") {
+    fun receivePurchaseOrder(id: String) = operationAction("hospitality.purchasing", "Purchase order received.") {
         client.post("$BASE_URL/hospitality/operations/purchase-orders/$id/receive").body()
     }
 
-    fun decideApproval(id: String, approved: Boolean) = operationAction(if (approved) "Approval granted." else "Approval rejected.") {
+    fun decideApproval(id: String, approved: Boolean) = operationAction("hospitality.approvals", if (approved) "Approval granted." else "Approval rejected.") {
         client.post("$BASE_URL/hospitality/operations/approvals/$id/decision") {
             contentType(ContentType.Application.Json)
             setBody(DesktopApprovalDecisionReq(approved))
         }.body()
     }
 
-    fun openShift(openingFloat: Double) = operationAction("Shift opened.") {
+    fun openShift(openingFloat: Double) = operationAction("hospitality.shifts", "Shift opened.") {
         client.post("$BASE_URL/hospitality/operations/shifts/open") {
             contentType(ContentType.Application.Json)
             setBody(DesktopShiftOpenReq(openingFloat))
         }.body()
     }
 
-    fun closeShift(id: String, actualCash: Double, actualMpesa: Double, actualCard: Double, tips: Double, expenses: Double) = operationAction("Day closed and payments reconciled.") {
+    fun closeShift(id: String, actualCash: Double, actualMpesa: Double, actualCard: Double, tips: Double, expenses: Double) = operationAction("hospitality.shifts", "Day closed and payments reconciled.") {
         client.post("$BASE_URL/hospitality/operations/shifts/$id/close") {
             contentType(ContentType.Application.Json)
             setBody(DesktopShiftCloseReq(actualCash, actualMpesa, actualCard, tips, expenses))
         }.body()
     }
 
-    fun saveMenuProfile(productId: String, profile: DesktopMenuProfile, station: String, soldOut: Boolean) = operationAction("Menu controls saved.") {
+    fun saveMenuProfile(productId: String, profile: DesktopMenuProfile, station: String, soldOut: Boolean) = operationAction("hospitality.menu", "Menu controls saved.") {
         client.put("$BASE_URL/hospitality/operations/menu/$productId") {
             contentType(ContentType.Application.Json)
             setBody(DesktopMenuProfileReq(station.takeUnless { it == "NONE" }, profile.mealPeriods, profile.sizes, profile.extras, profile.variants, profile.comboProductIds, soldOut, profile.happyHourPrice, profile.happyHourStart, profile.happyHourEnd, profile.ageRestricted, profile.minimumAge))
         }.body()
     }
 
-    fun createSupplier(name: String, phone: String) = operationAction("Supplier added.") {
+    fun createSupplier(name: String, phone: String) = operationAction("hospitality.purchasing", "Supplier added.") {
         client.post("$BASE_URL/hospitality/operations/suppliers") {
             contentType(ContentType.Application.Json)
             setBody(DesktopSupplierReq(name, phone))
         }.body()
     }
 
-    fun createPurchaseOrder(supplierId: String, ingredientId: String, quantity: Double, unitCost: Double) = operationAction("Purchase order created.") {
+    fun createPurchaseOrder(supplierId: String, ingredientId: String, quantity: Double, unitCost: Double) = operationAction("hospitality.purchasing", "Purchase order created.") {
         client.post("$BASE_URL/hospitality/operations/purchase-orders") {
             contentType(ContentType.Application.Json)
             setBody(DesktopPurchaseOrderReq(supplierId, items = listOf(DesktopPurchaseOrderLineReq(ingredientId, quantity, unitCost))))
@@ -456,7 +475,7 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
             }
         }
 
-        if (operations != null && operations?.shifts?.none { it.status == "OPEN" } == true) {
+        if (operations?.tradingDayOpen == false) {
             Surface(color = Color(0xFFFFF7ED), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFFFCD34D))) {
                 Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Schedule, null, tint = Color(0xFFB45309), modifier = Modifier.size(17.dp))
@@ -478,6 +497,7 @@ private fun DesktopHospitalityMainLayout(client: HttpClient, initialTab: Int) {
                 )
                 1 -> DesktopOpenTabsTab(
                     openTabs = dash.openTabs,
+                    tickets = dash.tickets,
                     onSettle = { settlementError = null; tabToSettle = it },
                     onTransfer = { tabToTransfer = it },
                     onProForma = { tabForProForma = it }
@@ -657,7 +677,7 @@ private fun DesktopFloorPlanTab(
 
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
-                                    onClick = { onEditTable(table) },
+                                    enabled = hasNativePermission("hospitality.floor"), onClick = { onEditTable(table) },
                                     modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(0.dp)
                                 ) {
@@ -668,7 +688,7 @@ private fun DesktopFloorPlanTab(
 
                                 if (isOccupied) {
                                     Button(
-                                        onClick = { onTransferTab(table) },
+                                        enabled = hasNativePermission("hospitality.orders"), onClick = { onTransferTab(table) },
                                         modifier = Modifier.weight(1.2f),
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF475569)),
                                         contentPadding = PaddingValues(0.dp)
@@ -690,93 +710,34 @@ private fun DesktopFloorPlanTab(
 @Composable
 private fun DesktopOpenTabsTab(
     openTabs: List<DesktopTabOrder>,
+    tickets: List<DesktopKitchenTicket>,
     onSettle: (DesktopTabOrder) -> Unit,
     onTransfer: (DesktopTabOrder) -> Unit,
     onProForma: (DesktopTabOrder) -> Unit
 ) {
-    if (openTabs.isEmpty()) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Color.White,
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-        ) {
-            Box(Modifier.padding(50.dp), contentAlignment = Alignment.Center) {
-                Text("No open customer tabs currently awaiting settlement.", color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-            }
-        }
-    } else {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            items(openTabs, key = { it.id }) { tab ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                    elevation = CardDefaults.cardElevation(1.dp)
-                ) {
-                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    color = Color(0xFF0F1F3A),
-                                    shape = CircleShape,
-                                    modifier = Modifier.size(38.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(tab.orderNumber.takeLast(3), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    }
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text("Tab #${tab.orderNumber}", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F1F3A))
-                                    Text("${tab.deliveryLocation} · Guest: ${tab.customerName}", fontSize = 13.sp, color = Color(0xFF64748B))
-                                }
-                            }
-
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("Total Amount", fontSize = 11.sp, color = Color(0xFF64748B))
-                                Text("KES ${String.format("%,.0f", tab.subtotal)}", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF00B874))
-                            }
-                        }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Items:", fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
-                            val summary = tab.items.joinToString(", ") { "${it.quantity}x ${it.productName}" }
-                            Text(
-                                text = if (summary.length > 80) summary.take(80) + "..." else summary,
-                                fontSize = 12.sp,
-                                color = Color(0xFF334155),
-                                maxLines = 1
-                            )
-                        }
-
-                        Divider(color = Color(0xFFF1F5F9))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedButton(onClick = { onProForma(tab) }) {
-                                Icon(Icons.Default.Print, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Pro-Forma Bill")
-                            }
-                            Spacer(Modifier.width(10.dp))
-                            OutlinedButton(onClick = { onTransfer(tab) }) {
-                                Icon(Icons.Default.SwapHoriz, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Transfer")
-                            }
-                            Spacer(Modifier.width(10.dp))
-                            Button(
-                                onClick = { onSettle(tab) },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00B874))
-                            ) {
-                                Icon(Icons.Default.Check, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Settle Tab")
-                            }
+    var search by remember { mutableStateOf("") }
+    val filtered = openTabs.filter { it.orderNumber.contains(search, true) || it.deliveryLocation.orEmpty().contains(search, true) || it.customerName.orEmpty().contains(search, true) }
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(), singleLine = true,
+            placeholder = { Text("Search open tabs, order number or table…") },
+            leadingIcon = { Icon(Icons.Default.Search, null) }, shape = RoundedCornerShape(12.dp))
+        if (filtered.isEmpty()) Text("No active tabs found.", color = Color(0xFF64748B))
+        LazyVerticalGrid(columns = GridCells.Adaptive(240.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().weight(1f)) {
+            items(filtered, key = { it.id }) { tab ->
+                val kitchenPending = tickets.any { it.orderId == tab.id && it.station == "KITCHEN" && it.status != "SERVED" }
+                Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, Color(0xFFE2E8F0))) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Order #${tab.orderNumber}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF10223E))
+                        Text("Table: ${tab.deliveryLocation.orEmpty()}", color = Color(0xFF64748B), fontSize = 12.sp)
+                        Text(tab.items.joinToString("\n") { "${it.quantity}x ${it.productName}" }, fontSize = 13.sp, maxLines = 5)
+                        Text("Guest: ${tab.customerName.orEmpty()}", fontSize = 11.sp, color = Color(0xFF64748B))
+                        Text("KES ${String.format("%,.2f", tab.subtotal)}", color = B360Green, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        if (kitchenPending) Text("Awaiting kitchen service", color = Color(0xFFB45309), fontSize = 11.sp)
+                        else Text("Ready to settle", color = B360Green, fontSize = 11.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedIconButton(onClick = { onProForma(tab) }) { Icon(Icons.Default.Print, "Print bill", Modifier.size(18.dp)) }
+                            OutlinedIconButton(enabled = hasNativePermission("hospitality.orders"), onClick = { onTransfer(tab) }) { Icon(Icons.Default.SwapHoriz, "Transfer tab", Modifier.size(18.dp)) }
+                            Button(enabled = !kitchenPending && hasNativePermission("hospitality.billing"), onClick = { onSettle(tab) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = B360Green)) { Text("Settle", fontSize = 12.sp) }
                         }
                     }
                 }
@@ -872,19 +833,19 @@ private fun DesktopKDSTab(
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                 when (ticket.status) {
                                     "NEW" -> Button(
-                                        onClick = { onUpdateStatus(ticket.id, "PREPARING") },
+                                        enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "PREPARING") },
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))
                                     ) {
                                         Text("Start Preparing")
                                     }
                                     "PREPARING" -> Button(
-                                        onClick = { onUpdateStatus(ticket.id, "READY") },
+                                        enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "READY") },
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669))
                                     ) {
                                         Text("Mark Ready")
                                     }
                                     "READY" -> Button(
-                                        onClick = { onUpdateStatus(ticket.id, "SERVED") },
+                                        enabled = hasNativePermission("hospitality.kitchen"), onClick = { onUpdateStatus(ticket.id, "SERVED") },
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF475569))
                                     ) {
                                         Text("Mark Served")
@@ -919,6 +880,9 @@ private fun DesktopOperationsTab(
     val data = operations ?: DesktopOperationsData()
     var section by remember { mutableStateOf("RESERVATIONS") }
     val sections = listOf("RESERVATIONS", "MENU", "SHIFTS", "PURCHASING", "APPROVALS", "REPORTS")
+        .filter { hasNativePermission("hospitality.${it.lowercase()}") }
+    if (sections.isEmpty()) { Text("No operations permissions assigned."); return }
+    if (section !in sections) section = sections.first()
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OperationsSummaryCard(Modifier.weight(1f), "Total Tables", tablesCount.toString(), Icons.Default.TableRestaurant)

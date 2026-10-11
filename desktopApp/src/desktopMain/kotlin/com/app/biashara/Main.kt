@@ -36,7 +36,7 @@ fun main() {
 
     application {
         val windowState = rememberWindowState(
-            placement = WindowPlacement.Maximized,
+            placement = WindowPlacement.Fullscreen,
             width = 1280.dp,
             height = 800.dp
         )
@@ -52,10 +52,10 @@ fun main() {
             Biashara360DesktopApp(
                 onMinimize = { windowState.isMinimized = true },
                 onMaximize = {
-                    windowState.placement = if (windowState.placement == WindowPlacement.Maximized) {
+                    windowState.placement = if (windowState.placement != WindowPlacement.Floating) {
                         WindowPlacement.Floating
                     } else {
-                        WindowPlacement.Maximized
+                        WindowPlacement.Fullscreen
                     }
                 },
                 onClose = ::exitApplication

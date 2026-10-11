@@ -61,3 +61,21 @@ internal suspend fun settleDesktopTab(
     val paid = close.data?.get("paymentStatus")?.jsonPrimitive?.content == "PAID"
     return DesktopSettlementResult(paid, if (paid) "Tab settled and closed successfully." else "Tab is awaiting payment confirmation.")
 }
+
+
+internal suspend fun openDesktopTab(
+    client: HttpClient,
+    request: PosCreateHospitalityOrderReq,
+    baseUrl: String = BASE_URL
+): ApiResponse<PosHospitalityOrderRes> {
+    requireDesktopTable(true, request.serviceType, request.tableId)
+    require(request.guestCount in 1..100) { "Guest count must be between 1 and 100" }
+    require(request.items.isNotEmpty()) { "Add items before opening a tab" }
+    require(request.items.all { it.quantity > 0 && it.unitPrice.isFinite() && it.unitPrice >= 0 }) { "Invalid tab items" }
+    val response = client.post("$baseUrl/hospitality/orders") {
+        contentType(ContentType.Application.Json)
+        setBody(request)
+    }.body<ApiResponse<PosHospitalityOrderRes>>()
+    check(response.success && response.data != null) { response.message.ifBlank { "Could not open customer tab" } }
+    return response
+}

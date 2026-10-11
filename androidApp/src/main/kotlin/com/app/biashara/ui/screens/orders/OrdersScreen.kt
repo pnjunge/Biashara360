@@ -1,5 +1,6 @@
 package com.app.biashara.ui.screens.orders
 
+import com.app.biashara.ui.hasNativePermission
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -71,7 +72,7 @@ fun OrdersScreen(
             }
         },
         floatingActionButton = {
-            FloatingActionButton(
+            if (hasNativePermission("orders.create")) FloatingActionButton(
                 onClick = onCreateOrder,
                 containerColor = B360Green,
                 contentColor = Color.White,
@@ -93,7 +94,7 @@ fun OrdersScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Filled.ShoppingCart, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
                     Text("No orders yet", color = Color.Gray)
-                    Button(onClick = onCreateOrder, colors = ButtonDefaults.buttonColors(containerColor = B360Green), shape = RoundedCornerShape(20.dp)) {
+                    Button(enabled = hasNativePermission("orders.create"), onClick = onCreateOrder, colors = ButtonDefaults.buttonColors(containerColor = B360Green), shape = RoundedCornerShape(20.dp)) {
                         Text("Create First Order")
                     }
                 }

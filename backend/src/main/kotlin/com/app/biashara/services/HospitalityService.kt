@@ -163,6 +163,7 @@ class HospitalityService(private val orderService: OrderService) {
                 (OrdersTable.businessId eq businessId) and
                 (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES) and (OrdersTable.paymentStatus notInList listOf("PAID","CANCELLED","REFUNDED"))
         }.forUpdate().firstOrNull() ?: error("Active unpaid tab not found")
+        requireKitchenServed(businessId, orderId)
         val previouslyPaid=PaymentsTable.select { (PaymentsTable.businessId eq businessId) and (PaymentsTable.orderId eq orderId) and (PaymentsTable.status eq "SUCCESS") }.sumOf { it[PaymentsTable.amount] }
         val outstanding=(order[OrdersTable.subtotal]-previouslyPaid).coerceAtLeast(0.0)
         require(method=="CASH" || previouslyPaid==0.0) { "This bill already has a payment. Settle the remaining balance in cash" }
@@ -239,13 +240,14 @@ class HospitalityService(private val orderService: OrderService) {
             )
         }
     }
-    private fun openTabs(businessId: String)=OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES) }.orderBy(OrdersTable.createdAt,SortOrder.DESC).mapNotNull { orderService.getById(it[OrdersTable.id],businessId) }
+    private fun openTabs(businessId: String)=OrdersTable.select { (OrdersTable.businessId eq businessId) and (OrdersTable.tabStatus inList ACTIVE_TAB_STATUSES) and (OrdersTable.paymentStatus notInList listOf("PAID", "CANCELLED", "REFUNDED")) }.orderBy(OrdersTable.createdAt,SortOrder.DESC).mapNotNull { orderService.getById(it[OrdersTable.id],businessId) }
     private fun tickets(businessId: String): List<KitchenTicketResponse> {
         val rows=KitchenTicketsTable.select {
             (KitchenTicketsTable.businessId eq businessId)
         }.orderBy(KitchenTicketsTable.createdAt,SortOrder.ASC).toList()
         return rows.mapNotNull { ticket ->
             val order=orderService.getById(ticket[KitchenTicketsTable.orderId],businessId) ?: return@mapNotNull null
+            if (order.paymentStatus in setOf("PAID", "CANCELLED", "REFUNDED") || order.tabStatus == "CLOSED") return@mapNotNull null
             val tableName=order.hospitalityTableId?.let { id -> HospitalityTablesTable.select { HospitalityTablesTable.id eq id }.firstOrNull()?.get(HospitalityTablesTable.name) }
             val stationItems=order.items.filter { it.preparationStation=="KITCHEN" && ticket[KitchenTicketsTable.station]=="KITCHEN" }
             if (stationItems.isEmpty()) return@mapNotNull null
@@ -272,3 +274,14 @@ internal fun preparationStation(category:String,profileExists:Boolean,configured
 // Return a separate preparation list; the complete order remains available for billing.
 internal fun <T> kitchenItems(items: List<T>, categoryOf: (T) -> String): List<T> =
     items.filter { hospitalityStationFor(categoryOf(it)) == "KITCHEN" }
+
+
+internal fun requireKitchenServed(businessId: String, orderId: String) {
+    val pending = KitchenTicketsTable.select {
+        (KitchenTicketsTable.businessId eq businessId) and
+            (KitchenTicketsTable.orderId eq orderId) and
+            (KitchenTicketsTable.station eq "KITCHEN") and
+            (KitchenTicketsTable.status neq "SERVED")
+    }.forUpdate().any()
+    require(!pending) { "Serve all kitchen orders before settling this tab" }
+}

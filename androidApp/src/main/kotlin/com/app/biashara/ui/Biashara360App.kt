@@ -59,6 +59,9 @@ import com.app.biashara.domain.repository.AuthRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import com.app.biashara.UserSession
+import com.app.biashara.data.remote.NativeAccess
+import com.app.biashara.data.remote.NativeAccessSession
 import com.app.biashara.data.remote.ApiResponse
 import com.app.biashara.data.remote.BASE_URL
 import io.ktor.client.HttpClient
@@ -80,8 +83,6 @@ val LocalWindowWidthSizeClass = staticCompositionLocalOf<WindowWidthSizeClass> {
 
 @Serializable
 private data class HospitalityStatus(val enabled: Boolean = false)
-@Serializable
-private data class MenuAccess(val enabledMenus: List<String> = emptyList())
 
 @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 @Composable
@@ -104,16 +105,27 @@ fun Biashara360App(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     var hospitalityEnabled by remember { mutableStateOf(false) }
-    var enabledMenus by remember { mutableStateOf<Set<String>?>(null) }
-
-    LaunchedEffect(currentDestination?.route) {
-        if (currentDestination?.route !in setOf(Screen.Login.route, Screen.Register.route, Screen.OtpVerify.route)) {
-            runCatching { client.get("$BASE_URL/hospitality/status").body<ApiResponse<HospitalityStatus>>() }
-                .onSuccess { hospitalityEnabled = it.success && it.data?.enabled == true }
-            runCatching { client.get("$BASE_URL/access/me").body<ApiResponse<MenuAccess>>() }
-                .onSuccess { if (it.success) enabledMenus = it.data?.enabledMenus?.toSet() }
-        }
+    val user by UserSession.currentUser.collectAsState()
+    val access by NativeAccessSession.access.collectAsState()
+    var accessLoading by remember { mutableStateOf(false) }
+    var accessError by remember { mutableStateOf<String?>(null) }
+    var accessReload by remember { mutableStateOf(0) }
+    LaunchedEffect(user?.id, user?.businessId, accessReload) {
+        NativeAccessSession.reset()
+        hospitalityEnabled = false
+        if (user == null) return@LaunchedEffect
+        accessLoading = true
+        accessError = null
+        runCatching {
+            val result = client.get("$BASE_URL/access/me").body<ApiResponse<NativeAccess>>()
+            check(result.success && result.data != null) { result.message.ifBlank { "Unable to load access rights" } }
+            NativeAccessSession.set(requireNotNull(result.data))
+        }.onFailure { accessError = it.message ?: "Unable to load access rights" }
+        accessLoading = false
+        runCatching { client.get("$BASE_URL/hospitality/status").body<ApiResponse<HospitalityStatus>>() }
+            .onSuccess { hospitalityEnabled = it.success && it.data?.enabled == true }
     }
+    if (user != null) key(user?.id, user?.businessId) { NativeLoginShiftPrompt(client, access) }
 
     LaunchedEffect(currentDestination?.route) {
         while (true) {
@@ -165,24 +177,38 @@ fun Biashara360App(
 
     var showMoreSheet by remember { mutableStateOf(false) }
 
-    fun isMenuEnabled(item: com.app.biashara.ui.navigation.BottomNavItem): Boolean {
-        if (enabledMenus == null) {
-            return item.screen != Screen.HospitalityOperations || hospitalityEnabled
+    fun canOpen(screen: Screen, permission: String? = null): Boolean {
+        val menu = when (screen) {
+            Screen.Dashboard -> "DASHBOARD"; Screen.Pos -> "POS"; Screen.Inventory, Screen.AddProduct -> "INVENTORY"
+            Screen.Orders, Screen.OrderDetail, Screen.CreateOrder -> "ORDERS"
+            Screen.Customers, Screen.CustomerDetail -> "CUSTOMERS"; Screen.Expenses, Screen.AddExpense -> "EXPENSES"
+            Screen.Payments -> "PAYMENTS"; Screen.Social -> "SOCIAL"; Screen.HospitalityOperations -> "HOSPITALITY_OPS"
+            Screen.Reports -> "REPORTS"; Screen.Tax -> "TAX"; Screen.Kra -> "KRA"
+            Screen.Settings, Screen.PaymentConfiguration, Screen.CyberSourceSettings -> "SETTINGS"
+            else -> return false
         }
-        return when (item.screen) {
-            Screen.Dashboard -> enabledMenus?.contains("DASHBOARD") == true
-            Screen.Pos -> enabledMenus?.contains("POS") == true
-            Screen.Orders -> enabledMenus?.contains("ORDERS") == true
-            Screen.Inventory -> enabledMenus?.contains("INVENTORY") == true
-            Screen.Customers -> enabledMenus?.contains("CUSTOMERS") == true
-            Screen.Social -> enabledMenus?.contains("SOCIAL") == true || enabledMenus?.contains("SOCIAL_SETUP") == true
-            Screen.HospitalityOperations -> (enabledMenus?.contains("HOSPITALITY_OPS") == true || enabledMenus?.contains("HOSPITALITY") == true) && hospitalityEnabled
-            Screen.Reports -> enabledMenus?.contains("REPORTS") == true
-            Screen.Payments -> enabledMenus?.contains("PAYMENTS") == true || enabledMenus?.contains("CARD_PAYMENTS") == true
-            Screen.Tax -> enabledMenus?.contains("TAX") == true || enabledMenus?.contains("TAX_COMPLIANCE") == true
-            Screen.Kra -> enabledMenus?.contains("KRA") == true || enabledMenus?.contains("TAX_COMPLIANCE") == true
-            Screen.Settings -> enabledMenus?.contains("SETTINGS") == true
-            else -> true
+        val required = permission ?: when (screen) {
+            Screen.Pos, Screen.CreateOrder -> "orders.create"
+            Screen.Reports -> "reports.financial"
+            Screen.Inventory -> "inventory.view"
+            Screen.HospitalityOperations -> "hospitality.view"
+            else -> null
+        }
+        // Android combines the restaurant and operations views in one screen.
+        val menuAllowed = access?.allows(menu) == true ||
+            (screen == Screen.HospitalityOperations && access?.allows("HOSPITALITY") == true)
+        return menuAllowed && (required == null || access?.permits(required) == true) &&
+            (screen != Screen.HospitalityOperations || hospitalityEnabled)
+    }
+    fun isMenuEnabled(item: com.app.biashara.ui.navigation.BottomNavItem) = canOpen(item.screen)
+
+    fun goBackFromAccessGate() {
+        val fallback = (primaryBottomNavItems + secondaryNavItems).firstOrNull { isMenuEnabled(it) }
+        if (fallback != null) {
+            navController.navigate(fallback.screen.route) { launchSingleTop = true }
+        } else coroutineScope.launch {
+            authRepository.logout()
+            navController.navigate(Screen.Login.route) { popUpTo(0) { inclusive = true } }
         }
     }
 
@@ -337,117 +363,181 @@ fun Biashara360App(
             }
             // Main screens
             composable(Screen.Dashboard.route) {
-                DashboardScreen(
-                    navController = navController,
-                    onLogout = {
-                        coroutineScope.launch {
-                            authRepository.logout()
-                            navController.navigate(Screen.Login.route) {
-                                popUpTo(0) { inclusive = true }
+                NativeAccessGate(canOpen(Screen.Dashboard), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    DashboardScreen(
+                        navController = navController,
+                        onLogout = {
+                            coroutineScope.launch {
+                                authRepository.logout()
+                                navController.navigate(Screen.Login.route) {
+                                    popUpTo(0) { inclusive = true }
+                                }
                             }
                         }
-                    }
-                )
+                    )
+                }
             }
             composable(Screen.Pos.route) {
-                PosScreen(windowWidthSizeClass = windowWidthSizeClass)
+                NativeAccessGate(canOpen(Screen.Pos), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    PosScreen(windowWidthSizeClass = windowWidthSizeClass)
+                }
             }
             composable(Screen.Inventory.route) {
-                InventoryScreen(
-                    onAddProduct = { navController.navigate(Screen.AddProduct.createRoute()) },
-                    onEditProduct = { id -> navController.navigate(Screen.AddProduct.createRoute(id)) }
-                )
+                NativeAccessGate(canOpen(Screen.Inventory), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    InventoryScreen(
+                        onAddProduct = { navController.navigate(Screen.AddProduct.createRoute()) },
+                        onEditProduct = { id -> navController.navigate(Screen.AddProduct.createRoute(id)) }
+                    )
+                }
             }
             composable(Screen.Orders.route) {
-                OrdersScreen(
-                    onOrderDetail = { id -> navController.navigate(Screen.OrderDetail.createRoute(id)) },
-                    onCreateOrder = { navController.navigate(Screen.CreateOrder.route) }
-                )
+                NativeAccessGate(canOpen(Screen.Orders), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    OrdersScreen(
+                        onOrderDetail = { id -> navController.navigate(Screen.OrderDetail.createRoute(id)) },
+                        onCreateOrder = { navController.navigate(Screen.CreateOrder.route) }
+                    )
+                }
             }
             composable(Screen.Customers.route) {
-                CustomersScreen(
-                    onCustomerDetail = { id -> navController.navigate(Screen.CustomerDetail.createRoute(id)) }
-                )
+                NativeAccessGate(canOpen(Screen.Customers), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    CustomersScreen(
+                        onCustomerDetail = { id -> navController.navigate(Screen.CustomerDetail.createRoute(id)) }
+                    )
+                }
             }
             composable(Screen.Expenses.route) {
-                ExpensesScreen(
-                    onAddExpense = { navController.navigate(Screen.AddExpense.route) }
-                )
+                NativeAccessGate(canOpen(Screen.Expenses), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    ExpensesScreen(
+                        onAddExpense = { navController.navigate(Screen.AddExpense.route) }
+                    )
+                }
             }
             composable(Screen.Payments.route) {
-                PaymentsScreen()
+                NativeAccessGate(canOpen(Screen.Payments), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    PaymentsScreen()
+                }
             }
             composable(Screen.PaymentConfiguration.route) {
-                com.app.biashara.ui.screens.settings.PaymentConfigurationScreen(
-                    onBack = { navController.popBackStack() }
-                )
+                NativeAccessGate(canOpen(Screen.PaymentConfiguration), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    com.app.biashara.ui.screens.settings.PaymentConfigurationScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
             composable(Screen.Tax.route) {
-                TaxScreen(onConfigureKra = { navController.navigate(Screen.Kra.route) })
+                NativeAccessGate(canOpen(Screen.Tax), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    TaxScreen(onConfigureKra = { navController.navigate(Screen.Kra.route) })
+                }
             }
-            composable(Screen.Kra.route) { KraScreen() }
-            composable(Screen.Social.route) { SocialScreen() }
+            composable(Screen.Kra.route) {
+                NativeAccessGate(canOpen(Screen.Kra), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+
+                }
+            }
+            composable(Screen.Social.route) {
+                NativeAccessGate(canOpen(Screen.Social), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+
+                }
+            }
             composable(Screen.HospitalityOperations.route) {
-                if (hospitalityEnabled) HospitalityOperationsScreen()
-                else LaunchedEffect(Unit) { navController.navigate(Screen.Dashboard.route) { popUpTo(Screen.HospitalityOperations.route) { inclusive = true } } }
+                NativeAccessGate(canOpen(Screen.HospitalityOperations), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    if (hospitalityEnabled) HospitalityOperationsScreen()
+                    else LaunchedEffect(Unit) { navController.navigate(Screen.Dashboard.route) { popUpTo(Screen.HospitalityOperations.route) { inclusive = true } } }
+                }
             }
             // Detail / sub-screens
             composable(Screen.AddProduct.route) { backStackEntry ->
-                val productId = backStackEntry.arguments?.getString("productId")
-                com.app.biashara.ui.screens.inventory.AddProductScreen(
-                    productId = productId,
-                    onBack = { navController.popBackStack() }
-                )
+                NativeAccessGate(canOpen(Screen.AddProduct, if (backStackEntry.arguments?.getString("productId").isNullOrBlank()) "products.create" else "products.update"), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    val productId = backStackEntry.arguments?.getString("productId")
+                    com.app.biashara.ui.screens.inventory.AddProductScreen(
+                        productId = productId,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
             composable(Screen.OrderDetail.route) { backStackEntry ->
-                val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
-                com.app.biashara.ui.screens.orders.OrderDetailScreen(
-                    orderId = orderId,
-                    onBack = { navController.popBackStack() }
-                )
+                NativeAccessGate(canOpen(Screen.OrderDetail), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+                    com.app.biashara.ui.screens.orders.OrderDetailScreen(
+                        orderId = orderId,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
             composable(Screen.CreateOrder.route) {
-                com.app.biashara.ui.screens.orders.CreateOrderScreen(
-                    onBack = { navController.popBackStack() },
-                    onOrderCreated = { navController.popBackStack() }
-                )
+                NativeAccessGate(canOpen(Screen.CreateOrder), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    com.app.biashara.ui.screens.orders.CreateOrderScreen(
+                        onBack = { navController.popBackStack() },
+                        onOrderCreated = { navController.popBackStack() }
+                    )
+                }
             }
             composable(Screen.CustomerDetail.route) { backStackEntry ->
-                val customerId = backStackEntry.arguments?.getString("customerId") ?: ""
-                com.app.biashara.ui.screens.customers.CustomerDetailScreen(
-                    customerId = customerId,
-                    onBack = { navController.popBackStack() }
-                )
+                NativeAccessGate(canOpen(Screen.CustomerDetail), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    val customerId = backStackEntry.arguments?.getString("customerId") ?: ""
+                    com.app.biashara.ui.screens.customers.CustomerDetailScreen(
+                        customerId = customerId,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
             composable(Screen.AddExpense.route) {
-                com.app.biashara.ui.screens.expenses.AddExpenseScreen(
-                    onBack = { navController.popBackStack() },
-                    onSaved = { navController.popBackStack() }
-                )
+                NativeAccessGate(canOpen(Screen.AddExpense), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    com.app.biashara.ui.screens.expenses.AddExpenseScreen(
+                        onBack = { navController.popBackStack() },
+                        onSaved = { navController.popBackStack() }
+                    )
+                }
             }
             composable(Screen.Reports.route) {
-                com.app.biashara.ui.screens.reports.ReportsScreen()
+                NativeAccessGate(canOpen(Screen.Reports), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    com.app.biashara.ui.screens.reports.ReportsScreen()
+                }
             }
             composable(Screen.Settings.route) {
-                com.app.biashara.ui.screens.settings.SettingsScreen(
-                    onLogout = {
-                        coroutineScope.launch {
-                            authRepository.logout()
-                            navController.navigate(Screen.Login.route) {
-                                popUpTo(0) { inclusive = true }
+                NativeAccessGate(canOpen(Screen.Settings), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    com.app.biashara.ui.screens.settings.SettingsScreen(
+                        onLogout = {
+                            coroutineScope.launch {
+                                authRepository.logout()
+                                navController.navigate(Screen.Login.route) {
+                                    popUpTo(0) { inclusive = true }
+                                }
                             }
-                        }
-                    },
-                    onNavigateToPayments = { navController.navigate(Screen.PaymentConfiguration.route) },
-                    onNavigateToTax = { navController.navigate(Screen.Tax.route) },
-                    onNavigateToKra = { navController.navigate(Screen.Kra.route) },
-                    onNavigateToCyberSourceSettings = { navController.navigate(Screen.CyberSourceSettings.route) }
-                )
+                        },
+                        onNavigateToPayments = { navController.navigate(Screen.PaymentConfiguration.route) },
+                        onNavigateToTax = { navController.navigate(Screen.Tax.route) },
+                        onNavigateToKra = { navController.navigate(Screen.Kra.route) },
+                        onNavigateToCyberSourceSettings = { navController.navigate(Screen.CyberSourceSettings.route) }
+                    )
+                }
             }
             composable(Screen.CyberSourceSettings.route) {
-                com.app.biashara.ui.screens.settings.PaymentConfigurationScreen(
-                    onBack = { navController.popBackStack() }
-                )
+                NativeAccessGate(canOpen(Screen.CyberSourceSettings), accessLoading, accessError,
+                    onRetry = { accessReload++ }, onBack = ::goBackFromAccessGate) {
+                    com.app.biashara.ui.screens.settings.PaymentConfigurationScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
         }
         }

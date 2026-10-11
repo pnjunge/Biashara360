@@ -29,7 +29,10 @@ kotlin {
                 implementation(compose.materialIconsExtended)
                 implementation(compose.components.resources)
                 implementation(libs.kotlinx.coroutines.swing)
-                implementation(libs.kotlinx.datetime)
+                // Material3 requires 0.7.x; shared and Ktor still use the legacy Clock/Instant classes.
+                implementation("org.jetbrains.kotlinx:kotlinx-datetime") {
+                    version { strictly("0.7.1-0.6.x-compat") }
+                }
                 implementation(libs.koin.core)
                 implementation(libs.ktor.client.cio)
                 implementation(libs.ktor.client.content.negotiation)

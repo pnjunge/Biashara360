@@ -16,11 +16,13 @@ object UserSession {
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
     fun setUser(user: User) {
+        com.app.biashara.data.remote.NativeAccessSession.reset()
         val effectiveBusinessId = user.businessId?.ifBlank { null } ?: DEFAULT_BUSINESS_ID
         _currentUser.value = user.copy(businessId = effectiveBusinessId)
     }
 
     fun clearUser() {
+        com.app.biashara.data.remote.NativeAccessSession.reset()
         _currentUser.value = null
     }
 
