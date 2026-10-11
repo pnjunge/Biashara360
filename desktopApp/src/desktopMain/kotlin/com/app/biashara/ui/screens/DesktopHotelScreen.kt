@@ -125,8 +125,9 @@ fun DesktopHotelScreen(client: HttpClient = remember { inject() }) {
                 val filteredStays = dashboard.reservations.filter { search.isBlank() || "${it.guestName} ${it.reference} ${roomName(it.roomId)}".contains(search, true) }
                 when (tab) {
                     "Reservations" -> {
-                        if (filteredStays.isEmpty()) Text("No reservations in the selected date range.")
-                        filteredStays.forEach { stay -> HotelCard {
+                        val activeStays = filteredStays.filter { it.status in listOf("CONFIRMED", "CHECKED_IN") }
+                        if (activeStays.isEmpty()) Text("No active reservations in the selected date range. Completed and cancelled stays are under Reports.")
+                        activeStays.forEach { stay -> HotelCard {
                             Text("${stay.guestName} · Room ${roomName(stay.roomId)}", fontWeight = FontWeight.Bold)
                             Text("${stay.arrival} → ${stay.departure} · ${stay.guests} guests · ${stay.status.replace('_', ' ')}")
                             Text("Balance: ${hotelMoney(stay.balanceCents)} · ${stay.reference}")
@@ -135,7 +136,7 @@ fun DesktopHotelScreen(client: HttpClient = remember { inject() }) {
                                 if (can("reservations") && stay.status in listOf("CONFIRMED", "CHECKED_IN")) OutlinedButton(onClick = { editStay(stay) }, enabled = !busy) { Text("Edit / Move / Extend") }
                                 if (can("frontdesk") && stay.status in listOf("CONFIRMED", "CHECKED_IN")) Button(onClick = {
                                     if (can("billing")) openFolio(stay) else confirm(stay, if (stay.status == "CONFIRMED") "check-in" else "check-out")
-                                }, enabled = !busy) { Text(if (stay.status == "CONFIRMED") "Check In / Payment" else "Check Out") }
+                                }, enabled = !busy) { Text(if (stay.status == "CONFIRMED") "Check In / Advance Payment" else "Check Out") }
                                 if (can("reservations") && stay.status == "CONFIRMED") {
                                     TextButton(onClick = { confirm(stay, "cancel") }) { Text("Cancel") }
                                     TextButton(onClick = { confirm(stay, "no-show") }) { Text("No Show") }
@@ -169,13 +170,26 @@ fun DesktopHotelScreen(client: HttpClient = remember { inject() }) {
                             TextButton(onClick = { form("Room Type", mapOf("name" to type.name, "description" to type.description, "capacity" to type.capacity.toString(), "rate" to BigDecimal(type.nightlyRateCents).movePointLeft(2).toPlainString(), "active" to type.isActive.toString()), type.id) }) { Text("Edit Room Type") }
                         } }
                     }
-                    "Reports" -> report?.let { r -> HotelCard {
-                        Text("Hotel report · ${r.startDate} → ${r.endDate}", fontWeight = FontWeight.Bold)
-                        listOf("Occupancy" to "${"%.1f".format(r.occupancyPercent)}%", "Room nights available" to r.roomNightsAvailable.toString(), "Booked nights" to r.roomNightsBooked.toString(),
-                            "Accommodation revenue" to hotelMoney(r.accommodationRevenueCents), "Collected payments" to hotelMoney(r.collectedCents),
-                            "Average nightly rate" to hotelMoney(r.averageDailyRateCents), "Revenue per available room" to hotelMoney(r.revParCents),
-                            "Outstanding balance" to hotelMoney(r.outstandingBalanceCents), "Refundable credit" to hotelMoney(r.refundableCreditCents), "Arrivals" to r.arrivals.toString(), "Departures" to r.departures.toString()).forEach { (label, value) -> Text("$label: $value") }
-                    } } ?: Text("Apply the selected dates to load the report.")
+                    "Reports" -> {
+                        report?.let { r -> HotelCard {
+                            Text("Hotel report · ${r.startDate} → ${r.endDate}", fontWeight = FontWeight.Bold)
+                            listOf("Occupancy" to "${"%.1f".format(r.occupancyPercent)}%", "Room nights available" to r.roomNightsAvailable.toString(), "Booked nights" to r.roomNightsBooked.toString(),
+                                "Accommodation revenue" to hotelMoney(r.accommodationRevenueCents), "Collected payments" to hotelMoney(r.collectedCents),
+                                "Average nightly rate" to hotelMoney(r.averageDailyRateCents), "Revenue per available room" to hotelMoney(r.revParCents),
+                                "Outstanding balance" to hotelMoney(r.outstandingBalanceCents), "Refundable credit" to hotelMoney(r.refundableCreditCents), "Arrivals" to r.arrivals.toString(), "Departures" to r.departures.toString()).forEach { (label, value) -> Text("$label: $value") }
+                        } } ?: Text("Apply the selected dates to load the report.")
+                        Text("Reservation History", fontWeight = FontWeight.Bold)
+                        Text("Stays overlapping the selected dates or checked out, cancelled or marked no-show during the period.")
+                        val history = filteredStays.filter { it.status in listOf("CHECKED_OUT", "CANCELLED", "NO_SHOW") }
+                        if (history.isEmpty()) Text("No completed or cancelled stays in this date range.")
+                        history.forEach { stay -> HotelCard {
+                            Text("${stay.guestName} · Room ${roomName(stay.roomId)}", fontWeight = FontWeight.Bold)
+                            Text("${stay.arrival} → ${stay.departure} · ${stay.status.replace('_', ' ')}")
+                            Text("Balance: ${hotelMoney(stay.balanceCents)} · ${stay.reference}")
+                            if (can("billing")) OutlinedButton(onClick = { openFolio(stay) }, enabled = !busy) { Text("Guest Folio") }
+                        } }
+                    }
+
                     "Channels" -> {
                         Text("Import channel availability as iCalendar, or export a room calendar.")
                         dashboard.rooms.forEach { room -> HotelCard {
@@ -272,7 +286,7 @@ private fun DesktopHotelFolio(
     var error by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var method by remember { mutableStateOf("CASH") }
-    var amount by remember { mutableStateOf(if (initial.balanceCents > 0) BigDecimal(initial.balanceCents).movePointLeft(2).toPlainString() else "") }
+    var amount by remember { mutableStateOf(if (initial.balanceCents > 0 && initial.reservation.status != "CONFIRMED") BigDecimal(initial.balanceCents).movePointLeft(2).toPlainString() else "") }
     var phone by remember { mutableStateOf(initial.reservation.guestPhone) }
     var kind by remember { mutableStateOf("CHARGE") }
     var description by remember { mutableStateOf("") }
@@ -317,7 +331,9 @@ private fun DesktopHotelFolio(
         if (stay.status == "CONFIRMED") Text("Collect the full balance or a deposit before check-in, or collect payment later. Pending electronic requests have not been paid.")
         if (stay.status == "CHECKED_IN" && (folio.balanceCents != 0L || pending)) Text("Settle the balance, refund any guest credit and resolve pending requests before checkout.")
         if (can("billing") && stay.status in listOf("CONFIRMED", "CHECKED_IN")) {
-            Text("Collect Payment / Deposit", fontWeight = FontWeight.Bold)
+            Text(if (stay.status == "CONFIRMED") "Advance Payment / Deposit" else "Collect Payment / Deposit", fontWeight = FontWeight.Bold)
+            Text("Enter the advance or deposit amount, up to ${hotelMoney(folio.balanceCents)}. A smaller payment leaves the remainder due at checkout.")
+            OutlinedButton(onClick = { amount = BigDecimal(folio.balanceCents).movePointLeft(2).toPlainString(); paymentRequestId = UUID.randomUUID().toString() }, enabled = !busy && folio.balanceCents > 0) { Text("Use Full Balance") }
             if (pending) Text("A payment is pending. Complete it or change an uninitiated request below before collecting another payment.")
             HotelChoice("Payment method", method, listOf("CASH" to "Cash", "MPESA" to "M-Pesa", "CARD" to "Card"), !busy) { method = it; paymentRequestId = UUID.randomUUID().toString() }
             HotelInput("Amount (KES)", amount, { amount = it; paymentRequestId = UUID.randomUUID().toString() }, !busy)

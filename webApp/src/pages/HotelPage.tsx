@@ -194,6 +194,8 @@ export default function HotelPage() {
       {input}
     </label>
   );
+  const activeReservations = data?.reservations.filter(r => ["CONFIRMED", "CHECKED_IN"].includes(r.status)) || [];
+  const reservationHistory = data?.reservations.filter(r => ["CHECKED_OUT", "CANCELLED", "NO_SHOW"].includes(r.status)) || [];
   const roomName = (id: string) =>
     data?.rooms.find((r) => r.id === id)?.number || id;
   const roomOptions = (
@@ -274,7 +276,7 @@ export default function HotelPage() {
       setEntry(checkout && f.balanceCents < 0 && can("refunds")
         ? { kind: "CASH_REFUND", description: "Guest credit refunded before checkout", amount: String(-f.balanceCents / 100) }
         : { kind: "CHARGE", description: "", amount: "" });
-      setPayment({ method: "CASH", amount: action !== null && f.balanceCents > 0 ? String(f.balanceCents / 100) : "" });
+      setPayment({ method: "CASH", amount: action === "check-out" && f.balanceCents > 0 ? String(f.balanceCents / 100) : "" });
       setRequestId(crypto.randomUUID());
       setModal("FOLIO");
     });
@@ -329,6 +331,12 @@ export default function HotelPage() {
         ["Arrivals", r.arrivals],
         ["Departures", r.departures],
       ],
+    };
+  }
+  function historyDocument(): ShareableReport {
+    return { title: "Hotel Reservation History", businessName: user?.businessName || "Biashara360", period: `${arrival} to ${departure} (end excluded)`,
+      summary: [["Stays", String(reservationHistory.length)]], columns: ["Guest", "Room", "Arrival", "Departure", "Status", "Balance (KES)", "Reference"],
+      rows: reservationHistory.map(r => [r.guestName, roomName(r.roomId), r.arrival, r.departure, r.status, r.balanceCents / 100, r.reference]),
     };
   }
   const save = (work: () => Promise<unknown>) =>
@@ -496,7 +504,7 @@ export default function HotelPage() {
                         "Balance",
                         "Actions",
                       ]}
-                      rows={data.reservations.map((r) => [
+                      rows={activeReservations.map((r) => [
                         <div>
                           <strong>{r.guestName}</strong>
                           <div>{r.guestPhone}</div>
@@ -546,7 +554,7 @@ export default function HotelPage() {
                                 else setConfirmation({ id: r.id, action: "check-in", name: r.guestName });
                               }}
                             >
-                              Check In
+                              {can("billing") ? "Check In / Advance Payment" : "Check In"}
                             </Btn>
                           )}
                           {can("frontdesk") && r.status === "CHECKED_IN" && (
@@ -594,9 +602,9 @@ export default function HotelPage() {
                         </div>,
                       ])}
                     />
-                    {data.reservations.length === 0 && (
+                    {activeReservations.length === 0 && (
                       <p className="hotel-empty">
-                        No stays in this date range.
+                        No active reservations in this date range. Completed and cancelled stays are under Reports.
                       </p>
                     )}
                   </Card>
@@ -868,6 +876,18 @@ export default function HotelPage() {
                         rows={reportDocument().rows.map((r) => r.map(String))}
                       />
                     )}
+                    <div className="hotel-toolbar" style={{ marginTop: 24 }}>
+                      <h3>Reservation History</h3>
+                      <Btn variant="secondary" disabled={!reservationHistory.length} onClick={() => printReport(historyDocument())}>Print History</Btn>
+                      <Btn variant="secondary" disabled={!reservationHistory.length} onClick={() => downloadReportCsv(historyDocument())}>History CSV</Btn>
+                    </div>
+                    <p>Stays overlapping the selected dates or checked out, cancelled or marked no-show during the period remain available here.</p>
+                    <DataTable headers={["Guest", "Room", "Stay", "Status", "Balance", "Actions"]} rows={reservationHistory.map(r => [
+                      r.guestName, roomName(r.roomId), `${r.arrival} → ${r.departure}`, <StatusBadge status={r.status} />, money(r.balanceCents),
+                      can("billing") ? <Btn small variant="secondary" disabled={busy} onClick={() => openFolio(r)}>Guest Folio</Btn> : null,
+                    ])} />
+                    {!reservationHistory.length && <p className="hotel-empty">No completed or cancelled stays in this date range.</p>}
+
                   </Card>
                 )}
                 {tab === "CHANNELS" && can("channels") && (
@@ -1420,7 +1440,7 @@ export default function HotelPage() {
                   {folio.reservation.status === "CONFIRMED" && can("frontdesk") && (
                     <div role="status">
                       <p>{folio.balanceCents > 0
-                        ? `Collect ${money(folio.balanceCents)} or a smaller deposit using the payment form below, then complete check-in. You can also collect payment later.`
+                        ? `Record an advance payment or deposit using the form below, then complete check-in. The outstanding balance is ${money(folio.balanceCents)}. You can also collect payment later.`
                         : "There is no outstanding balance. Complete check-in when the guest arrives."}</p>
                       {payments.some(p => p.paymentStatus === "PENDING") && <p>Payment is pending and has not been received yet. Check payment status below; check-in does not mark it paid.</p>}
                       <Btn disabled={busy} onClick={() => run(async () => {
@@ -1589,7 +1609,9 @@ export default function HotelPage() {
                       folio.reservation.status,
                     ) && (
                       <>
-                        <h4 id="hotel-payment-form">Collect Payment / Deposit</h4>
+                        <h4 id="hotel-payment-form">{folio.reservation.status === "CONFIRMED" ? "Advance Payment / Deposit" : "Collect Payment / Deposit"}</h4>
+                        <p>Enter the amount received in advance, up to the outstanding balance of {money(folio.balanceCents)}. A smaller deposit leaves the remainder due at checkout.</p>
+                        <Btn small variant="secondary" disabled={busy || folio.balanceCents <= 0} onClick={() => { setPayment({ ...payment, amount: String(folio.balanceCents / 100) }); setRequestId(crypto.randomUUID()); }}>Use Full Balance</Btn>
                         {payments.some(p => p.paymentStatus === "PENDING") && (
                           <div role="status">
                             <p>An existing payment request is pending. Complete that payment, or cancel an uninitiated request below before collecting another payment.</p>
@@ -1627,6 +1649,7 @@ export default function HotelPage() {
                             type="number"
                             step="0.01"
                             min="0.01"
+                            max={folio.balanceCents / 100}
                             value={payment.amount}
                             onChange={(e) => {
                               setPayment({

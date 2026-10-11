@@ -54,6 +54,25 @@ class HotelServiceTest {
     }
     @AfterTest fun cleanup() { org.koin.core.context.stopKoin() }
     private fun booking(room: String = roomId, start: Int=0, end: Int=2, guests: Int=1) = HotelReservationRequest(room,"Jane Guest",guestPhone="254700000001",guests=guests,arrival=date(start),departure=date(end))
+    @Test fun `completed and cancelled stays remain available for report history with their folios`() {
+        val completed = service.saveReservation("business", "actor", null, booking())
+        service.payment("business", "actor", completed.id, HotelPaymentRequest(20_000, "CASH", key()))
+        service.transition("business", "actor", completed.id, "CHECK_IN")
+        service.transition("business", "actor", completed.id, "CHECK_OUT")
+        // A late checkout and an early cancellation must appear by closure date,
+        // even when the original stay dates do not overlap the report period.
+        transaction { HotelReservations.update({ HotelReservations.id eq completed.id }) {
+            it[arrival] = LocalDate.parse(date(-3)); it[departure] = LocalDate.parse(date(-1))
+        } }
+        val cancelled = service.saveReservation("business", "actor", null, booking().copy(arrival = date(5), departure = date(7)))
+        service.transition("business", "actor", cancelled.id, "CANCEL")
+        val history = service.dashboard("business", "actor", date(0), date(3)).reservations.associateBy { it.id }
+        assertEquals("CHECKED_OUT", history.getValue(completed.id).status)
+        assertEquals("CANCELLED", history.getValue(cancelled.id).status)
+        assertEquals(20_000L, service.folio("business", "actor", completed.id).totalPaidCents)
+        assertEquals(0L, service.folio("business", "actor", cancelled.id).balanceCents)
+        assertEquals(20_000L, service.report("business", "actor", date(0), date(3)).collectedCents)
+    }
     @Test fun `overlaps and capacity are rejected while departure day may be rebooked`() {
         service.saveReservation("business","actor",null,booking())
         assertFailsWith<IllegalArgumentException> { service.saveReservation("business","actor",null,booking(start=1,end=3)) }

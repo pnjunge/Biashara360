@@ -249,7 +249,16 @@ class HotelService(private val audit: AuditLogService? = null) {
     fun removeBlock(b: String, actor: String, id: String) = mutate(b, actor, "HOTEL_ROOM_BLOCK_REMOVED") { require(HotelRoomBlocks.deleteWhere { (HotelRoomBlocks.businessId eq b) and (HotelRoomBlocks.id eq id) } == 1) { "Block not found" }; true }
     fun dashboard(b: String, actor: String, a: String, d: String) = mutate(b, actor, "HOTEL_DASHBOARD_VIEWED") {
         val (start, end) = range(a, d)
-        val stays = HotelReservations.select { (HotelReservations.businessId eq b) and (HotelReservations.arrival less end) and (HotelReservations.departure greater start) or ((HotelReservations.businessId eq b) and (HotelReservations.status eq "CHECKED_IN")) }.orderBy(HotelReservations.arrival).toList()
+        val zone = TimeZone.of("Africa/Nairobi")
+        val stays = HotelReservations.select {
+            (HotelReservations.businessId eq b) and (
+                ((HotelReservations.arrival less end) and (HotelReservations.departure greater start)) or
+                (HotelReservations.status eq "CHECKED_IN") or
+                ((HotelReservations.status inList listOf("CHECKED_OUT", "CANCELLED", "NO_SHOW")) and
+                    (HotelReservations.updatedAt greaterEq start.atStartOfDayIn(zone)) and
+                    (HotelReservations.updatedAt less end.atStartOfDayIn(zone)))
+            )
+        }.orderBy(HotelReservations.arrival).toList()
         stays.forEach { syncPayments(b, it[HotelReservations.id]) }
         HotelDashboard(HotelRoomTypes.select { HotelRoomTypes.businessId eq b }.map(::typeResponse), HotelRooms.select { HotelRooms.businessId eq b }.orderBy(HotelRooms.number).map { roomResponse(it, available(b, it[HotelRooms.id], start, end)) }, stays.map { folioInternal(b, it[HotelReservations.id]).reservation }, HotelRoomBlocks.select { (HotelRoomBlocks.businessId eq b) and (HotelRoomBlocks.arrival less end) and (HotelRoomBlocks.departure greater start) }.map { HotelBlockResponse(it[HotelRoomBlocks.id], it[HotelRoomBlocks.roomId], it[HotelRoomBlocks.arrival].toString(), it[HotelRoomBlocks.departure].toString(), it[HotelRoomBlocks.reason], it[HotelRoomBlocks.bookingSource]) })
     }
