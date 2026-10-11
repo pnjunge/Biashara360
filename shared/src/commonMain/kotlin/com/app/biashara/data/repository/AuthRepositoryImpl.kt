@@ -29,6 +29,7 @@ class AuthRepositoryImpl(
         val loginData = response.data
         if (!loginData.requiresOtp) {
             tokenStorage.saveTokens(loginData.accessToken ?: "", loginData.refreshToken ?: "")
+            client.clearCachedBearerTokens()
             refreshSessionTimeoutPolicy()
             loginData.user?.let { user -> setSessionUser(user) }
         }
@@ -61,6 +62,7 @@ class AuthRepositoryImpl(
 
         val authData = response.data
         tokenStorage.saveTokens(authData.accessToken, authData.refreshToken)
+        client.clearCachedBearerTokens()
         refreshSessionTimeoutPolicy()
 
         // Populate UserSession with the full user
@@ -98,6 +100,7 @@ class AuthRepositoryImpl(
             client.post("$BASE_URL/auth/logout")
         } catch (_: Exception) { /* best-effort */ }
         tokenStorage.clearTokens()
+        client.clearCachedBearerTokens()
         com.app.biashara.data.offline.NativeOffline.store?.clearUser()
         UserSession.clearUser()
     }
@@ -115,6 +118,7 @@ class AuthRepositoryImpl(
             ?: throw Exception(response.message.ifBlank { "Session expired. Please sign in again." })
         if (!response.success) throw Exception(response.message.ifBlank { "Session expired. Please sign in again." })
         tokenStorage.saveTokens(authData.accessToken, authData.refreshToken)
+        client.clearCachedBearerTokens()
         refreshSessionTimeoutPolicy()
         setSessionUser(authData.user)
         authData.accessToken
@@ -185,6 +189,7 @@ class AuthRepositoryImpl(
                     return@fold
                 }
                 tokenStorage.clearTokens()
+                client.clearCachedBearerTokens()
                 tokenStorage.clearBiometricSession()
                 throw Exception("Your saved session has expired. Please sign in again.")
             }
@@ -204,6 +209,7 @@ class AuthRepositoryImpl(
         val loginData = response.data
         if (!loginData.requiresOtp) {
             tokenStorage.saveTokens(loginData.accessToken ?: "", loginData.refreshToken ?: "")
+            client.clearCachedBearerTokens()
             refreshSessionTimeoutPolicy()
             loginData.user?.let { user -> setSessionUser(user) }
         }

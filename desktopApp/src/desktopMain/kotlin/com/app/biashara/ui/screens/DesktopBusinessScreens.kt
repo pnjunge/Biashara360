@@ -470,7 +470,7 @@ private fun DesktopWebWorkflow(title: String, description: String, path: String)
 
 @Composable
 fun DesktopHotelRoomsScreen(navigationViewModel: DesktopNavigationViewModel = remember { inject() }) {
-    DesktopWebWorkflow("Hotel & Rooms", "Rooms, reservations and guest stays", "hotel")
+    DesktopHotelScreen()
 }
 
 @Composable

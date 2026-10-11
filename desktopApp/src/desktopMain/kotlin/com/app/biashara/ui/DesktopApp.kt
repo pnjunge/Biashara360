@@ -517,6 +517,14 @@ fun Biashara360DesktopAppContent(
             .onSuccess { hospitalityEnabled = it.success && it.data?.enabled == true }
         if (access?.allows("DASHBOARD") == true) dashboardViewModel.loadDashboard()
         runCatching { refreshSessionIdleTimeout(client)?.let { tokenStorage.saveSessionIdleTimeoutSeconds(it) } }
+        // Keep granted/revoked menus current while the desktop remains signed in.
+        while (isActive) {
+            delay(30_000)
+            runCatching { client.get("$BASE_URL/access/me").body<ApiResponse<NativeAccess>>() }
+                .onSuccess { result -> if (result.success && result.data != null) NativeAccessSession.set(requireNotNull(result.data)) }
+            runCatching { client.get("$BASE_URL/hospitality/status").body<ApiResponse<HospitalityStatus>>() }
+                .onSuccess { hospitalityEnabled = it.success && it.data?.enabled == true }
+        }
     }
     fun canOpen(screen: AppScreen): Boolean {
         val menu = desktopMenu(screen)
